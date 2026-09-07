@@ -12,7 +12,11 @@
    */
   import { useCascade } from "./cascade.svelte";
 
-  let { children }: { children: Snippet } = $props();
+  let {
+    children,
+    /** A prose block rather than a token on a row's line. */
+    block = false,
+  }: { children: Snippet; block?: boolean } = $props();
 
   const cascade = useCascade();
   const at = cascade?.take(1)[0];
@@ -21,7 +25,9 @@
 {#if at === undefined}
   {@render children()}
 {:else}
-  <span class="reveal" style="--d:{at}ms">{@render children()}</span>
+  <span class="reveal" style="--d:{at}ms" class:block={block}
+    >{@render children()}</span
+  >
 {/if}
 
 <style>
@@ -29,9 +35,12 @@
      than a shared import: a streamed paragraph mounts one span per word, and
      wrapping each of those in a component to share ten lines of CSS is the kind
      of tidiness that shows up in a profile. */
+  .reveal.block {
+    display: block;
+  }
   .reveal {
     display: inline-flex;
-    animation: reveal var(--word-ms) var(--word-ease) var(--d) both;
+    animation: reveal var(--word-ms) var(--word-ease) var(--d) backwards;
   }
   @keyframes reveal {
     from {

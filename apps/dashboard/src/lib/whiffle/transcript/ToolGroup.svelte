@@ -8,6 +8,8 @@
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte convention for a component group.
   import * as Collapsible from "$lib/components/ui/collapsible";
   import { IconChevronRight } from "$lib/icons";
+  import Reveal from "$lib/whiffle/motion/Reveal.svelte";
+  import Stream from "$lib/whiffle/motion/Stream.svelte";
   /**
    * A run of tool calls as rail-led rows — never a nested card. The rail is a
    * 2px stripe; each row is a glyph, the verb, a mono argument, and whatever the
@@ -120,19 +122,21 @@
     {@const result = resultText(m.metadata?.toolResult)}
     {@const hasBody = fields.length > 0 || !!result}
     {#snippet line()}
-      <span class="ic" class:err={failed}><Icon /></span>
+      <span class="ic" class:err={failed}
+        ><Reveal><Icon /></Reveal></span
+      >
       {#if d.label}
-        <span class="tk">{d.label}</span>
+        <span class="tk"><Stream text={d.label} /></span>
       {/if}
       <span
         class="arg"
         title={[d.object, d.detail].filter(Boolean).join(' ') || undefined}
       >
         {#if d.object}
-          {d.object}
+          <Stream text={d.object} />
         {/if}
         {#if d.detail}
-          <span class="tail"> {d.detail}</span>
+          <span class="tail"><Stream text=" {d.detail}" /></span>
         {/if}
       </span>
       {#if d.chip}

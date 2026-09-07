@@ -128,7 +128,12 @@ export const ARRIVAL: Arrival = {
   contentMs: 220,
   contentEase: "eIn",
   risePx: 2,
-  blurPx: 3,
+  /* Zero, and it has to be. The row's blur is applied to the whole body — the
+     avatar and the name with it — and those are not content arriving, they are
+     the label on the row. The words do their own resolving now; a blur over
+     the top of them was smearing the one part of the row that should simply
+     be there. The dial stays for the lab. */
+  blurPx: 0,
   /* Wide, for a burst: four rows landing together stay four events. */
   staggerMs: 140,
   /* A tight front and a long soft fade behind it: slots are handed out over
@@ -166,6 +171,11 @@ export const arrivalVars = (a: Arrival): string =>
     `--content-ease:${easing(a.contentEase)}`,
     `--rise:${a.risePx}px`,
     `--enter-blur:${a.blurPx}px`,
+    `--word-spread:${a.wordSpreadMs}ms`,
+    // The per-token step for prose, where the renderer's own spans are what
+    // gets staggered and whitespace counts as a token — so half the cadence a
+    // row's pieces get.
+    `--word-step:${(a.wordSpreadMs / 16).toFixed(1)}ms`,
     `--word-ms:${a.wordFadeMs}ms`,
     `--word-blur:${a.wordBlurPx}px`,
     `--word-ease:${easing(a.wordEase)}`,

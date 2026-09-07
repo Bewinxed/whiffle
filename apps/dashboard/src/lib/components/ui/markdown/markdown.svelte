@@ -6,12 +6,25 @@
   } from "svelte-streamdown";
   import OutputBlock from "$lib/components/features/tool-cards/OutputBlock.svelte";
   import { PROSE } from "$lib/prose";
+  import { ARRIVAL } from "$lib/whiffle/motion/arrival";
 
   let {
     source,
     invert = false,
     streaming = false,
-  }: { source: string; invert?: boolean; streaming?: boolean } = $props();
+    /**
+     * Render the words as spans so they can resolve one at a time. Streamdown
+     * only does that when it is NOT in static mode, so a settled message that
+     * is arriving on screen has to opt in — otherwise the reveal would only
+     * ever apply to text that happened to be streaming.
+     */
+    animated = false,
+  }: {
+    source: string;
+    invert?: boolean;
+    streaming?: boolean;
+    animated?: boolean;
+  } = $props();
 
   // Streamdown's stock themes hardcode a Tailwind palette (bg-gray-100,
   // text-blue-600, marker:hidden) that would out-shout PROSE. Blank every
@@ -56,12 +69,32 @@
   };
 </script>
 
+<!-- Word-level reveal for prose. Streamdown already splits a text node into
+     one span per word and animates each on mount — the same shape `Stream`
+     produces for the rest of a row, so the transcript does not need two
+     implementations and this file does not need to know about the row's clock.
+     What it cannot do is stagger them, which `MessageBody` adds in CSS off the
+     span's own position. Blur, because that is what hides the seam where a
+     streamed chunk meets the text already on screen.
+
+     `enabled` is tied to `animated` rather than left on: streamdown also
+     blurs whole BLOCKS in — code, images, alerts — and that one is gated on
+     nothing but its own mount, not on `static`. Left on, every code block in
+     the history blurred itself in on every page load. -->
 <Streamdown
+  animation={{
+    enabled: animated,
+    animateOnMount: animated,
+    type: 'blur',
+    duration: ARRIVAL.wordFadeMs,
+    timingFunction: 'ease-out',
+    tokenize: 'word',
+  }}
   class="{PROSE} {invert ? 'prose-invert' : ''}"
   content={source}
   controls={{ mermaid: false, table: false }}
   mergeTheme={false}
-  static={!streaming}
+  static={!(streaming || animated)}
   theme={PLAIN}
 >
   <!-- A fence is code, and the console has one surface for code: the same well a

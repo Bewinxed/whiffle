@@ -10,6 +10,10 @@
   import { Virtualizer } from "virtua/svelte";
   import { browser } from "$app/environment";
   import { describeTool } from "$lib/components/features/tool-cards/descriptors";
+  import Arrival from "$lib/whiffle/motion/Arrival.svelte";
+  import { ARRIVAL, arrivalVars } from "$lib/whiffle/motion/arrival";
+  import Reveal from "$lib/whiffle/motion/Reveal.svelte";
+  import Stream from "$lib/whiffle/motion/Stream.svelte";
   import type { SessionState } from "../client.svelte";
   import { rebuildScheduler } from "../workspace/scheduler.svelte";
   import CatchUp from "./CatchUp.svelte";
@@ -459,6 +463,63 @@
    * yields to the reader two ways — `atBottom` going false ends it, and any
    * scroll event that is not its own tagged write ends it in `onscroll`.
    */
+  /**
+   * THE ARRIVAL GLUE.
+   *
+   * A row now opens its own height, which means `scrollHeight` grows for the
+   * length of the animation. The teleprompter below moves at a pace of its own
+   * choosing — 360px/s, or fast enough to close the gap in 400ms — and a pace
+   * chasing a target that is itself still moving is two animations arguing
+   * about where the bottom is. On screen that reads as the transcript
+   * shivering while the row lands, and the row's own motion never being seen.
+   *
+   * So for exactly as long as a row is opening, the follow is not paced at all:
+   * the viewport is pinned to the bottom and the row's growth is what moves it.
+   * The scroll and the animation become one motion, at the animation's rate,
+   * because there is only one of them left. The pace comes back the moment the
+   * space is open, for the streaming that follows.
+   */
+  let opening = 0;
+  let gluing: number | null = null;
+
+  function glue(): void {
+    if (gluing !== null) {
+      return;
+    }
+    const tick = (): void => {
+      if (!(scroller && atBottom && opening > 0)) {
+        gluing = null;
+        return;
+      }
+      const bottom = scroller.scrollHeight - scroller.clientHeight;
+      if (scroller.scrollTop < bottom) {
+        scroller.scrollTop = bottom;
+        lastWrite = scroller.scrollTop;
+      }
+      gluing = requestAnimationFrame(tick);
+    };
+    gluing = requestAnimationFrame(tick);
+  }
+
+  /** Svelte scopes keyframe names, so the row's opening is matched by suffix. */
+  const isOpening = (name: string): boolean => name.endsWith("reserve");
+
+  function onanimationstart(event: AnimationEvent): void {
+    if (!isOpening(event.animationName)) {
+      return;
+    }
+    opening += 1;
+    // The paced loop and the glue must never both be writing scrollTop.
+    stopFollow();
+    glue();
+  }
+
+  function onanimationend(event: AnimationEvent): void {
+    if (isOpening(event.animationName)) {
+      opening = Math.max(0, opening - 1);
+    }
+  }
+
   const FOLLOW_SPEED = 360; // px/s — a calm reading pace
   function followBottom(): void {
     if (!scroller) {
@@ -701,40 +762,240 @@
   const seen = new Set<string>();
 
   /**
-   * Per-row enter action. The guard decides WHETHER to animate; CSS does the
-   * actual motion. Adding `.entering` starts two CSS animations on the wrapper:
+   * Which rows draw a rail, and which of them continue the one above.
    *
-   * 1. `row-open` — the wrapper grows from `max-height: 0` to a generous
-   *    ceiling, clipped by `overflow: hidden`. This is the container scaling
-   *    vertically — the content below does not jump.
-   * 2. `row-slide` — the first child slides up from `translateY(20px)` with
-   *    `opacity: 0`, arriving into the space the wrapper just opened. Because
-   *    the wrapper clips, nothing overlaps above.
-   *
-   * The class is removed on `animationend` so the row returns to its normal
-   * `display: block` flow and virtua's measurements are unaffected.
+   * The rail is painted per row, because rows are virtualised siblings and
+   * there is no element spanning a run to hang one line on. Consecutive rail
+   * rows therefore have to abut and paint the continuation weight rather than
+   * each restarting the head gradient — otherwise a run reads as a stack of
+   * stubs, which is exactly how the in-flight tool looked against the
+   * completed calls above it.
    */
-  function enterMotion(node: HTMLElement, key: string) {
-    const fresh = landed && atBottom && !seen.has(key);
-    seen.add(key);
-    if (!fresh) {
-      return;
+  const NO_RAIL = new Set([
+    "user",
+    "assistant",
+    "user.peer",
+    "ui.command_output",
+    "ui.error",
+    "ui.session_error",
+    "result.error",
+  ]);
+
+  function railLed(row: Row): boolean {
+    if (row.kind === "single") {
+      return !NO_RAIL.has(row.message.type);
     }
-    node.classList.add("entering");
-    const done = () => {
-      node.classList.remove("entering");
-      node.removeEventListener("animationend", done);
-    };
-    node.addEventListener("animationend", done);
-    return {
-      destroy() {
-        node.classList.remove("entering");
-        node.removeEventListener("animationend", done);
-        if (key.startsWith("stream:")) {
-          seen.delete(key);
-        }
-      },
-    };
+    return (
+      row.kind === "tools" ||
+      row.kind === "harness" ||
+      row.kind === "thinking" ||
+      row.kind === "livetool" ||
+      row.kind === "subagent" ||
+      row.kind === "delegate"
+    );
+  }
+
+  /**
+   * A row the ledger emits but never paints: a successful result, an assistant
+   * frame that carried nothing but a tool call, a thinking block with no text.
+   * `MessageRow` renders nothing for these, so they stand between two rail rows
+   * at zero height — adjacent on screen, one apart in the list. Reading the
+   * list literally is why a run of tool calls kept drawing its line in
+   * disconnected stubs.
+   */
+  function unpainted(row: Row): boolean {
+    if (row.kind !== "single") {
+      return false;
+    }
+    const m = row.message;
+    if (m.type === "result.success") {
+      return true;
+    }
+    return (
+      (m.type === "assistant" || m.type === "thinking") && !m.content.trim()
+    );
+  }
+
+  /** Keys of rows whose line is the same line as the row above them ON SCREEN. */
+  const continued = $derived.by(() => {
+    const keys = new Set<string>();
+    const list = built.rows;
+    for (let i = 1; i < list.length; i++) {
+      if (!railLed(list[i])) {
+        continue;
+      }
+      let above = i - 1;
+      while (above >= 0 && unpainted(list[above])) {
+        above -= 1;
+      }
+      if (above >= 0 && railLed(list[above])) {
+        keys.add(list[i].key);
+      }
+    }
+    return keys;
+  });
+
+  /**
+   * Whether a row is ARRIVING, decided once per row and never revisited.
+   *
+   * The animation itself is `Arrival` — the same component the /motion lab
+   * tunes, with the same storyboard and the same tuned values. Nothing about
+   * the motion lives here any more; this decides only whether a given row is
+   * an arrival at all. Virtua mounts and unmounts rows as they cross the
+   * viewport, so a row is fresh only if the transcript has landed, is
+   * following the tail, and has never shown this key before.
+   */
+  /**
+   * ROWS SHARE A CLOCK TOO.
+   *
+   * Rows do not arrive in a burst the way a chunk of words does — each one is
+   * its own frame off the socket, milliseconds apart. Left alone every row
+   * therefore starts its storyboard the instant it mounts, and three tool
+   * calls landing in quick succession play the same animation over the top of
+   * each other. So arrivals queue on one clock, exactly as the pieces inside a
+   * row do: a row lands no sooner than `staggerMs` after the one before it,
+   * and a run cascades.
+   *
+   * The queue is bounded. Past `CATCH_UP` rows deep it collapses to nothing —
+   * a hundred rows replaying history one at a time is a slideshow, and the
+   * reader is waiting on it.
+   */
+  const CATCH_UP = 4;
+  let nextRow = 0;
+
+  function leadFor(): number {
+    const now = performance.now();
+    const from = Math.max(nextRow, now);
+    const wait = from - now;
+    if (wait > ARRIVAL.staggerMs * CATCH_UP) {
+      nextRow = now + ARRIVAL.staggerMs;
+      return 0;
+    }
+    nextRow = from + ARRIVAL.staggerMs;
+    return wait;
+  }
+
+  /**
+   * Decided once per row, and it decides two things at once: whether this row
+   * is arriving at all, and if it is, its place in the queue. Both have to be
+   * answered on the row's first render — virtua re-renders the same row as it
+   * crosses the viewport, and a second answer would restart a running
+   * animation or hand out a second slot.
+   */
+  const decided = new Map<string, { fresh: boolean; lead: number }>();
+
+  /**
+   * How many rows may appear at once and still be an ARRIVAL rather than a
+   * LOAD. A turn puts a handful of rows on the ledger — a reply, its tools, a
+   * note. History puts down dozens.
+   */
+  const BULK = 8;
+  /** How close to the end a row must be to be arriving at the end. */
+  const TAIL = 3;
+
+  /**
+   * How long after landing the transcript stays silent.
+   *
+   * Landing is not one event — history can arrive in several chunks, a tab
+   * switch re-mounts a pane, a catch-up appends behind the reader. Each of
+   * those is a small enough append to look exactly like a message arriving,
+   * which is how opening a conversation came to play its last few rows in as
+   * if they had just been said. Nothing animates until the transcript has been
+   * still for this long; a real message is always further away than that.
+   */
+  const SETTLE_MS = 700;
+  let landedAt = 0;
+
+  $effect(() => {
+    if (landed && landedAt === 0) {
+      landedAt = performance.now();
+    }
+  });
+
+  /**
+   * Whether the transcript was streaming as of the last flush.
+   *
+   * A turn ends by REPLACING the streaming row with a settled one under a
+   * different key, so the settled row looks like a brand new arrival — and
+   * re-revealed a message the reader had just watched arrive word by word:
+   * full, then gone, then back again. Effects run after render, so during the
+   * render that performs the swap this still holds the previous frame's
+   * answer, which is the one worth asking.
+   */
+  let wasStreaming = false;
+  $effect(() => {
+    wasStreaming = built.rows.some((r) => r.kind === "stream");
+  });
+
+  let counted = 0;
+  /**
+   * Whether the last change to the list was history landing rather than a
+   * message arriving.
+   *
+   * This is the difference between a transcript that animates when a message
+   * comes in and one that animates every time you open it. `landed` alone
+   * cannot tell them apart: a session that finishes loading with nothing in it
+   * lands immediately, and then its entire history arrives AFTER the landing
+   * with every key unseen — which is a refresh, or a tab switch, playing the
+   * whole conversation in as if it had just been said.
+   */
+  const bulk = $derived.by(() => {
+    const n = built.rows.length;
+    const grew = n - untrack(() => counted);
+    untrack(() => {
+      counted = n;
+    });
+    return grew > BULK;
+  });
+
+  function enter(row: Row): { fresh: boolean; lead: number } {
+    const key = row.key;
+    const known = decided.get(key);
+    if (known) {
+      return known;
+    }
+    const list = built.rows;
+    const atTail = list.findIndex((r) => r.key === key) >= list.length - TAIL;
+    // The settled half of a turn that just finished streaming. Its words are
+    // already on screen; revealing them again is not an arrival, it is a
+    // flicker.
+    const settling =
+      wasStreaming && row.kind === "single" && row.message.type === "assistant";
+    const settled = landedAt > 0 && performance.now() - landedAt > SETTLE_MS;
+    // Measured here, not read off `atBottom`. That flag is recomputed by
+    // `onscroll` against a 120px threshold, and sending a message resizes the
+    // composer — which changes this scroller's padding, and its scrollHeight,
+    // in the same breath as the row lands. The flag could therefore be false
+    // for reasons that have nothing to do with where the reader is looking,
+    // and a row that drew the short straw was decided as history for good.
+    // A reader within a screenful of the end is at the end.
+    const reach = scroller
+      ? scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight
+      : Number.POSITIVE_INFINITY;
+    const nearTail = atBottom || (!!scroller && reach < scroller.clientHeight);
+    const fresh =
+      landed &&
+      settled &&
+      nearTail &&
+      atTail &&
+      !bulk &&
+      !settling &&
+      !seen.has(key);
+    seen.add(key);
+    const answer = { fresh, lead: fresh ? leadFor() : 0 };
+    decided.set(key, answer);
+    if (fresh) {
+      // A row arrives ONCE. Virtua mounts and unmounts rows as they cross the
+      // viewport, and the answer cached here outlives the component that asked
+      // for it — so without this the same row played its arrival again every
+      // time it was scrolled back into view, or the tab was returned to, with
+      // whatever place in the queue it had the first time. The current render
+      // has already read the answer by the time this runs.
+      queueMicrotask(() => {
+        answer.fresh = false;
+      });
+    }
+    return answer;
   }
 
   // Seed every key already present before the transcript lands on its latest
@@ -889,8 +1150,11 @@
 <div
   aria-label="Session transcript"
   class="tr"
+  {onanimationend}
+  {onanimationstart}
   {onscroll}
   role="log"
+  style={arrivalVars(ARRIVAL)}
   bind:this={scroller}
 >
   <!-- Pinned to the top of the transcript viewport (the foot is the composer's),
@@ -929,7 +1193,15 @@
     bind:this={list}
   >
     {#snippet children(row)}
-      <div class="renter" use:enterMotion={row.key}>
+      {@const landing = enter(row)}
+      <Arrival
+        continues={continued.has(row.key)}
+        lead={landing.lead}
+        opens={railLed(row)}
+        owns={false}
+        params={ARRIVAL}
+        still={!landing.fresh}
+      >
         {#if row.kind === 'single'}
           <MessageRow {agentName} message={row.message} />
         {:else if row.kind === 'tools'}
@@ -955,19 +1227,21 @@
           {@const d = describeTool(row.glance.name, undefined, undefined, 'pending')}
           {@const LiveIcon = d.icon}
           <div class="livetool">
-            <span class="ic breathe {d.color}"><LiveIcon /></span>
+            <span class="ic breathe {d.color}"
+              ><Reveal><LiveIcon /></Reveal></span
+            >
             <!-- The same anatomy the settled ToolGroup row has: the descriptor's
                  verb, then the mono argument, the verb omitted where the object
                  is the whole sentence. Printing `glance.name` here and `d.label`
                  once it settled changed the call's vocabulary the instant it
                  completed. -->
             {#if d.label}
-              <span class="tk">{d.label}</span>
+              <span class="tk"><Stream text={d.label} /></span>
             {/if}
-            <span class="arg">{row.glance.glance}</span>
+            <span class="arg"><Stream text={row.glance.glance} /></span>
           </div>
         {/if}
-      </div>
+      </Arrival>
     {/snippet}
   </Virtualizer>
   <!-- Under the last row, inside the scroller, from the switch until the
@@ -1155,30 +1429,6 @@
     }
   }
 
-  /* Per-row enter wrapper. Virtua measures the row at its natural height
-     BEFORE the animation starts, so `max-height` tricks fight the virtualizer.
-     The animation plays on the wrapper itself: content slides up and fades in
-     within the space virtua already allocated. The scroll follow moves the
-     viewport down as the row appears, which is what "space opens then content
-     arrives" looks like to the reader — the viewport shift IS the space
-     opening; the slide IS the content arriving into it. */
-  .renter {
-    display: block;
-  }
-  @media (prefers-reduced-motion: no-preference) {
-    .renter.entering {
-      animation: row-enter var(--c-300, 220ms)
-        var(--e-in, cubic-bezier(0.16, 1, 0.3, 1)) both;
-    }
-  }
-  @keyframes row-enter {
-    from {
-      opacity: 0;
-      transform: translateY(16px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
+  /* No per-row enter CSS here. The row wrapper IS `Arrival` — one storyboard,
+     one implementation, tuned on /motion. */
 </style>

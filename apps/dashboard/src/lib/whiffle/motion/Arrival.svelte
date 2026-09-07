@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Snippet } from "svelte";
+  import { type Snippet, untrack } from "svelte";
   /**
    * One row landing on the ledger, per the ARRIVAL storyboard in `arrival.ts`.
    *
@@ -35,12 +35,39 @@
     /** Draw a rail beside this row. A turn has no line; a note or tool has. */
     rail = false,
     /**
+     * Whether this row OPENS a space for itself, or simply resolves into the
+     * space it already has.
+     *
+     * Opening is what extends the rail, and it is right for a row that is a
+     * line or two tall. It is wrong for a tall one: the reader is pinned to
+     * the bottom while it opens, so a 300px row makes the viewport travel
+     * 300px in the length of the animation — a lurch that hides the very
+     * motion it was meant to show. Rows that own a rail open; turns do not.
+     */
+    opens = true,
+    /**
      * This row continues the rail above it, so it opens flush against it and
      * the two segments read as one line growing — never as a second line.
      */
     continues = false,
-    /** Position in the burst: the row's whole storyboard is pushed back by it. */
-    index = 0,
+    /**
+     * How long this row waits before its storyboard starts. Rows landing
+     * together share one clock, so a run of them cascades instead of each
+     * playing the same animation over the top of the last.
+     */
+    lead = 0,
+    /**
+     * This row is not arriving — it is history being scrolled past, or the
+     * transcript is not following the tail. It renders as plain content: no
+     * animation, and no clock, so nothing inside it reveals either.
+     */
+    still = false,
+    /**
+     * Whether this component owns the row's top margin. False where the row's
+     * own component already carries the ledger's rhythm, which is every row in
+     * the transcript.
+     */
+    owns = true,
     /** Hold the storyboard at this instant instead of playing it. */
     at,
   }: {
@@ -48,12 +75,22 @@
     params?: Arrival;
     rail?: boolean;
     continues?: boolean;
-    index?: number;
+    opens?: boolean;
+    lead?: number;
+    still?: boolean;
+    owns?: boolean;
     at?: number;
   } = $props();
 
+  /**
+   * Captured once, deliberately. Whether a row is arriving is decided the
+   * moment it mounts; a virtualiser that re-renders the same row later must
+   * not be able to re-open a question that was already answered, or the class
+   * changes out from under a running animation.
+   */
+  const animates = !untrack(() => still);
+
   const vars = $derived(arrivalVars(params));
-  const lead = $derived(index * params.staggerMs);
   /** Rows only lift if there is something to lift by. */
   const lifts = $derived(params.risePx > 0 || params.blurPx > 0);
 
@@ -63,10 +100,12 @@
    * starts once the space has begun opening, which is what `contentDelayMs`
    * measures.
    */
-  provideCascade(
-    () => params.wordSpreadMs,
-    () => params.contentDelayMs + lead
-  );
+  if (animates) {
+    provideCascade(
+      () => params.wordSpreadMs,
+      () => params.contentDelayMs + lead
+    );
+  }
 
   let node = $state<HTMLElement>();
 
@@ -80,6 +119,9 @@
   /** The instant, bundled with the timing it is read against: tuning a dial
    *  re-seeks rather than leaving the playhead on the old timing's frame. */
   $effect(() => {
+    if (!animates) {
+      return;
+    }
     const t = at;
     const running = node?.getAnimations({ subtree: true }) ?? [];
     if (t === undefined) {
@@ -106,16 +148,26 @@
   });
 </script>
 
-<div
-  class="arrive"
-  style="{vars};--t0:{lead}ms;--gap:{continues ? '0px' : 'var(--space-4)'}"
-  bind:this={node}
-  class:rail={rail}
->
-  <div class="clip">
-    <div class="body" class:lift={lifts}>{@render children()}</div>
+{#if animates}
+  <div
+    class="arrive"
+    style="{vars};--t0:{lead}ms;--gap:{owns && !continues
+      ? 'var(--space-4)'
+      : '0px'}"
+    bind:this={node}
+    class:continues={continues}
+    class:opens={opens}
+    class:rail={rail}
+  >
+    <div class="clip">
+      <div class="body" class:lift={lifts}>{@render children()}</div>
+    </div>
   </div>
-</div>
+{:else}
+  <div class="arrive still" class:continues={continues}>
+    {@render children()}
+  </div>
+{/if}
 
 <style>
   .arrive {
@@ -123,7 +175,24 @@
     grid-template-rows: 1fr;
     position: relative;
     margin-top: var(--gap);
-    animation: reserve var(--reserve-ms) var(--reserve-ease) var(--t0) both;
+    animation: reserve var(--reserve-ms) var(--reserve-ease) var(--t0) backwards;
+  }
+  /* A row that is not arriving is a row: no box of its own, no motion. */
+  .arrive.still {
+    display: block;
+  }
+  /* This row's line is the line above it, so it abuts and paints the weight
+     the head gradient settles to rather than restarting it. */
+  /* The rail block is the row's own element, and it is at a different depth in
+     the two branches: directly under a settled row, under the clip and the
+     body while one is arriving. Aiming at `.arrive.continues > *` hit BOTH —
+     and on an arriving row that is `.clip`, which carries none of the rail's
+     `2px 100%` sizing, so the continuation gradient painted across the whole
+     row as a grey band. Each branch names its own child. */
+  .arrive.still.continues > :global(*),
+  .arrive.continues > .clip > .body > :global(*) {
+    margin-top: 0;
+    background-image: var(--rail-body);
   }
   /* The rail is a child of the row that is opening, so its 100% height is the
      space being reserved — it cannot draw past the edge it is opening. */
@@ -139,15 +208,12 @@
     background: var(--rail);
     transform-origin: top;
     animation: draw var(--rail-ms) var(--rail-ease)
-      calc(var(--t0) + var(--rail-delay)) both;
+      calc(var(--t0) + var(--rail-delay)) backwards;
   }
-  .clip {
-    overflow: hidden;
-    min-height: 0;
-  }
+
   .body.lift {
     animation: render var(--content-ms) var(--content-ease)
-      calc(var(--t0) + var(--content-delay)) both;
+      calc(var(--t0) + var(--content-delay)) backwards;
   }
   @keyframes reserve {
     from {

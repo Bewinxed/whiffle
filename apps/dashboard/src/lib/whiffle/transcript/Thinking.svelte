@@ -9,8 +9,37 @@
    * quiet toggle; a live one stays open so its tail keeps arriving in view.
    */
   import { IconChevronRight } from "$lib/icons";
+  import { ARRIVAL } from "$lib/whiffle/motion/arrival";
+  import Stream from "$lib/whiffle/motion/Stream.svelte";
 
   let { text, live = false }: { text: string; live?: boolean } = $props();
+
+  /**
+   * The reveal, run backwards. This row does not end, it is REPLACED — the
+   * block closes and whatever came of it takes this space. Without an exit the
+   * indicator was not leaving, it was being overwritten: one frame of
+   * "Thinking…", the next frame of an answer, in the same place, with nothing
+   * to say the first became the second.
+   *
+   * It lives on `.think` rather than on a wrapper in the transcript, because a
+   * wrapper is another element between the row and its rail, and the rule that
+   * makes a continuing row abut the line above it only reaches the rail block
+   * itself.
+   *
+   * Exit is faster than entry, on purpose. Waiting on something leaving is the
+   * one thing an animation must never make you do.
+   */
+  const LEAVE_MS = 160;
+
+  function unreveal(node: HTMLElement) {
+    const height = node.offsetHeight;
+    return {
+      duration: LEAVE_MS,
+      css: (t: number, u: number) =>
+        `opacity:${t};filter:blur(${u * ARRIVAL.wordBlurPx * 2}px);` +
+        `height:${t * height}px;overflow:hidden;`,
+    };
+  }
 
   let expanded = $state(false);
   let bodyEl = $state<HTMLElement | null>(null);
@@ -38,13 +67,9 @@
   });
 </script>
 
-<div class="think">
+<div class="think" out:unreveal>
   <div class="body" bind:this={bodyEl} class:clamp={clamped}>
-    {#if text}
-      {text}
-    {:else}
-      Thinking…
-    {/if}
+    <Stream text={text || 'Thinking…'} />
     {#if live}
       <span class="caret"></span>
     {/if}

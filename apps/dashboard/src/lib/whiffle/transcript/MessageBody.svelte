@@ -12,16 +12,80 @@
    * the typography plugin, so the root is restated here.
    */
   import { Markdown } from "$lib/components/ui/markdown";
+  import { useCascade } from "$lib/whiffle/motion/cascade.svelte";
 
   let { source, streaming = false }: { source: string; streaming?: boolean } =
     $props();
+
+  /**
+   * A clock above this component means the row is arriving, which is the only
+   * time the words need to be separable. History renders as plain text.
+   */
+  const arriving = !!useCascade();
+
+  /**
+   * Past this much text the words stop blurring and only fade.
+   *
+   * `filter` is per-element and the fade outlives the spread, so on a long
+   * message every word is blurring at the same moment — a hundred and twenty
+   * compositing layers for one paragraph, which is felt as lag on exactly the
+   * messages worth reading. The reveal itself stays: it is the blur that has
+   * to go, and at the tuned 1px it was the part nobody could see anyway.
+   */
+  const HEAVY = 500;
+  const heavy = $derived(source.length > HEAVY);
 </script>
 
-<div class="msg">
-  <Markdown {source} {streaming} />
+<div class="msg" class:plain={heavy}>
+  <Markdown animated={arriving} {source} {streaming} />
 </div>
 
 <style>
+  /* ---- The word reveal.
+     Streamdown emits one span per token with the animation inline; the delay
+     is ours, so prose resolves left to right like every other row rather than
+     every word at once. `sibling-index()` is what makes that possible without
+     a per-word component or a fork of the renderer — where it is missing the
+     words still resolve, just together. The cap keeps a long paragraph's tail
+     from queueing behind a delay that grows with its length.
+     The timing function needs `!important` because streamdown writes its own
+     inline, and inline beats a stylesheet. */
+  .msg.plain {
+    --word-blur: 0px;
+  }
+  .msg :global(.prose span[style*="sd-"]) {
+    animation-delay: var(--content-delay, 0ms);
+    animation-timing-function: var(--word-ease, ease-out) !important;
+    /* The renderer's own blur is a fixed 5px; this is the tuned one, so prose
+       resolves out of exactly the same haze as every other word in the
+       transcript. */
+    animation-name: msg-word !important;
+    /* Same reason as Stream's: a forwards fill would leave every word span
+       holding a filter, and a message is hundreds of them. Streamdown writes
+       the fill inline, so this has to shout. */
+    animation-fill-mode: backwards !important;
+  }
+  @keyframes msg-word {
+    from {
+      opacity: 0;
+      filter: blur(var(--word-blur, 1px));
+    }
+    to {
+      opacity: 1;
+      filter: blur(0);
+    }
+  }
+  @supports (animation-delay: calc(sibling-index() * 1ms)) {
+    .msg.plain {
+      --word-blur: 0px;
+    }
+    .msg :global(.prose span[style*="sd-"]) {
+      animation-delay: calc(
+        var(--content-delay, 0ms) +
+        min(sibling-index() * var(--word-step, 20ms), var(--word-spread, 330ms))
+      );
+    }
+  }
   .msg {
     font-size: var(--text-md);
     line-height: var(--leading-body);

@@ -2,6 +2,8 @@
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte convention for a component group.
   import * as Collapsible from "$lib/components/ui/collapsible";
   import { IconChevronRight, IconInfo, IconStop } from "$lib/icons";
+  import Reveal from "$lib/whiffle/motion/Reveal.svelte";
+  import Stream from "$lib/whiffle/motion/Stream.svelte";
   /**
    * The quiet ledger's non-turn lines: a command's output in a recessed well, a
    * system note folded on the rail, and a failure or refusal as a named card
@@ -72,8 +74,8 @@
     {#if harness.body}
       <Collapsible.Root bind:open>
         <Collapsible.Trigger class="ftrig hn">
-          <IconInfo />
-          <span class="ftitle">{harness.title}</span>
+          <Reveal><IconInfo /></Reveal>
+          <span class="ftitle"><Stream text={harness.title} /></span>
           {#if harness.status}
             <span class="hstatus" class:bad={harness.status === 'failed'}
               >{harness.status}</span
@@ -89,8 +91,8 @@
       <!-- Nothing to open, so nothing that looks openable: a chevron over an
            empty body is the dead disclosure the tool rows already refuse. -->
       <span class="hline">
-        <IconInfo />
-        <span class="ftitle">{harness.title}</span>
+        <Reveal><IconInfo /></Reveal>
+        <span class="ftitle"><Stream text={harness.title} /></span>
         {#if harness.status}
           <span class="hstatus" class:bad={harness.status === 'failed'}
             >{harness.status}</span
@@ -104,7 +106,7 @@
        "task done" with no reference to which task is a line that says nothing. -->
   <div class="note fold">
     <span class="hline">
-      <IconInfo />
+      <Reveal><IconInfo /></Reveal>
       <span class="tverb" class:bad={message?.content === 'task failed'}
         >{message?.content}</span
       >
@@ -120,8 +122,8 @@
        that happened TO the operator, not things they did. -->
   <div class="note fold">
     <span class="hline">
-      <IconStop />
-      <span class="ftitle">Interrupted</span>
+      <Reveal><IconStop /></Reveal>
+      <span class="ftitle"><Stream text="Interrupted" /></span>
     </span>
   </div>
 {:else if isFail}
@@ -157,8 +159,8 @@
        refusal the harness line and the tool rows already make. -->
   <div class="note fold">
     <span class="hline">
-      <IconInfo />
-      <span class="ftitle">{foldTitle}</span>
+      <Reveal><IconInfo /></Reveal>
+      <span class="ftitle"><Stream text={foldTitle} /></span>
     </span>
   </div>
 {/if}

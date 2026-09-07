@@ -277,7 +277,7 @@
               <Arrival
                 {at}
                 continues={continues(i)}
-                index={row.index}
+                lead={row.index * p.staggerMs}
                 params={p}
                 rail={railed(row.kind) && !linked}
               >

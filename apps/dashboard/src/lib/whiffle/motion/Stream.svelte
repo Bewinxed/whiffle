@@ -82,22 +82,33 @@
 
 <span class="stream"
   >{#each words as w, i (i)}
-    <span class="w" class:on={w.d !== undefined} style="--d:{w.d ?? 0}ms"
+    <span class="w" style="--d:{w.d ?? 0}ms" class:on={w.d !== undefined}
       >{w.t}</span
     >
   {/each}</span
 >
 
 <style>
+  /* No `white-space` here on purpose. It inherits, so the host decides: a
+     reasoning trace wraps on its own `pre-wrap`, a tool argument stays on one
+     line under its `nowrap` and keeps its ellipsis. Setting `pre-wrap` here
+     overrode that and every argument wrapped, which grew the rows and put a
+     scrollbar under the group. */
   .stream {
-    white-space: pre-wrap;
+    display: contents;
   }
   .w {
     display: inline;
   }
   @media (prefers-reduced-motion: no-preference) {
     .w.on {
-      animation: word var(--word-ms) var(--word-ease) var(--d) both;
+      /* `backwards`, never `both`. A forwards fill leaves every word holding
+         `filter: blur(0)` for the life of the row, which keeps each one on its
+         own compositing layer — hundreds of them per message, and Chrome
+         renders that as a faint wash over the text. Backwards holds the FIRST
+         keyframe through the delay, then hands the element back to its own
+         style with no filter at all. */
+      animation: word var(--word-ms) var(--word-ease) var(--d) backwards;
     }
   }
 

@@ -448,9 +448,19 @@
   );
   --scrim: oklch(from var(--neutral-12) l c h / 0.32);
   --scrim-soft: oklch(from var(--neutral-12) l c h / 0.06);
+  /* The rail's head fades to the body's own weight, not to nothing: a run of
+     rail rows is several elements each painting this, so a gradient that ran
+     to 0.06 left every block invisible at its foot and the next one starting
+     dark again — one line read as a stack of disconnected stubs. */
   --rail: linear-gradient(
     oklch(from var(--neutral-11) l c h / 0.58),
-    oklch(from var(--neutral-11) l c h / 0.06)
+    oklch(from var(--neutral-11) l c h / 0.28)
+  );
+  /* What a row paints when it CONTINUES the line above it: flat, at the weight
+     the head settles to, so the seam between two rail rows is not a seam. */
+  --rail-body: linear-gradient(
+    oklch(from var(--neutral-11) l c h / 0.28),
+    oklch(from var(--neutral-11) l c h / 0.28)
   );
 
   /* elevation — hue-shifted cool graphite, never rgba(0,0,0,·) */
@@ -609,7 +619,11 @@
   --scrim-soft: oklch(from var(--neutral-1) l c h / 0.3);
   --rail: linear-gradient(
     oklch(from var(--neutral-11) l c h / 0.55),
-    oklch(from var(--neutral-11) l c h / 0.08)
+    oklch(from var(--neutral-11) l c h / 0.3)
+  );
+  --rail-body: linear-gradient(
+    oklch(from var(--neutral-11) l c h / 0.3),
+    oklch(from var(--neutral-11) l c h / 0.3)
   );
 }
 
