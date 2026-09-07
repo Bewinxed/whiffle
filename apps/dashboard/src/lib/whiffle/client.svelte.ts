@@ -53,6 +53,7 @@ import {
 import type { SubagentState } from "$lib/utils/flow-types";
 import type { Activity } from "./activity";
 import { activityOf, runningSubagents } from "./activity";
+import { checkDeployToast } from "./deploy-toast";
 import type { ToolGlance } from "./frames";
 import {
   applyBranchEvent,
@@ -1091,6 +1092,7 @@ function handleFrame(frame: FramePayload): void {
     // unknown rather than as current.
     state.hubBuild =
       (frame as { hubBuild?: BuildInfo }).hubBuild ?? state.hubBuild;
+    checkDeployToast(state.hubBuild);
     return;
   }
 
