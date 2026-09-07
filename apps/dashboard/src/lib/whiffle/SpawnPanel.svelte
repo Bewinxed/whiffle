@@ -56,7 +56,7 @@
   import { inspectMachine } from "./fleet";
   import ModelCombobox from "./ModelCombobox.svelte";
   import {
-    describes,
+    describingRow,
     MODEL_DEFAULT,
     modelLabel,
     models,
@@ -170,9 +170,7 @@
   });
 
   /** The offered row for the model in the field, which is what carries its scale. */
-  const chosenModel = $derived(
-    models.forHarness(harness).find((row) => describes(row, model)) ?? null
-  );
+  const chosenModel = $derived(describingRow(model, harness));
   /**
    * The effort control is offered only when both halves are known to have one:
    * the harness, and the model. An unreported harness or a model nothing has

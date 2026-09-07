@@ -31,6 +31,7 @@ import type {
   EffortLevel,
   HarnessCapabilities,
   HarnessReport,
+  ModelInfo,
   NeutralMessage,
   NeutralSessionInfo,
   NeutralUserMessage,
@@ -1585,20 +1586,79 @@ export class ClaudeCustody implements HarnessSession {
   }
 }
 
+/**
+ * The model catalog this machine's Claude Code offers, asked of a throwaway
+ * `query()` rather than of a session.
+ *
+ * `supportedModels()` is a `Query` method, which is why this used to be asked
+ * of whatever session happened to be running — but a `Query` is not a session.
+ * One can be spawned to be asked and thrown away: `maxTurns: 0` with an empty
+ * prompt reaches no model and spends nothing, and `persistSession: false`
+ * leaves no session behind. Roughly a second, once per agent.
+ *
+ * A probe that fails answers `undefined`, not `[]`: a machine that cannot say
+ * what models it has is not a machine offering none, and the report keeps that
+ * difference (see {@link HarnessReport.models}). It never throws — a catalog it
+ * could not read is no reason for the machine to fail to report itself at all.
+ */
+async function probeModels(): Promise<ModelInfo[] | undefined> {
+  const handle = query({
+    prompt: "",
+    options: { maxTurns: 0, persistSession: false },
+  });
+  try {
+    return await handle.supportedModels();
+  } catch {
+    return undefined;
+  } finally {
+    // Tearing the child down takes longer than the answer did, and nothing
+    // waits on it — the catalog is already in hand.
+    // biome-ignore lint/complexity/noVoid: fire-and-forget by intent — disposal has no result anyone reads, and awaiting it would double how long `detect()` blocks
+    void handle.return().catch(() => {
+      // the child is going away regardless; a failure to close it politely is
+      // not something the report should carry
+    });
+  }
+}
+
 export class ClaudeHarness implements Harness {
   readonly kind = "claude" as const;
   readonly capabilities = CLAUDE_CAPABILITIES;
   auth: AuthState = "authenticated";
 
+  /**
+   * The catalog, probed at most once per agent. Held as the promise rather than
+   * its result so that concurrent `detect()` calls — registration and a
+   * reannounce racing — share one probe instead of spawning a CLI each.
+   */
+  #models: Promise<ModelInfo[] | undefined> | undefined;
+
   async detect(): Promise<HarnessReport> {
     const auth = await probeAuth();
     this.auth = auth;
+    const installed =
+      resolveBin("claude") !== undefined || auth === "authenticated";
+    // Nothing to ask when there is no CLI to ask, and an unauthenticated one
+    // answers about an account that is not there.
+    if (installed && auth === "authenticated") {
+      // A probe that failed is not an answer worth keeping: forget it so the
+      // next report asks again, rather than making one bad moment at startup
+      // the machine's catalog for as long as the agent lives.
+      this.#models ??= probeModels().then((list) => {
+        if (!list) {
+          this.#models = undefined;
+        }
+        return list;
+      });
+    }
+    const models = await this.#models;
     return {
       harness: "claude",
-      installed: resolveBin("claude") !== undefined || auth === "authenticated",
+      installed,
       version: undefined,
       auth,
       capabilities: CLAUDE_CAPABILITIES,
+      ...(models ? { models } : {}),
     };
   }
 

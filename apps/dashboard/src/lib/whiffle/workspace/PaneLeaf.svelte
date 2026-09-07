@@ -32,7 +32,7 @@
     effortStops as getEffortStops,
     hasEffortScale,
   } from "../effort-levels";
-  import { describes, ensureModels, models } from "../models.svelte";
+  import { describingRow, ensureModels, models } from "../models.svelte";
   import { PERMISSION_MODES } from "../permission-modes";
   import SessionPane from "../SessionPane.svelte";
   import { sessionName } from "../session-name";
@@ -183,7 +183,7 @@
   const chosenModel = $derived(
     session?.model
       ? // biome-ignore lint/style/noNonNullAssertion: TS can't narrow session.model across the closure boundary; the outer ternary already guards it
-        (models.offered.find((row) => describes(row, session.model!)) ?? null)
+        describingRow(session.model!)
       : null
   );
   const harnessEffort = $derived(harnessReport?.capabilities.effort !== false);

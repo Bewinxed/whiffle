@@ -97,7 +97,7 @@ export interface McpServerStatus {
 
 /* --------------------------------------------------------------- models — */
 
-/** One model a session offers. `value` is the wire id; `resolvedModel` the alias. */
+/** One model a harness offers. `value` is the wire id; `resolvedModel` the alias. */
 export interface ModelInfo {
   description?: string;
   displayName: string;
@@ -591,6 +591,23 @@ export interface HarnessReport {
   capabilities: HarnessCapabilities;
   harness: HarnessKind;
   installed: boolean;
+  /**
+   * The models this harness offers on this machine.
+   *
+   * It rides the machine's report for the same reason {@link
+   * HarnessCapabilities.permissionModes} does, and not the {@link
+   * CONTROL_SUPPORTED_MODELS} control beside it: the catalog is a property of
+   * the installed CLI and the account behind it, identical for every session on
+   * the machine and knowable with none running. Asking a session for it made a
+   * fleet-wide fact inherit one session's lifecycle — a machine with nothing
+   * running had no catalog at all, so its model picker was empty and no session
+   * could be named or shown an effort scale.
+   *
+   * Absent (not empty) from a machine whose agent predates the field, and from
+   * a harness that could not be probed; empty means it was asked and offered
+   * nothing.
+   */
+  models?: ModelInfo[];
   /** The CLI/SDK version, when it can be read. */
   version?: string;
 }
