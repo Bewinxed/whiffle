@@ -1372,6 +1372,8 @@
   .turn {
     margin-top: var(--space-4);
   }
+  /* The in-flight tool sits on the same rail column as the calls it becomes,
+     at every width — see the breakpoint below. */
   .livetool {
     /* one rhythm value (--space-4) tops every row type; the rail indent is
        --space-2 margin + --space-3 padding, shared across every rail block. */
@@ -1414,6 +1416,12 @@
   /* The in-flight tool's glyph breathes — the one live channel — so the running
      row reads as in-progress against the still, completed rows in ToolGroup.
      This IS the progress indicator on tool usage; done rows hold their glyph. */
+  @media (max-width: 900px) {
+    .livetool {
+      margin-left: 0;
+    }
+  }
+
   @keyframes breathe {
     0%,
     100% {

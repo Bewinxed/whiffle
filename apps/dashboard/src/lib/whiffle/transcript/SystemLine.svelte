@@ -326,4 +326,16 @@
       animation: none;
     }
   }
+
+  /* The ledger's rail column is narrower on a phone, and every other rail
+     block already knows it — ToolGroup, Thinking, Subagent, Delegate all drop
+     this inset at the same breakpoint. These two did not, so on a narrow
+     screen a note sat 7px to the right of the line above it and the run read
+     as a broken column. */
+  @media (max-width: 900px) {
+    .note,
+    .well {
+      margin-left: 0;
+    }
+  }
 </style>

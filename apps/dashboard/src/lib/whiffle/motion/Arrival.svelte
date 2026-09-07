@@ -108,6 +108,26 @@
   }
 
   let node = $state<HTMLElement>();
+  let measured = $state(false);
+
+  /**
+   * The row's natural height, read once, before it is ever painted.
+   *
+   * The animation cannot be in the markup: it has to know how tall the row
+   * wants to be, and only the browser can answer that. `$effect.pre` runs
+   * after the element exists and before the frame is painted, so measuring
+   * here and only then arming the animation costs no flash of the open row.
+   */
+  $effect.pre(() => {
+    if (!(node && animates && opens) || measured) {
+      return;
+    }
+    node.style.setProperty(
+      "--open-h",
+      `${node.getBoundingClientRect().height}px`
+    );
+    measured = true;
+  });
 
   /**
    * The playhead. CSS animations are the storyboard; the Web Animations API is
@@ -156,6 +176,7 @@
       : '0px'}"
     bind:this={node}
     class:continues={continues}
+    class:measured={measured}
     class:opens={opens}
     class:rail={rail}
   >
@@ -171,11 +192,18 @@
 
 <style>
   .arrive {
-    display: grid;
-    grid-template-rows: 1fr;
     position: relative;
     margin-top: var(--gap);
+  }
+  /* Only a row that OPENS reserves space, and only once its height has been
+     measured — see `measure` in the script. The row is clipped to that height
+     while it opens and not a moment longer: a row that clipped permanently
+     would cut off a card's own popover. */
+  .arrive.opens.measured {
     animation: reserve var(--reserve-ms) var(--reserve-ease) var(--t0) backwards;
+  }
+  .arrive.opens.measured > .clip {
+    overflow: hidden;
   }
   /* A row that is not arriving is a row: no box of its own, no motion. */
   .arrive.still {
@@ -211,17 +239,25 @@
       calc(var(--t0) + var(--rail-delay)) backwards;
   }
 
+  .clip {
+    min-height: 0;
+  }
   .body.lift {
     animation: render var(--content-ms) var(--content-ease)
       calc(var(--t0) + var(--content-delay)) backwards;
   }
+  /* Pixels, not `fr`.
+     `grid-template-rows: 0fr → 1fr` is the tidy way to animate a height that
+     content decides, and it is why this did nothing at all in Safari: WebKit
+     does not interpolate grid tracks, so on iOS the space never opened and the
+     rail never grew. A measured pixel height animates in every engine. */
   @keyframes reserve {
     from {
-      grid-template-rows: 0fr;
+      height: 0;
       margin-top: 0;
     }
     to {
-      grid-template-rows: 1fr;
+      height: var(--open-h);
       margin-top: var(--gap);
     }
   }
@@ -250,6 +286,9 @@
   @media (prefers-reduced-motion: reduce) {
     .arrive,
     .arrive.rail::before,
+    .clip {
+      min-height: 0;
+    }
     .body.lift {
       animation: none;
     }
