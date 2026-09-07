@@ -13,6 +13,7 @@ import { REPO_ROOT } from "./build";
 import {
   checkDeploy,
   DEPLOY_BRANCH,
+  DeployBlocked,
   type DeployPoller,
   type DeployState,
   type DeployWatcherOptions,
@@ -209,7 +210,11 @@ export const updateCheckout = async ({
     throw failed("git status", dirty);
   }
   if (dirty.said && !force) {
-    throw new Error("the checkout has uncommitted changes; refusing to pull");
+    // Blocked, not failed: the pull has not been tried, and the same head is
+    // worth trying again the moment the tree is clean.
+    throw new DeployBlocked(
+      "the checkout has uncommitted changes; refusing to pull"
+    );
   }
 
   const args = pullArgs(branch);

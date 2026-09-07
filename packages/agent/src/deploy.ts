@@ -400,6 +400,21 @@ const defaultReport = (() => {
 })();
 
 /**
+ * An update that never started, because the machine was not in a state to take
+ * one — as opposed to one that ran and went wrong.
+ *
+ * The distinction is the whole point: a commit that fails to BUILD is a fact
+ * about that commit, and retrying it every minute would loop on something only
+ * a new push can fix. A checkout that refuses to PULL is a fact about the
+ * checkout — nothing was wrong with the target, and the blocker (somebody
+ * mid-edit in the deployment clone) clears on its own. Collapsing the two meant
+ * a clone that was blocked once stayed pinned to the commit before it for the
+ * life of the daemon, still polling, still finding itself behind, and never
+ * trying again because it had already "attempted" that head.
+ */
+export class DeployBlocked extends Error {}
+
+/**
  * The poller's state machine, with no timer in it. Every decision this leaf
  * cares about is a `tick()` away, so the tests exercise the real thing without
  * anything running on a schedule.
@@ -411,6 +426,9 @@ export class DeployWatcher {
    * exactly one update run — not one per minute until the pull happens to
    * take. Attempted, not succeeded: a broken commit that fails to build must
    * not be retried in a loop, it must be fixed and pushed over.
+   *
+   * A {@link DeployBlocked} failure is the exception, and is not remembered.
+   * See {@link DeployWatcher.act}.
    */
   #attempted?: string;
   /** A poll is skipped outright while an update is still running. */
@@ -468,6 +486,11 @@ export class DeployWatcher {
       await this.#options.update(state);
       return { state, updated: true };
     } catch (error) {
+      if (error instanceof DeployBlocked) {
+        // Nothing was tried, so nothing is spent: let the next tick have this
+        // same head once whatever stood in the way is gone.
+        this.#attempted = undefined;
+      }
       return {
         state,
         updated: false,
