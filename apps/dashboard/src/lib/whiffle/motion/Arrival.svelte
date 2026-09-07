@@ -247,10 +247,12 @@
       calc(var(--t0) + var(--content-delay)) backwards;
   }
   /* Pixels, not `fr`.
-     `grid-template-rows: 0fr → 1fr` is the tidy way to animate a height that
-     content decides, and it is why this did nothing at all in Safari: WebKit
-     does not interpolate grid tracks, so on iOS the space never opened and the
-     rail never grew. A measured pixel height animates in every engine. */
+     NOT because WebKit cannot interpolate grid tracks — it can, measured:
+     `0fr → 1fr` reaches 22.6 of 80px at 30% of its duration in WebKit, same
+     as Chromium. The reason is that the row's height has to be READ before
+     the animation is armed, and once it has been read there is nothing left
+     for `fr` to buy. A number the component measured is also a number it can
+     be held at, which is what the /motion playhead scrubs. */
   @keyframes reserve {
     from {
       height: 0;
