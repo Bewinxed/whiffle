@@ -4,11 +4,7 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Envelope, NeutralMessage, SpawnPayload } from "@whiffle/core";
-import {
-  CONTROL_SET_EFFORT,
-  DEFAULT_DELEGATE_TYPES,
-  WHIFFLE_ENV,
-} from "@whiffle/core";
+import { CONTROL_SET_EFFORT, WHIFFLE_ENV } from "@whiffle/core";
 import { SESSIOND_V1 } from "@whiffle/core/sessiond";
 import type { HarnessContext } from "../harness";
 
@@ -156,37 +152,21 @@ test("the other controls still go straight to the Query", async () => {
   );
 });
 
-test("catalog success and failure reach the SDK's startup MCP instructions", async () => {
+test("Claude uses the hub MCP endpoint bound to its real instance rather than an in-process server", async () => {
   const previousUrl = process.env[WHIFFLE_ENV.hubUrl];
-  let unavailable = false;
-  const hub = Bun.serve({
-    port: 0,
-    fetch: () =>
-      unavailable
-        ? new Response("unavailable", { status: 503 })
-        : Response.json({ types: DEFAULT_DELEGATE_TYPES }),
-  });
-  process.env[WHIFFLE_ENV.hubUrl] = `ws://localhost:${hub.port}/ws`;
+  process.env[WHIFFLE_ENV.hubUrl] = "ws://test-hub:3456/ws";
   try {
-    for (const fails of [false, true]) {
-      unavailable = fails;
-      spawned.length = 0;
-      // biome-ignore lint/performance/noAwaitInLoops: each case changes the shared fake hub response
-      await spawn({});
-      const servers = spawned[0].options.mcpServers as {
-        whiffle: { instructions: string };
-      };
-      expect(servers.whiffle.instructions).toContain(
-        "Before repository exploration"
-      );
-      expect(servers.whiffle.instructions).toContain(
-        fails
-          ? "Could not load delegate types: HTTP 503"
-          : "model: sonnet; effort: low"
-      );
-    }
+    spawned.length = 0;
+    await spawn({});
+    const servers = spawned[0].options.mcpServers as {
+      whiffle: { type: string; url: string; instance?: unknown };
+    };
+    expect(servers.whiffle.type).toBe("http");
+    expect(servers.whiffle.url).toContain(
+      "http://test-hub:3456/mcp/whiffle?instanceId="
+    );
+    expect(servers.whiffle.instance).toBeUndefined();
   } finally {
-    hub.stop(true);
     if (previousUrl === undefined) {
       delete process.env[WHIFFLE_ENV.hubUrl];
     } else {

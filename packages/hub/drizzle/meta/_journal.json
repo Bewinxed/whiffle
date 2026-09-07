@@ -218,6 +218,20 @@
       "when": 1788334494507,
       "tag": "0030_instances_can_delegate",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1788766543073,
+      "tag": "0031_curious_ultragirl",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1788900000000,
+      "tag": "0032_fleet_denied_tools",
+      "breakpoints": true
     }
   ]
 }

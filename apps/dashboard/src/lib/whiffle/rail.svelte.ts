@@ -16,6 +16,17 @@ export const RAIL_LAYOUT_KEY = "whiffle-rail-layout";
  */
 export type PinKind = "machine" | "project" | "session" | "stored";
 
+/**
+ * How the rail orders the sessions inside a project and in its flat lists.
+ * `recent` is the default because the question a rail is opened to answer is
+ * "where was I", and only a timestamp answers that; `name` is for the reader
+ * who navigates by memory of the title; `state` is the old behaviour, blocked
+ * before working before idle, for triage rather than resumption.
+ */
+export type RailSort = "recent" | "name" | "state";
+
+const SORTS: readonly string[] = ["recent", "name", "state"];
+
 export interface Pin {
   id: string;
   kind: PinKind;
@@ -26,6 +37,8 @@ interface RailLayout {
   machines: string[];
   /** The order the Pinned group is drawn in — first pinned, first shown. */
   pins: Pin[];
+  /** How session lists are ordered. See {@link RailSort}. */
+  sort: RailSort;
 }
 
 const KINDS: readonly string[] = ["machine", "project", "session", "stored"];
@@ -35,7 +48,7 @@ const isPin = (value: Pin | undefined): value is Pin =>
 
 function read(): RailLayout {
   if (!browser) {
-    return { pins: [], machines: [] };
+    return { pins: [], machines: [], sort: "recent" };
   }
   try {
     const stored = JSON.parse(
@@ -44,9 +57,12 @@ function read(): RailLayout {
     return {
       pins: (stored.pins ?? []).filter(isPin),
       machines: (stored.machines ?? []).filter((id) => typeof id === "string"),
+      sort: SORTS.includes(stored.sort ?? "")
+        ? (stored.sort as RailSort)
+        : "recent",
     };
   } catch {
-    return { pins: [], machines: [] };
+    return { pins: [], machines: [], sort: "recent" };
   }
 }
 
@@ -62,6 +78,13 @@ export const rail = {
   },
   get machineOrder(): string[] {
     return layout.machines;
+  },
+  get sort(): RailSort {
+    return layout.sort;
+  },
+  setSort(sort: RailSort): void {
+    layout.sort = sort;
+    save();
   },
   get flipDurationMs(): number {
     return flipDurationMs();

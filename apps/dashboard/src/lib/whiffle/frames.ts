@@ -296,6 +296,10 @@ const HANDOFF_TOOLS: Record<string, "handoff" | "start" | "delegate"> = {
   mcp__whiffle__handoff: "handoff",
   mcp__whiffle__start_session: "start",
   mcp__whiffle__delegate: "delegate",
+  // OpenCode uses a single underscore between the MCP server and tool names.
+  whiffle_handoff: "handoff",
+  whiffle_start_session: "start",
+  whiffle_delegate: "delegate",
   // pi registers the same tools under bare names (no MCP namespace).
   handoff: "handoff",
   start_session: "start",
@@ -2262,16 +2266,14 @@ export function applyToolResult(
 
   let delegateInstanceId: string | undefined;
   let delegateTitle: string | undefined;
-  // Claude CLI ≥2.1.233 forwards an SDK MCP tool's result as
-  // JSON.stringify(structuredContent), discarding the handler's text block — so a
-  // replayed transcript has no `structuredContent` field and the payload rides as
-  // a JSON string in `result` instead. Parse it back out when it is one.
+  // The routing payload may live in result JSON while structuredContent contains
+  // only OpenCode transport metadata. Explicit structured fields take precedence.
   let sc = structuredContent;
-  if (!sc && typeof result === "string") {
+  if (target.type === "tool.handoff" && typeof result === "string") {
     try {
       const parsed: unknown = JSON.parse(result);
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        sc = parsed as Record<string, unknown>;
+        sc = { ...(parsed as Record<string, unknown>), ...structuredContent };
       }
     } catch {
       // Most tool results are not JSON; there is no structured payload to read.

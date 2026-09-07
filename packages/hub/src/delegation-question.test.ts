@@ -5,8 +5,8 @@ import {
   settledQuestionResult,
   WHIFFLE_ENV,
 } from "@whiffle/core";
-import type { HandoffActions } from "./handoff-shared";
-import { handoffActions } from "./handoff-shared";
+import type { HandoffActions } from "./delegation-actions";
+import { handoffActions } from "./delegation-actions";
 
 /**
  * The answer path for a question a delegate parked and its parent answered.

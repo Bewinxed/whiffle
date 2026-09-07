@@ -61,10 +61,8 @@ import {
 } from "@whiffle/core";
 import { sessiondEndpoint } from "@whiffle/core/sessiond";
 import { probeAuth, unlockKeychain } from "../auth";
-import {
-  DENIED_NATIVE_SUBAGENT_TOOLS,
-  DENIED_WEB_TOOLS,
-} from "../denied-tools";
+import { delegationMcp, MCP_SERVER_NAME } from "../delegation";
+import { resolvedDenyList } from "../denied-tools";
 import {
   fleetStatus,
   inspectConfig,
@@ -73,7 +71,6 @@ import {
   readSkillFiles,
   syncFleetConfig,
 } from "../fleet";
-import { handoffServer, MCP_SERVER_NAME } from "../handoff";
 import type { Harness, HarnessContext, HarnessSession } from "../harness";
 import {
   beginLogin,
@@ -93,7 +90,6 @@ import {
 } from "../sessiond-client";
 import { resolveBin } from "../tools";
 import { claudeConfigDirs } from "../usage/scan-claude";
-import { fetchDelegateTypes } from "./handoff-shared";
 
 /** The neutral frame is the SDK frame re-tagged: same fields, plus the original. */
 export const toNeutral = (sdk: SDKMessage): NeutralMessage => {
@@ -628,14 +624,6 @@ class ClaudeSession implements HarnessSession {
   readonly #ctx: HarnessContext;
   readonly #permissions = new Map<string, PermissionResolver>();
   /**
-   * MCP tool handlers return `structuredContent` on `CallToolResult`, but the
-   * SDK strips it from the `tool_result` content blocks it forwards. The
-   * handlers store their structured data here keyed by the result text, and
-   * {@link #pumpMessages} injects it back onto the matching `tool_result` block
-   * before the frame leaves the daemon.
-   */
-  readonly #pendingStructured = new Map<string, Record<string, unknown>>();
-  /**
    * The open `AskUserQuestion` permissions, keyed by request id, holding the
    * tool call they park and the questions they ask. A dismissal is a denial,
    * and the CLI answers a denied tool call with prose and no `toolUseResult`
@@ -687,17 +675,14 @@ class ClaudeSession implements HarnessSession {
     persistSession: boolean | undefined,
     skills?: string[],
     denyTools?: string[],
-    /** Fetched once by `spawn()` before this session existed; frozen from here on. */
-    delegateTypes?: import("@whiffle/core").DelegateType[],
-    /** `false` on a leaf delegate: no spawning tools at all. Absent = allowed. */
-    canDelegate?: boolean,
+    /** Fleet-wide denied tools, resolved once by `spawn()` via {@link resolvedDenyList}. */
+    fleetDenyList: readonly string[] = [],
     /**
      * The sessiond connection this session's CLI child lives under. Not
      * optional in practice — `spawn()` always supplies it, and there is no
      * in-process fallback (PLAN.md C7: full cutover, rollback is a revert).
      */
-    sessiond?: { client: SessiondClient; procId: string },
-    delegateTypesError?: string
+    sessiond?: { client: SessiondClient; procId: string }
   ) {
     this.instanceId = instanceId;
     this.#ctx = ctx;
@@ -737,35 +722,18 @@ class ClaudeSession implements HarnessSession {
         mcpServers: {
           ...((options as { mcpServers?: Record<string, unknown> } | undefined)
             ?.mcpServers ?? {}),
-          [MCP_SERVER_NAME]: handoffServer(
-            {
-              instanceId,
-              cwd: workdir,
-              emit: (envelope) => ctx.emit(envelope),
-              delegateTypes,
-              delegateTypesError,
-              canDelegate,
-            },
-            // Keyed under BOTH the handler's text and the serialized payload:
-            // CLIs before ~2.1.x forward the handler's text block, current ones
-            // (verified on 2.1.233) replace it with JSON.stringify(structuredContent).
-            (text, data) => {
-              this.#pendingStructured.set(text, data);
-              this.#pendingStructured.set(JSON.stringify(data), data);
-            }
-          ),
+          [MCP_SERVER_NAME]: delegationMcp(instanceId),
         },
-        // Fleet policy: search is the Exa MCP and fetch is the firecrawl MCP,
-        // both fleet-synced onto every machine. The spec's own denials stand.
-        // `DENIED_NATIVE_SUBAGENT_TOOLS` keeps delegation on one visible door
-        // (see denied-tools.ts); `denyTools` is a resolved delegate type's own
-        // ask, threaded through from the spawn.
+        // Fleet baseline (from supervisor_config.denied_tools, cached in the
+        // sidecar) + delegate-type denials + any the caller itself carried.
+        // All three layers union: every layer can only add, never remove
+        // another layer's entries. Resolved once through `resolvedDenyList()`
+        // so this path and `convergeDeniedTools` read the same value.
         disallowedTools: [
           ...new Set([
             ...((options as { disallowedTools?: string[] } | undefined)
               ?.disallowedTools ?? []),
-            ...DENIED_WEB_TOOLS,
-            ...DENIED_NATIVE_SUBAGENT_TOOLS,
+            ...fleetDenyList,
             ...(denyTools ?? []),
           ]),
         ],
@@ -968,42 +936,6 @@ class ClaudeSession implements HarnessSession {
               }
               this.#dismissedQuestions.delete(block.tool_use_id);
               block.questionResult = dismissed;
-            }
-          }
-        }
-        // The Claude SDK strips `structuredContent` from MCP CallToolResults
-        // before forwarding tool_result blocks. The tool handlers stored their
-        // structured data in #pendingStructured keyed by result text; inject it
-        // back onto the matching block so downstream consumers see it.
-        if (neutral.type === "user" && this.#pendingStructured.size > 0) {
-          const { content } = neutral.message;
-          if (Array.isArray(content)) {
-            for (const block of content) {
-              if (block.type !== "tool_result") {
-                continue;
-              }
-              let text: string;
-              if (typeof block.content === "string") {
-                text = block.content;
-              } else if (Array.isArray(block.content)) {
-                text = (block.content as { text?: string }[])
-                  .map((b) => b.text ?? "")
-                  .filter(Boolean)
-                  .join("\n");
-              } else {
-                text = "";
-              }
-              const sc = this.#pendingStructured.get(text);
-              if (sc) {
-                (block as Record<string, unknown>).structuredContent = sc;
-                // Both keys (handler text + serialized payload) point at this
-                // value; sweep them so neither lingers.
-                for (const [key, value] of this.#pendingStructured) {
-                  if (value === sc) {
-                    this.#pendingStructured.delete(key);
-                  }
-                }
-              }
             }
           }
         }
@@ -1702,22 +1634,12 @@ export class ClaudeHarness implements Harness {
     spec: SpawnPayload,
     ctx: HarnessContext
   ): Promise<HarnessSession> {
-    // Fetched once, before the session (and its `delegate` tool description)
-    // exists — see `fetchDelegateTypes`'s own comment for why this is a plain
-    // per-spawn HTTP read rather than a fleet-sync field.
-    // A leaf never builds the tool that needs the list, so skip the HTTP read.
-    let delegateTypesError: string | undefined;
-    const delegateTypes =
-      spec.canDelegate === false
-        ? []
-        : await fetchDelegateTypes((message) => {
-            delegateTypesError = message;
-          });
     // The child is spawned under sessiond, unconditionally — no flag, no
     // in-process fallback (PLAN.md C7). `procId` is the instance id: stable
     // across agent restarts, which is what lets the returning agent match a
     // surviving child to the row it belongs to.
     const client = await this.sessiond();
+    const fleetDenyList = await resolvedDenyList();
     return new ClaudeSession(
       ctx.instanceId,
       ctx,
@@ -1730,10 +1652,8 @@ export class ClaudeHarness implements Harness {
       spec.persistSession,
       spec.skills,
       spec.denyTools,
-      delegateTypes,
-      spec.canDelegate,
-      { client, procId: ctx.instanceId },
-      delegateTypesError
+      fleetDenyList,
+      { client, procId: ctx.instanceId }
     );
   }
 

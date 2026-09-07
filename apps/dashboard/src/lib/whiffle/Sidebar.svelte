@@ -1,20 +1,30 @@
 <script lang="ts">
   /**
-   * The management rail: what the fleet is, which boxes it runs on, the projects
-   * it groups work under, and what is running right now. Ported from
-   * mocks/v5-workspace.html (`aside`) — a sunken rail whose only raised things
-   * are the active nav item, the primary action, and the cards at the foot.
+   * Fleet sidebar — reimplemented on top of the shadcn-svelte sidebar primitives
+   * (ui/sidebar/*), following the Fluid Functionalism inset preset pattern:
    *
-   * The rail is also the project index (JOURNEY §Projects rail / Flow 4): every
-   * project is listed whether or not it has live work, with the creation control
-   * beside its label, and running sessions fold under the project they belong to
-   * — Linear/Slack-style grouping. Sessions no project claims stay flat under
-   * "Running now". This is the same rail the phone opens as a sheet, so the
-   * "New session" action lives here rather than in a bottom bar.
+   *   • Header: brand tile + workspace name, search input, "+ New" row
+   *   • Content: Fleet nav group, Machines group, Projects (collapsible groups
+   *     with sub-items for sessions), Running-now and Not-running sections
+   *   • Footer: user avatar + machine count
+   *
+   * The rail is now built from SidebarGroup / SidebarMenu / SidebarMenuButton /
+   * SidebarMenuSub / SidebarMenuSubButton rather than hand-rolled CSS, inheriting
+   * built-in hover, active, focus, and spacing from the component library.
+   *
+   * Sessions use ActivityDot (status dots) rather than text pills — far more
+   * space-efficient and less noisy. Idle sessions are capped per project with a
+   * "+ N more" disclosure.
    */
+  import { cubicOut } from "svelte/easing";
+  import { slide } from "svelte/transition";
+  import { Virtualizer } from "virtua/svelte";
   import { page } from "$app/state";
-  import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
+  // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte component-group convention
+  import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
+  // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte component-group convention
+  import * as Sidebar from "$lib/components/ui/sidebar";
   import {
     IconBoxDuo,
     IconChevronRight,
@@ -22,14 +32,16 @@
     IconHook,
     IconPlus,
     IconRules,
+    IconSearch,
+    IconSort,
     IconSubagent,
     IconTools,
     IconUsage,
     IconWarningTriangle,
   } from "$lib/icons";
+  import { formatAgeShort, formatDistanceToNow } from "$lib/utils/time";
   import ActivityDot from "./ActivityDot.svelte";
   import {
-    ACTIVITY_LABEL,
     type Activity,
     MACHINE_UNREACHABLE_HINT,
     SLEEPING_HINT,
@@ -48,16 +60,55 @@
   import { markHue, sessionSprite } from "./mark";
   import NewProjectPopover from "./NewProjectPopover.svelte";
   import OsMark from "./OsMark.svelte";
-  import { rail } from "./rail.svelte";
+  import { type RailSort, rail } from "./rail.svelte";
   import SpawnPanel from "./SpawnPanel.svelte";
   import UsageMeter from "./UsageMeter.svelte";
 
   const path = $derived(page.url.pathname);
 
+  /**
+   * The rail's steps, named once. Every size here comes from app.css's scale
+   * (`--text-md` 15px for the nav step, `--text-base` 13.5px for list rows,
+   * `--text-sm` 12.5px for section labels) rather than Tailwind's own, which
+   * runs a step and a half smaller at every level and is how a rail of `text-xs`
+   * rows ends up unreadable.
+   *
+   * Heights are the same two the rail always had: the nav band is tall because
+   * six destinations can afford to be, and a LIST row is 30px because a rail of
+   * 40px rows is a rail that fits eight things.
+   */
+  const NAV_ROW =
+    "h-[var(--c-nav-h)] gap-2.5 px-2.5 text-[length:var(--text-md)]";
+  const LIST_ROW =
+    "h-[30px] gap-2.5 px-2.5 py-0 text-[length:var(--text-base)]";
+  const SUB_ROW =
+    "h-[28px] gap-2.5 px-2.5 data-[size=md]:text-[length:var(--text-base)]";
+  /** `Sidebar.Group`'s own `p-2` plus `Sidebar.Content`'s `gap-2` stacked to
+   *  24px of nothing between every section; the label already separates them. */
+  const GROUP = "px-2 py-1";
+  const GROUP_LABEL = "px-2.5 text-[length:var(--text-sm)]";
+  /** 2px, not 4: these are rows of one list, not six unrelated buttons. */
+  const MENU = "gap-0.5";
+  /**
+   * The lead column, 18px, on EVERY row in the rail — nav, machines, projects,
+   * sessions, the brand tile and the footer avatar alike. What sits in it
+   * varies; the column does not, which is the only reason every label in the
+   * rail starts at the same x (10px of row padding + 18 + 10 of gap = 38px).
+   */
+  const SLOT = "inline-flex size-[18px] shrink-0 items-center justify-center";
+  /** A line glyph in the slot: 16px, 1px of air. */
+  const SLOT_GLYPH = "size-4";
+  /** An identity chip fills the slot, and carries an 11px glyph — 3.5px of
+   *  inset, which is the difference between a mark and a glyph in a box. */
+  const MARK = `${SLOT} rounded-[var(--radius-mark)]`;
+  const MARK_GLYPH = "size-[11px]";
+  /** The trailing column: one 16px box, so a 6px dot, an 8px dot and a 14px
+   *  warning triangle all hang off the same right edge. */
+  const TRAIL = "flex size-4 shrink-0 items-center justify-center";
+
   /* ---- spawn ---------------------------------------------------------- */
 
   let spawnOpen = $state(false);
-  let showAllNR = $state(false);
   let spawnPrefill = $state<
     { machineId?: string; cwd?: string; projectId?: string } | undefined
   >(undefined);
@@ -73,7 +124,6 @@
 
   /* ---- projects ------------------------------------------------------- */
 
-  /** Projects the reader has folded shut in the rail, by id. Expanded default. */
   let collapsed = $state<Set<string>>(new Set());
 
   function toggle(id: string) {
@@ -92,8 +142,6 @@
     );
   }
 
-  /** A running session belongs to a project by explicit link, or by living
-   *  inside its checkout on the same machine — mirrors the hub's own `under`. */
   const inProject = (row: InstanceRow, project: ProjectRow): boolean =>
     row.projectId === project.id ||
     (row.machineId === project.machineId &&
@@ -102,7 +150,6 @@
 
   const running = $derived(whiffle.runningInstances);
 
-  /** Pinned projects first (giving the pin action a visible effect), then A–Z. */
   const orderedProjects = $derived.by(() =>
     [...whiffle.projects].sort((a, b) => {
       const pa = rail.isPinned("project", a.id) ? 0 : 1;
@@ -115,39 +162,187 @@
   );
 
   const sessionsOf = (project: ProjectRow): InstanceRow[] =>
-    running.filter((row) => inProject(row, project));
+    ordered(running.filter((row) => inProject(row, project)));
 
-  /** Count of stopped/sleeping sessions that belong to a project — so the
-   *  empty state says "12 recent — start one" instead of implying zero history. */
   const recentCountOf = (project: ProjectRow): number =>
     notRunning.filter((row) => inProject(row, project)).length;
 
-  /** Live sessions no listed project claims — the flat "Running now" tail. */
   const ungrouped = $derived(
-    running.filter(
-      (row) => !whiffle.projects.some((project) => inProject(row, project))
+    ordered(
+      running.filter(
+        (row) => !whiffle.projects.some((project) => inProject(row, project))
+      )
     )
   );
 
-  /** Listed rows with no live process — asleep or unreachable. `running` above
-   *  (and the Fleet pill's count) never includes these, so they get their own
-   *  flat section rather than hiding inside a project's live-work count. */
   const notRunning = $derived(
-    whiffle.listedInstances.filter((row) => isResumable(row) || isStale(row))
+    ordered(
+      whiffle.listedInstances.filter((row) => isResumable(row) || isStale(row))
+    )
   );
 
   const notRunningHint = (row: InstanceRow): string =>
     isResumable(row) ? SLEEPING_HINT : UNKNOWN_HINT;
 
+  /** Flattened once per change rather than per scroll frame — the virtualizer
+   *  re-reads `data` on every visible-range update. */
+  const nestedNotRunning = $derived(nested(notRunning));
+
+  /* ---- order -----------------------------------------------------------
+   *
+   * The rail could not answer "which one was I just in": every list was
+   * alphabetical-by-project then arbitrary, and no row carried a time. Both
+   * are fixed here — one `lastAt` per session, one comparator over it, and a
+   * sort the reader picks once and the rail remembers.
+   */
+
+  /**
+   * When a session last moved. The daemon's pulse is the freshest signal a
+   * rail has (it is broadcast for every session, subscribed or not); a row
+   * with no pulse yet falls back to the hub's own `updatedAt`, and one with
+   * neither sorts to the bottom rather than pretending to be new.
+   */
+  function lastAt(row: InstanceRow): number {
+    const pulse = whiffle.pulseAt(row.id);
+    if (pulse !== undefined) {
+      return pulse;
+    }
+    const moved = row.updatedAt;
+    if (moved === null || moved === undefined) {
+      return 0;
+    }
+    const at = new Date(moved).getTime();
+    return Number.isNaN(at) ? 0 : at;
+  }
+
+  const SORT_LABEL: Record<RailSort, string> = {
+    recent: "Last activity",
+    name: "Name",
+    state: "State",
+  };
+
+  /** Blocked before working before idle — the triage order, for `state`. */
+  const STATE_ORDER: Record<Activity, number> = {
+    blocked: 0,
+    working: 1,
+    idle: 2,
+  };
+
+  /**
+   * One comparator for every session list in the rail, so "Running now" and a
+   * project's sub-list and "Not running" never disagree about what first means.
+   * Recency is the tiebreak under `name` and `state` alike: two idle sessions
+   * in one project are still told apart by which one you touched last.
+   */
+  function ordered(rows: InstanceRow[]): InstanceRow[] {
+    const by = rail.sort;
+    return [...rows].sort((a, b) => {
+      if (by === "name") {
+        const cmp = sessionName(a).localeCompare(sessionName(b));
+        if (cmp !== 0) {
+          return cmp;
+        }
+      }
+      if (by === "state") {
+        const cmp =
+          STATE_ORDER[whiffle.activityOf(a.id)] -
+          STATE_ORDER[whiffle.activityOf(b.id)];
+        if (cmp !== 0) {
+          return cmp;
+        }
+      }
+      return lastAt(b) - lastAt(a);
+    });
+  }
+
+  /**
+   * A session and how deep to indent it. A delegate names its parent
+   * (`parentInstanceId`), and the rail was drawing every one of them at the
+   * root — a project with one session and six delegates read as seven peers,
+   * which is exactly backwards about what is running.
+   */
+  interface Nested {
+    depth: number;
+    row: InstanceRow;
+  }
+
+  /** Past this the indent eats the name; the tree keeps nesting, the offset stops. */
+  const MAX_INDENT = 3;
+
+  /**
+   * `rows` in tree order, siblings sorted by the reader's {@link ordered}.
+   * A delegate whose parent is not in this same list — filtered out, sleeping
+   * while the child runs, living under a different project — is drawn at the
+   * root rather than dropped: a session the rail can reach is never hidden
+   * because its parent is not on screen.
+   */
+  function nested(rows: InstanceRow[]): Nested[] {
+    const present = new Set(rows.map((row) => row.id));
+    const children = new Map<string, InstanceRow[]>();
+    const roots: InstanceRow[] = [];
+    for (const row of rows) {
+      const parent = row.parentInstanceId;
+      if (parent && present.has(parent) && parent !== row.id) {
+        const siblings = children.get(parent);
+        if (siblings) {
+          siblings.push(row);
+        } else {
+          children.set(parent, [row]);
+        }
+      } else {
+        roots.push(row);
+      }
+    }
+    const out: Nested[] = [];
+    const walk = (list: InstanceRow[], depth: number): void => {
+      for (const row of ordered(list)) {
+        out.push({ row, depth: Math.min(depth, MAX_INDENT) });
+        const kids = children.get(row.id);
+        if (kids) {
+          walk(kids, depth + 1);
+        }
+      }
+    };
+    walk(roots, 0);
+    return out;
+  }
+
+  /** The row's own left inset — `px-2.5` plus one 13px step per generation. */
+  const indent = (depth: number): string =>
+    depth === 0 ? "" : `padding-left: calc(0.625rem + ${depth * 13}px)`;
+
+  /**
+   * One clock for every row in the rail. A row that ticked for itself would
+   * put a timer per session on a list of two hundred, and they all read the
+   * same minute. Same rule as LiveSessionRow's module clock.
+   */
+  let now = $state(Date.now());
+  $effect(() => {
+    const timer = setInterval(() => {
+      now = Date.now();
+    }, 30_000);
+    return () => clearInterval(timer);
+  });
+
+  /** The age column, and the full sentence behind it on hover. */
+  const ageOf = (row: InstanceRow): string => {
+    const at = lastAt(row);
+    return at === 0 ? "" : formatAgeShort(at, now);
+  };
+  const ageHint = (row: InstanceRow): string => {
+    const at = lastAt(row);
+    return at === 0
+      ? "No activity recorded"
+      : `Last activity ${formatDistanceToNow(new Date(at))}`;
+  };
+
   /* ---- helpers -------------------------------------------------------- */
 
-  /** The rail's own wording for a session that never carried a title. */
   const sessionName = (row: InstanceRow): string =>
     row.title?.trim() ||
     row.cwd.split("/").filter(Boolean).pop() ||
     row.id.slice(0, 8);
 
-  /** Blocked wins the Fleet pill: it is the only count anyone acts on. */
   const fleetCount = $derived(
     whiffle.blockedCount || whiffle.runningInstances.length
   );
@@ -155,320 +350,563 @@
   const online = $derived(
     new Set(whiffle.onlineMachines.map((machine) => machine.machineId))
   );
-
-  const PILL: Record<Activity, "live" | "attn" | "idle"> = {
-    working: "live",
-    blocked: "attn",
-    idle: "idle",
-  };
-
-  /** StatusPill ported to ui/badge, token-dressed to the Quiet Ledger pill
-   *  recipe: a tint carries live/attn, idle carries NO fill (bare muted label). */
-  const PILL_FILL: Record<string, string> = {
-    live: "bg-[var(--status-live-bg)] text-[var(--status-live-ink)]",
-    attn: "bg-[var(--status-attn-bg)] text-[var(--status-attn-ink)]",
-    done: "bg-[var(--status-done-bg)] text-[var(--status-done-ink)]",
-    fail: "bg-[var(--status-fail-bg)] text-[var(--status-fail-ink)]",
-  };
-  function pillClass(
-    status: "live" | "attn" | "done" | "fail" | "idle"
-  ): string {
-    const base =
-      "h-[var(--c-pill-h)] rounded-[var(--radius-pill)] text-[length:var(--c-pill-fs)] leading-none whitespace-nowrap";
-    if (status === "idle") {
-      return `${base} border-0 gap-0 bg-transparent p-0 font-[450] text-[var(--status-idle-ink)]`;
-    }
-    return `${base} border-0 gap-[var(--c-pill-gap)] px-2.5 py-0 font-medium ${PILL_FILL[status]}`;
-  }
-
-  /** The NavItem count pill, as a token-dressed ui/badge: the fleet count on the
-   *  live tint, or the attention tint while a session is blocked. */
-  function countClass(attn: boolean): string {
-    const tint = attn
-      ? "bg-[var(--status-attn-bg)] text-[var(--status-attn-ink)]"
-      : "bg-[var(--status-live-bg)] text-[var(--status-live-ink)]";
-    return `ml-auto rounded-[var(--radius-pill)] border-0 px-[7px] py-[3px] text-[length:var(--text-sm)] font-medium leading-none ${tint}`;
-  }
 </script>
 
-<div class="rail">
-  <a class="brand" href="/session">
-    <span aria-hidden="true" class="logo">
-      <svg
-        aria-hidden="true"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.7"
-        viewBox="0 0 24 24"
-      >
-        <path d="M4 4h16v16H4z" />
-        <path d="M4 4h8v16H4z" fill="currentColor" />
-      </svg>
-    </span>
-    <b>Whiffle</b>
-  </a>
+<!-- The sidebar primitives (Header, Content, Footer) expect a flex-column
+     parent — the old `.rail` class provided this; now it's an explicit wrapper
+     since the Shell's own `<aside>` doesn't set the direction. -->
+<!-- When a session last moved, in the ~28px a rail can spare. Every session
+     row in the rail renders this, so "which one was I just in" is answered by
+     looking down one column instead of opening six of them. -->
+{#snippet age(row: InstanceRow)}
+  {@const label = ageOf(row)}
+  {#if label}
+    <span
+      class="shrink-0 text-[length:var(--text-sm)] tabular-nums text-muted-foreground"
+      title={ageHint(row)}
+      >{label}</span
+    >
+  {/if}
+{/snippet}
 
-  <!-- The primary action, kept where both the desktop rail and the phone sheet
-       reach it in one place — this is where the removed thumb bar's only unique
-       control now lives. -->
-  <div class="new">
-    <Button class="new-btn" onclick={() => newSession()}>
-      <IconPlus />
-      New session
-    </Button>
-  </div>
+<div
+  class="flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-sidebar text-sidebar-foreground"
+>
+  <!-- ────────────────────── header ──────────────────────── -->
 
-  <div class="body">
-    <div class="sec">Fleet</div>
-    <nav aria-label="Fleet">
-      {#snippet navItem(href: string, active: boolean, label: string, icon: import('svelte').Snippet, count?: number, attn = false)}
-        <a
-          aria-current={active ? 'page' : undefined}
-          class="nav-i"
-          {href}
-          class:on={active}
-        >
-          <span class="ic">{@render icon()}</span>
-          <span class="lbl">{label}</span>
-          {#if count !== undefined && count !== null}
-            <Badge class={countClass(attn)}>{count}</Badge>
-          {/if}
-        </a>
-      {/snippet}
-      {#snippet boxIcon()}
-        <IconBoxDuo />
-      {/snippet}
-      {#snippet toolsIcon()}
-        <IconTools />
-      {/snippet}
-      {#snippet rulesIcon()}
-        <IconRules />
-      {/snippet}
-      {#snippet hooksIcon()}
-        <IconHook />
-      {/snippet}
-      {#snippet delegatesIcon()}
-        <IconSubagent />
-      {/snippet}
-      {#snippet usageIcon()}
-        <IconUsage />
-      {/snippet}
-      {@render navItem(
-        '/session',
-        path.startsWith('/session'),
-        'Fleet',
-        boxIcon,
-        fleetCount || undefined,
-        whiffle.blockedCount > 0
-      )}
-      {@render navItem('/tools', path.startsWith('/tools'), 'Tools', toolsIcon)}
-      {@render navItem('/rules', path.startsWith('/rules'), 'Rules', rulesIcon)}
-      {@render navItem('/hooks', path.startsWith('/hooks'), 'Hooks', hooksIcon)}
-      {@render navItem('/delegates', path.startsWith('/delegates'), 'Delegates', delegatesIcon)}
-      {@render navItem('/usage', path.startsWith('/usage'), 'Usage', usageIcon)}
-    </nav>
-
-    {#if whiffle.machines.length > 0}
-      <div class="sec">Machines</div>
-      <!-- biome-ignore lint/a11y/useSemanticElements: ul/li's default list-style and inset margin would need new resets this pass has no way to verify visually; the div+role pairing is already accessible -->
-      <div class="rows" role="list">
-        {#each whiffle.machines as machine (machine.machineId)}
-          <MachineMenu {machine}>
-            <!-- biome-ignore lint/a11y/useSemanticElements: see the .rows container above -->
-            <div class="row machine" role="listitem">
-              <OsMark class="os" os={machine.os} />
-              <span class="nm">{machineLabel(machine.hostname)}</span>
-              {#if online.has(machine.machineId)}
-                <span class="dot up" title="Online"></span>
-              {:else}
-                <!-- The fact every "unknown" session on this box used to
-                     repeat on its own row, said once here instead (leaf Y1):
-                     a shape (triangle, not a dot) so it reads without colour
-                     too. -->
-                <span class="unreachable" title={MACHINE_UNREACHABLE_HINT}>
-                  <IconWarningTriangle aria-hidden="true" class="size-3" />
-                  <span class="sr-only">Unreachable</span>
-                </span>
-              {/if}
-            </div>
-          </MachineMenu>
-        {/each}
-      </div>
-    {/if}
-
-    <!-- Projects — the rail's project index. A label, the creation control
-         beside it, and every project as a foldable group of its live work. -->
-    <div class="sec sec-row">
-      <span>Projects</span>
-      <NewProjectPopover />
-    </div>
-    {#if orderedProjects.length === 0}
-      <p class="hint">
-        {#if whiffle.machines.length === 0}
-          Run <code>whiffle</code> on a machine, then group its checkouts here.
-        {:else}
-          No projects yet — name a checkout to group its sessions.
-        {/if}
-      </p>
-    {:else}
-      <!-- biome-ignore lint/a11y/useSemanticElements: see the Machines .rows container above -->
-      <div class="rows" role="list">
-        {#each orderedProjects as project (project.id)}
-          {@const sessions = sessionsOf(project)}
-          {@const expanded = !collapsed.has(project.id)}
-          <FolderMenu
-            cwd={project.cwd}
-            name={project.name}
-            oncollapseothers={() => collapseOthers(project.id)}
-            onnew={() =>
-              newSession({ projectId: project.id, machineId: project.machineId, cwd: project.cwd })}
-            {project}
-          >
-            <!-- biome-ignore lint/a11y/useSemanticElements: see the Machines .rows container above -->
-            <div class="folder" role="listitem">
-              <button
-                aria-expanded={expanded}
-                class="folder-h"
-                onclick={() => toggle(project.id)}
-                type="button"
-                class:on={path === `/project/${project.id}`}
+  <Sidebar.Header>
+    <!-- Brand tile — matches the FF preset's workspace-switcher anatomy -->
+    <Sidebar.Menu aria-label="Workspace">
+      <Sidebar.MenuItem>
+        <Sidebar.MenuButton class={NAV_ROW} isActive={false}>
+          {#snippet child({ props })}
+            <a href="/session" {...props} class="{props.class} no-underline">
+              <span
+                aria-hidden="true"
+                class="{SLOT} rounded-[var(--radius-mark)]"
+                style="background: var(--brand-solid); background-image: var(--gradient-action); box-shadow: var(--shadow-action); color: var(--on-brand);"
               >
-                <span aria-hidden="true" class="tw" class:open={expanded}
-                  ><IconChevronRight /></span
+                <svg
+                  aria-hidden="true"
+                  class={MARK_GLYPH}
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  viewBox="0 0 24 24"
                 >
-                <span class="mark m{markHue(project.cwd)}"
-                  ><IconFolderDuo /></span
+                  <path d="M4 4h16v16H4z" />
+                  <path d="M4 4h8v16H4z" fill="currentColor" />
+                </svg>
+              </span>
+              <span
+                class="min-w-0 truncate text-[length:var(--text-md)] font-semibold tracking-tight text-foreground"
+                >Whiffle</span
+              >
+            </a>
+          {/snippet}
+        </Sidebar.MenuButton>
+      </Sidebar.MenuItem>
+    </Sidebar.Menu>
+
+    <!-- Search + New session row — one visual block -->
+    <div class="flex flex-col gap-0.5">
+      <div class="group/search relative">
+        <span
+          class="{SLOT} pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+        >
+          <IconSearch class={SLOT_GLYPH} />
+        </span>
+        <Sidebar.Input
+          aria-label="Jump to session"
+          class="h-9 pl-[38px] pr-14 md:text-[length:var(--text-md)]"
+          placeholder="Jump…"
+        />
+        <kbd
+          class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 font-sans
+                  text-[length:var(--text-sm)] text-muted-foreground opacity-0 transition-opacity duration-75
+                  group-hover/search:opacity-100 group-focus-within/search:opacity-100"
+          >⌘K</kbd
+        >
+      </div>
+      <Sidebar.Menu>
+        <Sidebar.MenuItem>
+          <Sidebar.MenuButton class={NAV_ROW} onclick={() => newSession()}>
+            {#snippet child({ props })}
+              <button {...props} type="button">
+                <span class={SLOT}><IconPlus class={SLOT_GLYPH} /></span>
+                <span class="flex-1">New session</span>
+                <span
+                  class="inline-flex opacity-0 transition-opacity duration-75
+                           group-hover/menu-item:opacity-100 group-focus-within/menu-item:opacity-100"
                 >
-                <span class="nm">{project.name}</span>
-                {#if sessions.length > 0}
-                  <span class="cnt">{sessions.length}</span>
-                {/if}
+                  <kbd
+                    class="font-sans text-[length:var(--text-sm)] text-muted-foreground"
+                    >⇧⌘N</kbd
+                  >
+                </span>
               </button>
-            </div>
-          </FolderMenu>
-          {#if expanded}
-            <div class="sub">
-              {#each sessions as row (row.id)}
-                {@const Sprite = sessionSprite(row.id)}
-                {@const activity = whiffle.activityOf(row.id)}
-                <a
-                  class="row sub-i"
-                  href="/session/{row.id}"
-                  class:on={path === `/session/${row.id}`}
-                >
-                  <span class="mark m{markHue(row.cwd || row.machineId)}">
-                    <Sprite aria-hidden="true" />
-                  </span>
-                  <span class="nm">{sessionName(row)}</span>
-                  <Badge class={pillClass(PILL[activity])}
-                    >{ACTIVITY_LABEL[activity]}</Badge
-                  >
-                </a>
-              {:else}
-                {@const recent = recentCountOf(project)}
-                <button
-                  class="row sub-i empty"
-                  onclick={() =>
-                    newSession({
-                      projectId: project.id,
-                      machineId: project.machineId,
-                      cwd: project.cwd,
-                    })}
-                  type="button"
-                >
-                  <span class="nm dim"
-                    >{recent > 0 ? `${recent} recent — none running` : 'No sessions — start one'}</span
-                  >
-                </button>
-              {/each}
-            </div>
-          {/if}
-        {/each}
-      </div>
-    {/if}
-
-    {#if ungrouped.length > 0}
-      <div class="sec">Running now</div>
-      <div class="rows">
-        {#each ungrouped as row (row.id)}
-          {@const activity = whiffle.activityOf(row.id)}
-          {@const Sprite = sessionSprite(row.id)}
-          <a
-            class="row"
-            href="/session/{row.id}"
-            class:on={path === `/session/${row.id}`}
-          >
-            <span class="mark m{markHue(row.cwd || row.machineId)}">
-              <Sprite aria-hidden="true" />
-            </span>
-            <span class="nm">{sessionName(row)}</span>
-            <Badge class={pillClass(PILL[activity])}
-              >{ACTIVITY_LABEL[activity]}</Badge
-            >
-          </a>
-        {/each}
-      </div>
-    {/if}
-
-    <!-- Asleep and unreachable rows never join `running` above, so without
-         this the rail — the first place the operator looks — would show
-         nothing for them at all. Kept in its own section, never folded into
-         the Fleet pill or the "Running now" live tail. -->
-    {#if notRunning.length > 0}
-      {@const SIDEBAR_CAP = 15}
-      {@const cappedNR = showAllNR ? notRunning : notRunning.slice(0, SIDEBAR_CAP)}
-      <div class="sec">Not running</div>
-      <div class="rows">
-        {#each cappedNR as row (row.id)}
-          {@const Sprite = sessionSprite(row.id)}
-          {@const rowStale = isStale(row)}
-          <a
-            class="row"
-            href="/session/{row.id}"
-            title={notRunningHint(row)}
-            class:on={path === `/session/${row.id}`}
-          >
-            <span
-              class="mark m{markHue(row.cwd || row.machineId)}"
-              style="opacity:0.6"
-            >
-              <Sprite aria-hidden="true" />
-            </span>
-            <span class="nm">{sessionName(row)}</span>
-            <ActivityDot
-              activity="idle"
-              sleeping={!rowStale}
-              stale={rowStale}
-            />
-          </a>
-        {/each}
-        {#if !showAllNR && notRunning.length > SIDEBAR_CAP}
-          <button
-            class="row dim"
-            onclick={() => {
-              showAllNR = true;
-            }}
-            type="button"
-          >
-            {notRunning.length - SIDEBAR_CAP}
-            more…
-          </button>
-        {/if}
-      </div>
-    {/if}
-  </div>
-
-  <div class="foot">
-    <UsageMeter />
-    <div class="me">
-      <span aria-hidden="true" class="av">bw</span>
-      <span class="who">
-        <span class="nm">bewinxed</span>
-        <span class="em">{whiffle.machines.length} machines</span>
-      </span>
+            {/snippet}
+          </Sidebar.MenuButton>
+        </Sidebar.MenuItem>
+      </Sidebar.Menu>
     </div>
-  </div>
+  </Sidebar.Header>
+
+  <!-- ────────────────────── content ──────────────────────── -->
+
+  <Sidebar.Content class="gap-0 py-1">
+    <!-- Fleet nav -->
+    <Sidebar.Group class={GROUP}>
+      <Sidebar.GroupLabel class={GROUP_LABEL}>Fleet</Sidebar.GroupLabel>
+      <Sidebar.Menu class={MENU}>
+        <Sidebar.MenuItem>
+          <Sidebar.MenuButton
+            class={NAV_ROW}
+            isActive={path.startsWith('/session')}
+          >
+            {#snippet child({ props })}
+              <a href="/session" {...props}>
+                <span class={SLOT}><IconBoxDuo class={SLOT_GLYPH} /></span>
+                <span>Fleet</span>
+              </a>
+            {/snippet}
+          </Sidebar.MenuButton>
+          {#if fleetCount}
+            <Sidebar.MenuBadge
+              class={whiffle.blockedCount > 0
+              ? 'bg-[var(--status-attn-bg)] text-[var(--status-attn-ink)]'
+              : 'bg-[var(--status-live-bg)] text-[var(--status-live-ink)]'}
+            >
+              {fleetCount}
+            </Sidebar.MenuBadge>
+          {/if}
+        </Sidebar.MenuItem>
+
+        <Sidebar.MenuItem>
+          <Sidebar.MenuButton
+            class={NAV_ROW}
+            isActive={path.startsWith('/tools')}
+          >
+            {#snippet child({ props })}
+              <a href="/tools" {...props}>
+                <span class={SLOT}><IconTools class={SLOT_GLYPH} /></span>
+                <span>Tools</span>
+              </a>
+            {/snippet}
+          </Sidebar.MenuButton>
+        </Sidebar.MenuItem>
+
+        <Sidebar.MenuItem>
+          <Sidebar.MenuButton
+            class={NAV_ROW}
+            isActive={path.startsWith('/rules')}
+          >
+            {#snippet child({ props })}
+              <a href="/rules" {...props}>
+                <span class={SLOT}><IconRules class={SLOT_GLYPH} /></span>
+                <span>Rules</span>
+              </a>
+            {/snippet}
+          </Sidebar.MenuButton>
+        </Sidebar.MenuItem>
+
+        <Sidebar.MenuItem>
+          <Sidebar.MenuButton
+            class={NAV_ROW}
+            isActive={path.startsWith('/hooks')}
+          >
+            {#snippet child({ props })}
+              <a href="/hooks" {...props}>
+                <span class={SLOT}><IconHook class={SLOT_GLYPH} /></span>
+                <span>Hooks</span>
+              </a>
+            {/snippet}
+          </Sidebar.MenuButton>
+        </Sidebar.MenuItem>
+
+        <Sidebar.MenuItem>
+          <Sidebar.MenuButton
+            class={NAV_ROW}
+            isActive={path.startsWith('/delegates')}
+          >
+            {#snippet child({ props })}
+              <a href="/delegates" {...props}>
+                <span class={SLOT}><IconSubagent class={SLOT_GLYPH} /></span>
+                <span>Delegates</span>
+              </a>
+            {/snippet}
+          </Sidebar.MenuButton>
+        </Sidebar.MenuItem>
+
+        <Sidebar.MenuItem>
+          <Sidebar.MenuButton
+            class={NAV_ROW}
+            isActive={path.startsWith('/usage')}
+          >
+            {#snippet child({ props })}
+              <a href="/usage" {...props}>
+                <span class={SLOT}><IconUsage class={SLOT_GLYPH} /></span>
+                <span>Usage</span>
+              </a>
+            {/snippet}
+          </Sidebar.MenuButton>
+        </Sidebar.MenuItem>
+      </Sidebar.Menu>
+    </Sidebar.Group>
+
+    <!-- Machines -->
+    {#if whiffle.machines.length > 0}
+      <Sidebar.Group class={GROUP}>
+        <Sidebar.GroupLabel class={GROUP_LABEL}>Machines</Sidebar.GroupLabel>
+        <Sidebar.Menu class={MENU}>
+          {#each whiffle.machines as machine (machine.machineId)}
+            <Sidebar.MenuItem>
+              <MachineMenu {machine}>
+                <Sidebar.MenuButton class="{LIST_ROW} cursor-default">
+                  {#snippet child({ props })}
+                    <div {...props}>
+                      <span class={SLOT}>
+                        <OsMark
+                          class="{SLOT_GLYPH} text-muted-foreground"
+                          os={machine.os}
+                        />
+                      </span>
+                      <span class="min-w-0 flex-1 truncate"
+                        >{machineLabel(machine.hostname)}</span
+                      >
+                      {#if online.has(machine.machineId)}
+                        <span class={TRAIL} title="Online">
+                          <span
+                            class="size-2 rounded-full bg-emerald-500"
+                          ></span>
+                          <span class="sr-only">Online</span>
+                        </span>
+                      {:else}
+                        <span class={TRAIL} title={MACHINE_UNREACHABLE_HINT}>
+                          <IconWarningTriangle
+                            aria-hidden="true"
+                            class="size-3.5 text-warning"
+                          />
+                          <span class="sr-only">Unreachable</span>
+                        </span>
+                      {/if}
+                    </div>
+                  {/snippet}
+                </Sidebar.MenuButton>
+              </MachineMenu>
+            </Sidebar.MenuItem>
+          {/each}
+        </Sidebar.Menu>
+      </Sidebar.Group>
+    {/if}
+
+    <!-- Projects -->
+    <Sidebar.Group class={GROUP}>
+      <Sidebar.GroupLabel class="{GROUP_LABEL} pr-1">
+        <span>Projects</span>
+        <!-- The sort lives here rather than once per list because it governs all
+           of them at once: a rail whose projects were ordered by recency and
+           whose "Not running" was ordered by name would be two rails. -->
+        <div class="-mr-1 ml-auto flex items-center gap-0.5">
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger>
+              {#snippet child({ props })}
+                <Button
+                  {...props}
+                  aria-label="Sort sessions — currently {SORT_LABEL[rail.sort]}"
+                  size="icon-sm"
+                  title="Sort sessions — {SORT_LABEL[rail.sort]}"
+                  variant="ghost"
+                >
+                  <IconSort />
+                </Button>
+              {/snippet}
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Content align="start" class="w-44">
+              <DropdownMenu.Group>
+                <DropdownMenu.GroupHeading
+                  >Sort sessions by</DropdownMenu.GroupHeading
+                >
+                <DropdownMenu.RadioGroup
+                  onValueChange={(value) => rail.setSort(value as RailSort)}
+                  value={rail.sort}
+                >
+                  <DropdownMenu.RadioItem value="recent"
+                    >Last activity</DropdownMenu.RadioItem
+                  >
+                  <DropdownMenu.RadioItem value="name"
+                    >Name</DropdownMenu.RadioItem
+                  >
+                  <DropdownMenu.RadioItem value="state"
+                    >State</DropdownMenu.RadioItem
+                  >
+                </DropdownMenu.RadioGroup>
+              </DropdownMenu.Group>
+            </DropdownMenu.Content>
+          </DropdownMenu.Root>
+          <NewProjectPopover />
+        </div>
+      </Sidebar.GroupLabel>
+      {#if orderedProjects.length === 0}
+        <p
+          class="px-2.5 text-[length:var(--text-base)] leading-relaxed text-muted-foreground"
+        >
+          {#if whiffle.machines.length === 0}
+            Run
+            <code class="font-mono text-[length:var(--text-sm)] text-foreground"
+              >whiffle</code
+            >
+            on a machine, then group its checkouts here.
+          {:else}
+            No projects yet — name a checkout to group its sessions.
+          {/if}
+        </p>
+      {:else}
+        <Sidebar.Menu class={MENU}>
+          {#each orderedProjects as project (project.id)}
+            {@const sessions = sessionsOf(project)}
+            {@const expanded = !collapsed.has(project.id)}
+            <Sidebar.MenuItem>
+              <FolderMenu
+                cwd={project.cwd}
+                name={project.name}
+                oncollapseothers={() => collapseOthers(project.id)}
+                onnew={() =>
+                newSession({ projectId: project.id, machineId: project.machineId, cwd: project.cwd })}
+                {project}
+              >
+                <Sidebar.MenuButton
+                  class={LIST_ROW}
+                  onclick={() => toggle(project.id)}
+                >
+                  <span
+                    aria-hidden="true"
+                    class="-ml-1 inline-flex size-[14px] shrink-0 items-center justify-center transition-transform duration-150"
+                    class:rotate-90={expanded}
+                  >
+                    <IconChevronRight class="size-3 text-muted-foreground" />
+                  </span>
+                  <span
+                    class={MARK}
+                    style="background-image: var(--mark-overlay); background-color: var(--mark-{markHue(project.cwd)});"
+                  >
+                    <IconFolderDuo
+                      class={MARK_GLYPH}
+                      style="color: var(--mark-glyph);"
+                    />
+                  </span>
+                  <span class="min-w-0 truncate">{project.name}</span>
+                  {#if sessions.length > 0}
+                    <span
+                      class="ml-auto shrink-0 text-[length:var(--text-sm)] tabular-nums text-muted-foreground"
+                      >{sessions.length}</span
+                    >
+                  {/if}
+                </Sidebar.MenuButton>
+              </FolderMenu>
+
+              <!-- Sub-items: sessions under this project -->
+              {#if expanded}
+                <!-- The rail's one piece of choreography: the sub-list opens by
+                   growing rather than appearing, so a folder toggled by mistake
+                   is legible as the thing that just moved. `cubicOut` and 180ms
+                   match the chevron rotating above it. -->
+                <div transition:slide={{ duration: 180, easing: cubicOut }}>
+                  <Sidebar.MenuSub>
+                    {#each nested(sessions) as { row, depth } (row.id)}
+                      {@const Sprite = sessionSprite(row.id)}
+                      {@const activity = whiffle.activityOf(row.id)}
+                      <Sidebar.MenuSubItem>
+                        <Sidebar.MenuSubButton
+                          class={SUB_ROW}
+                          href="/session/{row.id}"
+                          isActive={path === `/session/${row.id}`}
+                          style={indent(depth)}
+                        >
+                          <span
+                            class={MARK}
+                            style="background-image: var(--mark-overlay); background-color: var(--mark-{markHue(row.cwd || row.machineId)});"
+                          >
+                            <Sprite
+                              aria-hidden="true"
+                              class={MARK_GLYPH}
+                              style="color: var(--mark-glyph);"
+                            />
+                          </span>
+                          <span class="min-w-0 flex-1 truncate"
+                            >{sessionName(row)}</span
+                          >
+                          {@render age(row)}
+                          <span class={TRAIL}><ActivityDot {activity} /></span>
+                        </Sidebar.MenuSubButton>
+                      </Sidebar.MenuSubItem>
+                    {:else}
+                      {@const recent = recentCountOf(project)}
+                      <Sidebar.MenuSubItem>
+                        <Sidebar.MenuSubButton
+                          class="{SUB_ROW} text-muted-foreground"
+                          onclick={() =>
+                        newSession({
+                          projectId: project.id,
+                          machineId: project.machineId,
+                          cwd: project.cwd,
+                        })}
+                        >
+                          {recent > 0 ? `${recent} recent — none running` : 'No sessions — start one'}
+                        </Sidebar.MenuSubButton>
+                      </Sidebar.MenuSubItem>
+                    {/each}
+                  </Sidebar.MenuSub>
+                </div>
+              {/if}
+            </Sidebar.MenuItem>
+          {/each}
+        </Sidebar.Menu>
+      {/if}
+    </Sidebar.Group>
+
+    <!-- Running now (ungrouped sessions) -->
+    {#if ungrouped.length > 0}
+      <Sidebar.Group class={GROUP}>
+        <Sidebar.GroupLabel class={GROUP_LABEL}>Running now</Sidebar.GroupLabel>
+        <Sidebar.Menu class={MENU}>
+          {#each nested(ungrouped) as { row, depth } (row.id)}
+            {@const activity = whiffle.activityOf(row.id)}
+            {@const Sprite = sessionSprite(row.id)}
+            <Sidebar.MenuItem>
+              <Sidebar.MenuButton
+                class={LIST_ROW}
+                isActive={path === `/session/${row.id}`}
+              >
+                {#snippet child({ props })}
+                  <a href="/session/{row.id}" style={indent(depth)} {...props}>
+                    <span
+                      class={MARK}
+                      style="background-image: var(--mark-overlay); background-color: var(--mark-{markHue(row.cwd || row.machineId)});"
+                    >
+                      <Sprite
+                        aria-hidden="true"
+                        class={MARK_GLYPH}
+                        style="color: var(--mark-glyph);"
+                      />
+                    </span>
+                    <span class="min-w-0 flex-1 truncate"
+                      >{sessionName(row)}</span
+                    >
+                    {@render age(row)}
+                    <span class={TRAIL}><ActivityDot {activity} /></span>
+                  </a>
+                {/snippet}
+              </Sidebar.MenuButton>
+            </Sidebar.MenuItem>
+          {/each}
+        </Sidebar.Menu>
+      </Sidebar.Group>
+    {/if}
+
+    <!-- Not running -->
+    {#if notRunning.length > 0}
+      <Sidebar.Group class="{GROUP} min-h-0 flex-1">
+        <Sidebar.GroupLabel class={GROUP_LABEL}>
+          <span>Not running</span>
+          <span class="ml-auto tabular-nums opacity-70"
+            >{notRunning.length}</span
+          >
+        </Sidebar.GroupLabel>
+        <!-- Virtualized rather than capped. This list is the whole history of the
+           fleet — two hundred rows on this machine today — and "15 more…" is
+           not a shorter list, it is the same list with the interesting part
+           hidden behind a click. `LIST_ROW` is a fixed 30px, so `itemSize` is
+           exact and the scrollbar never jumps as rows measure.
+           
+           It scrolls in its own pane rather than in the rail's. Virtua measures
+           a list from the top of its scroller, so pointed at the rail's
+           scroller it would need `startMargin` — the exact height of the four
+           groups above it, which changes every time a folder is toggled or a
+           machine arrives. A pane of its own has no such number to keep
+           correct, and it earns its keep anyway: the fleet's whole history
+           scrolls without pushing the nav, the machines and the projects off
+           the top of the rail. -->
+        <div class="no-scrollbar min-h-40 flex-1 overflow-y-auto">
+          <Virtualizer
+            as="ul"
+            bufferSize={12}
+            data={nestedNotRunning}
+            getKey={({ row }: Nested) => row.id}
+            item="li"
+            itemProps={() => ({ class: 'group/menu-item relative' })}
+            itemSize={30}
+          >
+            {#snippet children({ row, depth }: Nested)}
+              {@const Sprite = sessionSprite(row.id)}
+              {@const rowStale = isStale(row)}
+              <Sidebar.MenuButton
+                class={LIST_ROW}
+                isActive={path === `/session/${row.id}`}
+              >
+                {#snippet child({ props })}
+                  <a
+                    href="/session/{row.id}"
+                    style={indent(depth)}
+                    title={notRunningHint(row)}
+                    {...props}
+                  >
+                    <span
+                      class="{MARK} opacity-60"
+                      style="background-image: var(--mark-overlay); background-color: var(--mark-{markHue(row.cwd || row.machineId)});"
+                    >
+                      <Sprite
+                        aria-hidden="true"
+                        class={MARK_GLYPH}
+                        style="color: var(--mark-glyph);"
+                      />
+                    </span>
+                    <span class="min-w-0 flex-1 truncate"
+                      >{sessionName(row)}</span
+                    >
+                    {@render age(row)}
+                    <span class={TRAIL}
+                      ><ActivityDot
+                        activity="idle"
+                        sleeping={!rowStale}
+                        stale={rowStale}
+                      /></span
+                    >
+                  </a>
+                {/snippet}
+              </Sidebar.MenuButton>
+            {/snippet}
+          </Virtualizer>
+        </div>
+      </Sidebar.Group>
+    {/if}
+  </Sidebar.Content>
+
+  <!-- ────────────────────── footer ──────────────────────── -->
+
+  <Sidebar.Footer>
+    <UsageMeter />
+    <Sidebar.Menu aria-label="User">
+      <Sidebar.MenuItem>
+        <Sidebar.MenuButton class={NAV_ROW}>
+          <span
+            aria-hidden="true"
+            class="{SLOT} rounded-full bg-sidebar-accent text-[length:var(--text-xs)] font-semibold text-sidebar-accent-foreground"
+            >bw</span
+          >
+          <span class="min-w-0 flex-1 truncate text-foreground">bewinxed</span>
+          <span
+            class="shrink-0 text-[length:var(--text-sm)] text-muted-foreground"
+          >
+            {whiffle.machines.length}
+            machine{whiffle.machines.length === 1 ? '' : 's'}
+          </span>
+        </Sidebar.MenuButton>
+      </Sidebar.MenuItem>
+    </Sidebar.Menu>
+  </Sidebar.Footer>
 </div>
+<!-- end flex column wrapper -->
 
 <SpawnPanel
   onclose={() => {
@@ -477,434 +915,3 @@
   open={spawnOpen}
   prefill={spawnPrefill}
 />
-
-<style>
-  .rail {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    min-height: 0;
-    background: var(--surface-sunken);
-    overflow: hidden;
-  }
-
-  .brand {
-    height: 57px;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    padding: 0 var(--space-4);
-    text-decoration: none;
-    color: var(--ink-strong);
-  }
-  .logo {
-    width: 26px;
-    height: 26px;
-    border-radius: var(--radius-well);
-    background: var(--brand-solid);
-    background-image: var(--gradient-action);
-    box-shadow: var(--shadow-action);
-    color: var(--on-brand);
-    display: grid;
-    place-items: center;
-    flex: 0 0 auto;
-  }
-  .logo svg {
-    width: 15px;
-    height: 15px;
-    display: block;
-  }
-  .brand b {
-    font-size: var(--text-md);
-    font-weight: var(--weight-strong);
-    letter-spacing: var(--track-display);
-  }
-
-  /* The primary action reads as the one lifted control in the sunken rail. */
-  .new {
-    flex-shrink: 0;
-    padding: 0 10px var(--space-2);
-  }
-  .new :global(.new-btn) {
-    width: 100%;
-    justify-content: center;
-    gap: var(--space-2);
-  }
-
-  .body {
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow-y: auto;
-    padding-bottom: var(--space-4);
-  }
-
-  .sec {
-    font-size: var(--text-xs);
-    color: var(--ink-muted);
-    font-weight: var(--weight-strong);
-    text-transform: uppercase;
-    letter-spacing: var(--track-caps);
-    padding: 0 var(--space-6);
-    margin: var(--space-4) 0 var(--space-2);
-  }
-  /* The Projects label carries its creation control at the trailing edge. */
-  .sec-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding-right: 10px;
-  }
-
-  .hint {
-    padding: 0 var(--space-6);
-    font-size: var(--text-sm);
-    line-height: var(--leading-body);
-    color: var(--ink-muted);
-  }
-  .hint code {
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    color: var(--ink-body);
-  }
-
-  nav,
-  .rows {
-    padding: 0 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-  }
-
-  /* NavItem ported to a token-styled anchor matching mock .nav-i (ui/sidebar's
-     sidebar-menu-button needs a SidebarProvider this rail does not mount, so the
-     token anchor is the clean fit). Active = raised fill on the sunken rail. */
-  .nav-i {
-    height: var(--c-nav-h);
-    border-radius: var(--radius-control);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 0 10px;
-    font-size: var(--text-md);
-    color: var(--ink-body);
-    font-weight: var(--weight-medium);
-    text-decoration: none;
-  }
-  .nav-i .ic {
-    width: 18px;
-    flex: 0 0 auto;
-    color: var(--ink-muted);
-    display: grid;
-    place-items: center;
-  }
-  .nav-i .ic :global(svg) {
-    width: 16px;
-    height: 16px;
-    display: block;
-  }
-  .nav-i .lbl {
-    flex: 1 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .nav-i.on {
-    background: var(--surface-raised);
-    color: var(--ink-strong);
-    box-shadow: var(--shadow-tile);
-    font-weight: var(--weight-strong);
-  }
-  .nav-i.on .ic {
-    color: var(--ink-body);
-  }
-  @media (hover: hover) and (pointer: fine) {
-    .nav-i:hover {
-      background: var(--surface-hover);
-    }
-    .nav-i.on:hover {
-      background: var(--surface-raised);
-    }
-    .nav-i:active {
-      background: var(--surface-active);
-    }
-  }
-  .nav-i:focus-visible {
-    outline: 2px solid var(--focus-ring);
-    outline-offset: 2px;
-    border-radius: var(--radius-control);
-  }
-
-  .row {
-    height: 30px;
-    border-radius: var(--radius-tile);
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    padding: 0 10px;
-    font-size: var(--text-base);
-    color: var(--ink-body);
-    font-weight: var(--weight-medium);
-    text-decoration: none;
-    min-width: 0;
-  }
-  .row.on {
-    background: var(--surface-raised);
-    color: var(--ink-strong);
-    font-weight: var(--weight-strong);
-    box-shadow: var(--shadow-tile);
-  }
-  .row .nm {
-    flex: 1 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .row :global(.os) {
-    width: 16px;
-    height: 16px;
-    flex: 0 0 auto;
-    color: var(--ink-muted);
-  }
-
-  /* ---- projects group -------------------------------------------------- */
-
-  .folder {
-    display: flex;
-  }
-  .folder-h {
-    flex: 1 1 auto;
-    height: 30px;
-    border: 0;
-    background: none;
-    /* Outer radius = the inner mark's radius + its inset, so the fill sits
-       concentric with the mark rather than sharing one radius. */
-    border-radius: var(--radius-tile);
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    padding: 0 10px 0 6px;
-    min-width: 0;
-    cursor: pointer;
-    color: var(--ink-body);
-    font-size: var(--text-base);
-    font-weight: var(--weight-medium);
-    /* Only the surface transitions, and it stays interruptible. */
-    transition: background var(--motion-fast) var(--e-toggle);
-  }
-  .folder-h .nm {
-    flex: 1 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    text-align: left;
-  }
-  .folder-h.on {
-    color: var(--ink-strong);
-    font-weight: var(--weight-strong);
-  }
-  .tw {
-    width: 14px;
-    flex: 0 0 auto;
-    display: grid;
-    place-items: center;
-    color: var(--ink-muted);
-    /* The static cue for open/closed is the direction the chevron points; the
-       rotation is only the transition between those two static states. */
-    transition: transform var(--motion-fast) var(--e-toggle);
-  }
-  .tw.open {
-    transform: rotate(90deg);
-  }
-  /* biome-ignore lint/style/noDescendingSpecificity: .tw is the folder-toggle chevron, .nav-i .ic is the top-nav icon slot — they never target the same svg */
-  .tw :global(svg) {
-    width: 13px;
-    height: 13px;
-    display: block;
-  }
-  .cnt {
-    flex: 0 0 auto;
-    font-size: var(--text-sm);
-    color: var(--ink-muted);
-    font-variant-numeric: tabular-nums;
-  }
-  /* Sessions sit indented under their folder header, aligned past the twist. */
-  .sub {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-  }
-  .sub-i {
-    padding-left: 29px;
-  }
-  .sub-i.empty {
-    border: 0;
-    background: none;
-    cursor: pointer;
-    width: 100%;
-    text-align: left;
-    font: inherit;
-  }
-  .sub-i .dim {
-    color: var(--ink-muted);
-    font-size: var(--text-sm);
-  }
-  @media (hover: hover) and (pointer: fine) {
-    .folder-h:hover,
-    .sub-i.empty:hover {
-      background: var(--surface-hover);
-    }
-  }
-  .folder-h:focus-visible,
-  .sub-i.empty:focus-visible {
-    outline: 2px solid var(--focus-ring);
-    outline-offset: 2px;
-  }
-  /* Tactile press on the rail's own buttons; suppressed for reduced motion. */
-  .folder-h:active,
-  .tw:active,
-  .sub-i.empty:active {
-    transform: scale(0.98);
-  }
-  .tw:active {
-    /* the twist keeps its rotation cue while dipping under the press */
-    transform: rotate(0deg) scale(0.98);
-  }
-  .tw.open:active {
-    transform: rotate(90deg) scale(0.98);
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .folder-h,
-    .tw {
-      transition: none;
-    }
-    .folder-h:active,
-    .sub-i.empty:active {
-      transform: none;
-    }
-    .tw:active {
-      transform: rotate(0deg);
-    }
-    .tw.open:active {
-      transform: rotate(90deg);
-    }
-  }
-
-  /* Item mark — inlined token primitive (17px running-now recipe): identity hue
-     square carrying the per-session duotone sprite (or the folder glyph), with
-     the top-light / bottom-shade overlay. Sized ~10px, optically centred by the
-     grid, white-glyph convention. Kept identical across the sidebar cluster. */
-  .mark {
-    width: 17px;
-    height: 17px;
-    border-radius: var(--radius-mark);
-    flex: 0 0 auto;
-    display: grid;
-    place-items: center;
-    background-image: var(--mark-overlay);
-    background-color: var(--mark-1);
-  }
-  /* biome-ignore lint/style/noDescendingSpecificity: .mark is the folder/session color chip, .nav-i .ic is the top-nav icon slot — they never target the same svg */
-  .mark :global(svg) {
-    width: 11px;
-    height: 11px;
-    display: block;
-    color: var(--mark-glyph);
-  }
-  .mark.m2 {
-    background-color: var(--mark-2);
-  }
-  .mark.m3 {
-    background-color: var(--mark-3);
-  }
-  .mark.m4 {
-    background-color: var(--mark-4);
-  }
-  .mark.m5 {
-    background-color: var(--mark-5);
-  }
-  .mark.m6 {
-    background-color: var(--mark-6);
-  }
-  .mark.m7 {
-    background-color: var(--mark-7);
-  }
-  .mark.m8 {
-    background-color: var(--mark-8);
-  }
-  @media (hover: hover) and (pointer: fine) {
-    .row:hover {
-      background: var(--surface-hover);
-    }
-  }
-  .row:focus-visible {
-    outline: 2px solid var(--focus-ring);
-    outline-offset: 2px;
-  }
-
-  .machine {
-    cursor: default;
-  }
-  .dot {
-    width: 6px;
-    height: 6px;
-    border-radius: var(--radius-pill);
-    flex: 0 0 auto;
-    background: var(--border-control);
-  }
-  .dot.up {
-    background: var(--status-done-ink);
-  }
-  .unreachable {
-    display: inline-flex;
-    flex: 0 0 auto;
-    color: var(--warning-11);
-  }
-
-  .foot {
-    flex: 0 0 auto;
-    padding: 0 10px;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-  }
-  .me {
-    border-top: 1px solid var(--border-hairline);
-    height: 60px;
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    margin-top: var(--space-1);
-  }
-  .av {
-    width: 31px;
-    height: 31px;
-    border-radius: var(--radius-pill);
-    background: var(--surface-raised);
-    box-shadow: var(--shadow-tile);
-    flex: 0 0 auto;
-    display: grid;
-    place-items: center;
-    font-size: var(--text-sm);
-    font-weight: var(--weight-strong);
-    color: var(--ink-body);
-  }
-  .who {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-  }
-  .me .nm {
-    font-size: var(--text-base);
-    font-weight: var(--weight-strong);
-    line-height: 1.25;
-    color: var(--ink-strong);
-  }
-  .me .em {
-    font-size: var(--text-sm);
-    color: var(--ink-muted);
-  }
-</style>

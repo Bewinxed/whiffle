@@ -18,6 +18,7 @@
   import ThemeSwitcher from "$lib/components/ui/ThemeSwitcher.svelte";
   import { IconSearch, IconShield, IconSidebar } from "$lib/icons";
   import { isTyping } from "$lib/utils/typing";
+  import { setSidebar } from "$lib/components/ui/sidebar/context.svelte";
   import AssistantOrb from "./assistant/AssistantOrb.svelte";
   import AssistantPanel from "./assistant/AssistantPanel.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
@@ -26,6 +27,15 @@
   import Sidebar from "./Sidebar.svelte";
   import UsageMeter from "./UsageMeter.svelte";
   import { workspace } from "./workspace/workspace.svelte";
+
+  // The sidebar primitives (SidebarMenuButton etc.) call `useSidebar()` which
+  // needs a context. The Shell manages its own layout (resize, mobile sheet),
+  // so we provide a context that wires into the Shell's existing state.
+  let sidebarOpen = $state(true);
+  setSidebar({
+    open: () => sidebarOpen,
+    setOpen: (v: boolean) => { sidebarOpen = v; },
+  });
 
   const RAIL_KEY = "whiffle-rail-width";
   const RAIL_MIN = 216;

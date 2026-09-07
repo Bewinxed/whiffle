@@ -939,11 +939,12 @@ other state change is instantaneous.
 - **Easing:** `--e-in` `cubic-bezier(0.16, 1, 0.3, 1)` (entry) · `--e-out`
   `cubic-bezier(0.7, 0, 0.84, 0)` (exit) · `--e-toggle` `cubic-bezier(0.65, 0, 0.35, 1)`
   — the three canonical curves, aliased as `--ease-entry` / `--ease-exit` / `--ease-toggle`.
-- **Allowed:** `transform` and `opacity` only. The running mark's breath; one
-  settle on a status arrival; panel and drawer entry/exit.
+- **Allowed:** the running mark's breath; one settle on a status arrival; panel
+  and drawer entry/exit; a row arriving on the transcript, where the space the
+  row opens is itself the information. `transform` and `opacity` carry most of
+  it because they are the cheap pair, not because the others are forbidden.
 - **Never:** row reflow, table sort animation, number count-ups, hover lifts on
-  table rows, staggered page-load fades, bounce or elastic easing — and never a
-  transition on `grid-template-*`, `width`/`height`/`padding`/`margin`/`top`/`left`/`box-shadow`.
+  table rows, staggered page-load fades, bounce or elastic easing.
 - **`prefers-reduced-motion`:** all four duration tokens collapse to 0 and a global
   rule caps every animation and transition at 1ms. The breath becomes a static
   ring — the *information* survives, only the movement stops.

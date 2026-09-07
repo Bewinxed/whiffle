@@ -400,6 +400,12 @@ export interface FleetMemory {
 /** The whole desired state — what the hub sends a machine to converge on. */
 export interface FleetConfig {
   /**
+   * Fleet-wide tool denials. Absent from a hub that predates them, which is
+   * what has a daemon fall back to the compiled constants — the same four names
+   * the migration seeds, so the two paths produce the same list.
+   */
+  deniedTools?: string[];
+  /**
    * Hooks the fleet keeps. Absent from a hub that predates them, and a daemon
    * that predates them ignores the field — which for hooks matters more than
    * it does for the rest: an old daemon that half-understood this would be an

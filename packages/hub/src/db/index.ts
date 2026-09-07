@@ -70,6 +70,7 @@ import {
   supervisorEvents,
   tools,
   usageBuckets,
+  usageLimitHistory,
   usageLimits,
 } from "./schema";
 
@@ -92,6 +93,9 @@ export interface SettledInstance {
 
 /** How long a session that stopped moving stays in the listings the rails read. */
 const STALE_AFTER_MS = 24 * 60 * 60 * 1000;
+
+/** 30 days — long enough to cover several weekly windows, short enough that the table stays small. */
+const LIMIT_HISTORY_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
 export type AgentAuth = (typeof agents.$inferSelect)["auth"];
 
@@ -149,6 +153,9 @@ export type UsageBucketRow = typeof usageBuckets.$inferSelect;
 
 /** A stored limit reading, one per machine (USAGE-SPEC.md §6). */
 export type UsageLimitRow = typeof usageLimits.$inferSelect;
+
+/** One point in a machine's limit-history series (burn rate, not just burn level). */
+export type UsageLimitHistoryRow = typeof usageLimitHistory.$inferSelect;
 
 /** How `/api/usage/summary` folds the buckets it returns (USAGE-SPEC.md §6.3). */
 export type UsageGroupBy = "day" | "model" | "project" | "session";
@@ -259,6 +266,7 @@ export interface DbShape {
         baseUrl: string | null;
         model: string | null;
         apiKey: string | null;
+        deniedTools: string[] | null;
         updatedAt: Date;
       }
     | undefined;
@@ -467,6 +475,7 @@ export interface DbShape {
     baseUrl?: string | null;
     model?: string | null;
     apiKey?: string | null;
+    deniedTools?: string[] | null;
   }) => void;
   /** Upsert; a patch names only what it changes and the rest stays as it was. */
   readonly putToolPolicy: (
@@ -669,6 +678,13 @@ export interface DbShape {
     build?: BuildInfo;
     harnesses?: HarnessReport[];
   }) => void;
+  /** Returns the limit-history series for a machine, optionally filtered by kind and time range. */
+  readonly usageLimitHistory: (q: {
+    machineId: string;
+    kind?: string;
+    since?: number;
+    until?: number;
+  }) => UsageLimitHistoryRow[];
   /** Aggregates buckets in SQL (SUM/GROUP BY) and names the unpriced models. */
   readonly usageSummary: (q: {
     since?: number;
@@ -884,6 +900,72 @@ const make = (path: string): DbShape => {
         hash,
         updatedAt,
       }));
+
+  /**
+   * Append the windows whose reading actually moved since last time.
+   *
+   * "Moved" is any of percent, severity or `resetsAt` — the last one matters
+   * most and is the least obvious: a rollover resets percent to a LOW number,
+   * so a diff on percent alone would record the drop as if it were spend
+   * running backwards. Carrying `resetsAt` into the comparison makes the new
+   * window a new series instead.
+   *
+   * `previous` is the payload this same call is about to overwrite, which is
+   * why it must be read before the upsert. Reading it (rather than holding a
+   * last-seen map in memory) keeps the diff correct across a hub restart, and
+   * costs one indexed lookup per push.
+   */
+  const appendLimitHistory = (
+    machineId: string,
+    limits: ClaudeLimits,
+    previous: ClaudeLimits | null,
+    at: Date
+  ): void => {
+    // A failed fetch describes the fetch, not the account. Recording it would
+    // put a fabricated point on the series; a gap is the truthful shape.
+    if (limits.error !== null || limits.windows.length === 0) {
+      return;
+    }
+    const before = new Map(
+      (previous?.error === null ? previous.windows : []).map((w) => [
+        `${w.kind}\u0000${w.scopeLabel ?? ""}`,
+        w,
+      ])
+    );
+    const rows = limits.windows
+      .filter((w) => {
+        const prior = before.get(`${w.kind}\u0000${w.scopeLabel ?? ""}`);
+        return (
+          prior === undefined ||
+          prior.percent !== w.percent ||
+          prior.severity !== w.severity ||
+          prior.resetsAt !== w.resetsAt
+        );
+      })
+      .map((w) => ({
+        machineId,
+        kind: w.kind,
+        scopeLabel: w.scopeLabel,
+        percent: w.percent,
+        severity: w.severity,
+        resetsAt: w.resetsAt,
+        fetchedAt: at,
+      }));
+    if (rows.length === 0) {
+      return;
+    }
+    db.insert(usageLimitHistory).values(rows).run();
+    // Retention, folded into the write that grew the table so nothing else has
+    // to own a timer. Only runs on a push that changed something.
+    db.delete(usageLimitHistory)
+      .where(
+        lte(
+          usageLimitHistory.fetchedAt,
+          new Date(at.getTime() - LIMIT_HISTORY_RETENTION_MS)
+        )
+      )
+      .run();
+  };
 
   /** The window a usage query names, or nothing — the filters fold into one AND. */
   const usageWhere = (q: {
@@ -1488,6 +1570,17 @@ const make = (path: string): DbShape => {
           .where(eq(fleetHooks.enabled, true))
           .all()
           .map(hookOf),
+        // The fleet's denied-tools list, from the supervisor_config single row.
+        // Absent (undefined) when no row exists yet, which is what has a daemon
+        // fall back to compiled constants — the same list the migration seeds.
+        deniedTools: (() => {
+          const row = db
+            .select({ deniedTools: supervisorConfig.deniedTools })
+            .from(supervisorConfig)
+            .where(eq(supervisorConfig.id, SUPERVISOR_CONFIG_ID))
+            .get();
+          return row?.deniedTools ?? undefined;
+        })(),
       };
     },
     putMcpServer: ({ name, config, enabled }) => {
@@ -2106,14 +2199,40 @@ const make = (path: string): DbShape => {
       });
     },
     putUsageLimits: (machineId, limits) => {
+      const at = new Date();
+      const previous =
+        db
+          .select({ payload: usageLimits.payload })
+          .from(usageLimits)
+          .where(eq(usageLimits.machineId, machineId))
+          .get()?.payload ?? null;
       db.insert(usageLimits)
-        .values({ machineId, payload: limits })
+        .values({ machineId, payload: limits, fetchedAt: at })
         .onConflictDoUpdate({
           target: usageLimits.machineId,
-          set: { payload: limits, fetchedAt: new Date() },
+          set: { payload: limits, fetchedAt: at },
         })
         .run();
+      appendLimitHistory(machineId, limits, previous, at);
     },
+    usageLimitHistory: ({ machineId, kind, since, until }) =>
+      db
+        .select()
+        .from(usageLimitHistory)
+        .where(
+          and(
+            eq(usageLimitHistory.machineId, machineId),
+            ...(kind ? [eq(usageLimitHistory.kind, kind)] : []),
+            ...(since
+              ? [gte(usageLimitHistory.fetchedAt, new Date(since))]
+              : []),
+            ...(until
+              ? [lte(usageLimitHistory.fetchedAt, new Date(until))]
+              : [])
+          )
+        )
+        .orderBy(usageLimitHistory.fetchedAt)
+        .all(),
     listUsageBuckets: (q) =>
       db
         .select()
@@ -2291,6 +2410,7 @@ const make = (path: string): DbShape => {
             baseUrl: row.baseUrl,
             model: row.model,
             apiKey: row.apiKey,
+            deniedTools: row.deniedTools,
             updatedAt: row.updatedAt,
           }
         : undefined;
@@ -2314,6 +2434,10 @@ const make = (path: string): DbShape => {
           config.apiKey === undefined
             ? (stored?.apiKey ?? null)
             : config.apiKey,
+        deniedTools:
+          config.deniedTools === undefined
+            ? (stored?.deniedTools ?? null)
+            : config.deniedTools,
         updatedAt: new Date(),
       };
       db.insert(supervisorConfig)
@@ -2325,6 +2449,7 @@ const make = (path: string): DbShape => {
             baseUrl: values.baseUrl,
             model: values.model,
             apiKey: values.apiKey,
+            deniedTools: values.deniedTools,
             updatedAt: values.updatedAt,
           },
         })

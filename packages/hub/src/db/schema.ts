@@ -449,6 +449,51 @@ export const usageLimits = sqliteTable("usage_limits", {
 });
 
 /**
+ * Every limit reading that said something new, kept as a series so burn RATE is
+ * observable and not just burn LEVEL. `usage_limits` above is one row per
+ * machine, overwritten every 60s — it can answer "am I at 39%?" and can never
+ * answer "how fast did I get there?", which is the question that actually
+ * changes what an operator does next.
+ *
+ * One row per window per CHANGE, not per reading: the daemon pushes on a
+ * 60-second schedule and `percent` is an integer, so appending unconditionally
+ * would write ~1,440 identical rows per window per day to record maybe 100
+ * transitions. {@link WhiffleDb.putUsageLimits} diffs against the previous
+ * reading and writes only what moved (see there for what counts as a change).
+ *
+ * Readings carrying an `error` are dropped rather than recorded: a daemon whose
+ * account is signed out reports no windows at all, and a gap in the series is
+ * honest about that where a row of zeroes would not be.
+ */
+export const usageLimitHistory = sqliteTable(
+  "usage_limit_history",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    machineId: text("machine_id").notNull(),
+    /** `session` | `weekly_all` | `weekly_scoped` | … — matches `LimitWindow.kind`. */
+    kind: text("kind").notNull(),
+    /** `scope.model.display_name` for scoped windows (e.g. "Fable"), else null. */
+    scopeLabel: text("scope_label"),
+    percent: integer("percent").notNull(),
+    severity: text("severity").notNull(),
+    /** ISO instant the window rolls over; a change here means a NEW window. */
+    resetsAt: text("resets_at"),
+    fetchedAt: timestamp("fetched_at").notNull(),
+  },
+  (table) => [
+    // The only query this table exists to serve: one machine's one window over
+    // a time range, in order.
+    index("usage_limit_history_series_idx").on(
+      table.machineId,
+      table.kind,
+      table.fetchedAt
+    ),
+    // Retention prunes by age alone, across every machine and kind.
+    index("usage_limit_history_fetched_idx").on(table.fetchedAt),
+  ]
+);
+
+/**
  * Standing instructions the hub enforces on every session it watches: a phrase
  * to look for in what a session says, and a reply to send back when it shows
  * up. The hub is the only component that sees every frame from every machine,
@@ -662,6 +707,13 @@ export const supervisorConfig = sqliteTable("supervisor_config", {
   baseUrl: text("base_url"),
   model: text("model"),
   apiKey: text("api_key"),
+  /**
+   * Fleet-wide tool denials — JSON `string[]`. Every spawned session and every
+   * `~/.claude/settings.json` convergence reads this list. `null` only before
+   * the seeding migration; once seeded, always a concrete list (possibly empty
+   * when the operator has removed all denials).
+   */
+  deniedTools: text("denied_tools", { mode: "json" }).$type<string[]>(),
   updatedAt: timestamp("updated_at")
     .notNull()
     .$defaultFn(() => new Date()),

@@ -13,7 +13,7 @@ import { WHIFFLE_ENV, WHIFFLE_HUB_PORT } from "@whiffle/core";
 import { fetchClaudeLimits } from "@whiffle/core/usage/limits";
 import { Data, Duration, Effect, Fiber, Schedule } from "effect";
 import { buildInfo } from "./build";
-import { convergeDeniedTools, DENIED_WEB_TOOLS } from "./denied-tools";
+import { convergeDeniedTools } from "./denied-tools";
 import { latestDeploy } from "./deploy";
 import { rediscoverHub, toWsUrl } from "./discovery";
 import { harnesses } from "./harnesses";
@@ -613,7 +613,7 @@ export const startDaemon = (auth?: AuthState) =>
     const denied = yield* Effect.promise(() => convergeDeniedTools());
     if (denied.state === "applied") {
       yield* Effect.logInfo(
-        `denied ${DENIED_WEB_TOOLS.join(", ")} in ~/.claude/settings.json`
+        "converged fleet denied-tools into ~/.claude/settings.json"
       );
     } else if (denied.state === "failed") {
       yield* Effect.logWarning(denied.detail);

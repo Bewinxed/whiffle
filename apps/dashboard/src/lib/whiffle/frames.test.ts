@@ -24,6 +24,7 @@ import {
   unwrapMidTurn,
 } from "./frames";
 import { ingestQueued } from "./queue";
+import { foldMessages } from "./transcript/rows";
 import type { DelegateEvent, JsonValue, Message } from "./types";
 
 const base = { type: "system" as const, uuid: "u1" as never, session_id: "s1" };
@@ -1002,6 +1003,140 @@ test("applyToolResult recovers delegateInstanceId from a JSON-string result", ()
   });
   expect(messages[0].metadata?.delegateInstanceId).toBe("tmp-e0f89815");
   expect(messages[0].metadata?.delegateTitle).toBe("leaf");
+});
+
+test.each([
+  ["whiffle_delegate", "delegate", "delegateInstanceId"],
+  ["whiffle_start_session", "start", "instanceId"],
+  ["mcp__whiffle__delegate", "delegate", "delegateInstanceId"],
+  ["delegate", "delegate", "delegateInstanceId"],
+] as const)(
+  "%s selects the delegate UI and keeps its routing metadata",
+  (toolName, kind, idKey) => {
+    const mapped = mapFrame("parent", {
+      type: "assistant",
+      uuid: "message",
+      message: {
+        content: [
+          {
+            type: "tool_use",
+            id: "call",
+            name: toolName,
+            input: { prompt: "Inspect the parser", cwd: "/project" },
+          },
+        ],
+      },
+    });
+    expect(mapped.messages[0].type).toBe("tool.handoff");
+    expect(mapped.messages[0].metadata?.handoffKind).toBe(kind);
+    expect(foldMessages(mapped.messages, {})[0].kind).toBe("delegate");
+    applyToolResult(mapped.messages, {
+      toolId: "call",
+      isError: false,
+      structuredContent: { truncated: false },
+      result: JSON.stringify({
+        [idKey]: "child-instance",
+        title: "Inspect the parser",
+        text: [{ type: "text", text: "Delegated" }],
+      }),
+    });
+    expect(mapped.messages[0].metadata).toMatchObject({
+      delegateInstanceId: "child-instance",
+      delegateTitle: "Inspect the parser",
+      toolStatus: "success",
+    });
+  }
+);
+
+test("OpenCode MCP handoff is a receipt, while unrelated MCP tools remain ordinary tools", () => {
+  const mapped = mapFrame("parent", {
+    type: "assistant",
+    uuid: "message",
+    message: {
+      content: [
+        {
+          type: "tool_use",
+          id: "handoff",
+          name: "whiffle_handoff",
+          input: { target: "child", message: "Continue" },
+        },
+        { type: "tool_use", id: "other", name: "other_delegate", input: {} },
+      ],
+    },
+  });
+  expect(mapped.messages[0].metadata?.handoffKind).toBe("handoff");
+  expect(mapped.messages[1].type).toBe("tool.use");
+});
+
+test("explicit delegate routing metadata takes precedence over the text fallback", () => {
+  const mapped = mapFrame("parent", {
+    type: "assistant",
+    message: {
+      content: [
+        { type: "tool_use", id: "call", name: "whiffle_delegate", input: {} },
+      ],
+    },
+  });
+  applyToolResult(mapped.messages, {
+    toolId: "call",
+    isError: false,
+    structuredContent: { delegateInstanceId: "authoritative" },
+    result: JSON.stringify({ delegateInstanceId: "fallback" }),
+  });
+  expect(mapped.messages[0].metadata?.delegateInstanceId).toBe("authoritative");
+});
+
+test("stored OpenCode MCP calls replay as linked delegate cards", () => {
+  const storedBase = {
+    session_id: "stored",
+    parent_agent_id: null,
+    parent_tool_use_id: null,
+  };
+  const transcript: SessionMessage[] = [
+    {
+      ...storedBase,
+      type: "assistant",
+      uuid: "call-message",
+      message: {
+        content: [
+          {
+            type: "tool_use",
+            id: "call",
+            name: "whiffle_delegate",
+            input: { type: "explore", prompt: "Inspect the parser" },
+          },
+        ],
+      },
+    },
+    {
+      ...storedBase,
+      type: "user",
+      uuid: "result-message",
+      message: {
+        role: "user",
+        content: [
+          {
+            type: "tool_result",
+            tool_use_id: "call",
+            structuredContent: { truncated: false },
+            content: JSON.stringify({
+              delegateInstanceId: "child-instance",
+              title: "Parser discovery",
+            }),
+          },
+        ],
+      },
+    },
+  ];
+  const mapped = mapTranscript("parent", transcript);
+  expect(mapped.messages[0].metadata).toMatchObject({
+    handoffKind: "delegate",
+    delegateInstanceId: "child-instance",
+    delegateTitle: "Parser discovery",
+  });
+  expect(foldMessages(mapped.messages, mapped.subagents)[0].kind).toBe(
+    "delegate"
+  );
 });
 
 test("applyToolResult leaves a non-JSON hand-off result alone", () => {

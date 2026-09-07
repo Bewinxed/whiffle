@@ -75,3 +75,33 @@ export function formatDuration(ms: number): string {
   }
   return `${seconds}s`;
 }
+
+/**
+ * An age in one or two characters plus a unit, for a column too narrow to
+ * spend "minutes ago" on — `now`, `12m`, `3h`, `2d`, `5w`. The sidebar's
+ * session rows are the caller: they need to answer "which one was I just in"
+ * inside about 30px, beside a name that wants every other pixel.
+ */
+export function formatAgeShort(at: number, now: number = Date.now()): string {
+  const seconds = Math.max(0, Math.floor((now - at) / 1000));
+  if (seconds < 45) {
+    return "now";
+  }
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) {
+    return `${hours}h`;
+  }
+  const days = Math.round(hours / 24);
+  if (days < 7) {
+    return `${days}d`;
+  }
+  const weeks = Math.round(days / 7);
+  if (weeks < 52) {
+    return `${weeks}w`;
+  }
+  return `${Math.round(days / 365)}y`;
+}

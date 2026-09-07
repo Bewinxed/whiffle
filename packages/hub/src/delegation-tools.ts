@@ -1,22 +1,29 @@
-import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
+import { zodToJsonSchema } from "zod-to-json-schema";
 import {
   type HandoffDeps,
   handoffActions,
   SPAWNING_TOOLS,
-} from "./harnesses/handoff-shared";
+} from "./delegation-actions";
 
-/**
- * The tools a Claude session uses to hand work to another session. The bodies
- * are the shared {@link handoffActions}; this file only wraps them in the
- * in-process MCP server the claude SDK injects under the name `whiffle`.
- *
- * Two properties are load-bearing and set by the shared actions, not here:
- * `origin: peer` marks the message as another agent's word, and
- * `shouldQuery: false` appends it without starting a turn.
- */
+function tool<T extends z.ZodRawShape>(
+  name: string,
+  description: string,
+  input: T,
+  handler: (args: z.infer<z.ZodObject<T>>) => Promise<unknown>
+) {
+  const schema = z.object(input);
+  return {
+    name,
+    description,
+    inputSchema: zodToJsonSchema(schema),
+    handler: (args: unknown) => handler(schema.parse(args)),
+  };
+}
 
-export type { HandoffDeps } from "./harnesses/handoff-shared";
+/** Hub-owned tool definitions; every harness discovers this same registry. */
+
+export type { HandoffDeps } from "./delegation-actions";
 
 /**
  * The name the SDK injects this server under, and so the prefix of every tool
@@ -29,10 +36,6 @@ export const MCP_SERVER_NAME = "whiffle";
  * otherwise drop. The harness intercepts the result text and injects the
  * structured payload onto the `tool_result` content block it can match.
  */
-export type OnStructuredResult = (
-  resultText: string,
-  data: Record<string, unknown>
-) => void;
 
 /**
  * `delegate`'s `type` line: every fleet-configured preset, name and
@@ -48,18 +51,30 @@ const delegateTypeLine = (types: HandoffDeps["delegateTypes"]): string =>
     : "";
 
 /** The tools themselves, separated from the server so they can be exercised directly. */
-export function handoffTools(
-  deps: HandoffDeps,
-  onStructured?: OnStructuredResult
-) {
+export function handoffTools(deps: HandoffDeps) {
   const actions = handoffActions(deps);
   const all = [
+    tool(
+      "list_delegate_types",
+      "Read the live fleet delegate catalog: each type's task description, harness, model, effort, skills, denied tools, and permission to delegate further. " +
+        "Use this to inspect current routing before choosing a delegate type or answering questions about model mappings. " +
+        "This is a read-only tool, not an MCP resource; it does not spawn sessions. Returned settings are configuration, not confirmation of a served model. " +
+        "Named delegate dispatch reads this same live catalog.",
+      {},
+      async () => {
+        const catalog = await actions.listDelegateTypes();
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify(catalog) }],
+          structuredContent: catalog,
+        };
+      }
+    ),
     tool(
       "list_sessions",
       "List the other sessions running on the fleet, with the directory each is working in. " +
         "The listing shows where each session works, not what it is currently doing, how busy it " +
         "is, or how likely it is to pick up a handoff — and recency is not an ownership signal. " +
-        "Use it to find a session that already owns the work, or to name a delegate.",
+        "Use it to find a session that already owns the work, or to name a delegate. For configured delegate types and model mappings, use list_delegate_types.",
       {},
       async () => ({
         content: [
@@ -105,7 +120,7 @@ export function handoffTools(
     ),
     tool(
       "start_session",
-      "Start a NEW Claude Code session on the fleet and give it work. Unlike a subagent, this " +
+      "Start a NEW session on the fleet using the caller's harness and give it work. Unlike a subagent, this " +
         "is a full session of its own: it gets its own row in the sidebar, its own transcript " +
         "the user can open and read, its own model and permission mode, and it survives after " +
         "this turn ends. Use it when the user asks you to spin something off, or when work " +
@@ -144,7 +159,6 @@ export function handoffTools(
           model
         );
         const sc = { instanceId: result.id, title: result.title };
-        onStructured?.(result.text, sc);
         return {
           content: [{ type: "text" as const, text: result.text }],
           structuredContent: sc,
@@ -153,14 +167,12 @@ export function handoffTools(
     ),
     tool(
       "delegate",
-      "Run a task as a SUB-AGENT: a new temporary fleet session nested under this one. It works " +
-        "autonomously in its own transcript the user can watch, and reports back to this session " +
-        "automatically when each of its turns completes — no report protocol to follow. Guide it " +
-        "or send follow-ups with handoff. Prefer this over start_session when the work is a " +
-        "delegation that must report back, and over handoff for new standalone work, even in " +
-        "another repository (set cwd there). To continue a prior delegate's conversation instead " +
-        "of starting fresh, set fork_of. Prefer `type` over raw harness/model: it routes by what " +
-        "the work needs, not by a model string you have to already know." +
+      "Run a task as a SUB-AGENT: a new temporary fleet session with its own fresh context, which reports back here automatically when its turn completes.\n\n" +
+        "USE THIS INSTEAD OF DOING THE WORK YOURSELF whenever the task is evidence-gathering rather than a single fact: searching a repository, reading many files, triaging logs or transcripts, surveying how something is implemented, or any question you would answer with a sequence of Bash/grep/Read calls. A delegate answers those in its own context and hands back conclusions. Doing them here re-reads your entire conversation on every call, which is the largest single source of context spend in a long session.\n\n" +
+        "Rule of thumb: if answering one question will take more than about three read-only commands, delegate it instead of running them.\n\n" +
+        "Do NOT delegate: a single command or file read whose exact output you need; work that depends on conversation context you cannot write into the brief; edits to files you are actively changing; anything the user asked to watch you do directly.\n\n" +
+        "The delegate cannot see this conversation, so `prompt` must stand alone: intent, constraints, acceptance criteria, and what not to do. Keep the decisions yourself and ask for evidence and conclusions, not file dumps.\n\n" +
+        "Prefer `type` over raw harness/model — it routes by what the work needs rather than a model string you must already know; use list_delegate_types for the live catalog. Prefer this over start_session when the work must report back, and over handoff for new standalone work (set cwd for another repository). Use fork_of to continue a prior delegate's conversation instead of starting fresh." +
         delegateTypeLine(deps.delegateTypes),
       {
         prompt: z
@@ -174,8 +186,8 @@ export function handoffTools(
           .describe(
             "A named delegate type — see the types listed above. Sets harness/model/effort/skills " +
               "for you; an explicit harness/model/skills below still overrides what the type says. " +
-              "Type definitions are snapshotted when this session starts — edits made in the " +
-              "dashboard apply to sessions started afterward, not to this one."
+              "The description below is a startup snapshot; execution reads the current hub definition. " +
+              "Use list_delegate_types to see edits made since this session started."
           ),
         harness: z
           .enum(["claude", "opencode", "pi"])
@@ -243,7 +255,6 @@ export function handoffTools(
           canDelegate: can_delegate,
         });
         const sc = { delegateInstanceId: result.id, title: result.title };
-        onStructured?.(result.text, sc);
         return {
           content: [{ type: "text" as const, text: result.text }],
           structuredContent: sc,
@@ -379,27 +390,16 @@ export function handoffInstructions(deps: HandoffDeps): string {
   }
   let catalog = deps.delegateTypes?.length
     ? delegateTypeLine(deps.delegateTypes).trim()
-    : "No delegate types are configured. Report the missing route rather than guessing a model.";
+    : "Call mcp__whiffle__list_delegate_types to discover the current routes rather than guessing a model.";
   if (deps.delegateTypesError) {
     catalog = `${deps.delegateTypesError}. The catalog is unavailable, not empty. A delegate call naming a known type retries the fetch; if no type is known, report the catalog blocker rather than guessing a model.`;
   }
   return [
-    "Whiffle delegation policy: native Agent and Task tools are disabled. Use mcp__whiffle__delegate for subagents in this repository or another repository.",
-    'Before repository exploration, bulk file reads, search sweeps, or log triage, load the delegation tool with ToolSearch(query="select:mcp__whiffle__delegate") if deferred, then delegate a bounded read-only brief to the appropriate configured type. The parent may read task instructions and narrowly inspect evidence needed for decisions or acceptance; keep bulk discovery out of the parent context.',
+    "Use Whiffle's delegate tool for bounded fleet work that must report back to its parent. Native harness subagents are a separate mechanism and do not resolve Whiffle presets.",
+    'Call list_delegate_types for current model/effort mappings. Claude names these tools mcp__whiffle__list_delegate_types and mcp__whiffle__delegate; if deferred, use ToolSearch(query="select:mcp__whiffle__delegate"). OpenCode names them whiffle_list_delegate_types and whiffle_delegate. These are tools, not MCP resources. list_sessions lists running sessions, not configured types.',
+    "Before repository exploration, bulk file reads, search sweeps, or log triage, delegate a bounded brief using the appropriate configured type. Keep intent, decisions, and acceptance with the parent; return evidence and conclusions rather than file dumps.",
     "Prefer the configured type and omit model/harness overrides unless the user requested them. Give each delegate a concrete deliverable and bounded file ownership. Keep independent parent work moving; reports arrive automatically. Use mcp__whiffle__handoff to continue an existing delegate or work a session already owns. Use start_session only for a separate persistent session.",
     "The catalog below is a session-start snapshot of configured routes, not confirmation of the model that will serve a request. If delegation fails or no suitable route is available, report the blocker; do not silently move bulk exploration onto the parent model.",
     catalog,
   ].join("\n\n");
-}
-
-export function handoffServer(
-  deps: HandoffDeps,
-  onStructured?: OnStructuredResult
-) {
-  return createSdkMcpServer({
-    name: MCP_SERVER_NAME,
-    version: "1.0.0",
-    instructions: handoffInstructions(deps),
-    tools: handoffTools(deps, onStructured),
-  });
 }

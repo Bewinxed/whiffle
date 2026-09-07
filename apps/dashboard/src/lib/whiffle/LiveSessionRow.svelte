@@ -26,13 +26,10 @@
 
 <script lang="ts">
   /** One live session, as the session index and a project home both list it. */
-  import { onMount } from "svelte";
-  import { quintOut } from "svelte/easing";
-  import { fly } from "svelte/transition";
   import { Badge } from "$lib/components/ui/badge";
   import { formatDuration } from "$lib/utils/time";
   import ActivityDot from "./ActivityDot.svelte";
-  import { ACTIVITY_LABEL, SLEEPING_HINT, UNKNOWN_HINT } from "./activity";
+  import { FAILED_HINT, SLEEPING_HINT, UNKNOWN_HINT } from "./activity";
   import {
     type InstanceRow,
     isFailed,
@@ -71,45 +68,15 @@
   /** The hub can't reach this row's machine — distinct from idle and asleep. */
   const stale = $derived(isStale(instance));
   const quest = $derived(instance.kind === "scratch");
-  /** Sleeping and stale no longer get a word here — `ActivityDot` carries
-   *  both as its own glyph now (leaf Y1), so this label is only ever seen as
-   *  a `Badge`'s text, for the states that still get one. */
-  const label = $derived(failed ? "Failed" : ACTIVITY_LABEL[activity]);
-
-  /** The Quiet Ledger status the row's state pill wears: fail red, needs-you
-   *  amber, working blue-live, everything else at rest bare-idle. */
-  const pillStatus = $derived.by(() => {
-    if (failed) {
-      return "fail";
-    }
-    if (activity === "blocked") {
-      return "attn";
-    }
-    if (activity === "working") {
-      return "live";
-    }
-    return "idle";
-  });
-
-  /** StatusPill ported to ui/badge, token-dressed to the Quiet Ledger pill
-   *  recipe: a tint carries live/attn/done/fail, idle carries NO fill (bare
-   *  muted label). */
-  const PILL_FILL: Record<string, string> = {
-    live: "bg-[var(--status-live-bg)] text-[var(--status-live-ink)]",
-    attn: "bg-[var(--status-attn-bg)] text-[var(--status-attn-ink)]",
-    done: "bg-[var(--status-done-bg)] text-[var(--status-done-ink)]",
-    fail: "bg-[var(--status-fail-bg)] text-[var(--status-fail-ink)]",
-  };
-  function pillClass(
-    status: "live" | "attn" | "done" | "fail" | "idle"
-  ): string {
-    const base =
-      "h-[var(--c-pill-h)] rounded-[var(--radius-pill)] border-0 text-[length:var(--c-pill-fs)] leading-none whitespace-nowrap";
-    if (status === "idle") {
-      return `${base} gap-0 bg-transparent p-0 font-[450] text-[var(--status-idle-ink)]`;
-    }
-    return `${base} gap-[var(--c-pill-gap)] px-2.5 py-0 font-medium ${PILL_FILL[status]}`;
-  }
+  /**
+   * No state word anywhere on this row any more. "Working" and "Needs you" are
+   * long, they sat in a pill wide enough to shove the title into an ellipsis on
+   * every row of a card of thirty, and they said the same thing the dot beside
+   * them already said in 8px. The dot is now the whole vocabulary: blue that
+   * breathes for working, amber that pings for needs-you, quiet neutral for
+   * idle, a moon for sleeping, a hollow ring for unreachable, still red for
+   * failed — each with the word as its accessible name and tooltip.
+   */
 
   // What the session is about, not where it runs: the SDK's own title for the
   // transcript this instance is writing. A quest is tagged out of the catalog,
@@ -163,16 +130,12 @@
     return instance.title ?? "untitled session";
   });
 
-  // The label swaps only when the session's state actually changes — a row that
-  // simply appears with the page has nothing to announce.
-  let painted = $state(false);
-  onMount(() => {
-    painted = true;
-  });
-
   /** `title` on the row's link: sleeping and stale each explain themselves,
    *  and neither ever applies at once. */
   const rowHint = $derived.by(() => {
+    if (failed) {
+      return FAILED_HINT;
+    }
     if (sleeping) {
       return SLEEPING_HINT;
     }
@@ -206,9 +169,11 @@
           <Sprite aria-hidden="true" />
         </span>
       </span>
-      <!-- `max-w-lg`: a title that runs on — a pasted URL, usually — stops at a
-           readable measure instead of crushing the path beside it. -->
-      <span class="min-w-0 max-w-lg truncate text-[13px]">{title}</span>
+      <!-- `max-w-xl`: a title that runs on — a pasted URL, usually — stops at a
+           readable measure instead of crushing the path beside it. It is wider
+           than it was because the state pill that used to sit at the end of
+           this row is gone. -->
+      <span class="min-w-0 max-w-xl truncate text-[13px]">{title}</span>
       <!-- A quest is named beside its title rather than glyphed in front of it:
            the lead slot belongs to state, and the titles keep their column. -->
       {#if quest}
@@ -277,27 +242,14 @@
           {/if}
         </span>
       {/if}
-      <!-- The state: sleeping and stale get `ActivityDot`'s own glyph, not a
-           second word beside it (leaf Y1 — that word was "Sleeping" or
-           "Unknown" on 176 identical rows). Every other state keeps the
-           Quiet Ledger status pill: a tint carries working / needs-you /
-           failed, and idle carries no fill (bare muted label). -->
+      <!-- The state, in one dot and no words (see the note in the script). It
+           is the last thing in the row and the smallest, which is the right
+           weight for something you read peripherally and only act on when it
+           is amber or red. -->
       <span
-        class="inline-grid shrink-0 justify-items-end {progress || unmeasured ? 'ml-2' : 'ml-auto'}"
+        class="flex shrink-0 items-center {progress || unmeasured ? 'ml-2' : 'ml-auto'}"
       >
-        {#if sleeping || stale}
-          <ActivityDot {activity} {sleeping} {stale} />
-        {:else}
-          {#key label}
-            <span
-              class="col-start-1 row-start-1"
-              in:fly={{ y: 5, duration: painted ? 180 : 0, easing: quintOut }}
-              out:fly={{ y: -5, duration: painted ? 140 : 0, easing: quintOut }}
-            >
-              <Badge class={pillClass(pillStatus)}>{label}</Badge>
-            </span>
-          {/key}
-        {/if}
+        <ActivityDot {activity} {failed} size={2.5} {sleeping} {stale} />
       </span>
     </span>
     {#if activity === 'working' && tool}

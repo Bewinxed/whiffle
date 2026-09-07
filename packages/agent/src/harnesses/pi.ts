@@ -44,7 +44,7 @@ import {
   CONTROL_INTERRUPT,
   CONTROL_SET_MODEL,
 } from "@whiffle/core";
-import { Type } from "typebox";
+import { callDelegationTool, delegationTools } from "../delegation";
 import type { Harness, HarnessContext, HarnessSession } from "../harness";
 import { resolveBin } from "../tools";
 import {
@@ -54,12 +54,6 @@ import {
   syncSkillFiles,
   writeJson,
 } from "./fleet-common";
-import {
-  fetchDelegateTypes,
-  type HandoffDeps,
-  handoffActions,
-  SPAWNING_TOOLS,
-} from "./handoff-shared";
 
 /** pi's own config files — the machine profile the fleet sync converges. */
 const PI_DIR = join(homedir(), ".pi", "agent");
@@ -120,236 +114,18 @@ const textOf = (content: unknown): string => {
 const modelIdOf = (model: Model<any>): string =>
   String((model as { id?: unknown }).id ?? "");
 
-/** A hand-off tool, in pi's `ToolDefinition` form: TypeBox params over the shared body. */
-const answer = (text: string, details: Record<string, unknown> = {}) => ({
-  content: [{ type: "text" as const, text }],
-  details,
-});
-
-/** Same line the claude adapter's `delegate` description carries — see handoff.ts's own comment. */
-const delegateTypeLine = (types: HandoffDeps["delegateTypes"]): string =>
-  types?.length
-    ? ` Available types: ${types.map((type) => `'${type.name}' (${type.description})`).join("; ")}.`
-    : "";
-
-const piHandoffTools = (deps: HandoffDeps): ToolDefinition[] => {
-  const actions = handoffActions(deps);
-  const all: ToolDefinition[] = [
+/** Thin adapter over the same hub-owned definitions and handlers as MCP. */
+const piHandoffTools = async (instanceId: string): Promise<ToolDefinition[]> =>
+  (await delegationTools()).map((tool) =>
     defineTool({
-      name: "list_sessions",
-      label: "List sessions",
-      description:
-        "List the other sessions running on the fleet, with the directory each is working in. " +
-        "The listing shows where each session works, not what it is currently doing, how busy it " +
-        "is, or how likely it is to pick up a handoff — and recency is not an ownership signal. " +
-        "Use it to find a session that already owns the work, or to name a delegate.",
-      parameters: Type.Object({}),
-      execute: async () => answer(await actions.listSessions()),
-    }),
-    defineTool({
-      name: "handoff",
-      label: "Hand off to a session",
-      description:
-        "Send a message to another session on the fleet — to continue one of your own " +
-        "delegates, or to brief a session that already owns the work. An idle target wakes " +
-        "and works on it immediately; a busy target finishes its current turn first, then " +
-        "reads everything queued in one wake turn. Write the message as a brief for another " +
-        "engineer. For new standalone work, use delegate instead.",
-      parameters: Type.Object({
-        target: Type.String(),
-        message: Type.String(),
-        urgent: Type.Optional(Type.Boolean()),
-      }),
-      execute: async (_id, params) => {
-        const p = params as {
-          target: string;
-          message: string;
-          urgent?: boolean;
-        };
-        return answer(await actions.handoff(p.target, p.message, p.urgent));
-      },
-    }),
-    defineTool({
-      name: "start_session",
-      label: "Start a session",
-      description:
-        "Start a NEW session on the fleet and give it work — its own row, transcript, model and " +
-        "permission mode. Use it when work belongs in a different directory.",
-      parameters: Type.Object({
-        cwd: Type.String(),
-        prompt: Type.String(),
-        sideQuest: Type.Optional(Type.Boolean()),
-        model: Type.Optional(Type.String()),
-      }),
-      execute: async (_id, params) => {
-        const p = params as {
-          cwd: string;
-          prompt: string;
-          sideQuest?: boolean;
-          model?: string;
-        };
-        const result = await actions.startSession(
-          p.cwd,
-          p.prompt,
-          p.sideQuest,
-          p.model
-        );
-        return answer(result.text, {
-          instanceId: result.id,
-          title: result.title,
-        });
-      },
-    }),
-    defineTool({
-      name: "delegate",
-      label: "Delegate to a sub-session",
-      description:
-        "Run a task as a SUB-AGENT: a new temporary fleet session nested under this one, working " +
-        "autonomously in its own transcript, and reporting back automatically when each turn " +
-        "completes. Guide it or send follow-ups with handoff. Prefer this over start_session when " +
-        "the work is a delegation that must report back, and over handoff for new standalone work, " +
-        "even in another repository (set cwd there). To continue a prior delegate's conversation " +
-        "instead of starting fresh, set fork_of to its instanceId — best on the same model, where " +
-        "it also reuses the prompt cache; a different model still works but re-ingests the " +
-        "transcript at full cost. Prefer `type` over raw harness/model where a fleet delegate " +
-        "type fits." +
-        delegateTypeLine(deps.delegateTypes),
-      parameters: Type.Object({
-        prompt: Type.String(),
-        type: Type.Optional(
-          Type.String({
-            description:
-              "A named delegate type — see the types listed above. Type definitions are " +
-              "snapshotted when this session starts — edits made in the dashboard apply to " +
-              "sessions started afterward, not to this one.",
-          })
-        ),
-        harness: Type.Optional(
-          Type.Union([
-            Type.Literal("claude"),
-            Type.Literal("opencode"),
-            Type.Literal("pi"),
-          ])
-        ),
-        model: Type.Optional(Type.String()),
-        cwd: Type.Optional(Type.String()),
-        fork_of: Type.Optional(Type.String()),
-        can_delegate: Type.Optional(
-          Type.Boolean({
-            description:
-              "Let the delegate spawn delegates and sessions of its own. Default false: a delegate " +
-              "is a leaf and does the work itself, which keeps the tree one level deep and every " +
-              'report visible here. A type marked "may delegate by default" flips that default; an ' +
-              "explicit value here wins either way. Set true only for an orchestrator-style delegate that must fan out.",
-          })
-        ),
-      }),
-      execute: async (_id, params) => {
-        const p = params as {
-          prompt: string;
-          type?: string;
-          harness?: "claude" | "opencode" | "pi";
-          model?: string;
-          cwd?: string;
-          fork_of?: string;
-          can_delegate?: boolean;
-        };
-        const result = await actions.delegate(p.prompt, {
-          cwd: p.cwd,
-          harness: p.harness,
-          model: p.model,
-          forkOf: p.fork_of,
-          type: p.type,
-          canDelegate: p.can_delegate,
-        });
-        return answer(result.text, {
-          delegateInstanceId: result.id,
-          title: result.title,
-        });
-      },
-    }),
-    defineTool({
-      name: "stop_delegate",
-      label: "Stop a delegate",
-      description:
-        "Stop one of YOUR delegates (a session you spawned with delegate). Only your own delegates " +
-        "can be stopped. The transcript survives.",
-      parameters: Type.Object({ target: Type.String() }),
+      name: tool.name,
+      label: tool.name,
+      description: tool.description,
+      parameters: tool.inputSchema as never,
       execute: async (_id, params) =>
-        answer(
-          await actions.stopDelegate((params as { target: string }).target)
-        ),
-    }),
-    defineTool({
-      name: "interrupt_delegate",
-      label: "Interrupt a delegate",
-      description:
-        "Interrupt one of YOUR delegates mid-turn without ending it — the fleet's pause. It keeps " +
-        "its state; resume it with handoff.",
-      parameters: Type.Object({ target: Type.String() }),
-      execute: async (_id, params) =>
-        answer(
-          await actions.interruptDelegate((params as { target: string }).target)
-        ),
-    }),
-    defineTool({
-      name: "answer_delegate",
-      label: "Answer a delegate",
-      description:
-        "Answer an ask your delegate parked and routed to you. Answers are keyed by the EXACT " +
-        "question text and the value is the chosen option label — copy them from the " +
-        '"[delegate-ask ...]" message the delegate sent you. Pass deny=true to refuse the ask ' +
-        "instead. Leave answers empty and deny false to allow the ask unchanged.",
-      parameters: Type.Object({
-        target: Type.String(),
-        requestId: Type.String(),
-        answers: Type.Optional(Type.Record(Type.String(), Type.String())),
-        deny: Type.Optional(Type.Boolean()),
-      }),
-      execute: async (_id, params) => {
-        const p = params as {
-          target: string;
-          requestId: string;
-          answers?: Record<string, string>;
-          deny?: boolean;
-        };
-        return answer(
-          await actions.answerDelegate(p.target, p.requestId, p.answers, p.deny)
-        );
-      },
-    }),
-    defineTool({
-      name: "send_to_user",
-      label: "Message the user",
-      description:
-        "Display a message directly to the user (delivered to their Telegram). Use this for " +
-        "progress updates, partial results, or content the user must see exactly as written " +
-        "before the task finishes.",
-      parameters: Type.Object({ message: Type.String() }),
-      execute: async (_id, params) =>
-        answer(
-          await actions.sendToUser((params as { message: string }).message)
-        ),
-    }),
-    defineTool({
-      name: "note_for_user",
-      label: "Note for the user",
-      description:
-        "Record a note for the user about a concern they raised, saying what you actually did " +
-        "about it. Use this after you have acted on something the user pushed back on: which " +
-        "file you fixed, what you ran, what you found. The note is shown to the user, so write " +
-        "what changed, not that you understood. Ten characters minimum.",
-      parameters: Type.Object({ note: Type.String() }),
-      execute: async (_id, params) =>
-        answer(
-          await actions.acknowledgeConcern((params as { note: string }).note)
-        ),
-    }),
-  ];
-  return deps.canDelegate === false
-    ? all.filter((entry) => !SPAWNING_TOOLS.has(entry.name))
-    : all;
-};
+        callDelegationTool(instanceId, tool.name, params),
+    })
+  );
 
 class PiSession implements HarnessSession {
   readonly harness = "pi" as const;
@@ -688,11 +464,6 @@ export class PiHarness implements Harness {
   ): Promise<HarnessSession> {
     const runtime = await PiHarness.runtime();
     const model = spec.model ? await this.#resolveModel(spec.model) : undefined;
-    // Fetched once, before this session's `delegate` tool description exists —
-    // see `fetchDelegateTypes`'s own comment.
-    // A leaf never builds the tool that needs the list, so skip the HTTP read.
-    const delegateTypes =
-      spec.canDelegate === false ? [] : await fetchDelegateTypes();
 
     let sessionManager: SessionManager | undefined;
     if (spec.resume?.fork) {
@@ -714,13 +485,7 @@ export class PiHarness implements Harness {
       ...(sessionManager
         ? { sessionManager }
         : { sessionManager: SessionManager.create(ctx.cwd) }),
-      customTools: piHandoffTools({
-        instanceId: ctx.instanceId,
-        cwd: ctx.cwd,
-        emit: ctx.emit,
-        delegateTypes,
-        canDelegate: spec.canDelegate,
-      }),
+      customTools: await piHandoffTools(ctx.instanceId),
     });
 
     return new PiSession(ctx, session);

@@ -1,9 +1,17 @@
 /**
- * The built-in web tools the fleet does not use. Search goes through the Exa
- * MCP and fetch through the firecrawl MCP — both are in the hub's fleet MCP
- * registry and land on every machine — so the built-ins are denied everywhere
- * this daemon reaches: on the sessions it spawns, and in the settings file the
- * user's own `claude` reads.
+ * Fleet-wide tool denials. The fleet baseline lives in the hub's
+ * `supervisor_config.denied_tools` column and reaches every machine through
+ * the normal fleet-sync path (`FleetConfig.deniedTools`). The sidecar
+ * (`~/.claude/whiffle-fleet.json`) caches the last-synced value so a machine
+ * that loses its hub still has a policy.
+ *
+ * Two consumers read the resolved list:
+ *  1. The spawn path in `claude.ts`, which passes it as `disallowedTools`.
+ *  2. `convergeDeniedTools`, which writes it into `~/.claude/settings.json`
+ *     so the user's own `claude` sees the same denials.
+ *
+ * Both call {@link resolvedDenyList} — the single source — so they cannot
+ * drift from each other.
  */
 import { rename } from "node:fs/promises";
 import { expandHome } from "./fs";
@@ -11,20 +19,22 @@ import { expandHome } from "./fs";
 /** Every `claude` this user starts reads it, daemon-spawned or not. */
 const SETTINGS = expandHome("~/.claude/settings.json");
 
-/** The SDK's own names for the two, as `disallowedTools` and `permissions.deny` spell them. */
-export const DENIED_WEB_TOOLS = ["WebSearch", "WebFetch"] as const;
+/** The sidecar the fleet sync writes after every converge. */
+const SIDECAR = expandHome("~/.claude/whiffle-fleet.json");
 
 /**
- * Claude Code's own subagent tools, denied on every whiffle-spawned session so
- * delegation has exactly one door: the fleet's `delegate` tool (`whiffle` MCP
- * server), routed through the delegate-types registry. The hub sees and the
- * dashboard shows a native `Task` subagent's activity same as anything else in
- * the transcript — the reason for the denial is routing, not visibility: only
- * `delegate` resolves a named type to an enforced harness/model/denyTools, per
- * operator policy, and a session that could still reach `Task`/`Agent`
- * natively could route around that policy entirely.
+ * Compiled bootstrap defaults — what a machine uses when it has never synced
+ * and has no sidecar. Kept as the never-synced fallback; the hub's migration
+ * seeds the same four names so an upgrade changes nothing.
  */
+export const DENIED_WEB_TOOLS = ["WebSearch", "WebFetch"] as const;
 export const DENIED_NATIVE_SUBAGENT_TOOLS = ["Task", "Agent"] as const;
+
+/** The compiled default, used as the never-synced bootstrap. */
+const COMPILED_DEFAULT: readonly string[] = [
+  ...DENIED_WEB_TOOLS,
+  ...DENIED_NATIVE_SUBAGENT_TOOLS,
+];
 
 const said = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
@@ -33,6 +43,40 @@ const asRecord = (value: unknown): Record<string, unknown> | undefined =>
   typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : undefined;
+
+/**
+ * The single source of truth for the fleet's denied-tools list. Both the
+ * spawn path and the settings-convergence path call this, so they read the
+ * same value and cannot drift.
+ *
+ * Resolution order:
+ *  1. The sidecar's `deniedTools` — present after at least one fleet sync.
+ *  2. The compiled default — identical to what the migration seeds.
+ *
+ * The return value is never empty when the sidecar has no `deniedTools` key:
+ * that case falls back to the compiled default, which carries all four names.
+ * An empty list is only possible when the operator has explicitly cleared the
+ * fleet baseline in the hub — which is an intentional policy choice.
+ */
+export const resolvedDenyList = async (): Promise<readonly string[]> => {
+  try {
+    const file = Bun.file(SIDECAR);
+    if (await file.exists()) {
+      const sidecar: unknown = await file.json();
+      if (
+        typeof sidecar === "object" &&
+        sidecar !== null &&
+        "deniedTools" in sidecar &&
+        Array.isArray((sidecar as { deniedTools: unknown }).deniedTools)
+      ) {
+        return (sidecar as { deniedTools: string[] }).deniedTools;
+      }
+    }
+  } catch {
+    // Unreadable sidecar: fall back to compiled default.
+  }
+  return COMPILED_DEFAULT;
+};
 
 /**
  * The settings with every `deny` name they did not already carry, and whether
@@ -66,13 +110,16 @@ export type DenyConvergence =
   | { state: "failed"; detail: string };
 
 /**
- * Puts {@link DENIED_WEB_TOOLS} into `~/.claude/settings.json`, and writes only
- * when that is news. Nothing is written over a file that cannot be parsed: the
- * rest of it is the user's own, and a rewrite from an empty root would take
- * their settings with it.
+ * Converges `~/.claude/settings.json` with the fleet's denied-tools list,
+ * resolved through {@link resolvedDenyList}. Writes only when the file does
+ * not already carry every name. Nothing is written over a file that cannot
+ * be parsed: the rest of it is the user's own, and a rewrite from an empty
+ * root would take their settings with it.
  */
 export const convergeDeniedTools = async (): Promise<DenyConvergence> => {
   try {
+    const deny = await resolvedDenyList();
+
     const file = Bun.file(SETTINGS);
     let settings: unknown = {};
     if (await file.exists()) {
@@ -86,7 +133,7 @@ export const convergeDeniedTools = async (): Promise<DenyConvergence> => {
       }
     }
 
-    const { changed, next } = withDeniedTools(settings, DENIED_WEB_TOOLS);
+    const { changed, next } = withDeniedTools(settings, deny);
     if (!changed) {
       return { state: "unchanged" };
     }

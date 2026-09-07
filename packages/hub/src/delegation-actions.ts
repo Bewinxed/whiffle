@@ -23,13 +23,13 @@ import {
   WHIFFLE_ENV,
   WHIFFLE_HUB_PORT,
 } from "@whiffle/core";
-import { briefTitle } from "../brief-title";
+import { briefTitle } from "./brief-title";
 
 const WS_SCHEME = /^ws/;
 const WS_PATH_SUFFIX = /\/ws$/;
 
 /** Where the hub answers REST, derived from the websocket url the daemon uses. */
-const hubHttpUrl = (): string => {
+export const hubHttpUrl = (): string => {
   const ws =
     process.env[WHIFFLE_ENV.hubUrl] ?? `ws://localhost:${WHIFFLE_HUB_PORT}/ws`;
   return ws.replace(WS_SCHEME, "http").replace(WS_PATH_SUFFIX, "");
@@ -43,10 +43,8 @@ const hubHttpUrl = (): string => {
  * and the caller freezes what comes back for the session's whole life.
  * Failures are logged and passed to the caller for its startup instructions.
  * A valid empty catalog remains distinct from a failed fetch.
- * The description needs this list before the first tool call can happen, so
- * the fetch stays here, at construction; `delegate()`'s own body retries it
- * once, lazily, if a `type` is named against a cache this call found empty —
- * that covers the blip case without paying a second fetch on every call.
+ * Descriptions take a startup snapshot. Catalog reads and named dispatch fetch
+ * again so saved routing changes apply to sessions already running.
  */
 export async function fetchDelegateTypes(
   onError?: (message: string) => void
@@ -281,13 +279,14 @@ export interface HandoffDeps {
   readonly cwd: string;
   /**
    * The fleet's delegate types, fetched once via {@link fetchDelegateTypes}
-   * before this session's tools were built. An empty catalog is retried when
-   * a delegate call names a type; delegateTypesError records a failed fetch.
+   * before this session's tools were built. Used for descriptions only;
+   * dispatch reads the live catalog. delegateTypesError records a failed fetch.
    */
   readonly delegateTypes?: DelegateType[];
   readonly delegateTypesError?: string;
   /** Puts an envelope on the daemon's hub socket. */
   readonly emit: (envelope: Envelope) => void;
+  readonly harness?: "claude" | "opencode" | "pi";
   /** The session doing the handing over. */
   readonly instanceId: string;
 }
@@ -341,6 +340,7 @@ export interface HandoffActions {
   handoff(target: string, message: string, urgent?: boolean): Promise<string>;
   // biome-ignore lint/style/useConsistentMethodSignatures: implemented below; property-style would change parameter variance against that implementation
   interruptDelegate(target: string): Promise<string>;
+  readonly listDelegateTypes: () => Promise<{ types: DelegateType[] }>;
   // biome-ignore lint/style/useConsistentMethodSignatures: implemented below; property-style would change parameter variance against that implementation
   listSessions(): Promise<string>;
   /** Pushes a note to the owner's Telegram — no peer, no ask, fire-and-forget. */
@@ -394,9 +394,15 @@ function resolveDelegate(
 export const handoffActions = ({
   instanceId,
   cwd,
+  harness: callerHarness,
   emit,
-  delegateTypes = [],
 }: HandoffDeps): HandoffActions => ({
+  async listDelegateTypes() {
+    const types = await fetchDelegateTypes((message) => {
+      throw new Error(message);
+    });
+    return { types };
+  },
   async listSessions(): Promise<string> {
     const { peers, own } = await roster(instanceId);
     if (peers.length === 0) {
@@ -478,6 +484,7 @@ export const handoffActions = ({
     const payload: SpawnPayload = {
       instanceId: id,
       cwd: workdir,
+      ...(callerHarness ? { harness: callerHarness } : {}),
       ...(model ? { model } : {}),
       ...(sideQuest ? { scratch: { baseCwd: workdir } } : {}),
       // Provenance only — a started session is not a delegate. The hub reads
@@ -540,19 +547,10 @@ export const handoffActions = ({
     // what is actually available, never a spawn with half-applied settings.
     let resolvedType: DelegateType | undefined;
     if (opts?.type) {
-      // The session-start fetch (spawn()'s own fetchDelegateTypes call, before
-      // the tool description was built) froze this list for the session's whole
-      // life. An empty list there most often means the hub was mid-restart or
-      // the network blipped, not that the fleet truly has none — so an empty
-      // cache with a `type` actually named is retried once, live, before
-      // refusing. The frozen list still stands for every other call: this is a
-      // one-shot recovery from the blip, not a standing re-fetch per call.
-      const types =
-        delegateTypes.length === 0
-          ? await fetchDelegateTypes((message) => {
-              throw new Error(message);
-            })
-          : delegateTypes;
+      // Resolve at dispatch so a saved model/effort change reaches existing sessions.
+      const types = await fetchDelegateTypes((message) => {
+        throw new Error(message);
+      });
       resolvedType = types.find((type) => type.name === opts.type);
       if (!resolvedType) {
         const known =

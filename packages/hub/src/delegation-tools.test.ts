@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import type { Envelope, SendPayload } from "@whiffle/core";
 import { DEFAULT_DELEGATE_TYPES, WHIFFLE_ENV } from "@whiffle/core";
-import { handoffInstructions, handoffTools } from "./handoff";
-import { fetchDelegateTypes } from "./harnesses/handoff-shared";
+import { fetchDelegateTypes } from "./delegation-actions";
+import { handoffInstructions, handoffTools } from "./delegation-tools";
 
 /**
  * A stand-in hub, so the tools are exercised against a real fetch of a real
@@ -61,6 +61,7 @@ const build = () => {
   };
   return {
     list: handlerOf("list_sessions"),
+    listTypes: handlerOf("list_delegate_types"),
     handoff: handlerOf("handoff"),
     start: handlerOf("start_session"),
     sendToUser: handlerOf("send_to_user"),
@@ -70,6 +71,104 @@ const build = () => {
 
 const textOf = (result: { content: unknown[] }): string =>
   (result.content[0] as { text: string }).text;
+
+test("delegate catalog tool reads current mappings each time, without spawning", async () => {
+  const { listTypes, sent } = build();
+  const type = {
+    name: "code",
+    description: "Implement a clear specification",
+    harness: "opencode",
+    model: "openai/gpt-5.6-sol",
+    effort: "medium",
+  };
+  try {
+    catalogResponse = () => Response.json({ types: [type] });
+    expect(JSON.parse(textOf(await listTypes({}, {})))).toEqual({
+      types: [type],
+    });
+    type.model = "openai/gpt-5.6-terra";
+    expect(JSON.parse(textOf(await listTypes({}, {}))).types[0].model).toBe(
+      type.model
+    );
+    catalogResponse = () => Response.json({ types: [] });
+    expect(JSON.parse(textOf(await listTypes({}, {})))).toEqual({ types: [] });
+    catalogResponse = () => new Response("unavailable", { status: 503 });
+    await expect(listTypes({}, {})).rejects.toThrow("HTTP 503");
+    catalogResponse = () => Response.json({ unexpected: [] });
+    await expect(listTypes({}, {})).rejects.toThrow(
+      "Invalid delegate catalog response"
+    );
+    expect(sent).toEqual([]);
+    expect(
+      handoffTools({
+        instanceId: "leaf",
+        cwd: "/tmp",
+        emit: () => undefined,
+        canDelegate: false,
+      }).some((tool) => tool.name === "list_delegate_types")
+    ).toBe(true);
+  } finally {
+    catalogResponse = () => Response.json({ types: DEFAULT_DELEGATE_TYPES });
+  }
+});
+
+test("an existing delegate handler dispatches the current model and effort instead of its startup snapshot", async () => {
+  const sent: Envelope[] = [];
+  const original = DEFAULT_DELEGATE_TYPES.find((type) => type.name === "code");
+  if (!original) {
+    throw new Error("Missing code fixture");
+  }
+  const handler = handoffTools({
+    instanceId: "self",
+    cwd: "/tmp",
+    delegateTypes: [original],
+    emit: (envelope) => sent.push(envelope),
+  }).find((tool) => tool.name === "delegate")?.handler as unknown as Handler;
+  try {
+    catalogResponse = () =>
+      Response.json({
+        types: [
+          {
+            ...original,
+            harness: "opencode",
+            model: "openai/gpt-5.6-terra",
+            effort: "medium",
+          },
+        ],
+      });
+    await handler({ type: "code", prompt: "first" }, {});
+    expect(sent[0].payload).toMatchObject({
+      model: "openai/gpt-5.6-terra",
+      effort: "medium",
+      harness: "opencode",
+    });
+    sent.length = 0;
+    catalogResponse = () =>
+      Response.json({
+        types: [
+          {
+            ...original,
+            harness: "opencode",
+            model: "openai/gpt-5.6-sol",
+            effort: "high",
+          },
+        ],
+      });
+    await handler({ type: "code", prompt: "second" }, {});
+    expect(sent[0].payload).toMatchObject({
+      model: "openai/gpt-5.6-sol",
+      effort: "high",
+    });
+    sent.length = 0;
+    catalogResponse = () => new Response("unavailable", { status: 503 });
+    await expect(
+      handler({ type: "code", prompt: "third" }, {})
+    ).rejects.toThrow("HTTP 503");
+    expect(sent).toEqual([]);
+  } finally {
+    catalogResponse = () => Response.json({ types: DEFAULT_DELEGATE_TYPES });
+  }
+});
 
 test("the roster lists other running sessions, not this one and not the dead", async () => {
   const { list } = build();
@@ -235,7 +334,7 @@ test("startup instructions expose routing and catalog before tool discovery", ()
   expect(instructions).toContain(
     'ToolSearch(query="select:mcp__whiffle__delegate")'
   );
-  expect(instructions).toContain("native Agent and Task tools are disabled");
+  expect(instructions).toContain("Native harness subagents are a separate mechanism");
   expect(instructions).toContain("Before repository exploration");
   for (const type of DEFAULT_DELEGATE_TYPES) {
     expect(instructions).toContain(`'${type.name}'`);
@@ -304,7 +403,7 @@ test("catalog errors reach startup instructions and failed delegation; valid emp
     );
     expect(errors).toEqual([]);
     expect(handoffInstructions({ ...deps, delegateTypes: [] })).toContain(
-      "No delegate types are configured"
+      "list_delegate_types"
     );
     catalogResponse = () => Response.json({ types: DEFAULT_DELEGATE_TYPES });
     expect(await fetchDelegateTypes()).toEqual(DEFAULT_DELEGATE_TYPES);

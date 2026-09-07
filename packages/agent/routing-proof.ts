@@ -16,7 +16,7 @@
  */
 
 import type { Envelope } from "@whiffle/core";
-import { handoffActions } from "./src/harnesses/handoff-shared";
+import { handoffActions } from "../hub/src/delegation-actions";
 
 const PORT = 34_777;
 const BASE = `http://localhost:${PORT}`;

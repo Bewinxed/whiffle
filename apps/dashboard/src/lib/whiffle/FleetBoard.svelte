@@ -7,7 +7,7 @@
    * shadcn-svelte primitives, token-dressed in the Quiet Ledger system: the
    * stat row is a shadcn Card recessed-well, the filter bar is ui/input +
    * ui/select, the status column is ui/badge, the eight-column ledger is
-   * ui/table, and paging is ui/pagination.
+   * ui/table, and the ledger reveals more rows as it is scrolled.
    *
    * Live and stored sessions are the same kind of row here. A stored session
    * whose transcript is already running somewhere is dropped — the live row is
@@ -20,8 +20,6 @@
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte component-group convention
   import * as Card from "$lib/components/ui/card";
   import { Input } from "$lib/components/ui/input";
-  // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte component-group convention
-  import * as Pagination from "$lib/components/ui/pagination";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte component-group convention
   import * as Select from "$lib/components/ui/select";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte component-group convention
@@ -210,7 +208,13 @@
     { value: "name", label: "Name (A–Z)" },
   ];
   let sortBy = $state<"recent" | "name">("recent");
-  let pageNo = $state(1);
+  /**
+   * How many rows are on screen. The whole catalogue is already in memory —
+   * `SESSION_CATALOG_LIMIT` is 0, so every machine sends its entire list — so
+   * this is a rendering window, not a fetch cursor. It grows as the reader
+   * reaches the bottom and resets whenever the list underneath it changes.
+   */
+  let shown = $state(PAGE_SIZE);
 
   const machineName = $derived(
     machineFilter
@@ -249,17 +253,45 @@
       : [...filtered].sort((a, b) => (b.at ?? 0) - (a.at ?? 0))
   );
 
-  const pageCount = $derived(Math.max(1, Math.ceil(sorted.length / PAGE_SIZE)));
-  const paged = $derived(
-    sorted.slice((pageNo - 1) * PAGE_SIZE, pageNo * PAGE_SIZE)
-  );
+  const visible = $derived(sorted.slice(0, shown));
+  const more = $derived(sorted.length > visible.length);
 
-  // A filter that shrinks the list out from under the current page leaves it
-  // showing nothing at all; the first page always has rows.
+  /**
+   * The sentinel is watched inside `.board` rather than the viewport — the
+   * board is the scroller, so a viewport-rooted observer would never see the
+   * bottom of a list that overflows it.
+   */
+  let boardEl = $state<HTMLElement | null>(null);
+  let sentinelEl = $state<HTMLElement | null>(null);
+
   $effect(() => {
-    if (pageNo > pageCount) {
-      pageNo = 1;
+    // `from` captures the count this observer was built against, which is what
+    // makes it depend on `shown` and re-arm after every growth. An
+    // IntersectionObserver reports CROSSINGS, not states: a sentinel still
+    // intersecting once the new rows are in place never fires a second time,
+    // so one long-lived observer would stop after a single block on a tall
+    // window. A fresh one delivers an initial callback for its target, which
+    // carries the run on until the sentinel is pushed out of range.
+    const from = shown;
+    // Not while the board is put away. It keeps its layout there
+    // (`visibility: hidden`, so measurements survive), so the sentinel is
+    // still intersecting and an unguarded observer would quietly page the
+    // whole catalogue in behind a surface nobody is looking at.
+    if (!(active && more && boardEl && sentinelEl)) {
+      return;
     }
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          shown = from + PAGE_SIZE;
+        }
+      },
+      // A page of headroom, so the next block is already there by the time the
+      // last row is read rather than arriving after a visible stop.
+      { root: boardEl, rootMargin: "400px 0px" }
+    );
+    io.observe(sentinelEl);
+    return () => io.disconnect();
   });
 
   /* ---- actions ------------------------------------------------------- */
@@ -373,7 +405,7 @@
   };
 </script>
 
-<div class="board">
+<div class="board" bind:this={boardEl}>
   <div class="inner">
     <div class="head">
       <p>Every agent across your machines, and what needs you.</p>
@@ -405,7 +437,7 @@
         class="attn-tile"
         onclick={() => {
           stateFilter = stateFilter === 'attn' ? '' : 'attn';
-          pageNo = 1;
+          shown = PAGE_SIZE;
         }}
         type="button"
       >
@@ -517,7 +549,7 @@
               aria-label="Search sessions"
               class="search-input"
               oninput={() => {
-                pageNo = 1;
+                shown = PAGE_SIZE;
               }}
               placeholder="Search sessions…"
               bind:value={search}
@@ -527,7 +559,7 @@
           <Select.Root
             onValueChange={(v) => {
               machineFilter = v === 'all' ? '' : v;
-              pageNo = 1;
+              shown = PAGE_SIZE;
             }}
             type="single"
             value={machineFilter || 'all'}
@@ -551,7 +583,7 @@
           <Select.Root
             onValueChange={(v) => {
               stateFilter = (v === 'all' ? '' : v) as PillStatus | '';
-              pageNo = 1;
+              shown = PAGE_SIZE;
             }}
             type="single"
             value={stateFilter || 'all'}
@@ -608,7 +640,7 @@
               </Table.Row>
             </Table.Header>
             <Table.Body>
-              {#each paged as row (row.key)}
+              {#each visible as row (row.key)}
                 <Table.Row>
                   <Table.Cell>
                     <div class="nm">
@@ -674,44 +706,18 @@
           </Table.Root>
         </div>
 
-        <div class="foot">
-          Showing {paged.length} of {filtered.length}
-          <div class="pager">
-            <Pagination.Root
-              class="w-fit"
-              count={filtered.length}
-              perPage={PAGE_SIZE}
-              bind:page={pageNo}
-            >
-              {#snippet children({ pages, currentPage })}
-                <Pagination.Content>
-                  <Pagination.Item>
-                    <Pagination.PrevButton />
-                  </Pagination.Item>
-                  {#each pages as p (p.key)}
-                    {#if p.type === 'ellipsis'}
-                      <Pagination.Item>
-                        <Pagination.Ellipsis />
-                      </Pagination.Item>
-                    {:else}
-                      <Pagination.Item>
-                        <Pagination.Link
-                          isActive={currentPage === p.value}
-                          page={p}
-                        >
-                          {p.value}
-                        </Pagination.Link>
-                      </Pagination.Item>
-                    {/if}
-                  {/each}
-                  <Pagination.Item>
-                    <Pagination.NextButton />
-                  </Pagination.Item>
-                </Pagination.Content>
-              {/snippet}
-            </Pagination.Root>
-          </div>
+        <!-- The scroll target. It sits after the table but inside the
+             scroller, so reaching it means the last row has been reached. It
+             is kept in the tree even when the list is fully shown: removing it
+             would tear down the observer, and the next filter that widens the
+             list would have nothing left to watch. -->
+        <div class="sentinel" bind:this={sentinelEl}>
+          {#if more}
+            <span class="sr-only" role="status">Loading more sessions</span>
+          {/if}
         </div>
+
+        <div class="foot">Showing {visible.length} of {filtered.length}</div>
       {/if}
     </div>
   </div>
@@ -1014,6 +1020,9 @@
     gap: var(--space-2);
   }
 
+  .sentinel {
+    height: 1px;
+  }
   .foot {
     display: flex;
     align-items: center;
@@ -1024,10 +1033,6 @@
     font-size: var(--text-base);
     color: var(--ink-muted);
   }
-  .pager {
-    margin-left: auto;
-  }
-
   .empty {
     display: flex;
     flex-direction: column;

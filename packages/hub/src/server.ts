@@ -75,6 +75,7 @@ import { HUB_VERSION } from "./config";
 import type { AgentAuth, DbShape, DelegateEvent, InstanceKind } from "./db";
 import { usageBucketFromRow } from "./db";
 import { delegateTypesRoutes, makeDelegateTypes } from "./delegate-types";
+import { createDelegationMcp } from "./delegation-mcp";
 import { probe } from "./llm";
 import type { PendingShape } from "./pending";
 import { resolveMarketplacePlugins } from "./plugins";
@@ -2639,11 +2640,33 @@ export const createServer = ({
   // route group, mounted rather than folded into the routes below — see
   // delegate-types.ts for why it keeps its own connection.
   const delegateTypes = makeDelegateTypes();
+  const delegationMcp = createDelegationMcp({
+    instances: () => db.listInstances(),
+  });
 
   return (
     new Elysia()
       .use(websocket())
       .use(delegateTypesRoutes(delegateTypes))
+      .all("/mcp/whiffle", ({ request, body }) =>
+        delegationMcp.handle(request, body)
+      )
+      .get("/api/delegation/tools", () => delegationMcp.list())
+      .post(
+        "/api/delegation/call/:instanceId",
+        { body: t.Any() },
+        ({ params, body }) => {
+          const input = body as {
+            name: string;
+            arguments?: Record<string, unknown>;
+          };
+          return delegationMcp.call(
+            params.instanceId,
+            input.name,
+            input.arguments ?? {}
+          );
+        }
+      )
       // The hub's own build rides along (NEW.md §12), so a machine's can be read
       // against something rather than taken on faith.
       .get("/health", async () => ({
@@ -4513,6 +4536,24 @@ export const createServer = ({
           })),
         };
       })
+      .get(
+        "/api/usage/limits/history",
+        {
+          query: t.Object({
+            machineId: t.String(),
+            kind: t.Optional(t.String()),
+            since: t.Optional(t.Numeric()),
+            until: t.Optional(t.Numeric()),
+          }),
+        },
+        ({ query }) =>
+          db.usageLimitHistory({
+            machineId: query.machineId,
+            kind: query.kind,
+            since: query.since,
+            until: query.until,
+          })
+      )
       .get(
         "/api/usage/summary",
         {

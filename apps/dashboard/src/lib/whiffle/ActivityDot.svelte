@@ -4,14 +4,23 @@
   import {
     ACTIVITY_LABEL,
     type Activity,
+    FAILED_LABEL,
     SLEEPING_LABEL,
     UNKNOWN_LABEL,
   } from "./activity";
 
   interface Props {
     activity: Activity;
-    /** `1.5` for the sidebar's denser rows. */
-    size?: 1.5 | 2;
+    /**
+     * The session's process exited badly (`isFailed`). Wins over every other
+     * state — a failed run is not idle, asleep, or unreachable. Red and still:
+     * nothing about it is going to change on its own, so nothing about it
+     * moves.
+     */
+    failed?: boolean;
+    /** `1.5` for the sidebar's denser rows, `2.5` where the dot is a row's
+     *  only status and wants the extra presence. */
+    size?: 1.5 | 2 | 2.5;
     /**
      * The session's process is gone but its conversation is not — its own
      * glyph rather than a colour, since `idle` already owns the fleet's one
@@ -28,12 +37,23 @@
     stale?: boolean;
   }
 
-  let { activity, size = 2, sleeping = false, stale = false }: Props = $props();
+  let {
+    activity,
+    size = 2,
+    sleeping = false,
+    stale = false,
+    failed = false,
+  }: Props = $props();
+
+  const SIZE_CLASS: Record<string, string> = {
+    "1.5": "size-1.5",
+    "2": "size-2",
+    "2.5": "size-2.5",
+  };
 
   /* The Quiet Ledger status hues: blue-live is a session mid-turn, amber-attn is
      one parked on a human, and a session at rest carries a quiet neutral — idle
-     is the absence of a signal, not a colour of its own. (Failed reads red in
-     the row itself; the dot never sees it.) */
+     is the absence of a signal, not a colour of its own. */
   const tone = $derived(
     {
       blocked: "bg-warning",
@@ -43,6 +63,9 @@
   );
 
   const label = $derived.by(() => {
+    if (failed) {
+      return FAILED_LABEL;
+    }
     if (stale) {
       return UNKNOWN_LABEL;
     }
@@ -55,13 +78,17 @@
 
 <span
   aria-label={label}
-  class="relative inline-flex shrink-0 items-center justify-center {size === 2
-    ? 'size-2'
-    : 'size-1.5'}"
+  class="relative inline-flex shrink-0 items-center justify-center {SIZE_CLASS[
+    String(size)
+  ]}"
   role="img"
   title={label}
 >
-  {#if stale}
+  {#if failed}
+    <!-- Red and static. Working breathes and blocked pings because both are
+         still going somewhere; this one has already stopped. -->
+    <span class="absolute inset-0 rounded-full bg-destructive"></span>
+  {:else if stale}
     <!-- Hollow, not filled: distinguishable from every filled state by shape
          alone, not only by colour — the honest rendering of "the hub does
          not know", never flattened into idle's quiet fill. -->

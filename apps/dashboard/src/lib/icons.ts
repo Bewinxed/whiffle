@@ -152,6 +152,7 @@ export { default as IconShield } from "~icons/solar/shield-linear";
 export { default as IconSidebar } from "~icons/solar/sidebar-minimalistic-linear";
 export { default as IconToolGeneric } from "~icons/solar/sledgehammer-bold-duotone";
 export { default as IconTools } from "~icons/solar/sledgehammer-linear";
+export { default as IconSort } from "~icons/solar/sort-linear";
 export { default as IconUnfold } from "~icons/solar/sort-vertical-linear";
 export { default as IconExternal } from "~icons/solar/square-top-down-linear";
 export { default as IconStop } from "~icons/solar/stop-linear";

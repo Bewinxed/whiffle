@@ -78,3 +78,34 @@ test("supported model refresh reads the provider catalog again", async () => {
 
   expect(calls).toHaveLength(2);
 });
+
+test("effort levels come from enabled model variants with matching reasoning settings", async () => {
+  const { session } = sessionWithProviders({
+    all: [
+      {
+        id: "openai",
+        models: {
+          "gpt-5.6-sol": {
+            name: "Sol",
+            variants: {
+              low: { reasoningEffort: "low" },
+              medium: { reasoningEffort: "medium" },
+              high: { reasoningEffort: "high" },
+              max: { reasoningEffort: "max", disabled: true },
+              xhigh: { reasoningEffort: "low" },
+            },
+          },
+        },
+      },
+    ],
+    connected: ["openai"],
+  });
+  await expect(session.control(CONTROL_SUPPORTED_MODELS, [])).resolves.toEqual([
+    {
+      value: "openai/gpt-5.6-sol",
+      displayName: "Sol",
+      supportsEffort: true,
+      supportedEffortLevels: ["low", "medium", "high"],
+    },
+  ]);
+});

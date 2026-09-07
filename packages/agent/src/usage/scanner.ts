@@ -1,7 +1,7 @@
 import type { Stats } from "node:fs";
 import { stat } from "node:fs/promises";
 import type { UsageBucket } from "@whiffle/core";
-import { floorToHour, totalTokens } from "@whiffle/core";
+import { floorToHour, refreshPricing, totalTokens } from "@whiffle/core";
 import {
   emptyIndex,
   loadIndex,
@@ -223,6 +223,14 @@ export class UsageScanner {
   /** Reads every transcript and the opencode DB from scratch; clears prior state. */
   async fullRebuild(): Promise<ScanStats> {
     const start = Date.now();
+    // Re-cost against the live catalog before re-costing the corpus. The
+    // bundled snapshot goes stale the moment a new model ships — and a model
+    // it does not know prices at 0, silently, forever, because incremental
+    // scans never revisit a bucket they already wrote. The rebuild is the one
+    // place that re-costs everything, so it is the one place the rates must be
+    // fresh. `refreshPricing` throttles itself to 24h and swallows its own
+    // failures; offline keeps the snapshot and the rebuild proceeds.
+    await refreshPricing();
     this.buckets.clear();
     this.claudeMain.clear();
     this.claudeSide.clear();

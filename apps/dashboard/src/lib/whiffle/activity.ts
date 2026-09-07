@@ -58,6 +58,18 @@ export const ACTIVITY_LABEL: Record<Activity, string> = {
  */
 export const SLEEPING_LABEL = "Sleeping";
 
+/**
+ * The sixth word, for a session whose process exited badly (`isFailed`). Like
+ * sleeping and unknown it is carried by `ActivityDot`'s own rendering rather
+ * than a word in a pill — the word survives as the dot's accessible name and
+ * tooltip only.
+ */
+export const FAILED_LABEL = "Failed";
+
+/** Why a failed row is not idle, for its tooltip. */
+export const FAILED_HINT =
+  "Failed — the session's process exited badly. Open it to see why.";
+
 /** Why that is not a failure, wherever a sleeping row can carry a tooltip. */
 export const SLEEPING_HINT =
   "Sleeping — it resumes when you open or message it.";

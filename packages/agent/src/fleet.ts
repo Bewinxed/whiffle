@@ -138,6 +138,12 @@ interface ManagedMarketplace {
 
 interface Sidecar {
   /**
+   * The fleet's denied-tools list, synced from `supervisor_config.denied_tools`.
+   * Absent from a sidecar written before this field existed, which is what has
+   * {@link resolvedDenyList} fall back to compiled constants.
+   */
+  deniedTools?: string[];
+  /**
    * Hook id → what whiffle last registered for it. `command` is the identity
    * {@link withoutHooks} removes by — a command handler's `command` verbatim,
    * or the exact entry whiffle wrote otherwise — so a hook renamed or moved to
@@ -253,6 +259,9 @@ const readSidecar = async (): Promise<Sidecar> => {
     // this machine is whiffle's, so none of them is whiffle's to take away.
     memoryDocs: stored?.memoryDocs ?? {},
     ...(stored?.memoryHook ? { memoryHook: stored.memoryHook } : {}),
+    // A sidecar written before denied-tools syncing names none, which is what
+    // has resolvedDenyList fall back to the compiled constants.
+    ...(stored?.deniedTools ? { deniedTools: stored.deniedTools } : {}),
     // A sidecar written before hooks existed manages none, which is the truth.
     hooks: stored?.hooks ?? {},
   };
@@ -1827,6 +1836,15 @@ const syncHooks = async (
   return written;
 };
 
+/** What to write into the sidecar's `deniedTools`: the hub's value if it sent one, else what was cached. */
+const deniedToolsForSidecar = (
+  fromHub: string[] | undefined,
+  fromCache: string[] | undefined
+): { deniedTools: string[] } | Record<string, never> => {
+  const list = fromHub ?? fromCache;
+  return list ? { deniedTools: list } : {};
+};
+
 const converge = async (config: FleetConfig): Promise<FleetSyncReport> => {
   const managed = await readSidecar();
   const skillStates: Record<string, FleetItemState> = {};
@@ -1863,6 +1881,10 @@ const converge = async (config: FleetConfig): Promise<FleetSyncReport> => {
     mcp,
     ...installed,
     skills,
+    // A hub that sends `deniedTools` has the column; one that does not predates
+    // the migration, and the sidecar keeps whatever it already had (or nothing,
+    // which is what has resolvedDenyList fall back to compiled constants).
+    ...deniedToolsForSidecar(config.deniedTools, managed.deniedTools),
     ...(memory ? { memory } : {}),
     memoryDocs,
     ...(memoryHook ? { memoryHook } : {}),
