@@ -10,7 +10,12 @@
 import type { HarnessKind, InstanceRow, ModelInfo } from "@whiffle/core";
 import { untrack } from "svelte";
 import { isCustodyRefusal, loadModels, whiffle } from "./client.svelte";
-import { type HarnessModel, modelsForHarness } from "./model-catalog";
+import {
+  baseModelId,
+  type HarnessModel,
+  isLongContext,
+  modelsForHarness,
+} from "./model-catalog";
 import { readJson, writeJson } from "./storage";
 
 /**
@@ -24,9 +29,20 @@ const RECENT_KEY = `${MODEL_STORAGE_PREFIX}:recent`;
 /** How many typed-in model ids are remembered — a shortlist, not a history. */
 const RECENT_LIMIT = 5;
 
-/** Whether this id is known — it matches an offered model by value or resolvedModel. */
-const isKnownModel = (id: string): boolean =>
-  store.offered.some((row) => covers(row, id));
+/**
+ * Whether this id is known — some offered model describes it. The long-context
+ * spelling counts: `claude-opus-5[1m]` is a real id the catalog never lists,
+ * and treating it as a typo would drop it from the recents on every load.
+ *
+ * Spelled out rather than calling `describes` because this runs while the
+ * module is still initialising, before that binding exists.
+ */
+const isKnownModel = (id: string): boolean => {
+  const base = baseModelId(id);
+  return store.offered.some(
+    (row) => row.value === base || row.resolvedModel === base
+  );
+};
 
 /** What the form sends when the user has not chosen: nothing, and the SDK picks. */
 export const MODEL_DEFAULT = "";
@@ -206,20 +222,45 @@ export async function refreshModels(harness?: string): Promise<void> {
 /**
  * An offered row stands for a model id if either name matches: `system.init`
  * reports the wire id (`claude-sonnet-5`) while the row that offers it is keyed
- * by its alias (`sonnet`).
+ * by its alias (`sonnet`). Identity, and only identity — this is what a picker
+ * ticks and what tells a custom id from one already on the list, so the 1M
+ * spelling of a model is deliberately NOT the model here.
  */
 export const covers = (row: ModelInfo, model: string): boolean =>
   row.value === model || row.resolvedModel === model;
 
-/** What to call a model in a trigger: the offered name, or the id as typed. */
+/**
+ * Which row DESCRIBES a model id — its name, its provider, and the effort scale
+ * it can be run at. Wider than `covers` by exactly the long-context suffix: a
+ * session on `claude-opus-5[1m]` is running the model the bare `claude-opus-5`
+ * row describes, at the same scale, so a lookup for its capabilities has to see
+ * through the suffix. Matching it in `covers` instead would make the 1M id
+ * unselectable, because the picker would read it as an id it already offers.
+ */
+export const describes = (row: ModelInfo, model: string): boolean =>
+  covers(row, baseModelId(model));
+
+/** The row that describes this model id, from the list a harness offers. */
+export const describingRow = (
+  model: string,
+  harness?: string
+): ModelInfo | null =>
+  models.forHarness(harness).find((row) => describes(row, model)) ?? null;
+
+/**
+ * What to call a model in a trigger: the offered name, or the id as typed. A 1M
+ * run is named as such — it is described by the bare row, so without saying so
+ * the header would call a 1M session by its ordinary model's name.
+ */
 export function modelLabel(model: string, harness?: string): string {
   if (!model) {
     return "Default";
   }
-  return (
-    models.forHarness(harness).find((row) => covers(row, model))?.displayName ??
-    model
-  );
+  const name = describingRow(model, harness)?.displayName;
+  if (!name) {
+    return model;
+  }
+  return isLongContext(model) ? `${name} (1M)` : name;
 }
 
 /**

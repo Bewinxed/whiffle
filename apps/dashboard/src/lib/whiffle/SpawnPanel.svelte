@@ -55,7 +55,12 @@
   import { effortStops, hasEffortScale } from "./effort-levels";
   import { inspectMachine } from "./fleet";
   import ModelCombobox from "./ModelCombobox.svelte";
-  import { covers, MODEL_DEFAULT, modelLabel, models } from "./models.svelte";
+  import {
+    describes,
+    MODEL_DEFAULT,
+    modelLabel,
+    models,
+  } from "./models.svelte";
   import { PERMISSION_MODES, permissionModeLabel } from "./permission-modes";
   import { spawnDraft } from "./spawn-draft";
   import { rememberSpawn, spawnPrefs } from "./spawnPrefs.svelte";
@@ -166,7 +171,7 @@
 
   /** The offered row for the model in the field, which is what carries its scale. */
   const chosenModel = $derived(
-    models.forHarness(harness).find((row) => covers(row, model)) ?? null
+    models.forHarness(harness).find((row) => describes(row, model)) ?? null
   );
   /**
    * The effort control is offered only when both halves are known to have one:

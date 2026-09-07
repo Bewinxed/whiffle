@@ -8,18 +8,18 @@
  * resolve into it.
  *
  *    0ms   nothing has moved. The rail ends where the last row ended.
- *    0ms   the rail draws downward (scaleY 0 → 1, origin top) while the
- *          row's own height opens (grid-rows 0fr → 1fr) over 200ms. Same
- *          duration and curve, so the line's tip and the bottom of the
- *          reserved space are one edge travelling down the page.
- *  120ms   the row reveals LEFT TO RIGHT: the glyph, the verb, then each
+ *    0ms   the row's height opens (grid-rows 0fr → 1fr) over 110ms, and the
+ *          rail goes with it: in the default line mode the run owns one rail
+ *          and the opening row is what makes it longer, so the line's tip and
+ *          the bottom of the reserved space are the same edge by construction.
+ *   80ms   the row reveals LEFT TO RIGHT: the glyph, the verb, then each
  *          word, every piece taking the next slot on one clock the row owns
  *          (`cascade.svelte.ts`). Each fades up out of a 2px blur. It starts
  *          before the space finishes opening — the overlap is what makes it
  *          one gesture instead of a stall.
- *  320ms   the last slot is issued; the reveal front has crossed the row.
- *  470ms   the last word has settled. Nothing translated, so the rows below
- *          never jump: the only thing that moved is the row's own height.
+ *  410ms   the last slot is issued; the reveal front has crossed the row.
+ * 1010ms   the last word has finished resolving. The front crosses in a third
+ *          of a second; the fade behind it is what takes the rest.
  *
  * A row that arrives COMPLETE reveals exactly like a row still being written
  * — same clock, same window, same direction. A finished message and a
@@ -33,10 +33,10 @@
  * tail — never a reflow of rows already read, which is the thing that
  * actually makes a ledger unscannable.
  *
- * Under 300ms end to end, deliberately. A transcript row is not a modal: in
- * a live session the operator sees this land tens of times an hour, and at
- * that frequency an animation that can be *noticed* is an animation that is
- * in the way.
+ * The STRUCTURE is over in 110ms, deliberately: a transcript row is not a
+ * modal, and in a live session the operator sees the layout change tens of
+ * times an hour. What runs long is only the reveal's own fade, which moves
+ * nothing and blocks nothing.
  * ───────────────────────────────────────────────────────────────────────── */
 
 /**
@@ -109,35 +109,34 @@ export interface Arrival {
 }
 
 export const ARRIVAL: Arrival = {
-  /* The space and the line are one edge, so they share a duration and a
-     curve. In-out, not the entry curve: the line is not entering, it is
-     TRAVELLING down the page, and an entry curve spends 85% of its distance
-     in the first 60ms — which reads as a flash, not as a line being drawn.
-     A slow first frame costs nothing here because nobody is waiting on their
-     own click; the row arrives on the agent's schedule, not the operator's. */
-  reserveMs: 200,
-  reserveEase: "inOut",
-  railMs: 200,
+  /* Tuned on /motion. The space opens in one --c-100-and-change and the line
+     goes with it: at this length the extension is not something you watch, it
+     is something you have already seen happen. The entry curve suits that —
+     it is nearly all travel in the first third. */
+  reserveMs: 110,
+  reserveEase: "eIn",
+  /* Zero, so the rail is never a second thing being drawn. In the default
+     line mode the run owns one rail and the opening row simply makes it
+     longer; the draw is here for the per-row mode, and at 0 it is instant. */
+  railMs: 0,
   railDelayMs: 0,
   railEase: "inOut",
-  /* The content is ENTERING, so it gets the strong ease-out — never an
-     ease-in, which delays movement exactly when the eye is on it. Starting
-     at 60% of the opening keeps the two phases one gesture. */
-  contentDelayMs: 120,
-  contentMs: 150,
-  contentEase: "out",
-  /* The row does not lift. The cascade owns the opacity, and a row that also
-     slides while its own words are resolving reads as two animations fighting
-     — the reveal is the arrival. Both dials stay, at zero, because the lift is
-     worth being able to try. */
-  risePx: 0,
-  blurPx: 0,
-  /* 30–80ms is the band where a cascade reads as one arrival rather than as
-     a queue being drained. */
-  staggerMs: 60,
-  wordSpreadMs: 200,
-  wordFadeMs: 150,
-  wordBlurPx: 2,
+  /* Content starts before the space has finished — 80 into a 110 — so the two
+     never read as a sequence. The 2px lift and the 3px unblur are the whole
+     of the row's own movement. */
+  contentDelayMs: 80,
+  contentMs: 220,
+  contentEase: "eIn",
+  risePx: 2,
+  blurPx: 3,
+  /* Wide, for a burst: four rows landing together stay four events. */
+  staggerMs: 140,
+  /* A tight front and a long soft fade behind it: slots are handed out over
+     330ms, but each word takes 600ms to finish resolving, so the reveal is a
+     gradient several words deep rather than a hard edge. */
+  wordSpreadMs: 330,
+  wordFadeMs: 600,
+  wordBlurPx: 1,
   wordEase: "out",
 };
 

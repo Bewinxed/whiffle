@@ -44,7 +44,7 @@
   import { effortStops, hasEffortScale } from "./effort-levels";
   import { mapTranscript, routedToParent } from "./frames";
   import { delegateHandle } from "./links";
-  import { covers, ensureModels, models } from "./models.svelte";
+  import { describes, ensureModels, models } from "./models.svelte";
   import { PERMISSION_MODES } from "./permission-modes";
   import { sessionName } from "./session-name";
   // StaticTail removed — virtua's ssrCount renders the tail directly.
@@ -474,7 +474,7 @@
     if (!model) {
       return null;
     }
-    return models.offered.find((row) => covers(row, model)) ?? null;
+    return models.offered.find((row) => describes(row, model)) ?? null;
   });
   /** Whether the harness runs at an effort at all — the row is named either way. */
   const harnessEffort = $derived(harnessReport?.capabilities.effort !== false);
