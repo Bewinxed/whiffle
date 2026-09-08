@@ -65,8 +65,6 @@ interface ClaudeAdoption {
       sessionId?: string | null;
       /** The ring's last seq off the same welcome — what lets an idle child hand off at once. */
       head?: number;
-      /** Where the session runs — what lets the peek-less idle check find its transcript. */
-      cwd?: string;
       onHandoff: (handoff: {
         instanceId: string;
         sessionId: string | null;
@@ -941,7 +939,6 @@ export class SessionSupervisor {
       const custody = await claude.adopt(row.instanceId, ctx, {
         ...(afterSeq === undefined ? {} : { afterSeq }),
         ...(proc.head === undefined ? {} : { head: proc.head }),
-        cwd: row.cwd,
         sessionId: row.sessionId ?? null,
         onHandoff: ({ instanceId, sessionId, held: heldTurns }) => {
           // Queued through `dispatch` so the hand-off serialises behind
