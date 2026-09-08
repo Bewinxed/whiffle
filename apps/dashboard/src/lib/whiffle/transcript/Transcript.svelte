@@ -14,6 +14,7 @@
   import { ARRIVAL, arrivalVars } from "$lib/whiffle/motion/arrival";
   import Reveal from "$lib/whiffle/motion/Reveal.svelte";
   import Stream from "$lib/whiffle/motion/Stream.svelte";
+  import Swap from "$lib/whiffle/motion/Swap.svelte";
   import type { SessionState } from "../client.svelte";
   import type { Message } from "../types";
   import { rebuildScheduler } from "../workspace/scheduler.svelte";
@@ -828,6 +829,7 @@
       row.kind === "tools" ||
       row.kind === "harness" ||
       row.kind === "thinking" ||
+      (row.kind === "live" && row.thinking !== null) ||
       row.kind === "livetool" ||
       row.kind === "subagent" ||
       row.kind === "delegate"
@@ -963,7 +965,9 @@
    */
   let wasStreaming = false;
   $effect(() => {
-    wasStreaming = built.rows.some((r) => r.kind === "stream");
+    wasStreaming = built.rows.some(
+      (r) => r.kind === "live" && r.text.length > 0
+    );
   });
 
   let counted = 0;
@@ -1130,7 +1134,7 @@
    * than its row key, which virtua reuses for every tool in turn.
    */
   function announceKeyOf(row: Row): string {
-    if (row.kind === "stream" || row.kind === "thinking") {
+    if (row.kind === "stream" || row.kind === "thinking" || row.kind === "live") {
       return "";
     }
     // A harness notification is plumbing the operator never asked for. It is
@@ -1322,11 +1326,21 @@
           <Delegate message={row.message} />
         {:else if row.kind === 'thinking'}
           <Thinking live={row.live} text={row.text} />
-        {:else if row.kind === 'stream'}
-          <section class="turn">
-            <Who name={agentName} />
-            <MessageBody source={row.text} streaming />
-          </section>
+        {:else if row.kind === 'live'}
+          <!-- One container for the whole live tail. The reasoning unreveals
+               in place, the answer reveals into the same box, and the box
+               tweens from one height to the other — the space is never
+               surrendered between them. -->
+          <Swap phase={row.thinking === null ? 'answer' : 'reasoning'}>
+            {#if row.thinking === null}
+              <section class="turn">
+                <Who name={agentName} />
+                <MessageBody source={row.text} streaming />
+              </section>
+            {:else}
+              <Thinking live={row.thinkingLive} text={row.thinking} />
+            {/if}
+          </Swap>
         {:else if row.kind === 'queued'}
           <Queued queued={row.queued} />
         {:else if row.kind === 'livetool'}

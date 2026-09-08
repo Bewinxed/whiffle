@@ -143,6 +143,33 @@ const SCENARIOS = {
     ],
   },
 
+  /* The live tail changing its mind: reasoning, then the answer, in ONE
+     container. These used to be two rows, so the reasoning was removed at full
+     height and the answer opened a fresh space below the hole — measured as an
+     18px single-frame lurch on a viewport pinned to the bottom. The space must
+     be held across the swap and tween to the new size. */
+  swap: {
+    what: "reasoning giving way to the answer in one container",
+    async drive(bench) {
+      await bench.evaluate(() =>
+        window.__traffic.thinking(
+          "Working out how the rail behaves when a run of calls arrives together."
+        )
+      );
+      await bench.waitForTimeout(1100);
+      await bench.evaluate(() => {
+        window.__traffic.thinking(null);
+        window.__traffic.streaming(
+          "Here is the answer that takes the reasoning block's place in the same container."
+        );
+      });
+      await bench.waitForTimeout(1400);
+    },
+    expect: (a) => [
+      ["the container reserves once, not twice", a.count("reserve"), 1],
+    ],
+  },
+
   /* History landing is not an arrival. Opening a conversation must be silent —
      this is the regression that made every refresh replay the whole transcript.
      Seeded through `reset`, so the rows are present when the transcript mounts,

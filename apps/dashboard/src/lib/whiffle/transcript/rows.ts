@@ -22,6 +22,20 @@ export type Row =
   | { kind: "delegate"; key: string; message: Message }
   | { kind: "stream"; key: string; text: string }
   | { kind: "thinking"; key: string; text: string; live: boolean }
+  /**
+   * The turn's live tail as ONE place on the ledger: reasoning while the model
+   * reasons, the answer once it speaks. Emitted under a single key on purpose
+   * — these were two rows, so the reasoning was REMOVED at full height and the
+   * answer opened a fresh space below the hole. One row means one container,
+   * which can hold its space while its content changes.
+   */
+  | {
+      kind: "live";
+      key: string;
+      thinking: string | null;
+      thinkingLive: boolean;
+      text: string;
+    }
   | { kind: "livetool"; key: string; glance: ToolGlance }
   /**
    * A message the session is holding but has not started. Not a turn — it has
@@ -467,16 +481,15 @@ function liveTail(session: SessionState): Row[] {
   // (see frames.ts), so gating on thinkingStream meant "reasoning, silently,
   // with no indicator". The row itself is the indicator; the text fills in if
   // and when it arrives.
-  if (session.openBlock === "thinking") {
+  const reasoning = session.openBlock === "thinking";
+  if (reasoning || session.streaming) {
     rows.push({
-      kind: "thinking",
-      key: "stream:thinking",
-      text: session.thinkingStream,
-      live: !session.thinkingClosing,
+      kind: "live",
+      key: "stream:live",
+      thinking: reasoning ? session.thinkingStream : null,
+      thinkingLive: !session.thinkingClosing,
+      text: session.streaming,
     });
-  }
-  if (session.streaming) {
-    rows.push({ kind: "stream", key: "stream:text", text: session.streaming });
   }
   if (session.currentTool) {
     rows.push({

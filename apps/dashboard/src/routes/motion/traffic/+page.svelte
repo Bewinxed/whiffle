@@ -90,6 +90,19 @@
     session.busy = !!text;
   }
 
+  /** The live reasoning block: open it with text, close it with null. */
+  function thinking(text: string | null): void {
+    if (text === null) {
+      session.openBlock = null;
+      session.thinkingStream = "";
+      session.busy = false;
+      return;
+    }
+    session.openBlock = "thinking";
+    session.thinkingStream = text;
+    session.busy = true;
+  }
+
   function streaming(text: string): void {
     session.streaming = text;
     session.busy = !!text;
@@ -161,6 +174,7 @@
       assistant,
       note,
       glance,
+      thinking,
       streaming,
       run,
       landed: () => landed,

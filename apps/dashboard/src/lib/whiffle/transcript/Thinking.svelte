@@ -31,16 +31,6 @@
    */
   const LEAVE_MS = 160;
 
-  function unreveal(node: HTMLElement) {
-    const height = node.offsetHeight;
-    return {
-      duration: LEAVE_MS,
-      css: (t: number, u: number) =>
-        `opacity:${t};filter:blur(${u * ARRIVAL.wordBlurPx * 2}px);` +
-        `height:${t * height}px;overflow:hidden;`,
-    };
-  }
-
   let expanded = $state(false);
   let bodyEl = $state<HTMLElement | null>(null);
   let overflows = $state(false);
@@ -67,7 +57,11 @@
   });
 </script>
 
-<div class="think" out:unreveal>
+<!-- No exit transition here. `Swap` owns the leaving now, and owns the
+     HEIGHT while it happens: a block that collapsed its own height on the way
+     out is what made the reserved space disappear instead of expanding into
+     whatever replaced it. This one only ever fades. -->
+<div class="think">
   <div class="body" bind:this={bodyEl} class:clamp={clamped}>
     <Stream text={text || 'Thinking…'} />
     {#if live}

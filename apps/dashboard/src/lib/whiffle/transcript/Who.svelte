@@ -9,6 +9,8 @@
    * 3px from the other and read visibly off-centre. 18 − 12 = 6 splits 3/3.
    */
   import { IconAgent, IconUser } from "$lib/icons";
+  import Reveal from "$lib/whiffle/motion/Reveal.svelte";
+  import Stream from "$lib/whiffle/motion/Stream.svelte";
 
   let {
     you = false,
@@ -42,19 +44,29 @@
   );
 </script>
 
+<!-- The turn's own first words, and they reveal like words: the mark, then
+     the name, then the clock, ahead of the message body underneath. This line
+     used to take no slot in the row's cascade at all — it simply appeared,
+     fully formed, while the sentence beside it revealed itself one word at a
+     time. Measured on an arriving turn: 37 animations in the body, zero
+     anywhere inside here. Reading order starts at the speaker. -->
 <h2 class="who">
   <span aria-hidden="true" class="dot {you ? 'u' : 'a'}">
-    {#if you}
-      <IconUser />
-    {:else}
-      <IconAgent />
-    {/if}
+    <Reveal>
+      {#if you}
+        <IconUser />
+      {:else}
+        <IconAgent />
+      {/if}
+    </Reveal>
   </span>
-  <span class="role">{name}</span>
+  <span class="role"><Stream text={name} /></span>
   {#if validAt}
-    <time class="when" datetime={validAt.toISOString()}>{clock}</time>
+    <time class="when" datetime={validAt.toISOString()}
+      ><Stream text={clock} /></time
+    >
   {:else if note}
-    <span class="note">{note}</span>
+    <span class="note"><Stream text={note} /></span>
   {/if}
 </h2>
 
