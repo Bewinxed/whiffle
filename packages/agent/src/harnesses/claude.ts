@@ -1813,20 +1813,28 @@ export class ClaudeHarness implements Harness {
         // There is no backlog-complete event; the ring's last line is it, and
         // it is the one place an adoption decides.
         //
-        // Still `verdict === true` and nothing looser. Reading the scan from
-        // the ring's start is what makes that sufficient rather than a coin
-        // flip: a real child's first line is its `system` `init`, which is
-        // turn-bearing, so every line after it either leaves that verdict
-        // standing or replaces it. `undefined` at `head` therefore does not
-        // mean "an idle child whose evidence scrolled away" — that was the old
-        // fixed window's failure and is what reading from the start removes —
-        // it means the ring holds nothing this rule understands, and a session
-        // is never detached on that.
+        // A SILENT RING IS AN IDLE CHILD. `undefined` here does not mean the
+        // evidence scrolled away — reading from {@link RING_START} is what
+        // removes that reading — it means nothing in everything sessiond still
+        // holds says anything about a turn. A child mid-turn cannot look like
+        // that: it writes assistant and stream lines continuously, and those
+        // replace the verdict rather than carry it. What CAN look like that is
+        // a child that has taken no turn since its ring began and has only
+        // written hook and notice lines since, which is exactly the session
+        // this rule exists to hand back. Measured on a wedged one: six lines,
+        // all `hook_started`/`hook_response`/`control_response`, no `init` and
+        // no `result` — a strict `=== true` left it mute indefinitely.
+        //
+        // NOTHING TO RESUME OUTRANKS ALL OF IT. The hand-off respawns the child
+        // with `--resume`, so without a session key it would start an empty one
+        // and orphan the conversation the custody was protecting. Staying mute
+        // is recoverable; that is not.
         if (
           peekSeq !== undefined &&
           head >= 1 &&
           event.seq === head &&
-          verdict === true
+          custody.sessionId !== null &&
+          (verdict ?? true)
         ) {
           custody.handOff();
         }
