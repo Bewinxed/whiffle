@@ -105,8 +105,8 @@
 {#if open}
   <NewSessionModal onclose={close} onsubmit={submit} {params} {timeline} />
 {/if}
-<DialRoot position="top-right" />
-<DialTimeline />
+<DialRoot position="top-right" productionEnabled />
+<DialTimeline productionEnabled />
 
 <style>
   main {
