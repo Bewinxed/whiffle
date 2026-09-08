@@ -113,8 +113,26 @@ export const ARRIVAL: Arrival = {
      goes with it: at this length the extension is not something you watch, it
      is something you have already seen happen. The entry curve suits that —
      it is nearly all travel in the first third. */
-  reserveMs: 110,
-  reserveEase: "eIn",
+  /*
+   * THE SPACE OPENS AT THE SCROLL'S PACE, NOT THE CONTENT'S.
+   *
+   * The viewport is pinned to the bottom while a row opens, so the row's
+   * height curve IS the scroll's velocity curve — they are deliberately one
+   * motion. That makes an expressive curve the wrong choice here, and it was
+   * the one in use: `--e-in` is an expo-out, 63% complete after a single
+   * frame. Measured against a row that was already settled, so its movement
+   * is purely the viewport's: four arriving calls travelled 104px in 13
+   * frames out of 246 — 26px per row delivered as 17, 6, 2, 1 and then
+   * nothing for 900ms. Beside a 600ms word reveal that reads as a snap, which
+   * is exactly the report: the scrolling is not as smooth as the reveal.
+   *
+   * Linear over 180ms spreads the same distance across 34 frames. A container
+   * reserving space is mechanical rather than expressive anyway — the
+   * character belongs to the content arriving into it, which keeps its own
+   * curves below.
+   */
+  reserveMs: 180,
+  reserveEase: "linear",
   /* Zero, so the rail is never a second thing being drawn. In the default
      line mode the run owns one rail and the opening row simply makes it
      longer; the draw is here for the per-row mode, and at 0 it is instant. */

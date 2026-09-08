@@ -414,15 +414,27 @@
     if (!(scroller && landed)) {
       return;
     }
-    // The follow loop tags every write it makes. A scroll event anywhere else
-    // is the READER — wheel, scrollbar drag, keyboard, momentum, anything —
-    // and it ends the follow before `atBottom` is computed honestly below.
-    if (following !== null) {
-      if (Math.abs(scroller.scrollTop - lastWrite) <= 1) {
-        return;
-      }
-      stopFollow();
+    // Every write this component makes is tagged with the position it wrote.
+    // An event that matches the tag is our OWN motion — the paced follow, or
+    // the glue pinning a row that is opening — and says nothing about where
+    // the reader is looking. Anything else is the READER: wheel, scrollbar
+    // drag, keyboard, momentum, anything.
+    //
+    // The tag used to be honoured only while the PACED loop was running, and
+    // the glue runs with that loop deliberately stopped. So every frame a row
+    // spent opening was read as the reader scrolling away — against a
+    // `scrollHeight` the virtualizer had not re-measured yet, so the gap read
+    // as large — and `atBottom` went false mid-arrival. The follow then
+    // disengaged and the transcript stranded, which is worse than it sounds:
+    // `nearTail` is what licenses an arrival, so from that point on NO further
+    // row animated at all. Measured on a run of three tool calls: the first
+    // opened 0 → 26px normally, the scroller froze at 604px, and the second
+    // and third appeared at full height with no motion.
+    if (Math.abs(scroller.scrollTop - lastWrite) <= 1) {
+      return;
     }
+    stopFollow();
+    unglue();
     atBottom =
       scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 120;
   }
@@ -481,25 +493,48 @@
    * space is open, for the streaming that follows.
    */
   let opening = 0;
-  let gluing: number | null = null;
+  let glued: ResizeObserver | null = null;
 
-  function glue(): void {
-    if (gluing !== null) {
+  function unglue(): void {
+    glued?.disconnect();
+    glued = null;
+  }
+
+  /**
+   * Pin the viewport to the bottom — from a ResizeObserver, not a frame
+   * callback, and that is the whole point.
+   *
+   * The rendering steps run animations, then `requestAnimationFrame`
+   * callbacks, and only THEN deliver resize observations. The virtualizer
+   * learns a row's new height from its own ResizeObserver, so inside a frame
+   * callback the scroller's `scrollHeight` is still last frame's total: a glue
+   * that pinned from rAF pinned to a bottom that had already moved.
+   *
+   * Measured, per arriving row: the scroll delta each frame was exactly the
+   * PREVIOUS frame's height delta, and the last row's bottom edge oscillated
+   * 96 → 79 → 90 → 94 → 96 px from the fold — a 17px shimmy, once per row,
+   * against motion that is otherwise smooth. Observing instead puts the pin
+   * after the virtualizer has re-measured and before the frame is painted, so
+   * the viewport and the opening row move on the same frame and the row's own
+   * curve is the only motion left.
+   */
+  function pinBottom(): void {
+    if (!(scroller && atBottom && opening > 0)) {
+      unglue();
       return;
     }
-    const tick = (): void => {
-      if (!(scroller && atBottom && opening > 0)) {
-        gluing = null;
-        return;
-      }
-      const bottom = scroller.scrollHeight - scroller.clientHeight;
-      if (scroller.scrollTop < bottom) {
-        scroller.scrollTop = bottom;
-        lastWrite = scroller.scrollTop;
-      }
-      gluing = requestAnimationFrame(tick);
-    };
-    gluing = requestAnimationFrame(tick);
+    const bottom = scroller.scrollHeight - scroller.clientHeight;
+    if (scroller.scrollTop < bottom) {
+      scroller.scrollTop = bottom;
+      lastWrite = scroller.scrollTop;
+    }
+  }
+
+  /** Watch the row that is opening: it is the thing whose growth moves the
+   *  bottom, so it is the thing worth observing. */
+  function glue(row: Element): void {
+    glued ??= new ResizeObserver(pinBottom);
+    glued.observe(row);
   }
 
   /** Svelte scopes keyframe names, so the row's opening is matched by suffix. */
@@ -512,12 +547,15 @@
     opening += 1;
     // The paced loop and the glue must never both be writing scrollTop.
     stopFollow();
-    glue();
+    glue(event.target as Element);
   }
 
   function onanimationend(event: AnimationEvent): void {
     if (isOpening(event.animationName)) {
       opening = Math.max(0, opening - 1);
+      if (opening === 0) {
+        unglue();
+      }
     }
   }
 
@@ -1055,6 +1093,15 @@
     if (landed) {
       return;
     }
+    // History is not growth. `bulk` measures how much the list grew since it
+    // was last asked, and it is asked ONLY when a row is undecided — which,
+    // while loading, never happens, because every key is being seeded here
+    // first. So its baseline sat at zero until the first genuine arrival,
+    // which then read the whole history as one enormous append and refused
+    // to animate. That row appeared at full height instead of opening, and
+    // took the pinned viewport 26px with it in a single frame: the one jolt
+    // at the start of every tool run.
+    counted = rows.length;
     for (const r of rows) {
       seen.add(r.key);
       // A tool run's calls are seeded individually, because they are now what
