@@ -455,15 +455,22 @@
 </div>
 
 <style>
+  /* A branch's own rows draw their own rails, and they start their own line
+     — they must not inherit the continuation the OUTER row published, or a
+     nested tool run paints the tail weight and hugs the row above it. */
+  .branch :global(*) {
+    --rail-head: var(--rail);
+    --rail-gap: var(--space-4);
+  }
   /* The same rail every branch block sits on — the subagent fold's grammar,
      with a second row for the brief and a register for the asks. */
   .branch {
     /* Where the mark starts: the chevron and the head row's gap. Every line
        under the head indents to it. */
     --glyph: calc(13px + var(--space-2));
-    margin: var(--space-4) 0 0 var(--space-2);
+    margin: var(--rail-gap, var(--space-4)) 0 0 var(--space-2);
     padding-left: var(--space-3);
-    background: var(--rail) left top / 2px 100% no-repeat;
+    background: var(--rail-head, var(--rail)) left top / 2px 100% no-repeat;
   }
 
   /* The head row: the trigger takes the width, the jump link beside it keeps

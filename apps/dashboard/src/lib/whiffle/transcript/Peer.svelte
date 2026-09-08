@@ -58,9 +58,9 @@
 
 <style>
   .peer {
-    margin: var(--space-4) 0 0 var(--space-2);
+    margin: var(--rail-gap, var(--space-4)) 0 0 var(--space-2);
     padding-left: var(--space-3);
-    background: var(--rail) left top / 2px 100% no-repeat;
+    background: var(--rail-head, var(--rail)) left top / 2px 100% no-repeat;
   }
   .tag {
     display: inline-flex;

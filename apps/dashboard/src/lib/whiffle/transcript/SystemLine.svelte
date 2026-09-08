@@ -170,7 +170,7 @@
     background: var(--surface-sunken);
     border-radius: var(--radius-well);
     padding: var(--space-3);
-    margin: var(--space-4) 0 0 var(--space-2);
+    margin: var(--rail-gap, var(--space-4)) 0 0 var(--space-2);
     overflow-x: auto;
     font-family: var(--font-mono);
     font-size: var(--text-sm);
@@ -197,9 +197,9 @@
     white-space: pre-wrap;
   }
   .note {
-    margin: var(--space-4) 0 0 var(--space-2);
+    margin: var(--rail-gap, var(--space-4)) 0 0 var(--space-2);
     padding-left: var(--space-3);
-    background: var(--rail) left top / 2px 100% no-repeat;
+    background: var(--rail-head, var(--rail)) left top / 2px 100% no-repeat;
     font-size: var(--text-sm);
     color: var(--ink-muted);
   }

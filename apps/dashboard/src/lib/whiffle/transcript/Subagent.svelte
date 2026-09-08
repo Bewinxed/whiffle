@@ -133,12 +133,19 @@
 </div>
 
 <style>
+  /* A branch's own rows draw their own rails, and they start their own line
+     — they must not inherit the continuation the OUTER row published, or a
+     nested tool run paints the tail weight and hugs the row above it. */
+  .branch :global(*) {
+    --rail-head: var(--rail);
+    --rail-gap: var(--space-4);
+  }
   /* The spine: a structural 2px rail, the same indent every rail block uses. */
   .branch {
     --glyph: calc(13px + var(--space-2));
-    margin: var(--space-4) 0 0 var(--space-2);
+    margin: var(--rail-gap, var(--space-4)) 0 0 var(--space-2);
     padding-left: var(--space-3);
-    background: var(--rail) left top / 2px 100% no-repeat;
+    background: var(--rail-head, var(--rail)) left top / 2px 100% no-repeat;
   }
 
   /* The trigger is a component's element, so the scoped selector cannot reach

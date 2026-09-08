@@ -226,19 +226,29 @@
   .arrive.still {
     display: block;
   }
-  /* This row's line is the line above it, so it abuts and paints the weight
-     the head gradient settles to rather than restarting it. */
-  /* The rail block is the row's own element, and it is at a different depth in
-     the two branches: directly under a settled row, under the clip and the
-     body while one is arriving. Aiming at `.arrive.continues > *` hit BOTH —
-     and on an arriving row that is `.clip`, which carries none of the rail's
-     `2px 100%` sizing, so the continuation gradient painted across the whole
-     row as a grey band. Each branch names its own child. */
-  .arrive.still.continues > :global(*),
-  .arrive.continues > .clip > .body > :global(*) {
-    margin-top: 0;
-    background-image: var(--rail-body);
+  /*
+   * CONTINUATION IS PUBLISHED, NOT REACHED FOR.
+   *
+   * A row that continues the rail above it must abut it and paint the weight
+   * the head gradient settles to, rather than restarting it. That used to be
+   * done by naming the rail block structurally — `.arrive.continues > .clip >
+   * .body > *` — which encodes the block's DEPTH, and depth is exactly the
+   * thing this component is free to change. It has now been wrong twice, both
+   * times as a full-width grey band: once when the selector caught `.clip`,
+   * and again the moment `Swap` was introduced between `.body` and the rail
+   * block. Both times the matched element carried the rail's GRADIENT without
+   * its `2px 100% no-repeat` sizing, so it painted across the whole row.
+   *
+   * So the row states its condition and says nothing about who reads it. Rail
+   * blocks pick these up wherever they happen to sit — `background: var(
+   * --rail-head, var(--rail))` — and a wrapper that draws nothing inherits a
+   * value it never uses. There is no depth left to get wrong.
+   */
+  .arrive.continues {
+    --rail-head: var(--rail-body);
+    --rail-gap: 0px;
   }
+
   /* The rail is a child of the row that is opening, so its 100% height is the
      space being reserved — it cannot draw past the edge it is opening. */
   .arrive.rail {
