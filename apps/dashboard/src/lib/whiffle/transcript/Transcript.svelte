@@ -1303,7 +1303,7 @@
       <Arrival
         continues={continued.has(row.key)}
         lead={landing.lead}
-        opens={railLed(row)}
+        opens
         owns={false}
         params={ARRIVAL}
         still={!landing.fresh}

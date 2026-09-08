@@ -59,10 +59,15 @@ const opt = Object.fromEntries(
       return [k, v.length ? v.join("=") : true];
     })
 );
-/** Svelte scopes keyframe names per component; the storyboard's name is the tail. */
-const SCOPE_PREFIX = /^.*?-(?=[a-z]+$)/;
-/** The storyboard's own animations — everything else on the page is noise. */
-const STORYBOARD = /^(reserve|render|reveal|draw|word)$/;
+/**
+ * Svelte scopes keyframe names per component (`svelte-1a2b3c-reserve`), so the
+ * storyboard's own name is the tail. Matched as a suffix rather than stripped
+ * as a prefix: a scope hash is itself lowercase-and-hyphens often enough that
+ * a lazy prefix strip stops at the wrong hyphen, and `msg-word` contains one,
+ * which is exactly how it went missing. Longest alternative first so
+ * `msg-word` is not read as `word`.
+ */
+const STORYBOARD = /(?:^|-)(msg-word|reserve|render|reveal|draw|word)$/;
 
 const base = opt.url ?? "http://127.0.0.1:3000";
 const scenario = opt.scenario ?? "all";
@@ -110,6 +115,31 @@ const SCENARIOS = {
         a.inTools("reveal").filter((x) => x.delay === 0).length,
         0,
       ],
+    ],
+  },
+
+  /* Prose. A paragraph reserves its space like any other row — it did not,
+     for a long time, because opening was gated on owning a rail. The viewport
+     is pinned while a row opens, so a turn that did not open left the follow
+     loop to close an 82px gap on its own: one jolt, then a flat crawl at a
+     pace unrelated to the words appearing. */
+  prose: {
+    what: "4 assistant paragraphs arriving",
+    async drive(bench) {
+      for (let i = 0; i < 4; i++) {
+        await bench.evaluate(
+          (n) =>
+            window.__traffic.assistant(
+              `Turn ${n}. A paragraph of prose long enough to wrap onto more than one line, so the space it reserves is worth watching.`
+            ),
+          i
+        );
+        await bench.waitForTimeout(800);
+      }
+    },
+    expect: (a) => [
+      ["one reserve per paragraph", a.count("reserve"), 4],
+      ["the words reveal", a.count("msg-word") > 0, true],
     ],
   },
 
@@ -175,11 +205,9 @@ cdp.on("Animation.animationStarted", async ({ animation }) => {
     return;
   }
   const src = animation.source ?? {};
-  const name = (animation.name || src.keyframesRule?.name || "?").replace(
-    SCOPE_PREFIX,
-    ""
-  );
-  if (!STORYBOARD.test(name)) {
+  const raw = animation.name || src.keyframesRule?.name || "?";
+  const name = raw.match(STORYBOARD)?.[1];
+  if (!name) {
     return;
   }
   recording.push({

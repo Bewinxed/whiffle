@@ -89,6 +89,20 @@ export interface Arrival {
   /** How long the rail takes to draw through that space. */
   railMs: number;
   reserveEase: Easing;
+  /**
+   * How fast the bottom edge is allowed to travel while a space opens, px/s.
+   *
+   * The viewport is pinned while a row opens, so the edge's speed IS the
+   * scroll's speed. A fixed duration therefore means a one-line row and a
+   * twelve-line paragraph open at wildly different velocities — the short one
+   * saunters, the long one bolts. Holding the velocity instead and letting
+   * the DURATION follow the height is what makes a paragraph land like a tool
+   * row, only for longer. Matches the teleprompter follow's own reading pace,
+   * so the two mechanisms move the page at one speed.
+   */
+  openVelocity: number;
+  /** The ceiling on that. Past it a tall row is waiting, not arriving. */
+  reserveMaxMs: number;
   /** How long the row's height takes to open. The space reservation. */
   reserveMs: number;
   /** How far the content rises into its space. 0 = it only fades. */
@@ -133,6 +147,8 @@ export const ARRIVAL: Arrival = {
    */
   reserveMs: 180,
   reserveEase: "linear",
+  openVelocity: 360,
+  reserveMaxMs: 420,
   /* Zero, so the rail is never a second thing being drawn. In the default
      line mode the run owns one rail and the opening row simply makes it
      longer; the draw is here for the per-row mode, and at 0 it is instant. */

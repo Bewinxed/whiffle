@@ -122,10 +122,19 @@
     if (!(node && animates && opens) || measured) {
       return;
     }
-    node.style.setProperty(
-      "--open-h",
-      `${node.getBoundingClientRect().height}px`
+    const height = node.getBoundingClientRect().height;
+    node.style.setProperty("--open-h", `${height}px`);
+    // The row's height is known now, so its duration can be too: hold the
+    // opening edge to one speed and let a taller row simply take longer.
+    // A fixed duration made the edge's velocity a function of how much text
+    // happened to arrive, which is why a paragraph lurched where a tool row
+    // glided. `reserveMs` stays the floor, so a one-line row is unchanged.
+    const paced = (height / params.openVelocity) * 1000;
+    const ms = Math.min(
+      params.reserveMaxMs,
+      Math.max(params.reserveMs, Math.round(paced))
     );
+    node.style.setProperty("--reserve-ms", `${ms}ms`);
     measured = true;
   });
 
@@ -202,7 +211,15 @@
   .arrive.opens.measured {
     animation: reserve var(--reserve-ms) var(--reserve-ease) var(--t0) backwards;
   }
-  .arrive.opens.measured > .clip {
+  /* Clipped from the moment the row can open, not from the moment it is
+     armed. `overflow: hidden` is also what stops the child's top margin
+     collapsing through the wrapper — so with the rule gated on `.measured`,
+     the height was MEASURED without that margin and animated to a target
+     that excluded it. The margin then landed in one frame the instant the
+     animation ended: a 14px step at the tail of every prose row, on a
+     viewport pinned to the bottom. Clipping first makes the measured height
+     and the animated height the same number. */
+  .arrive.opens > .clip {
     overflow: hidden;
   }
   /* A row that is not arriving is a row: no box of its own, no motion. */
