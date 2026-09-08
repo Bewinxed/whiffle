@@ -70,6 +70,12 @@ export function authorFragment(query: string): string | null {
   return found ? found[1].toLowerCase() : null;
 }
 
+/** Take the half-typed `@…` back out, once its author has been chosen. */
+export function stripFragment(query: string): string {
+  const found = AUTHOR_FRAGMENT.exec(query);
+  return found ? query.slice(0, found.index).trimStart() : query;
+}
+
 /** Replace the `@…` being typed with a settled token, ready to type after. */
 export function applyAuthor(query: string, token: AuthorToken): string {
   const found = AUTHOR_FRAGMENT.exec(query);
@@ -87,7 +93,7 @@ export class JumpTranscriptSearch {
   #timer: ReturnType<typeof setTimeout> | undefined;
   #controller: AbortController | undefined;
 
-  update(query: string) {
+  update(query: string, role?: "user" | "assistant") {
     clearTimeout(this.#timer);
     // Any keystroke invalidates whatever is in flight — otherwise a stale
     // response can land during the debounce window and publish old hits.
@@ -95,7 +101,9 @@ export class JumpTranscriptSearch {
     // `pending`, which now belongs to the query being scheduled.
     this.#controller?.abort();
     this.#controller = undefined;
-    const { text, role } = parseQuery(query);
+    // A chip decides the scope; a token still being typed in the text does not.
+    const { text, role: typedRole } = parseQuery(query);
+    const scopeRole = role ?? typedRole;
     // While an `@…` is still being typed it names nobody yet; searching on the
     // half-written token would flash results for a word the reader is in the
     // middle of replacing.
@@ -105,7 +113,7 @@ export class JumpTranscriptSearch {
       return;
     }
     this.pending = true;
-    this.#timer = setTimeout(() => this.#run(text, role), 150);
+    this.#timer = setTimeout(() => this.#run(text, scopeRole), 150);
   }
 
   async #run(q: string, role?: "user" | "assistant") {

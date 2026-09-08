@@ -11,7 +11,7 @@
   import { HugeiconsIcon } from "@hugeicons/svelte";
   import { flip } from "svelte/animate";
   import { expoOut } from "svelte/easing";
-  import { fade } from "svelte/transition";
+  import { fade, scale } from "svelte/transition";
   import { goto } from "$app/navigation";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte component-group convention
   import * as Command from "$lib/components/ui/command";
@@ -27,6 +27,7 @@
     authorFragment,
     JumpTranscriptSearch,
     parseQuery,
+    stripFragment,
   } from "./jump-search.svelte";
 
   let { open = $bindable(false) }: { open?: boolean } = $props();
@@ -51,7 +52,7 @@
   const grouped = $derived(filterJumpIndex(index, query));
   const search = new JumpTranscriptSearch();
   $effect(() => {
-    search.update(open ? query : "");
+    search.update(open ? query : "", scope ? scoped?.role : undefined);
   });
   const hostOf = $derived(
     new Map(whiffle.machines.map((m) => [m.machineId, m.hostname]))
@@ -95,6 +96,12 @@
   /** Rows settle into their new rank; they never slide in from nowhere. */
   const settle = $derived({ duration: still ? 0 : 180, easing: expoOut });
   const arrive = $derived({ duration: still ? 0 : 140 });
+  /** The chip lands rather than pops: it grows the last tenth into place. */
+  const chipMotion = $derived({
+    duration: still ? 0 : 190,
+    start: 0.86,
+    easing: expoOut,
+  });
 
   const SKELETONS = [0, 1, 2];
 
@@ -104,20 +111,62 @@
   const authorChoices = $derived(
     fragment === null ? [] : AUTHORS.filter((a) => a.token.startsWith(fragment))
   );
-  /** Who the settled query scopes to, for the heading to say so. */
-  const scopedRole = $derived(parseQuery(query).role);
-  const scopedLabel = $derived(
-    AUTHORS.find((a) => a.role === scopedRole)?.label
-  );
   const AUTHOR_MARK = { me: UserIcon, agent: RoboticIcon } as const;
 
-  /** Settle the token and leave the caret after it, ready for the terms. */
+  /**
+   * Who the search is scoped to. Held as state rather than left in the query
+   * text: a scope is a thing you can see and dismiss, and an `<input>` cannot
+   * render one inside its own value.
+   */
+  let scope = $state<AuthorToken | null>(null);
+  const scoped = $derived(AUTHORS.find((a) => a.token === scope));
+  let input = $state<HTMLInputElement | null>(null);
+  /** Measured so the text can start after the chip rather than under it. */
+  let chipWidth = $state(0);
+
+  /** Settle the token into a chip and leave the caret ready for the terms. */
   function chooseAuthor(token: AuthorToken) {
-    query = applyAuthor(query, token);
+    scope = token;
+    query = stripFragment(query);
     input?.focus();
   }
 
-  let input = $state<HTMLInputElement | null>(null);
+  /**
+   * A token typed out in full — `@me ` — becomes the same chip the menu makes,
+   * so the two ways of naming a scope end in one state rather than two.
+   */
+  $effect(() => {
+    const parsed = parseQuery(query);
+    if (!parsed.role) {
+      return;
+    }
+    scope = AUTHORS.find((a) => a.role === parsed.role)?.token ?? null;
+    query = parsed.text;
+  });
+
+  /**
+   * Start the text after the chip. Set on the node rather than through a prop
+   * or a stylesheet: the input group owns this input's left padding with its
+   * own `[&>input]:pl-*` variants, and `Command.Input` does not forward a
+   * `style` down to the element — the ref does.
+   */
+  $effect(() => {
+    if (input) {
+      input.style.textIndent = scope ? `${chipWidth}px` : "0px";
+    }
+  });
+
+  /** Backspace at the start of an empty-ish query takes the chip off. */
+  function onSearchKey(event: KeyboardEvent) {
+    if (event.key !== "Backspace" || !scope) {
+      return;
+    }
+    const el = event.target as HTMLInputElement;
+    if (el.selectionStart === 0 && el.selectionEnd === 0) {
+      event.preventDefault();
+      scope = null;
+    }
+  }
 
   async function jump(href: string) {
     open = false;
@@ -138,11 +187,45 @@
        results and the hints. The input was its own bordered control floating
        above a separately bordered list — two boxes, two radii, two insets. -->
   <div class="jump-well">
-    <Command.Input
-      placeholder="Jump to a project, machine, or session…  (@ to pick an author)"
-      bind:ref={input}
-      bind:value={query}
-    />
+    <!-- The chip sits in the search line rather than in the value: an input
+         cannot render one, so it is laid over the field and the text is
+         padded past it by the width the chip actually measures. -->
+    <div class="jump-search">
+      <Command.Input
+        onkeydown={onSearchKey}
+        placeholder={scope
+          ? "Search these messages…"
+          : "Jump to a project, machine, or session…  (@ for an author)"}
+        bind:ref={input}
+        bind:value={query}
+      />
+      {#if scoped}
+        <span
+          class="jump-chip"
+          bind:clientWidth={chipWidth}
+          transition:scale={chipMotion}
+        >
+          <HugeiconsIcon
+            class="jump-chip-mark"
+            icon={AUTHOR_MARK[scoped.token]}
+            size={12}
+            strokeWidth={2}
+          />
+          {scoped.label}
+          <button
+            aria-label="Clear author filter"
+            class="jump-chip-off"
+            onclick={() => {
+              scope = null;
+              input?.focus();
+            }}
+            type="button"
+          >
+            ×
+          </button>
+        </span>
+      {/if}
+    </div>
 
     <Command.List class="jump-list">
       {#if !(search.pending || fragment !== null)}
@@ -200,7 +283,7 @@
 
       {#if search.pending || search.hits.length > 0}
         <Command.Group
-          heading={scopedLabel ? `Transcripts · from ${scopedLabel}` : "Transcripts"}
+          heading={scoped ? `Transcripts · from ${scoped.label}` : "Transcripts"}
         >
           {#if search.pending && search.hits.length === 0}
             <!-- The shape of what is coming, so the list does not jump when it lands. -->
@@ -323,6 +406,65 @@
     max-height: calc(82vh - 104px);
     padding: 4px;
     scroll-padding-block: 6px;
+  }
+  /* The search line owns the chip's position; the chip owns its own width,
+     which the input is padded by so the caret never lands underneath it. */
+  .jump-search {
+    position: relative;
+  }
+  /* The text starts after the chip by indent rather than padding: the input
+     group owns this input's left padding through its own `[&>input]:pl-*`
+     variants, and text-indent moves the caret, the value and the placeholder
+     together. It is set inline because the group's own rules outrank a
+     stylesheet selector here; only the easing is left to CSS. */
+  :global(.jump-search [data-command-input]) {
+    transition: text-indent 190ms var(--e-in);
+  }
+  .jump-chip {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 20px;
+    padding: 0 3px 0 6px;
+    transform-origin: left center;
+    translate: 0 -50%;
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius-pill);
+    background: var(--surface-raised);
+    color: var(--ink-row);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    line-height: 1;
+    white-space: nowrap;
+    pointer-events: auto;
+  }
+  :global(.jump-chip-mark) {
+    flex: none;
+    color: var(--ink-label);
+  }
+  /* Its own dismissal, for a pointer. A keyboard takes it off with backspace. */
+  .jump-chip-off {
+    display: grid;
+    width: 14px;
+    height: 14px;
+    place-items: center;
+    border-radius: var(--radius-pill);
+    color: var(--ink-muted);
+    font-size: var(--text-base);
+    line-height: 1;
+    cursor: pointer;
+  }
+  .jump-chip-off:hover {
+    background: var(--surface-hover);
+    color: var(--ink-strong);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :global(.jump-search [data-command-input]) {
+      transition: none;
+    }
   }
   :global(.jump-mark) {
     flex: none;
