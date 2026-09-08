@@ -6,9 +6,11 @@
     Folder01Icon,
     QuoteDownIcon,
     RoboticIcon,
+    SearchIcon,
     UserIcon,
   } from "@hugeicons/core-free-icons";
   import { HugeiconsIcon } from "@hugeicons/svelte";
+  import { Command as CommandPrimitive } from "bits-ui";
   import { flip } from "svelte/animate";
   import { expoOut } from "svelte/easing";
   import { fade, scale } from "svelte/transition";
@@ -121,8 +123,6 @@
   let scope = $state<AuthorToken | null>(null);
   const scoped = $derived(AUTHORS.find((a) => a.token === scope));
   let input = $state<HTMLInputElement | null>(null);
-  /** Measured so the text can start after the chip rather than under it. */
-  let chipWidth = $state(0);
 
   /** Settle the token into a chip and leave the caret ready for the terms. */
   function chooseAuthor(token: AuthorToken) {
@@ -142,18 +142,6 @@
     }
     scope = AUTHORS.find((a) => a.role === parsed.role)?.token ?? null;
     query = parsed.text;
-  });
-
-  /**
-   * Start the text after the chip. Set on the node rather than through a prop
-   * or a stylesheet: the input group owns this input's left padding with its
-   * own `[&>input]:pl-*` variants, and `Command.Input` does not forward a
-   * `style` down to the element — the ref does.
-   */
-  $effect(() => {
-    if (input) {
-      input.style.textIndent = scope ? `${chipWidth}px` : "0px";
-    }
   });
 
   /** Backspace at the start of an empty-ish query takes the chip off. */
@@ -190,25 +178,24 @@
     <!-- The chip sits in the search line rather than in the value: an input
          cannot render one, so it is laid over the field and the text is
          padded past it by the width the chip actually measures. -->
+    <!-- The search line is built here rather than taken from Command.Input:
+         its input group owns the field's padding and puts the addon in flow,
+         which leaves no place to put a chip except on top of the text. Icon,
+         chip and field are flex siblings, so nothing overlaps and nothing
+         needs measuring. -->
     <div class="jump-search">
-      <Command.Input
-        onkeydown={onSearchKey}
-        placeholder={scope
-          ? "Search these messages…"
-          : "Jump to a project, machine, or session…  (@ for an author)"}
-        bind:ref={input}
-        bind:value={query}
+      <HugeiconsIcon
+        class="jump-search-icon"
+        icon={SearchIcon}
+        size={15}
+        strokeWidth={2}
       />
       {#if scoped}
-        <span
-          class="jump-chip"
-          bind:clientWidth={chipWidth}
-          transition:scale={chipMotion}
-        >
+        <span class="jump-chip" transition:scale={chipMotion}>
           <HugeiconsIcon
             class="jump-chip-mark"
             icon={AUTHOR_MARK[scoped.token]}
-            size={12}
+            size={11}
             strokeWidth={2}
           />
           {scoped.label}
@@ -225,6 +212,15 @@
           </button>
         </span>
       {/if}
+      <CommandPrimitive.Input
+        class="jump-field"
+        onkeydown={onSearchKey}
+        placeholder={scope
+          ? "Search these messages…"
+          : "Jump to a project, machine, or session…"}
+        bind:ref={input}
+        bind:value={query}
+      />
     </div>
 
     <Command.List class="jump-list">
@@ -385,61 +381,10 @@
     border-radius: calc(var(--radius-shell) - var(--jump-inset));
     background: var(--surface-field);
   }
-  /* The search line is the head of that surface, not a control resting on it:
-     the input group's own border, fill and corner are removed and a hairline
-     divides it from the results. */
-  :global(.jump-well [data-slot="command-input-wrapper"]) {
-    padding: 0;
-    border-bottom: 1px solid var(--border-hairline);
-  }
-  :global(.jump-well [data-slot="input-group"]) {
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none;
-    min-height: 42px;
-  }
-  :global(.jump-well [data-slot="input-group"]:focus-within) {
-    box-shadow: none;
-  }
   :global(.jump-list) {
     max-height: calc(82vh - 104px);
     padding: 4px;
     scroll-padding-block: 6px;
-  }
-  /* The search line owns the chip's position; the chip owns its own width,
-     which the input is padded by so the caret never lands underneath it. */
-  .jump-search {
-    position: relative;
-  }
-  /* The text starts after the chip by indent rather than padding: the input
-     group owns this input's left padding through its own `[&>input]:pl-*`
-     variants, and text-indent moves the caret, the value and the placeholder
-     together. It is set inline because the group's own rules outrank a
-     stylesheet selector here; only the easing is left to CSS. */
-  :global(.jump-search [data-command-input]) {
-    transition: text-indent 190ms var(--e-in);
-  }
-  .jump-chip {
-    position: absolute;
-    top: 50%;
-    left: 0;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    height: 20px;
-    padding: 0 3px 0 6px;
-    transform-origin: left center;
-    translate: 0 -50%;
-    border: 1px solid var(--border-control);
-    border-radius: var(--radius-pill);
-    background: var(--surface-raised);
-    color: var(--ink-row);
-    font-size: var(--text-sm);
-    font-weight: var(--weight-medium);
-    line-height: 1;
-    white-space: nowrap;
-    pointer-events: auto;
   }
   :global(.jump-chip-mark) {
     flex: none;
@@ -461,10 +406,49 @@
     background: var(--surface-hover);
     color: var(--ink-strong);
   }
-  @media (prefers-reduced-motion: reduce) {
-    :global(.jump-search [data-command-input]) {
-      transition: none;
-    }
+  /* Icon, chip and field share one row. The field takes what is left, so the
+     chip can be any width and nothing overlaps or needs measuring. */
+  .jump-search {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 7px;
+    height: 42px;
+    padding: 0 11px;
+    border-bottom: 1px solid var(--border-hairline);
+  }
+  :global(.jump-search-icon) {
+    flex: none;
+    color: var(--ink-label);
+  }
+  :global(.jump-field) {
+    min-width: 0;
+    flex: 1;
+    border: 0;
+    background: transparent;
+    color: var(--ink-strong);
+    font-size: var(--text-md);
+    outline: none;
+  }
+  :global(.jump-field)::placeholder {
+    color: var(--ink-muted);
+  }
+  .jump-chip {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 4px;
+    height: 21px;
+    padding: 0 3px 0 7px;
+    transform-origin: left center;
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius-pill);
+    background: var(--surface-field);
+    color: var(--ink-row);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    line-height: 1;
+    white-space: nowrap;
   }
   :global(.jump-mark) {
     flex: none;
