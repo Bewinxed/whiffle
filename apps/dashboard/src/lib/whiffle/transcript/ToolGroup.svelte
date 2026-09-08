@@ -8,6 +8,8 @@
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte convention for a component group.
   import * as Collapsible from "$lib/components/ui/collapsible";
   import { IconChevronRight } from "$lib/icons";
+  import Arrival from "$lib/whiffle/motion/Arrival.svelte";
+  import { ARRIVAL } from "$lib/whiffle/motion/arrival";
   import Reveal from "$lib/whiffle/motion/Reveal.svelte";
   import Stream from "$lib/whiffle/motion/Stream.svelte";
   /**
@@ -24,7 +26,29 @@
    */
   import type { Message } from "../types";
 
-  let { messages }: { messages: Message[] } = $props();
+  let {
+    messages,
+    /**
+     * Whether a given call is ARRIVING, and where it sits in the stagger
+     * queue.
+     *
+     * A run of calls is one row, created when the first of them lands, so the
+     * row cannot be the unit that animates — every later call in the run would
+     * be appended into something that had already arrived. The CALL is the
+     * unit, and the answer comes from the transcript rather than from here so
+     * that it survives this component being unmounted and remounted as the
+     * virtualizer scrolls.
+     *
+     * The three nested surfaces that render tool rows — a subagent branch, a
+     * delegate's report, the static tail — are not following a live tail and
+     * decide no arrivals, so the default is the honest one: nothing here is
+     * landing.
+     */
+    landing = () => ({ fresh: false, lead: 0 }),
+  }: {
+    messages: Message[];
+    landing?: (m: Message) => { fresh: boolean; lead: number };
+  } = $props();
 
   /** shadcn Badge, dressed on the DESIGN.md scale rather than the stock ladder. */
   const chipClass =
@@ -154,39 +178,51 @@
         {/if}
       {/if}
     {/snippet}
-    <div class="row" class:err={failed}>
-      {#if hasBody}
-        <Collapsible.Root>
-          <Collapsible.Trigger class="trow">
-            {@render line()}
-            <span class="chev"><IconChevronRight /></span>
-          </Collapsible.Trigger>
-          <Collapsible.Content>
-            <div class="fields">
-              {#each fields as f (f.key)}
-                <div class="field">
-                  <span class="k">{f.key}</span>
-                  <pre class="v">{f.text}</pre>
-                </div>
-              {/each}
-              {#if result}
-                <div class="field">
-                  <span class="k">result</span>
-                  <pre class="v">{result.text}</pre>
-                  {#if result.more}
-                    <span class="more"
-                      >… {result.more.toLocaleString()} more chars</span
-                    >
-                  {/if}
-                </div>
-              {/if}
-            </div>
-          </Collapsible.Content>
-        </Collapsible.Root>
-      {:else}
-        <div class="trow flat">{@render line()}</div>
-      {/if}
-    </div>
+    {@const land = landing(m)}
+    <!-- The call reserves its own space, so a run's rail grows one call at a
+         time — which is the storyboard the row-level wrapper used to play once
+         for the whole run and never again. -->
+    <Arrival
+      lead={land.lead}
+      opens
+      owns={false}
+      params={ARRIVAL}
+      still={!land.fresh}
+    >
+      <div class="row" class:err={failed}>
+        {#if hasBody}
+          <Collapsible.Root>
+            <Collapsible.Trigger class="trow">
+              {@render line()}
+              <span class="chev"><IconChevronRight /></span>
+            </Collapsible.Trigger>
+            <Collapsible.Content>
+              <div class="fields">
+                {#each fields as f (f.key)}
+                  <div class="field">
+                    <span class="k">{f.key}</span>
+                    <pre class="v">{f.text}</pre>
+                  </div>
+                {/each}
+                {#if result}
+                  <div class="field">
+                    <span class="k">result</span>
+                    <pre class="v">{result.text}</pre>
+                    {#if result.more}
+                      <span class="more"
+                        >… {result.more.toLocaleString()} more chars</span
+                      >
+                    {/if}
+                  </div>
+                {/if}
+              </div>
+            </Collapsible.Content>
+          </Collapsible.Root>
+        {:else}
+          <div class="trow flat">{@render line()}</div>
+        {/if}
+      </div>
+    </Arrival>
   {/each}
 </div>
 

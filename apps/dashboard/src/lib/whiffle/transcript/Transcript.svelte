@@ -15,6 +15,7 @@
   import Reveal from "$lib/whiffle/motion/Reveal.svelte";
   import Stream from "$lib/whiffle/motion/Stream.svelte";
   import type { SessionState } from "../client.svelte";
+  import type { Message } from "../types";
   import { rebuildScheduler } from "../workspace/scheduler.svelte";
   import CatchUp from "./CatchUp.svelte";
   import Delegate from "./Delegate.svelte";
@@ -948,14 +949,16 @@
     return grew > BULK;
   });
 
-  function enter(row: Row): { fresh: boolean; lead: number } {
-    const key = row.key;
-    const known = decided.get(key);
-    if (known) {
-      return known;
-    }
+  /**
+   * Whether this ROW's place in the transcript permits an arrival at all —
+   * everything the decision knows that is not about identity. Split out from
+   * `arrive` because one row can host several arrivals: a run of tool calls
+   * shares a row, and each call in it lands separately.
+   */
+  function allowed(row: Row): boolean {
     const list = built.rows;
-    const atTail = list.findIndex((r) => r.key === key) >= list.length - TAIL;
+    const atTail =
+      list.findIndex((r) => r.key === row.key) >= list.length - TAIL;
     // The settled half of a turn that just finished streaming. Its words are
     // already on screen; revealing them again is not an arrival, it is a
     // flicker.
@@ -973,29 +976,77 @@
       ? scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight
       : Number.POSITIVE_INFINITY;
     const nearTail = atBottom || (!!scroller && reach < scroller.clientHeight);
-    const fresh =
-      landed &&
-      settled &&
-      nearTail &&
-      atTail &&
-      !bulk &&
-      !settling &&
-      !seen.has(key);
-    seen.add(key);
+    return landed && settled && nearTail && atTail && !bulk && !settling;
+  }
+
+  /**
+   * Decide one arrival, once, under `id`, and take its place in the queue.
+   */
+  function arrive(id: string, row: Row): { fresh: boolean; lead: number } {
+    const known = decided.get(id);
+    if (known) {
+      return known;
+    }
+    const fresh = !seen.has(id) && allowed(row);
+    seen.add(id);
     const answer = { fresh, lead: fresh ? leadFor() : 0 };
-    decided.set(key, answer);
+    decided.set(id, answer);
     if (fresh) {
-      // A row arrives ONCE. Virtua mounts and unmounts rows as they cross the
-      // viewport, and the answer cached here outlives the component that asked
-      // for it — so without this the same row played its arrival again every
-      // time it was scrolled back into view, or the tab was returned to, with
-      // whatever place in the queue it had the first time. The current render
-      // has already read the answer by the time this runs.
+      // A thing arrives ONCE. Virtua mounts and unmounts rows as they cross
+      // the viewport, and the answer cached here outlives the component that
+      // asked for it — so without this the same row played its arrival again
+      // every time it was scrolled back into view, or the tab was returned to,
+      // with whatever place in the queue it had the first time. The current
+      // render has already read the answer by the time this runs.
       queueMicrotask(() => {
         answer.fresh = false;
       });
     }
     return answer;
+  }
+
+  /**
+   * Never fresh, and never queued. What a row gets when it is not the thing
+   * that arrives.
+   */
+  const STILL = { fresh: false, lead: 0 };
+
+  function enter(row: Row): { fresh: boolean; lead: number } {
+    /*
+     * A TOOL RUN IS NOT ONE ARRIVAL.
+     *
+     * Consecutive tool calls fold into a single row keyed by the FIRST of
+     * them, and that row is created once. Deciding at row level therefore
+     * decided the whole run on its first call: every later call was appended
+     * into a row that had already arrived, so it never reached `Arrival` at
+     * all — no space reserved, no lift, and no place in the stagger queue. Its
+     * only motion was the glyph's `Reveal`, drawing on a cascade whose window
+     * had closed, which resolves to `delay: 0` — the flat pop the operator
+     * reported as "consecutive tools are not animating". Measured on a live
+     * transcript: one `reserve` for the run, then five bare `reveal delay=0`.
+     *
+     * So the row yields. The arrivals inside it are the CALLS, decided by
+     * `enterTool` and played by `ToolGroup`, which is also what makes the rail
+     * grow one call at a time instead of one run at a time.
+     */
+    if (row.kind === "tools") {
+      return STILL;
+    }
+    return arrive(row.key, row);
+  }
+
+  /**
+   * One tool CALL's arrival. Decided here rather than inside `ToolGroup` so
+   * that it survives the group being unmounted and remounted by the
+   * virtualizer — a component-local answer would be lost on every scroll, and
+   * the run would replay itself each time it came back into view.
+   */
+  const callId = (m: Message): string => `call:${m.id ?? m.toolCallId}`;
+
+  function enterTool(
+    row: Row
+  ): (m: Message) => { fresh: boolean; lead: number } {
+    return (m) => arrive(callId(m), row);
   }
 
   // Seed every key already present before the transcript lands on its latest
@@ -1006,6 +1057,14 @@
     }
     for (const r of rows) {
       seen.add(r.key);
+      // A tool run's calls are seeded individually, because they are now what
+      // arrives — seeding only the row key would leave every historical call
+      // in it undecided, and a scroll back through history would play them.
+      if (r.kind === "tools") {
+        for (const m of r.messages) {
+          seen.add(callId(m));
+        }
+      }
     }
   });
 
@@ -1205,7 +1264,7 @@
         {#if row.kind === 'single'}
           <MessageRow {agentName} message={row.message} />
         {:else if row.kind === 'tools'}
-          <ToolGroup messages={row.messages} />
+          <ToolGroup landing={enterTool(row)} messages={row.messages} />
         {:else if row.kind === 'question'}
           <QuestionCard message={row.message} />
         {:else if row.kind === 'harness'}
