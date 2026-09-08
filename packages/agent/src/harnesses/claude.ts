@@ -1866,13 +1866,27 @@ export class ClaudeHarness implements Harness {
           custody.ingest(event.data);
         }
         // There is no backlog-complete event; the ring's last line is it.
-        if (
-          peekSeq !== undefined &&
-          head >= 1 &&
-          event.seq === head &&
-          verdict === true
-        ) {
-          custody.handOff();
+        if (peekSeq !== undefined && head >= 1 && event.seq === head) {
+          if (verdict === true) {
+            custody.handOff();
+            return;
+          }
+          // THE UNRESOLVED WINDOW — the third boundary that never comes. An
+          // idle child keeps writing notices after its `result`, and those
+          // carry the previous verdict forward rather than replacing it. Once
+          // more than {@link PEEK_LINES} of them have piled up the window holds
+          // no turn-bearing line at all, the verdict is still `undefined` at
+          // `head`, and the adoption waits for a boundary that already passed.
+          //
+          // `undefined` alone, never `false`: false is the ring SAYING a turn
+          // is in flight, and it outranks the transcript — a turn that has just
+          // started has written nothing yet, so the newest record on disk would
+          // still be the previous turn's `end_turn` and the fallback would end
+          // stdin underneath it. Unknown is the only verdict the disk may
+          // settle.
+          if (verdict === undefined) {
+            settleWithoutPeek();
+          }
         }
       },
       // A child that dies during custody is the session ending on its own,
