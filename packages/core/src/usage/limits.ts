@@ -13,10 +13,38 @@ import type { ClaudeLimits, LimitWindow } from "./types";
 
 const USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
 const TIMEOUT_MS = 10_000;
-const CACHE_TTL_MS = 60_000;
+/**
+ * The endpoint buckets its rate limit per (access token, User-Agent), and a
+ * `claude-code/*` agent gets a far larger bucket than anything else. Measured
+ * against one live token, seven back-to-back requests per agent:
+ *
+ *     claude-code/2.1.263  3x 200     <- privileged bucket
+ *     whiffle/0.1.0        1x 200     |
+ *     curl/8.5.0           1x 200     |- one shared, trickling generic bucket
+ *     (header suppressed)  0x 200     <- worst bucket of all
+ *
+ * Unset, this header is not absent: Bun's `fetch` defaults it to `Bun/1.4.0`,
+ * which lands in the middle row. That is why the monitor sat on `HTTP 429` —
+ * it was polling a trickle bucket every 60s and never refilling it. The
+ * version is only ever read as a bucket key, so a constant is enough; the
+ * `claude-code/` prefix is what earns the top row.
+ */
+const USER_AGENT = "claude-code/2.1.263";
+/**
+ * Community-measured safe cadence for this endpoint is ~180s; polling it at 60s
+ * drains the bucket. The daemon ticks faster than this on purpose (its
+ * transcript scan wants the shorter period) and is served from cache in
+ * between.
+ */
+const CACHE_TTL_MS = 180_000;
 const NON_429_BACKOFF_MS = 2 * 60_000;
-/** 429 escalation by consecutive-failure streak: 5m → 15m → 60m (cap). */
-const BACKOFF_STEPS_MS = [5 * 60_000, 15 * 60_000, 60 * 60_000];
+/**
+ * 429 escalation by consecutive-failure streak: 5m → 10m → 15m (cap). The cap
+ * is deliberately short: the bucket refills on the order of minutes, so a
+ * longer blackout only serves stale numbers through a window that has already
+ * reopened.
+ */
+const BACKOFF_STEPS_MS = [5 * 60_000, 10 * 60_000, 15 * 60_000];
 
 interface OauthCreds {
   accessToken?: string;
@@ -106,6 +134,7 @@ export async function fetchClaudeLimits(opts?: {
     headers: {
       Authorization: `Bearer ${token}`,
       "anthropic-beta": "oauth-2025-04-20",
+      "User-Agent": USER_AGENT,
     },
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
@@ -188,9 +217,16 @@ function errorResult(error: string): ClaudeLimits {
 
 /**
  * Records a failed request and returns what to serve for the backoff window.
- * For a 429, honours a numeric `Retry-After` (seconds) when present, else
- * escalates by streak (5m → 15m → 60m). Other failures cool down 2m. If a good
- * reading was ever fetched, that is returned stale rather than empty windows.
+ *
+ * For a 429, honours a POSITIVE numeric `Retry-After` (seconds), else escalates
+ * by streak. The positive test is load-bearing, not defensive: this endpoint
+ * answers every 429 with a literal `retry-after: 0`, which would otherwise be
+ * read as "retry at once" and turn the backoff into a hot loop. Zero and
+ * absent are treated alike — neither says anything about when the bucket
+ * reopens, so the streak ladder is the only signal left.
+ *
+ * Other failures cool down 2m. If a good reading was ever fetched, that is
+ * returned stale rather than empty windows.
  */
 function failureResult(
   status: number,

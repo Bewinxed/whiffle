@@ -33,7 +33,7 @@ const setNow = (t: number): void => {
 const advance = (ms: number): void => setNow(now + ms);
 
 // The clock only ever moves forward across tests, so a prior failure's backoff
-// window (max 60m) is always behind us when a new test begins.
+// window (max 15m) is always behind us when a new test begins.
 let clock = BASE;
 
 const toCleanState = async (): Promise<void> => {
@@ -41,7 +41,7 @@ const toCleanState = async (): Promise<void> => {
   setNow(clock);
   mockFetch(() => new Response(JSON.stringify(okBody()), { status: 200 }));
   await fetchClaudeLimits({ configDir: dir });
-  advance(61_000); // expire the success cache, leaving lastGood set
+  advance(181_000); // expire the success cache, leaving lastGood set
 };
 
 function mockFetch(response: () => Response): void {
@@ -116,7 +116,7 @@ test("429 with a Retry-After header is honoured and cached", async () => {
   expect(fetchCalls).toBe(2); // window expired: fetch again
 });
 
-test("429 without Retry-After escalates 5m -> 15m -> 60m", async () => {
+test("429 without Retry-After escalates 5m -> 10m -> 15m", async () => {
   await toCleanState();
   mockFetch(() => new Response("{}", { status: 429 }));
 
@@ -129,15 +129,15 @@ test("429 without Retry-After escalates 5m -> 15m -> 60m", async () => {
 
   advance(4 * MIN + 1000);
   await fetchClaudeLimits({ configDir: dir });
-  expect(fetchCalls).toBe(2); // 5m expired, streak 2 -> 15m
+  expect(fetchCalls).toBe(2); // 5m expired, streak 2 -> 10m
 
   advance(5 * MIN);
   await fetchClaudeLimits({ configDir: dir });
-  expect(fetchCalls).toBe(2); // within 15m
+  expect(fetchCalls).toBe(2); // within 10m
 
-  advance(10 * MIN + 1000);
+  advance(5 * MIN + 1000);
   await fetchClaudeLimits({ configDir: dir });
-  expect(fetchCalls).toBe(3); // 15m expired, streak 3 -> 60m
+  expect(fetchCalls).toBe(3); // 10m expired, streak 3 -> 15m
 });
 
 test("a success resets the failure streak", async () => {
@@ -152,14 +152,14 @@ test("a success resets the failure streak", async () => {
   expect(good.error).toBe(null);
   expect(good.stale).toBeUndefined();
 
-  advance(61_000); // expire the success cache
+  advance(181_000); // expire the success cache
   mockFetch(() => new Response("{}", { status: 429 }));
-  await fetchClaudeLimits({ configDir: dir }); // streak is 1 again -> 5m, not 15m
+  await fetchClaudeLimits({ configDir: dir }); // streak is 1 again -> 5m, not 10m
   expect(fetchCalls).toBe(1);
 
   advance(6 * MIN);
   await fetchClaudeLimits({ configDir: dir });
-  expect(fetchCalls).toBe(2); // 5m backoff (reset) expired; a 15m one would not have
+  expect(fetchCalls).toBe(2); // 5m backoff (reset) expired; a 10m one would not have
 });
 
 test("non-429 failures cool down a fixed 2m", async () => {
