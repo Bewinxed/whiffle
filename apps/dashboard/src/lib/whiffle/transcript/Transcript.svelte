@@ -1497,9 +1497,9 @@
   .livetool {
     /* one rhythm value (--space-4) tops every row type; the rail indent is
        --space-2 margin + --space-3 padding, shared across every rail block. */
-    margin: var(--space-4) 0 0 var(--space-2);
+    margin: var(--rail-gap, var(--space-4)) 0 0 var(--space-2);
     padding-left: var(--space-3);
-    background: var(--rail) left top / 2px 100% no-repeat;
+    background: var(--rail-head, var(--rail)) left top / 2px 100% no-repeat;
     min-height: 26px;
     display: flex;
     align-items: center;

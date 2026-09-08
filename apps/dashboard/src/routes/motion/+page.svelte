@@ -467,7 +467,7 @@
   .run.owns {
     margin-left: var(--space-2);
     padding-left: var(--space-3);
-    background: var(--rail) left top / 2px 100% no-repeat;
+    background: var(--rail-head, var(--rail)) left top / 2px 100% no-repeat;
   }
   /* Settled history: the same box the arriving row settles into, so nothing
      shifts when the animation hands the row back to normal flow. */
@@ -482,7 +482,7 @@
   .static.railrow {
     margin-left: var(--space-2);
     padding-left: var(--space-3);
-    background: var(--rail) left top / 2px 100% no-repeat;
+    background: var(--rail-head, var(--rail)) left top / 2px 100% no-repeat;
   }
 
   .turn.you {
