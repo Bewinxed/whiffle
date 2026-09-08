@@ -1,0 +1,56 @@
+{
+  "name": "@whiffle/jsonl-parser",
+  "version": "0.1.0",
+  "description": "Fast, incremental parser and BM25 indexer for agent-session transcripts (Claude Code JSONL, OpenCode sqlite).",
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./fts5": {
+      "types": "./src/fts5.ts",
+      "default": "./src/fts5.ts"
+    },
+    "./opencode": {
+      "types": "./src/opencode.ts",
+      "default": "./src/opencode.ts"
+    }
+  },
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "files": ["dist", "src"],
+  "publishConfig": {
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "./fts5": {
+        "types": "./dist/fts5.d.ts",
+        "default": "./dist/fts5.js"
+      },
+      "./opencode": {
+        "types": "./dist/opencode.d.ts",
+        "default": "./dist/opencode.js"
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "lint": "oxlint src",
+    "format": "oxfmt src bench",
+    "typecheck": "tsc --noEmit",
+    "bench": "bun bench/bench.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.1",
+    "oxfmt": "^0.67.0",
+    "oxlint": "^1.82.0",
+    "tsdown": "^0.23.0",
+    "typescript": "^5.9.3"
+  }
+}

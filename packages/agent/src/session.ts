@@ -21,6 +21,7 @@ import type {
   NeutralMessage,
   NeutralSessionInfo,
   NeutralUserMessage,
+  PermissionMode,
   PermissionResult,
   RepoInfo,
   ReposResult,
@@ -361,6 +362,11 @@ export class SessionSupervisor {
     [UPDATE_WHIFFLE]: (options) =>
       updateCheckout({ ...(options as UpdateOptions), busy: this.#busy.size }),
   };
+
+  /** Register a machine-scoped control method, callable without an instanceId. */
+  registerDaemonFunction(name: string, fn: ControlMethod): void {
+    this.#daemonFunctions[name] = fn;
+  }
 
   /**
    * Re-pointed at each hub connection. Frames produced while the hub is away are
@@ -879,6 +885,7 @@ export class SessionSupervisor {
       cwd: string;
       sessionId?: string | null;
       afterSeq?: number;
+      permissionMode?: PermissionMode;
     }[],
     /**
      * The hub's ingest ledger off the register ack. Absent — an old-shape ack,
@@ -945,6 +952,9 @@ export class SessionSupervisor {
               cwd: row.cwd,
               harness: "claude",
               ...(sessionId ? { resume: { sessionKey: sessionId } } : {}),
+              ...(row.permissionMode
+                ? { permissionMode: row.permissionMode }
+                : {}),
             } satisfies SpawnPayload,
           } as Envelope);
           for (const turn of heldTurns) {
@@ -978,7 +988,12 @@ export class SessionSupervisor {
    */
   reattachFrom(
     ackPayload: unknown,
-    rows: { instanceId: string; cwd: string; sessionId?: string | null }[]
+    rows: {
+      instanceId: string;
+      cwd: string;
+      sessionId?: string | null;
+      permissionMode?: PermissionMode;
+    }[]
   ): Promise<string[]> {
     return this.reattach(rows, readIngested(ackPayload));
   }
@@ -1386,7 +1401,8 @@ export class SessionSupervisor {
           case "getSessionMessages":
             return await adapter.getSessionMessages(
               args[0] as string,
-              dirOf(args[1])
+              dirOf(args[1]),
+              (args[1] as { tail?: number } | undefined)?.tail
             );
           case "renameSession":
             return await adapter.renameSession(

@@ -1,5 +1,5 @@
 import type { InstanceRow, SessionMessage } from "@whiffle/core";
-import { TRANSCRIPT_FIRST_CHUNK } from "$lib/config";
+import { TRANSCRIPT_FIRST_CHUNK, TRANSCRIPT_TAIL_CEILING } from "$lib/config";
 import { turnStart } from "$lib/whiffle/frames";
 import type { PageServerLoad } from "./$types";
 
@@ -19,9 +19,6 @@ interface HistorySource {
   sessionId?: string;
   viewId: string;
 }
-
-/** Beyond this many entries the tail read gives up looking for a clean cut. */
-const TAIL_CEILING = TRANSCRIPT_FIRST_CHUNK * 4;
 
 /** The content blocks of a stored entry, for the tool pairing a cut must not split. */
 function contentBlocks(
@@ -94,7 +91,7 @@ async function readTail(
       }
     }
     buffered.push(entry);
-    if (buffered.length >= TAIL_CEILING) {
+    if (buffered.length >= TRANSCRIPT_TAIL_CEILING) {
       return true;
     }
     if (buffered.length < TRANSCRIPT_FIRST_CHUNK || dangling.size > 0) {
@@ -153,14 +150,19 @@ async function readTail(
  */
 function messagesUrl(source: HistorySource): string {
   const path = `/api/instances/${encodeURIComponent(source.viewId)}/messages`;
-  if (!source.override) {
-    return path;
+  // This read is cut at TRANSCRIPT_TAIL_CEILING entries regardless, so tell the agent —
+  // it answers a tail request by parsing only the newest window of the file
+  // (~4ms on a 97MB transcript) instead of the whole transcript. The client's
+  // own full read still runs after hydration for scrollback.
+  const params = new URLSearchParams({ tail: String(TRANSCRIPT_TAIL_CEILING) });
+  if (source.override) {
+    params.set("machine", source.machineId);
+    params.set("harness", source.harness);
+    if (source.cwd) {
+      params.set("cwd", source.cwd);
+    }
   }
-  return `${path}?${new URLSearchParams({
-    machine: source.machineId,
-    harness: source.harness,
-    ...(source.cwd && { cwd: source.cwd }),
-  })}`;
+  return `${path}?${params}`;
 }
 
 /**

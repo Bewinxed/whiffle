@@ -12,6 +12,8 @@ export interface CliConfig {
    */
   claudeToken?: string;
   hubUrl: string;
+  /** Transcript cache budget in megabytes (default 256). */
+  transcriptCacheMb?: number;
   updatedAt: string;
 }
 
@@ -36,9 +38,14 @@ export const readConfig = async (
   if (!config || typeof config !== "object" || Array.isArray(config)) {
     return undefined;
   }
+  const tcm = config.transcriptCacheMb;
   return {
     ...config,
     hubUrl: typeof config.hubUrl === "string" ? config.hubUrl : "",
+    transcriptCacheMb:
+      typeof tcm === "number" && Number.isFinite(tcm) && tcm > 0
+        ? tcm
+        : undefined,
     updatedAt: typeof config.updatedAt === "string" ? config.updatedAt : "",
   };
 };

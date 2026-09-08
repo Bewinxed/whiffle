@@ -675,5 +675,8 @@ export const CONTROL_RENAME_SESSION = "renameSession";
 export const CONTROL_TAG_SESSION = "tagSession";
 export const CONTROL_DELETE_SESSION = "deleteSession";
 
+/** Full-text search across all transcripts on a machine (daemon-scoped). */
+export const CONTROL_SEARCH_TRANSCRIPTS = "searchTranscripts";
+
 /** A session's plan, answered by whichever harness owns it (`NeutralTask[]`). */
 export const CONTROL_GET_TODOS = "getTodos";

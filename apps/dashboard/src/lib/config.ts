@@ -49,3 +49,11 @@ export const TRANSCRIPT_CHUNK_SIZE = 250;
  * complete rather than after the chunk behind it has finished arriving.
  */
 export const TRANSCRIPT_FIRST_CHUNK = 40;
+
+/**
+ * Entries a tail-first transcript read asks the agent for. The agent answers a
+ * tail request by parsing only the newest window of the file (~4ms on a 97MB
+ * transcript), so this is what stands between opening a session and its first
+ * paint. Also the point past which a first-chunk cut stops looking.
+ */
+export const TRANSCRIPT_TAIL_CEILING = TRANSCRIPT_FIRST_CHUNK * 4;

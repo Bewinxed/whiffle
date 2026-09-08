@@ -116,7 +116,8 @@ export interface Harness {
   // biome-ignore lint/style/useConsistentMethodSignatures: method-style kept so implementers (opencode.ts, pi.ts) keep contravariant parameter checking; property-style would change signature variance
   getSessionMessages(
     sessionKey: string,
-    dir?: string
+    dir?: string,
+    tail?: number
   ): Promise<SessionMessage[]>;
   readonly kind: HarnessKind;
   /** The stored sessions this harness can resume. */

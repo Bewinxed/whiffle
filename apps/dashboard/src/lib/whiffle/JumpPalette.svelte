@@ -1,135 +1,54 @@
 <script lang="ts">
-  /**
-   * Cmd+K: everything the client already knows about, in one list you can type
-   * at. It reads the store and nothing else — no endpoint exists for this.
-   */
   import { goto } from "$app/navigation";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte component-group convention
   import * as Command from "$lib/components/ui/command";
   import { Kbd } from "$lib/components/ui/kbd";
   import { ACTIVITY_LABEL } from "./activity";
   import { whiffle } from "./client.svelte";
-  import { sessionTitle, transcriptHref } from "./links";
+  import { buildJumpIndex, filterJumpIndex } from "./jump-index";
+  import { JumpTranscriptSearch } from "./jump-search.svelte";
 
   let { open = $bindable(false) }: { open?: boolean } = $props();
-
-  interface Entry {
-    detail: string;
-    group: string;
-    href: string;
-    id: string;
-    label: string;
-  }
-
-  const leaf = (path: string) => path.split("/").filter(Boolean).pop() ?? path;
-
-  /**
-   * What has been typed. Read here, not just handed to the filter, because
-   * WHICH sessions are offered depends on it: a few recent ones per machine
-   * when the box is empty, and every stored session on every machine the
-   * moment it is not. Rendering all of them unfiltered would be a list
-   * nobody asked for; searching only the newest few would be a search box
-   * that cannot find things.
-   */
   let query = $state("");
 
-  /**
-   * How many stored sessions each machine offers the palette when nothing has
-   * been typed. Typing searches the WHOLE catalogue — a palette that can only
-   * find eight per machine is a recent-list wearing a search box.
-   */
-  const RECENT_PER_MACHINE = 8;
-
-  const GROUPS = [
-    "Projects",
-    "Machines",
-    "Running sessions",
-    "Recent sessions",
-  ];
-
-  const entries = $derived.by((): Entry[] => {
-    const rows: Entry[] = [];
-    for (const project of whiffle.projects) {
-      rows.push({
-        id: `project:${project.id}`,
-        group: "Projects",
-        label: project.name,
-        detail: project.cwd,
-        href: `/project/${project.id}`,
-      });
-    }
-    for (const machine of whiffle.onlineMachines) {
-      rows.push({
-        id: `machine:${machine.machineId}`,
-        group: "Machines",
-        label: machine.hostname,
-        detail: `${machine.os} · start a session here`,
-        href: `/session?machine=${machine.machineId}`,
-      });
-    }
-    for (const instance of whiffle.runningInstances) {
-      rows.push({
-        id: `live:${instance.id}`,
-        group: "Running sessions",
-        label: leaf(instance.cwd) || instance.id,
-        detail: `${instance.cwd || "—"} · ${ACTIVITY_LABEL[whiffle.activityOf(instance.id)]}`,
-        href: `/session/${instance.id}`,
-      });
-    }
-    for (const machine of whiffle.machines) {
-      // Unfiltered, this is a landing list and stays short. The moment the
-      // reader types, every stored session on every machine is in scope.
-      const catalog = whiffle.catalogOf(machine.machineId);
-      for (const info of query.trim()
-        ? catalog
-        : catalog.slice(0, RECENT_PER_MACHINE)) {
-        rows.push({
-          id: `stored:${machine.machineId}:${info.sessionId}`,
-          group: "Recent sessions",
-          label: sessionTitle(info),
-          detail: `${machine.hostname} · ${info.cwd ?? ""}`,
-          href: transcriptHref(info),
-        });
-      }
-    }
-    return rows;
-  });
-
-  const grouped = $derived(
-    GROUPS.map((name) => ({
-      name,
-      rows: entries.filter((entry) => entry.group === name),
-    })).filter((group) => group.rows.length > 0)
+  const index = $derived.by(() =>
+    buildJumpIndex({
+      projects: whiffle.projects,
+      onlineMachines: whiffle.onlineMachines,
+      running: whiffle.runningInstances.map((instance) => ({
+        id: instance.id,
+        cwd: instance.cwd,
+        activityLabel: ACTIVITY_LABEL[whiffle.activityOf(instance.id)],
+      })),
+      stored: whiffle.machines.map((machine) => ({
+        machineId: machine.machineId,
+        hostname: machine.hostname,
+        catalog: whiffle.catalogOf(machine.machineId),
+      })),
+    })
   );
+  const grouped = $derived(filterJumpIndex(index, query));
+  const search = new JumpTranscriptSearch();
+  $effect(() => {
+    search.update(open ? query : "");
+  });
+  const hostOf = $derived(
+    new Map(whiffle.machines.map((m) => [m.machineId, m.hostname]))
+  );
+  const snippetMarkers = /「|」/;
+  const segments = (snippet: string) => snippet.split(snippetMarkers);
 
-  function matches(haystack: string, needle: string): boolean {
-    let at = 0;
-    for (const char of needle) {
-      const found = haystack.indexOf(char, at);
-      if (found === -1) {
-        return false;
-      }
-      at = found + 1;
-    }
-    return true;
-  }
-
-  function score(value: string, search: string, keywords?: string[]): number {
-    const haystack = (keywords?.join(" ") ?? value).toLowerCase();
-    return matches(haystack, search.trim().toLowerCase()) ? 1 : 0;
-  }
-
-  async function jump(entry: Entry) {
+  async function jump(href: string) {
     open = false;
-    await goto(entry.href);
+    await goto(href);
   }
 </script>
 
 <Command.Dialog
   class="sm:max-w-xl"
   description="Jump to a project, machine, or session"
-  filter={score}
   loop
+  shouldFilter={false}
   title="Jump to"
   bind:open
 >
@@ -139,16 +58,14 @@
   />
 
   <Command.List class="max-h-[60vh]">
-    <Command.Empty>Nothing matches that.</Command.Empty>
+    {#if !search.pending}
+      <Command.Empty>Nothing matches that.</Command.Empty>
+    {/if}
 
     {#each grouped as group (group.name)}
       <Command.Group heading={group.name}>
         {#each group.rows as entry (entry.id)}
-          <Command.Item
-            keywords={[entry.label, entry.detail]}
-            onSelect={() => jump(entry)}
-            value={entry.id}
-          >
+          <Command.Item onSelect={() => jump(entry.href)} value={entry.id}>
             <span class="truncate">{entry.label}</span>
             <span
               class="ml-auto truncate font-mono text-xs text-muted-foreground"
@@ -159,6 +76,36 @@
         {/each}
       </Command.Group>
     {/each}
+
+    {#if search.pending || search.hits.length > 0}
+      <Command.Group heading="Transcripts">
+        {#if search.pending && search.hits.length === 0}
+          <Command.Loading>Searching transcripts…</Command.Loading>
+        {/if}
+        {#each search.hits as hit (hit.docId)}
+          <Command.Item
+            onSelect={() => jump(`/session/${hit.instanceId ?? hit.sessionId}`)}
+            value={`hit:${hit.docId}`}
+          >
+            <span class="truncate">
+              {#each segments(hit.snippet) as part, i (i)}
+                {#if i % 2 === 1}
+                  <span class="font-medium text-foreground">{part}</span>
+                {:else}
+                  {part}
+                {/if}
+              {/each}
+            </span>
+            <span
+              class="ml-auto truncate font-mono text-xs text-muted-foreground"
+            >
+              {hostOf.get(hit.machineId) ?? hit.machineId}
+              · {hit.role}
+            </span>
+          </Command.Item>
+        {/each}
+      </Command.Group>
+    {/if}
   </Command.List>
 
   <div

@@ -17,6 +17,7 @@
     "@opencode-ai/sdk": "1.18.18",
     "@whiffle/auth": "workspace:*",
     "@whiffle/core": "workspace:*",
+    "@whiffle/jsonl-parser": "workspace:*",
     "bonjour-service": "^1.4.4",
     "effect": "beta",
     "typebox": "1.3.7",

@@ -43,6 +43,7 @@ import {
   CONTROL_GET_SESSION_INFO,
   CONTROL_GET_SESSION_MESSAGES,
   CONTROL_LIST_SESSIONS,
+  CONTROL_SEARCH_TRANSCRIPTS,
   deriveTitleFromFirstMessage,
   FLEET_STATUS,
   FLEET_SYNC,
@@ -88,6 +89,20 @@ import type { TelegramBridge } from "./telegram";
 
 /** The frame a forwarded `control` comes back as, whoever asked for it. */
 type ControlResult = Extract<FramePayload, { kind: "control_result" }>;
+
+/** A search hit as returned by the agent's TranscriptIndex. */
+interface SearchHitWire {
+  cwd: string | null;
+  docId: string;
+  harness: string;
+  model: string | null;
+  role: string;
+  score: number;
+  sessionId: string;
+  sidechain: boolean;
+  snippet: string;
+  timestamp: string | null;
+}
 
 /** A busy probe is polled in a loop before a restart, so it answers fast or not at all. */
 const BUSY_TIMEOUT_MS = 5000;
@@ -2923,6 +2938,7 @@ export const createServer = ({
             machine: t.Optional(t.String()),
             cwd: t.Optional(t.String()),
             harness: t.Optional(t.String()),
+            tail: t.Optional(t.String()),
           }),
         },
         // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: resolves the session's machine/cwd/harness from the query, the row, or a live locate in one place; splitting it would scatter the fallback order this route depends on.
@@ -2974,10 +2990,14 @@ export const createServer = ({
             cwd = where.cwd || undefined;
           }
 
+          // A tail read parses only the newest window of the transcript file
+          // (~4ms on a 97MB session vs ~150ms full).
+          const tail =
+            Number(query.tail) > 0 ? Math.floor(Number(query.tail)) : undefined;
           const answer = await callAgent(
             machineId,
             CONTROL_GET_SESSION_MESSAGES,
-            [sessionKey, { dir: cwd }],
+            [sessionKey, { dir: cwd, ...(tail ? { tail } : {}) }],
             READ_TIMEOUT_MS,
             harness
           );
@@ -2999,12 +3019,13 @@ export const createServer = ({
           // session has.
           const transcript = Array.isArray(answer.result) ? answer.result : [];
 
-          // The transcript is in hand anyway, and its oldest user turn is the
-          // unambiguous answer to what the session is called — including for
-          // conversations this hub never started, which no live turn can name.
-          // Write-once, so this costs one statement the first time a transcript
-          // is read and nothing on every read after it.
-          if (row && !row.title && !row.derivedTitle) {
+          // A complete transcript's oldest user turn is the unambiguous answer
+          // to what the session is called — including for conversations this
+          // hub never started, which no live turn can name. A tail read cannot
+          // say (its oldest row is mid-conversation); the full read that
+          // follows every tail-first open derives it there. Write-once, so
+          // this costs one statement the first time and nothing after.
+          if (!tail && row && !row.title && !row.derivedTitle) {
             const first = firstTurnOf(transcript);
             if (first) {
               nameFromFirstTurn(machineId, row.id, first);
@@ -3071,6 +3092,61 @@ export const createServer = ({
       // frame that built it.
       .get("/api/queues", () => Object.fromEntries(queues))
       .get("/api/pending", () => pending.list())
+      .get(
+        "/api/search",
+        {
+          query: t.Object({
+            q: t.String(),
+            limit: t.Optional(t.String()),
+          }),
+        },
+        async ({ query, status }) => {
+          const q = query.q.trim();
+          if (!q) {
+            return status(400, "missing query");
+          }
+          const limit = Math.min(Math.max(1, Number(query.limit) || 20), 50);
+          const machineIds = registry.machineIds();
+          if (machineIds.length === 0) {
+            return { hits: [], machines: 0 };
+          }
+          const results = await Promise.all(
+            machineIds.map(async (mid) => {
+              const answer = await callAgent(
+                mid,
+                CONTROL_SEARCH_TRANSCRIPTS,
+                [q, { limit }],
+                1500
+              );
+              if (answer === "offline" || answer === "timeout" || !answer.ok) {
+                return [];
+              }
+              return (answer.result as SearchHitWire[]).map((hit) => ({
+                ...hit,
+                machineId: mid,
+              }));
+            })
+          );
+          const merged = results
+            .flat()
+            .sort((a, b) => a.score - b.score)
+            .slice(0, limit);
+          // Annotate with instance id where the hub knows the session.
+          const sessionCache = new Map<string, string | null>();
+          for (const hit of merged) {
+            if (!sessionCache.has(hit.sessionId)) {
+              const row = db.instanceBySessionId(hit.sessionId);
+              sessionCache.set(hit.sessionId, row ? row.id : null);
+            }
+            const instanceId = sessionCache.get(hit.sessionId);
+            if (instanceId) {
+              (hit as SearchHitWire & { instanceId?: string }).instanceId =
+                instanceId;
+            }
+          }
+          return { hits: merged, machines: machineIds.length };
+        }
+      )
       // What a delegate and its parent said to each other, oldest first. Broadcast
       // as it happens *and* readable here, for the same reason the hand-offs are:
       // an exchange that finished before this tab opened is still the record.

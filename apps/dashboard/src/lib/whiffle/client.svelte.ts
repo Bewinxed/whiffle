@@ -46,6 +46,7 @@ import {
   TRANSCRIPT_CHUNK_SIZE,
   TRANSCRIPT_CHUNK_THRESHOLD,
   TRANSCRIPT_FIRST_CHUNK,
+  TRANSCRIPT_TAIL_CEILING,
   WS_RECONNECT_BASE_DELAY,
   WS_RECONNECT_MAX_ATTEMPTS,
   WS_RECONNECT_MAX_DELAY,
@@ -3744,16 +3745,23 @@ export interface HistorySource {
  * so the same address works before this browser knows anything about the
  * conversation. Only an explicit override still spells the location out.
  */
-export function messagesUrl(source: HistorySource): string {
+export function messagesUrl(source: HistorySource, tail?: number): string {
   const path = `/api/instances/${encodeURIComponent(source.viewId)}/messages`;
-  if (!(source.override && source.machineId)) {
-    return path;
+  const params = new URLSearchParams();
+  // A tail request is answered by parsing only the newest window of the
+  // transcript file — the difference between ~4ms and a full-file parse.
+  if (tail) {
+    params.set("tail", String(tail));
   }
-  return `${path}?${new URLSearchParams({
-    machine: source.machineId,
-    harness: source.harness ?? "claude",
-    ...(source.cwd && { cwd: source.cwd }),
-  })}`;
+  if (source.override && source.machineId) {
+    params.set("machine", source.machineId);
+    params.set("harness", source.harness ?? "claude");
+    if (source.cwd) {
+      params.set("cwd", source.cwd);
+    }
+  }
+  const suffix = params.size > 0 ? `?${params}` : "";
+  return `${path}${suffix}`;
 }
 
 /**
@@ -3838,7 +3846,7 @@ export async function streamHistory({
     return { ok: false, ...fault, status };
   };
 
-  const url = messagesUrl({
+  const source: HistorySource = {
     viewId,
     machineId,
     sessionId,
@@ -3846,7 +3854,7 @@ export async function streamHistory({
     harness,
     live,
     override,
-  });
+  };
 
   const epoch = claimTranscript(viewId);
   // Whatever this session said while the reader was elsewhere. The transcript
@@ -3914,7 +3922,10 @@ export async function streamHistory({
   };
 
   try {
-    const response = await fetch(url);
+    // Tail first: the agent parses only the newest window of the transcript
+    // file, so the first paint is not behind a full-file parse. The full read
+    // follows below, continuing the same stream state for scrollback.
+    const response = await fetch(messagesUrl(source, TRANSCRIPT_TAIL_CEILING));
     if (!(response.ok && response.body)) {
       const detail =
         (await response.text().catch(() => "")) || response.statusText;
@@ -3962,10 +3973,6 @@ export async function streamHistory({
       target.harness = foundHarness as HarnessKind;
     }
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let carry = "";
-
     /** One entry, oldest of everything read so far; flushes a chunk once one can start here. */
     const consume = async (entry: SessionMessage): Promise<void> => {
       for (const block of contentBlocks(entry)) {
@@ -3994,39 +4001,79 @@ export async function streamHistory({
       buffered = [];
     };
 
-    for (;;) {
-      // biome-ignore lint/performance/noAwaitInLoops: a stream reads sequentially by definition — each chunk depends on the last read landing first
-      const { done, value } = await reader.read();
-      if (done) {
-        break;
-      }
-      // A later read for this view supersedes this one; the rest of the stream
-      // is somebody else's transcript now.
-      if (hydrations.get(viewId) !== epoch) {
-        await reader.cancel();
-        return { ok: true, skipped: true };
-      }
-      carry += decoder.decode(value, { stream: true });
-      for (
-        let newline = carry.indexOf("\n");
-        newline >= 0;
-        newline = carry.indexOf("\n")
-      ) {
-        const line = carry.slice(0, newline);
-        carry = carry.slice(newline + 1);
-        if (line) {
-          // biome-ignore lint/performance/noAwaitInLoops: entries land newest-first — the transcript would be scrambled if two consumes raced
-          await consume(JSON.parse(line) as SessionMessage);
+    /**
+     * One newest-first NDJSON body into the shared cut state. The tail body
+     * and the full body drain through here in turn, as one continuous stream:
+     * `skipSeen` is how the full read passes over the entries the tail
+     * already consumed, so the buffered/dangling bookkeeping never sees a
+     * duplicate and every chunk boundary invariant holds across the seam.
+     * Returns false when a later read superseded this one mid-stream.
+     */
+    const drain = async (
+      body: ReadableStream<Uint8Array>,
+      skipSeen: boolean
+    ): Promise<boolean> => {
+      const reader = body.getReader();
+      const decoder = new TextDecoder();
+      let carry = "";
+      const take = async (line: string): Promise<void> => {
+        const entry = JSON.parse(line) as SessionMessage;
+        if (!(skipSeen && seeded.has(entry.uuid))) {
+          await consume(entry);
+        }
+      };
+      for (;;) {
+        // biome-ignore lint/performance/noAwaitInLoops: a stream reads sequentially by definition — each chunk depends on the last read landing first
+        const { done, value } = await reader.read();
+        if (done) {
+          break;
+        }
+        // A later read for this view supersedes this one; the rest of the
+        // stream is somebody else's transcript now.
+        if (hydrations.get(viewId) !== epoch) {
+          await reader.cancel();
+          return false;
+        }
+        carry += decoder.decode(value, { stream: true });
+        for (
+          let newline = carry.indexOf("\n");
+          newline >= 0;
+          newline = carry.indexOf("\n")
+        ) {
+          const line = carry.slice(0, newline);
+          carry = carry.slice(newline + 1);
+          if (line) {
+            // biome-ignore lint/performance/noAwaitInLoops: entries land newest-first — the transcript would be scrambled if two consumes raced
+            await take(line);
+          }
         }
       }
-    }
-    carry += decoder.decode();
-    if (carry.trim()) {
-      await consume(JSON.parse(carry) as SessionMessage);
-    }
-    if (hydrations.get(viewId) !== epoch) {
+      carry += decoder.decode();
+      if (carry.trim()) {
+        await take(carry);
+      }
+      return hydrations.get(viewId) === epoch;
+    };
+
+    if (!(await drain(response.body, false))) {
       return { ok: true, skipped: true };
     }
+
+    // Everything older than the tail, for scrollback. The same route without
+    // the tail bound answers with the whole conversation; the entries the
+    // tail already published are skipped by uuid and the rest continue
+    // prepending behind them. By now the newest turns are long since on
+    // screen, so this read's full-file parse is off the visible path.
+    const rest = await fetch(messagesUrl(source));
+    if (!(rest.ok && rest.body)) {
+      throw new Error(
+        (await rest.text().catch(() => "")) || rest.statusText || "unreadable"
+      );
+    }
+    if (!(await drain(rest.body, true))) {
+      return { ok: true, skipped: true };
+    }
+
     // The head of a transcript is always somewhere a chunk can start, and an
     // empty one still has to publish: it is what says the session is empty.
     if (buffered.length > 0 || chunks === 0) {

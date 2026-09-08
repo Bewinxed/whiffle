@@ -6,18 +6,26 @@ import type {
   Envelope,
   HarnessReport,
   HeartbeatPayload,
+  PermissionMode,
   SpawnPayload,
   ToolStatus,
 } from "@whiffle/core";
-import { WHIFFLE_ENV, WHIFFLE_HUB_PORT } from "@whiffle/core";
+import {
+  CONTROL_SEARCH_TRANSCRIPTS,
+  WHIFFLE_ENV,
+  WHIFFLE_HUB_PORT,
+} from "@whiffle/core";
 import { fetchClaudeLimits } from "@whiffle/core/usage/limits";
 import { Data, Duration, Effect, Fiber, Schedule } from "effect";
 import { buildInfo } from "./build";
+import { readConfig } from "./config";
 import { convergeDeniedTools } from "./denied-tools";
 import { latestDeploy } from "./deploy";
 import { rediscoverHub, toWsUrl } from "./discovery";
 import { harnesses } from "./harnesses";
+import { cache as transcriptCache } from "./harnesses/transcript-cache";
 import { machineId } from "./machine-id";
+import { TranscriptSearchService } from "./search";
 import { resumableSessions, SessionSupervisor } from "./session";
 import { probeTools } from "./tools";
 import { UsageScanner } from "./usage/scanner";
@@ -329,10 +337,16 @@ export const adoptable = (
 /** That restore as `reattachFrom` wants it: where it runs, and what to resume. */
 export const custodyRow = (
   payload: SpawnPayload
-): { instanceId: string; cwd: string; sessionId: string | null } => ({
+): {
+  instanceId: string;
+  cwd: string;
+  sessionId: string | null;
+  permissionMode?: PermissionMode;
+} => ({
   instanceId: payload.instanceId,
   cwd: payload.cwd,
   sessionId: payload.resume?.sessionKey ?? null,
+  ...(payload.permissionMode ? { permissionMode: payload.permissionMode } : {}),
 });
 
 const attach = (
@@ -618,6 +632,13 @@ export const startDaemon = (auth?: AuthState) =>
     } else if (denied.state === "failed") {
       yield* Effect.logWarning(denied.detail);
     }
+    // Size the transcript cache from machine config (if set).
+    const machineConfig = yield* Effect.promise(() => readConfig());
+    if (machineConfig?.transcriptCacheMb) {
+      transcriptCache.configureBudget(
+        machineConfig.transcriptCacheMb * 1024 * 1024
+      );
+    }
     const identity: MachineIdentity = {
       machineId: machineIdValue,
       hostname: hostname(),
@@ -651,6 +672,27 @@ export const startDaemon = (auth?: AuthState) =>
     // The usage scanner outlives connections too: its dedup set is rebuilt only
     // on start (USAGE-SPEC.md §5.1), so a reconnect must not reset it.
     const scanner = yield* Effect.promise(() => UsageScanner.load());
+
+    // Transcript search index: FTS5-backed BM25 search over transcripts.
+    // Created once, syncs every 30s in the background, outlives reconnects.
+    const search = yield* Effect.promise(() =>
+      TranscriptSearchService.create()
+    );
+    search.start();
+    supervisor.registerDaemonFunction(
+      CONTROL_SEARCH_TRANSCRIPTS,
+      (query, options) =>
+        search.search(
+          query as string,
+          options as
+            | {
+                limit?: number;
+                sessionId?: string;
+                role?: "user" | "assistant";
+              }
+            | undefined
+        )
+    );
 
     yield* Effect.logInfo(
       `whiffle agent ${identity.machineId} connecting to ${url}`

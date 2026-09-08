@@ -270,6 +270,10 @@ export interface DbShape {
         updatedAt: Date;
       }
     | undefined;
+  /** Look up a single non-discarded instance by its harness sessionId. */
+  readonly instanceBySessionId: (
+    sessionId: string
+  ) => typeof instances.$inferSelect | undefined;
   /**
    * Every machine, in the shape everything downstream reads them: the `fleet`
    * column is null until a machine has synced once, and `AgentRow` says absent.
@@ -2062,6 +2066,18 @@ const make = (path: string): DbShape => {
         )
         .all();
     },
+    instanceBySessionId: (sessionId) =>
+      db
+        .select()
+        .from(instances)
+        .where(
+          and(
+            eq(instances.sessionId, sessionId),
+            ne(instances.status, "discarded")
+          )
+        )
+        .limit(1)
+        .all()[0],
     unnamedSessions: (machineId) =>
       db
         .select()
