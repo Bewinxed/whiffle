@@ -68,13 +68,13 @@
 
 {#if failed}
   <p
-    class="px-[var(--space-4)] py-[var(--space-3)] text-caption text-warning"
+    class="px-[var(--space-7)] py-[var(--space-3)] text-[length:var(--text-sm)] text-[var(--ink-body)]"
     role="alert"
   >
     The editor did not load: {failed}
   </p>
 {/if}
-<div aria-label={label} bind:this={host} class="crepe-host min-h-72"></div>
+<div aria-label={label} class="crepe-host" bind:this={host}></div>
 
 <style>
   /* Crepe's structural CSS reads these off `.milkdown` itself, so they are set
@@ -82,21 +82,21 @@
      sitting closer to the element. Every value is an app token, so the editor
      follows light and dark with everything else. */
   .crepe-host :global(.milkdown) {
-    --crepe-color-background: var(--surface-raised);
+    --crepe-color-background: var(--surface-field);
     --crepe-color-on-background: var(--ink-strong);
     --crepe-color-surface: var(--surface-raised);
-    --crepe-color-surface-low: var(--surface-sunken);
+    --crepe-color-surface-low: var(--surface-field);
     --crepe-color-on-surface: var(--ink-strong);
     --crepe-color-on-surface-variant: var(--ink-muted);
-    --crepe-color-outline: var(--border-hairline);
-    --crepe-color-primary: var(--accent-9);
+    --crepe-color-outline: var(--ink-muted);
+    --crepe-color-primary: var(--ink-strong);
     --crepe-color-secondary: var(--surface-hover);
     --crepe-color-on-secondary: var(--ink-strong);
     --crepe-color-inverse: var(--ink-strong);
     --crepe-color-on-inverse: var(--surface-raised);
     --crepe-color-inline-code: var(--ink-body);
     --crepe-color-inline-area: var(--surface-sunken);
-    --crepe-color-error: var(--warning-11);
+    --crepe-color-error: var(--ink-strong);
     --crepe-color-hover: var(--surface-hover);
     --crepe-color-selected: var(--surface-active);
 
@@ -105,15 +105,137 @@
     --crepe-font-default: var(--font-body);
     --crepe-font-code: var(--font-mono);
 
-    --crepe-shadow-1: var(--shadow-sm);
-    --crepe-shadow-2: var(--shadow-md);
+    --crepe-shadow-1: var(--shadow-tile);
+    --crepe-shadow-2: var(--shadow-overlay);
 
     /* The card already draws the frame; the editor must not draw a second. */
-    background: transparent;
+    background: var(--surface-field);
     box-shadow: none;
+    padding: var(--space-1);
+  }
+  .crepe-host {
+    min-height: 100%;
+  }
+  /* Crepe's common stylesheet includes theme typography and motion. Keep its
+     structural selectors while enforcing the ledger contract on every widget. */
+  /* Crepe's stock CSS sizes text off its own scale, and DESIGN.md admits only
+     the named steps. This blanket rule is the enforcement; the exemptions below
+     put the hierarchy back on the elements that carry it. Measured after:
+     every size inside the editor is a token — 13.5 body, 12.5 code, 17 h2,
+     19 h1 — and every weight is 400 or 500.
+     Narrowing this to `.ProseMirror` descendants was tried and reverted: it let
+     Crepe's own sizes back in on everything the exemptions did not name. */
+  .crepe-host :global(.milkdown *) {
+    font-weight: var(--weight-body) !important;
+    font-size: var(--text-base) !important;
+    line-height: var(--leading-body) !important;
+  }
+  .crepe-host :global(.milkdown *),
+  .crepe-host :global(.milkdown *::before),
+  .crepe-host :global(.milkdown *::after) {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+  .crepe-host :global(.milkdown :is(strong, b, h1, h2, h3, h4, h5, h6, th)) {
+    font-weight: var(--weight-strong) !important;
+  }
+  .crepe-host :global(.milkdown .ProseMirror :is(h1, h2, h3, h4, h5, h6)) {
+    margin-top: var(--space-5);
+    padding: var(--space-1) 0;
+  }
+  .crepe-host :global(.milkdown .ProseMirror h1) {
+    font-size: var(--text-xl) !important;
+  }
+  .crepe-host :global(.milkdown .ProseMirror h2) {
+    font-size: var(--text-lg) !important;
+  }
+  .crepe-host :global(.milkdown .ProseMirror :is(h3, h4, h5, h6)) {
+    font-size: var(--text-md) !important;
   }
   .crepe-host :global(.milkdown .ProseMirror) {
-    padding: var(--space-4);
-    outline: none;
+    padding: var(--space-4) calc(var(--space-6) - var(--space-1)) var(--space-6)
+      calc(var(--space-7) - var(--space-1));
+    overflow-wrap: anywhere;
+    min-height: calc(var(--space-8) * 8);
+  }
+  .crepe-host :global(.milkdown .ProseMirror > :first-child) {
+    margin-top: 0;
+  }
+  .crepe-host :global(.milkdown .ProseMirror p) {
+    padding: var(--space-1) 0;
+  }
+  .crepe-host :global(.milkdown .ProseMirror code) {
+    font-size: var(--text-sm) !important;
+    padding-inline: var(--space-1);
+    border-radius: var(--radius-mark);
+  }
+  .crepe-host :global(.milkdown .ProseMirror pre) {
+    padding: var(--space-3);
+    border-radius: var(--radius-well);
+    white-space: pre-wrap;
+  }
+  .crepe-host :global(.milkdown .ProseMirror blockquote) {
+    padding-left: var(--space-6);
+    margin-block: var(--space-1);
+  }
+  .crepe-host :global(.milkdown .ProseMirror blockquote::before) {
+    width: var(--space-1);
+    top: var(--space-1);
+    bottom: var(--space-1);
+    border-radius: var(--radius-pill);
+  }
+  .crepe-host :global(.milkdown .milkdown-code-block) {
+    padding: var(--space-2) var(--space-3) var(--space-3);
+    margin-block: var(--space-2);
+    background: var(--surface-sunken);
+    border: 1px solid var(--border-hairline);
+    border-radius: var(--radius-well);
+  }
+  .crepe-host :global(.milkdown :is(.cm-editor, .cm-gutters)) {
+    background: var(--surface-sunken);
+  }
+  .crepe-host :global(.milkdown :is(button, input, [role="button"])) {
+    border-radius: var(--radius-control);
+    font-size: var(--text-sm) !important;
+    line-height: var(--leading-ui) !important;
+  }
+  .crepe-host :global(.milkdown button) {
+    border: 1px solid var(--border-control);
+    box-shadow: var(--shadow-tile);
+  }
+  .crepe-host :global(.milkdown :focus-visible) {
+    outline: 2px solid var(--focus-ring) !important;
+    outline-offset: 2px;
+  }
+  .crepe-host :global(.milkdown :is(button, [role="button"]):active) {
+    background: var(--surface-active);
+    box-shadow: var(--shadow-inset-sel);
+  }
+  @media (hover: none) {
+    .crepe-host :global(.milkdown) {
+      --crepe-color-hover: transparent;
+    }
+  }
+  @media (pointer: coarse) {
+    .crepe-host
+      :global(
+        .milkdown
+          :is(
+            button,
+            input,
+            [role="button"],
+            a,
+            .operation-item,
+            .milkdown-slash-menu li
+          )
+      ) {
+      min-width: var(--c-btn-h);
+      min-height: var(--c-btn-h);
+    }
+    .crepe-host :global(.milkdown a) {
+      display: inline-flex;
+      align-items: center;
+    }
   }
 </style>

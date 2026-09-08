@@ -12,13 +12,14 @@
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte component-group convention
   import * as Alert from "$lib/components/ui/alert";
   import { Button } from "$lib/components/ui/button";
+  // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte component-group convention
+  import * as Card from "$lib/components/ui/card";
   import { Input } from "$lib/components/ui/input";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte component-group convention
   import * as Tooltip from "$lib/components/ui/tooltip";
   import {
     IconCheck,
     IconPlus,
-    IconSpinner,
     IconTrash,
     IconWarningTriangle,
   } from "$lib/icons";
@@ -240,26 +241,29 @@
 <Tooltip.Provider>
   <div class="shell">
     <!-- The rail. Never scrolls with the file it is pointing at. -->
-    <aside class="rail">
+    <nav class="rail" aria-label="Memory documents">
       <div class="railhead">
         <Input
           aria-label="Filter documents"
-          class="h-8"
           placeholder="Filter…"
           bind:value={filter}
         />
       </div>
-      <nav class="raillist">
-        <p class="group">Fleet</p>
-        {@render row(FLEET)}
-        <p class="group">Model documents</p>
-        {#each shown as doc (doc.path)}
-          {@render row(doc.path)}
-        {/each}
+      <div class="raillist">
+        <h2 class="group" id="fleet-documents">Fleet</h2>
+        <ul aria-labelledby="fleet-documents">
+          <li>{@render row(FLEET)}</li>
+        </ul>
+        <h2 class="group" id="model-documents">Model documents</h2>
+        <ul aria-labelledby="model-documents">
+          {#each shown as doc (doc.path)}
+            <li>{@render row(doc.path)}</li>
+          {/each}
+        </ul>
         {#if shown.length === 0}
           <p class="empty">No document matches.</p>
         {/if}
-      </nav>
+      </div>
       <div class="railfoot">
         {#if drafting}
           <form
@@ -273,7 +277,7 @@
             <Input
               aria-label="New document path"
               autofocus
-              class="h-8 font-mono"
+               class="font-mono"
               onblur={() => (drafting = false)}
               placeholder="models/deepseek-v4.md"
               bind:value={newPath}
@@ -281,24 +285,26 @@
           </form>
         {:else}
           <Button
-            class="w-full justify-start"
+            class="memory-action w-full justify-start"
             onclick={() => (drafting = true)}
             size="xs"
-            variant="ghost"><IconPlus class="shrink-0" />New document</Button
+            variant="outline"><IconPlus class="shrink-0" />New document</Button
           >
         {/if}
       </div>
-    </aside>
+    </nav>
 
     <!-- The file. One pane, always the editor. -->
-    <section class="detail">
+    <section class="detail" aria-label="Document editor">
+      <Card.Root class="memory-panel min-h-0 flex-1 gap-0 rounded-[var(--radius-panel)] bg-[var(--surface-raised)] p-[var(--space-2)] shadow-[var(--shadow-hairline)] ring-0">
       <header class="dhead">
         <span class="path" title={labelOf(selected)}>{labelOf(selected)}</span>
+        <div class="metadata" aria-label="Document details">
         <span class="stat">{formatBytes(bytes)}</span>
         <Tooltip.Root>
           <Tooltip.Trigger>
             {#snippet child({ props })}
-              <span class="stat" {...props}>~{tokens.toLocaleString()} tokens</span
+              <button type="button" class="stat token-estimate" {...props}>~{tokens.toLocaleString()} tokens</button
               >
             {/snippet}
           </Tooltip.Trigger>
@@ -308,6 +314,7 @@
           >
         </Tooltip.Root>
         {@render sync(selected)}
+        </div>
         <span class="spacer"></span>
         <Tooltip.Root>
           <Tooltip.Trigger>
@@ -315,11 +322,11 @@
               <Button
                 {...props}
                 aria-label="Delete this document"
-                class="text-muted-foreground hover:text-destructive"
+                class="memory-action delete-action"
                 disabled={busy || (selected === FLEET && memory === null)}
                 onclick={drop}
                 size="icon-sm"
-                variant="ghost"><IconTrash /></Button
+                variant="secondary"><IconTrash /></Button
               >
             {/snippet}
           </Tooltip.Trigger>
@@ -329,23 +336,27 @@
         </Tooltip.Root>
       </header>
 
+      <div class="editor-well">
+      <div class="editor">
       {#if driftedOn(selected).length > 0}
         <div class="drift">
           {#each driftedOn(selected) as machine (machine.machineId)}
             {@const online = machine.status === 'online'}
             <div class="driftrow">
-              <IconWarningTriangle class="size-3.5 shrink-0 text-warning" />
+              <IconWarningTriangle class="attention-glyph" />
               <span class="dname">{machineLabel(machine.hostname)}</span>
               <span class="dsay"
                 >kept its own copy{online ? '' : ' — offline, it syncs when back'}</span
               >
               <Button
+                class="memory-action"
                 disabled={!online || busy}
                 onclick={() => adopt(machine.machineId)}
                 size="xs"
                 variant="outline">Adopt theirs</Button
               >
               <Button
+                class="memory-action"
                 disabled={!online || busy}
                 onclick={() => overwrite(machine.machineId)}
                 size="xs"
@@ -359,41 +370,42 @@
       {#if data.fleetError}
         <div class="pad">
           <Alert.Root
-            class="items-center rounded-[var(--radius-control)] border-[var(--warning-9)] bg-[var(--warning-3)] p-[var(--space-3)]"
+            class="items-center rounded-[var(--radius-well)] border-[var(--border-control)] bg-[var(--surface-field)] p-[var(--space-3)]"
           >
             <IconWarningTriangle />
-            <Alert.Description class="text-caption text-[var(--warning-11)]"
+            <Alert.Description class="text-[length:var(--text-sm)] text-[var(--ink-body)]"
               >{data.fleetError}</Alert.Description
             >
           </Alert.Root>
         </div>
       {/if}
 
-      <div class="editor">
         {#key selected}
           <MarkdownEditor label={labelOf(selected)} bind:value={text} />
         {/key}
       </div>
+      </div>
 
       <footer class="dfoot">
+        <span role="status" class="save-status">
         {#if busy}
-          <span class="say"
-            ><IconSpinner class="size-3.5 shrink-0 animate-spin" />Saving…</span
-          >
+          <span class="say">Saving…</span>
         {:else if dirty}
           <span class="say say-dirty">Unsaved changes</span>
         {:else}
           <span class="say"
-            ><IconCheck class="size-3.5 shrink-0 text-success" />Saved{#if selected === FLEET && memory}
-              {formatDistanceToNow(new Date(memory.updatedAt))}{/if}</span
+             ><IconCheck />Saved{#if selected === FLEET && memory}
+               <span>{formatDistanceToNow(new Date(memory.updatedAt))}</span>{/if}</span
           >
         {/if}
+        </span>
         <span class="spacer"></span>
         <kbd class="kbd">⌘S</kbd>
-        <Button disabled={!dirty || busy} onclick={commit} size="xs"
+        <Button class="memory-action save-action" disabled={!dirty || busy} onclick={commit} size="xs"
           >Save</Button
         >
       </footer>
+      </Card.Root>
     </section>
   </div>
 </Tooltip.Provider>
@@ -402,7 +414,7 @@
   {@const applied = appliedOn(path)}
   {@const drifted = driftedOn(path)}
   <button
-    aria-current={selected === path}
+    aria-current={selected === path ? 'page' : undefined}
     class="rrow"
     class:on={selected === path}
     onclick={() => pick(path)}
@@ -410,14 +422,14 @@
   >
     <span class="rname">{shortOf(path)}</span>
     {#if drifted.length > 0}
-      <span class="dot dot-warn" title={names(drifted)}></span>
+      <span class="row-state" title={names(drifted)}><IconWarningTriangle /><span class="sr-only">Kept own copy</span></span>
     {:else if applied.length > 0}
-      <span class="dot dot-ok" title={names(applied)}></span>
+      <span class="row-state" title={names(applied)}><IconCheck /><span class="sr-only">In sync</span></span>
     {:else}
-      <span class="dot"></span>
+      <span class="dot" role="img" aria-label="Not synced"></span>
     {/if}
-    {#if drafts[path] !== undefined && drafts[path] !== savedFor(path)}
-      <span class="pip" title="Unsaved changes">•</span>
+    {#if path === selected ? dirty : drafts[path] !== undefined && drafts[path] !== savedFor(path)}
+      <span class="draft-label">Unsaved</span>
     {/if}
   </button>
 {/snippet}
@@ -427,10 +439,10 @@
   {@const drifted = driftedOn(path)}
   {#if drifted.length > 0}
     <span class="chip chip-warn" title={names(drifted)}
-      >{drifted.length} kept own</span
+      ><IconWarningTriangle />{drifted.length} kept own</span
     >
   {:else if applied.length > 0}
-    <span class="chip" title={names(applied)}>in sync on {applied.length}</span>
+    <span class="chip" title={names(applied)}><IconCheck />in sync on {applied.length}</span>
   {/if}
 {/snippet}
 
@@ -440,33 +452,51 @@
     height: 100%;
     min-height: 0;
     overflow: hidden;
+    color: var(--ink-body);
+    font-size: var(--text-base);
+    line-height: var(--leading-body);
+    background: var(--surface-field);
   }
   .rail {
     display: flex;
     flex-direction: column;
-    width: 260px;
+    width: calc(var(--space-8) * 8);
     flex-shrink: 0;
     min-height: 0;
-    border-right: 1px solid var(--border-hairline);
-    background: var(--surface-sunken);
+    border-right: 1px solid var(--border-divider);
+    background: var(--surface-raised);
   }
   .railhead,
   .railfoot {
-    padding: var(--space-3);
     flex-shrink: 0;
   }
+  .railhead {
+    padding: var(--space-5) var(--space-3) var(--space-3) var(--space-4);
+  }
   .railfoot {
-    border-top: 1px solid var(--border-hairline);
+    padding: var(--space-3) var(--space-3) var(--space-4) var(--space-4);
+    border-top: 1px solid var(--border-divider);
   }
   .raillist {
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
+    overscroll-behavior: contain;
     padding: 0 var(--space-2) var(--space-2);
   }
+  .raillist ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .raillist li + li {
+    border-top: 1px solid var(--border-hairline);
+  }
   .group {
-    padding: var(--space-3) var(--space-2) var(--space-1);
-    font-size: var(--text-xs);
+    margin: 0;
+    padding: var(--space-4) var(--space-2) var(--space-2);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
     color: var(--ink-label);
   }
   .empty {
@@ -479,44 +509,41 @@
     align-items: center;
     gap: var(--space-2);
     width: 100%;
-    padding: var(--space-2);
+    min-height: var(--c-nav-h);
+    padding: var(--space-3) var(--space-2);
     border-radius: var(--radius-control);
     text-align: left;
     font-size: var(--text-base);
     color: var(--ink-body);
   }
-  .rrow:hover {
-    background: var(--surface-hover);
-  }
   .rrow.on {
     background: var(--surface-active);
     color: var(--ink-strong);
+    font-weight: var(--weight-strong);
+    box-shadow: var(--shadow-inset-sel);
   }
   .rname {
     flex: 1 1 auto;
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
     font-family: var(--font-mono);
-    font-size: var(--text-xs);
+    font-size: var(--text-base);
   }
   .dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 999px;
+    width: var(--space-2);
+    height: var(--space-2);
+    border-radius: var(--radius-pill);
     flex-shrink: 0;
-    background: var(--border-divider);
+    border: 1px solid var(--ink-muted);
   }
-  .dot-ok {
-    background: var(--success-9);
+  .row-state {
+    display: inline-flex;
+    color: var(--ink-muted);
   }
-  .dot-warn {
-    background: var(--warning-9);
-  }
-  .pip {
-    color: var(--accent-9);
-    line-height: 1;
+  .draft-label {
+    font-size: var(--text-xs);
+    font-weight: var(--weight-strong);
+    color: var(--ink-strong);
   }
 
   .detail {
@@ -525,6 +552,7 @@
     flex: 1 1 auto;
     min-width: 0;
     min-height: 0;
+    padding: var(--space-5) var(--space-6) var(--space-4) var(--space-7);
   }
   .dhead,
   .dfoot {
@@ -532,76 +560,103 @@
     align-items: center;
     gap: var(--space-3);
     flex-shrink: 0;
-    padding: var(--space-2) var(--space-4);
+    flex-wrap: wrap;
+    padding: var(--space-3) var(--space-4) var(--space-3) var(--space-5);
   }
   .dhead {
-    border-bottom: 1px solid var(--border-hairline);
+    padding-top: var(--space-2);
+    padding-bottom: var(--space-4);
   }
   .dfoot {
-    border-top: 1px solid var(--border-hairline);
+    padding-bottom: var(--space-1);
   }
   .path {
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    flex: 1 1 100%;
+    overflow-wrap: anywhere;
     font-family: var(--font-mono);
-    font-size: var(--text-xs);
+    font-size: var(--text-base);
+    font-weight: var(--weight-medium);
     color: var(--ink-strong);
+  }
+  .metadata {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--border-hairline);
+    border-radius: var(--radius-well);
+    background: var(--surface-field);
   }
   .stat,
   .say {
     display: inline-flex;
     align-items: center;
     gap: var(--space-1);
-    flex-shrink: 0;
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     color: var(--ink-muted);
+  }
+  .token-estimate {
+    min-height: var(--c-pill-h);
+    border-radius: var(--radius-tile);
+  }
+  .save-status {
+    display: flex;
+    min-width: 0;
   }
   .say-dirty {
     color: var(--ink-strong);
+    font-weight: var(--weight-strong);
   }
   .spacer {
     flex: 1 1 auto;
   }
   .chip {
-    flex-shrink: 0;
-    padding: 2px var(--space-2);
-    border-radius: var(--radius-pill);
-    background: var(--surface-hover);
-    font-size: var(--text-xs);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--text-sm);
     color: var(--ink-muted);
   }
   .chip-warn {
-    background: var(--warning-3);
-    color: var(--warning-11);
+    color: var(--status-attn-ink);
   }
   .kbd {
     flex-shrink: 0;
-    padding: 1px var(--space-2);
+    padding: var(--space-1) var(--space-2);
     border: 1px solid var(--border-hairline);
     border-radius: var(--radius-control);
     font-family: var(--font-mono);
     font-size: var(--text-xs);
     color: var(--ink-muted);
   }
-  /* The one scroll region on the page. */
-  .editor {
+  .editor-well {
+    display: flex;
     flex: 1 1 auto;
     min-height: 0;
+    overflow: hidden;
+    border: 1px solid var(--border-hairline);
+    border-radius: var(--radius-well);
+    background: var(--surface-field);
+  }
+  .editor {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
     overflow-y: auto;
+    overscroll-behavior: contain;
   }
   .pad {
-    padding: var(--space-3) var(--space-4);
+    padding: var(--space-3) var(--space-6) var(--space-3) var(--space-7);
   }
   .drift {
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
     flex-shrink: 0;
-    padding: var(--space-3) var(--space-4);
-    border-bottom: 1px solid var(--border-hairline);
-    background: var(--warning-3);
+    padding: var(--space-3) var(--space-6) var(--space-4) var(--space-7);
+    border-bottom: 1px solid var(--border-divider);
   }
   .driftrow {
     display: flex;
@@ -610,15 +665,109 @@
     flex-wrap: wrap;
   }
   .dname {
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     font-weight: var(--weight-strong);
     color: var(--ink-strong);
   }
   .dsay {
     flex: 1 1 auto;
     min-width: 0;
-    font-size: var(--text-xs);
+    overflow-wrap: anywhere;
+    font-size: var(--text-sm);
     color: var(--ink-muted);
+  }
+  .shell :global(svg) {
+    width: var(--space-4);
+    height: var(--space-4);
+    flex-shrink: 0;
+  }
+  .shell :global(.attention-glyph) {
+    color: var(--status-attn-ink);
+    background: var(--status-attn-bg);
+    border-radius: var(--radius-mark);
+  }
+  .shell :global(button),
+  .shell :global(input) {
+    transition: none;
+    line-height: var(--leading-ui);
+  }
+  .shell :global(.memory-action) {
+    height: auto;
+    min-height: var(--space-8);
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-control);
+    border-color: var(--border-control);
+    color: var(--ink-strong);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    box-shadow: var(--shadow-tile);
+    transform: none;
+    filter: none;
+  }
+  .shell :global(input) {
+    height: var(--space-8);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius-control);
+    background: var(--surface-field);
+    font-size: var(--text-base);
+    box-shadow: none;
+  }
+  .shell :global(.save-action) {
+    background: var(--gradient-action);
+    color: var(--on-brand);
+    box-shadow: var(--shadow-action);
+    border-color: transparent;
+  }
+  .shell :global(.delete-action) {
+    background: var(--surface-field);
+    box-shadow: none;
+  }
+  .shell :global(button:active) {
+    background: var(--surface-active);
+    color: var(--ink-strong);
+    transform: none;
+  }
+  .shell :global(.memory-action:active) {
+    box-shadow: var(--shadow-inset-sel);
+  }
+  .shell :global(:is(button, input):focus-visible) {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+    box-shadow: none;
+  }
+  @media (hover: hover) {
+    .shell :global(button:hover:not(:disabled):not(:active)) {
+      background: var(--surface-hover);
+      color: var(--ink-strong);
+    }
+    .shell :global(.save-action:hover:not(:disabled):not(:active)) {
+      background: var(--gradient-action);
+      color: var(--on-brand);
+    }
+    .rrow.on:hover {
+      background: var(--surface-active);
+    }
+  }
+  @media (hover: none) {
+    .shell :global(.memory-action:hover:not(:active)) {
+      background: var(--surface-raised);
+    }
+    .shell :global(.save-action:hover:not(:active)) {
+      background: var(--gradient-action);
+    }
+    .shell :global(.delete-action:hover:not(:active)) {
+      background: var(--surface-field);
+    }
+  }
+  @media (pointer: coarse) {
+    .shell :global(button),
+    .shell :global(.memory-action),
+    .shell :global(input) {
+      min-width: var(--c-btn-h);
+      min-height: var(--c-btn-h);
+    }
   }
 
   @media (max-width: 767px) {
@@ -627,9 +776,22 @@
     }
     .rail {
       width: 100%;
-      max-height: 40%;
+      height: 30%;
+      min-height: calc(var(--space-8) * 4);
       border-right: 0;
-      border-bottom: 1px solid var(--border-hairline);
+      border-bottom: 1px solid var(--border-divider);
+    }
+    .railhead,
+    .railfoot {
+      padding-block: var(--space-2);
+    }
+    .detail {
+      padding: var(--space-3) var(--space-2);
+    }
+    .dhead,
+    .dfoot {
+      gap: var(--space-2);
+      padding-inline: var(--space-2);
     }
   }
 </style>
