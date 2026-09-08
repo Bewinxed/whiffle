@@ -1,0 +1,42 @@
+diff --git a/dist/svelte/createDialKit.svelte.js b/dist/svelte/createDialKit.svelte.js
+index d6d44b18e6512d76869208a2d5a5649f98776531..0573abf139bb7a0f8cda9662c789dfa112c91282 100644
+--- a/dist/svelte/createDialKit.svelte.js
++++ b/dist/svelte/createDialKit.svelte.js
+@@ -7,7 +7,7 @@ export function createDialKitController(name, config, options) {
+     const hasStableId = options?.id !== undefined;
+     const panelId = options?.id ?? `${name}-${++dialKitInstance}`;
+     const resolve = () => resolveDialValues(config, DialStore.getValues(panelId));
+-    let values = $state(resolve());
++    let values = $state.raw(resolve());
+     $effect(() => {
+         DialStore.registerPanel(panelId, name, config, options?.shortcuts, {
+             retainOnUnmount: hasStableId,
+diff --git a/dist/svelte/createDialTimeline.svelte.js b/dist/svelte/createDialTimeline.svelte.js
+index feee1b655bcbed8a5dabffb76eb080f3bc218e2a..1a7cb03e72973cae7b797942f20958edcbfa2888 100644
+--- a/dist/svelte/createDialTimeline.svelte.js
++++ b/dist/svelte/createDialTimeline.svelte.js
+@@ -1,3 +1,4 @@
++import { untrack } from 'svelte';
+ import { DialStore } from 'dialkit/store';
+ import { TimelineStore, buildTimelineMeta, buildTimelineValues, computeStaticTimeline, parseTimelineConfig, resolveTimelineLoop, } from 'dialkit/timeline';
+ let timelineInstance = 0;
+@@ -5,8 +6,8 @@ export function createDialTimeline(name, config, options) {
+     const hasStableId = options?.id !== undefined;
+     const panelId = options?.id ?? `${name}-${++timelineInstance}`;
+     const parsed = $derived(parseTimelineConfig(config));
+-    let flatValues = $state(DialStore.getValues(panelId));
+-    let transport = $state(TimelineStore.getTransport(panelId));
++    let flatValues = $state.raw(DialStore.getValues(panelId));
++    let transport = $state.raw(TimelineStore.getTransport(panelId));
+     const staticTimeline = $derived(computeStaticTimeline(parsed, flatValues));
+     const actions = {
+         play: () => TimelineStore.play(panelId),
+@@ -23,7 +24,7 @@ export function createDialTimeline(name, config, options) {
+             kind: 'timeline',
+         });
+         flatValues = DialStore.getValues(panelId);
+-        const initialStatic = computeStaticTimeline(currentParsed, flatValues);
++        const initialStatic = computeStaticTimeline(currentParsed, untrack(() => flatValues));
+         TimelineStore.register(buildTimelineMeta(panelId, name, initialStatic.duration, currentParsed, options?.loop), { autoplay: options?.autoplay ?? true });
+         transport = TimelineStore.getTransport(panelId);
+         const unsubscribeValues = DialStore.subscribe(panelId, () => {

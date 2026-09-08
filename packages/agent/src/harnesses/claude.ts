@@ -11,7 +11,8 @@
  */
 
 import type { Dirent } from "node:fs";
-import { access, readdir, realpath } from "node:fs/promises";
+import { access, readdir, readFile, realpath } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import {
   deleteSession,
@@ -1559,9 +1560,63 @@ export class ClaudeCustody implements HarnessSession {
   }
 }
 
+async function listAccountModels(): Promise<
+  { id: string; display_name: string; created_at: string }[] | undefined
+> {
+  try {
+    const headers: Record<string, string> = {
+      "anthropic-version": "2023-06-01",
+    };
+    if (process.env.ANTHROPIC_API_KEY) {
+      headers["x-api-key"] = process.env.ANTHROPIC_API_KEY;
+    } else {
+      const credentials = JSON.parse(
+        await readFile(
+          join(
+            process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude"),
+            ".credentials.json"
+          ),
+          "utf8"
+        )
+      );
+      const token = credentials.claudeAiOauth?.accessToken;
+      if (!token) {
+        return undefined;
+      }
+      headers.Authorization = `Bearer ${token}`;
+      headers["anthropic-beta"] = "oauth-2025-04-20";
+    }
+    const models: { id: string; display_name: string; created_at: string }[] =
+      [];
+    const url = new URL("https://api.anthropic.com/v1/models?limit=100");
+    let hasMore: boolean;
+    do {
+      // biome-ignore lint/performance/noAwaitInLoops: each page needs the previous page's cursor
+      const response = await fetch(url, { headers });
+      if (!response.ok) {
+        return undefined;
+      }
+      const page = (await response.json()) as {
+        data: typeof models;
+        has_more: boolean;
+        last_id: string;
+      };
+      models.push(...page.data);
+      hasMore = page.has_more;
+      url.searchParams.set("after_id", page.last_id);
+    } while (hasMore);
+    return models;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
- * The model catalog this machine's Claude Code offers, asked of a throwaway
- * `query()` rather than of a session.
+ * The model catalog this machine's Claude Code and account offer, probed
+ * independently of any session.
+ * The SDK supplies CLI aliases and effort capabilities, while the Anthropic
+ * models endpoint supplies the full account catalog. Both are queried concurrently
+ * and merged alias-first so concrete model IDs do not disappear behind aliases.
  *
  * `supportedModels()` is a `Query` method, which is why this used to be asked
  * of whatever session happened to be running — but a `Query` is not a session.
@@ -1575,23 +1630,54 @@ export class ClaudeCustody implements HarnessSession {
  * could not read is no reason for the machine to fail to report itself at all.
  */
 async function probeModels(): Promise<ModelInfo[] | undefined> {
-  const handle = query({
-    prompt: "",
-    options: { maxTurns: 0, persistSession: false },
-  });
-  try {
-    return await handle.supportedModels();
-  } catch {
+  const [aliases, accountModels] = await Promise.all([
+    (async (): Promise<ModelInfo[] | undefined> => {
+      try {
+        const handle = query({
+          prompt: "",
+          options: { maxTurns: 0, persistSession: false },
+        });
+        try {
+          return await handle.supportedModels();
+        } finally {
+          // Tearing the child down takes longer than the answer did, and nothing
+          // waits on it — the catalog is already in hand.
+          // biome-ignore lint/complexity/noVoid: fire-and-forget by intent — disposal has no result anyone reads, and awaiting it would double how long `detect()` blocks
+          void handle.return().catch(() => {
+            // the child is going away regardless; a failure to close it politely is
+            // not something the report should carry
+          });
+        }
+      } catch {
+        return undefined;
+      }
+    })(),
+    listAccountModels(),
+  ]);
+  if (!(aliases || accountModels)) {
     return undefined;
-  } finally {
-    // Tearing the child down takes longer than the answer did, and nothing
-    // waits on it — the catalog is already in hand.
-    // biome-ignore lint/complexity/noVoid: fire-and-forget by intent — disposal has no result anyone reads, and awaiting it would double how long `detect()` blocks
-    void handle.return().catch(() => {
-      // the child is going away regardless; a failure to close it politely is
-      // not something the report should carry
-    });
   }
+  const defaultModel = aliases?.find((model) => model.value === "default");
+  const values = new Set(aliases?.map((model) => model.value));
+  return [
+    ...(aliases ?? []),
+    ...(accountModels ?? [])
+      .filter((model) => !values.has(model.id))
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))
+      .map((model) => ({
+        value: model.id,
+        resolvedModel: model.id,
+        displayName: model.display_name,
+        description: `Released ${model.created_at.slice(0, 10)}`,
+        ...(defaultModel
+          ? {
+              supportsEffort: defaultModel.supportsEffort,
+              supportedEffortLevels: defaultModel.supportedEffortLevels,
+              supportsAdaptiveThinking: defaultModel.supportsAdaptiveThinking,
+            }
+          : {}),
+      })),
+  ];
 }
 
 export class ClaudeHarness implements Harness {

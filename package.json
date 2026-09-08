@@ -43,6 +43,7 @@
   },
   "patchedDependencies": {
     "svelte-streamdown@3.1.2": "patches/svelte-streamdown@3.1.2.patch",
-    "virtua@0.50.0": "patches/virtua@0.50.0.patch"
+    "virtua@0.50.0": "patches/virtua@0.50.0.patch",
+    "dialkit@2.0.0": "patches/dialkit@2.0.0.patch"
   }
 }
