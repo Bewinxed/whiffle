@@ -8,6 +8,7 @@
    * through panels. (JOURNEY.md §4)
    */
   import { onMount, untrack } from "svelte";
+  import { replaceState } from "$app/navigation";
   import { page } from "$app/state";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte convention for component groups
   import * as Card from "$lib/components/ui/card";
@@ -76,7 +77,22 @@
   });
 
   const TAB_ORDER = ["tools", "mcp", "skills", "agents", "memory", "hooks"];
-  const activeTab = $derived(page.url.searchParams.get("tab") ?? "tools");
+  const tabOf = (url: URL) => url.searchParams.get("tab") ?? "tools";
+  /**
+   * The open tab is state, and the URL mirrors it — not the other way round.
+   * Deriving it from `page.url` meant the panel only moved when the router
+   * decided the URL had, which a shallow replace does not always announce; the
+   * strip marked the new tab and the panel under it stayed put until a reload.
+   * Holding it here switches the panel on the click, and the effect below keeps
+   * it honest when the URL moves on its own — back, forward, or a pasted link.
+   */
+  let activeTab = $state(untrack(() => tabOf(page.url)));
+  $effect(() => {
+    const fromUrl = tabOf(page.url);
+    if (fromUrl !== untrack(() => activeTab)) {
+      activeTab = fromUrl;
+    }
+  });
   let tabDir = $state<"left" | "right">("right");
 
   function switchTab(value: string) {
@@ -84,9 +100,17 @@
     const toIdx = TAB_ORDER.indexOf(value);
     tabDir = toIdx > fromIdx ? "right" : "left";
 
+    activeTab = value;
+
     const url = new URL(location.href);
     url.searchParams.set("tab", value);
-    history.replaceState(history.state, "", url);
+    // SvelteKit's replaceState, not the platform's. The native one changes the
+    // address bar without telling the router, so `page.url` never moved and
+    // `activeTab`, derived from it, never recomputed — the tab strip marked the
+    // new tab and the panel under it stayed on the old one until a reload read
+    // the URL fresh. This is the shallow-routing version: it updates page state
+    // in place, so the panel switches without re-running load.
+    replaceState(url, page.state);
   }
 
   /* Dress shadcn Card as the Quiet Ledger raised panel (--surface-raised,
