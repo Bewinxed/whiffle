@@ -6,7 +6,7 @@
    * under the pointer when you decide to type, and no click is spent asking
    * for permission to edit your own file.
    */
-  import { untrack } from "svelte";
+  import { tick, untrack } from "svelte";
   import { toast } from "svelte-sonner";
   import MarkdownEditor from "$lib/components/features/MarkdownEditor.svelte";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte component-group convention
@@ -73,13 +73,59 @@
   /** Roughly what this costs a session, at the usual ~4 bytes a token. */
   const tokens = $derived(Math.round(bytes / 4));
 
-  function pick(path: string) {
-    if (path === selected) {
-      return;
-    }
+  /** The rail's running order, so a switch knows which way it travelled. */
+  const orderOf = (path: string) =>
+    path === FLEET ? -1 : docs.findIndex((doc) => doc.path === path);
+
+  function swap(path: string) {
     drafts[selected] = text;
     selected = path;
     text = drafts[path] ?? savedFor(path);
+  }
+
+  /**
+   * Switching files is a view transition, the same one the sidebar spokes use
+   * (`+layout.svelte` → `--vt-*` → `::view-transition-*(content)` in app.css).
+   * It is not a navigation, so `onNavigate` never sees it and this drives the
+   * API directly: the direction comes from the rail's own order, so moving
+   * down the list pushes the old file up and brings the new one from below.
+   *
+   * The selection is a named element rather than a background, so the API
+   * morphs it from the old row to the new one instead of repainting it.
+   */
+  async function pick(path: string) {
+    if (path === selected) {
+      return;
+    }
+    // Same three stand-downs the layout uses: no API, hidden tab, reduced motion.
+    if (
+      typeof document === "undefined" ||
+      !document.startViewTransition ||
+      document.hidden ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      swap(path);
+      return;
+    }
+
+    const down = orderOf(path) > orderOf(selected);
+    const el = document.documentElement;
+    el.dataset.memvt = "1";
+    el.style.setProperty("--vt-mem-old-y", down ? "-6%" : "6%");
+    el.style.setProperty("--vt-mem-new-y", down ? "6%" : "-6%");
+
+    const run = document.startViewTransition(async () => {
+      swap(path);
+      // The snapshot is taken when this resolves, so the DOM has to be the new
+      // one by then — without the tick it captures the file it just left.
+      await tick();
+    });
+    const clear = () => {
+      delete el.dataset.memvt;
+      el.style.removeProperty("--vt-mem-old-y");
+      el.style.removeProperty("--vt-mem-new-y");
+    };
+    run.finished.then(clear, clear);
   }
 
   const labelOf = (path: string) =>
@@ -420,6 +466,9 @@
     onclick={() => pick(path)}
     type="button"
   >
+    {#if selected === path}
+      <span class="rowsel"></span>
+    {/if}
     <span class="rname">{shortOf(path)}</span>
     {#if drifted.length > 0}
       <span class="row-state" title={names(drifted)}><IconWarningTriangle /><span class="sr-only">Kept own copy</span></span>
@@ -447,6 +496,47 @@
 {/snippet}
 
 <style>
+  /* The transition itself, matching the app's own: 120ms on the same curve
+     app.css uses for ::view-transition-*(content), direction from --vt-mem-*.
+     The rail is held still the way the sidebar and topbar are, and `content`
+     is silenced while this runs so the whole page does not slide underneath
+     the pane that is already sliding. */
+  :global(html[data-memvt])::view-transition-old(content),
+  :global(html[data-memvt])::view-transition-new(content) {
+    animation: none;
+  }
+  :global(::view-transition-old(memory-rail)),
+  :global(::view-transition-new(memory-rail)) {
+    animation: none;
+  }
+  :global(::view-transition-old(memory-detail)) {
+    animation: 120ms cubic-bezier(0.32, 0.72, 0, 1) both vt-mem-exit;
+  }
+  :global(::view-transition-new(memory-detail)) {
+    animation: 120ms cubic-bezier(0.32, 0.72, 0, 1) both vt-mem-enter;
+  }
+  @keyframes vt-mem-exit {
+    to {
+      transform: translateY(var(--vt-mem-old-y, -6%));
+      opacity: 0;
+    }
+  }
+  @keyframes vt-mem-enter {
+    from {
+      transform: translateY(var(--vt-mem-new-y, 6%));
+      opacity: 0;
+    }
+  }
+  /* The highlight morphs; it must not also fade, or the move reads as a blink. */
+  :global(::view-transition-group(memory-selection)) {
+    animation-duration: 120ms;
+    animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  :global(::view-transition-old(memory-selection)),
+  :global(::view-transition-new(memory-selection)) {
+    animation: none;
+  }
+
   .shell {
     display: flex;
     height: 100%;
@@ -458,6 +548,7 @@
     background: var(--surface-field);
   }
   .rail {
+    view-transition-name: memory-rail;
     display: flex;
     flex-direction: column;
     width: calc(var(--space-8) * 8);
@@ -516,11 +607,28 @@
     font-size: var(--text-base);
     color: var(--ink-body);
   }
+  .rrow {
+    position: relative;
+  }
   .rrow.on {
-    background: var(--surface-active);
     color: var(--ink-strong);
     font-weight: var(--weight-strong);
+  }
+  /* The selection is drawn as its own element, and only the selected row has
+     one, so the View Transitions API matches it across the swap by name and
+     moves it between rows rather than repainting a background. */
+  .rowsel {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: var(--radius-control);
+    background: var(--surface-active);
     box-shadow: var(--shadow-inset-sel);
+    view-transition-name: memory-selection;
+  }
+  .rrow > :not(.rowsel) {
+    position: relative;
+    z-index: 1;
   }
   .rname {
     flex: 1 1 auto;
@@ -547,6 +655,7 @@
   }
 
   .detail {
+    view-transition-name: memory-detail;
     display: flex;
     flex-direction: column;
     flex: 1 1 auto;
