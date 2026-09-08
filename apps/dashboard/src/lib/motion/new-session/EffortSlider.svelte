@@ -25,14 +25,18 @@
       thumb.set(value / 3, { instant: prefersReducedMotion.current });
     }
   });
-  function move(event: PointerEvent) {
+  function position(event: PointerEvent) {
     const rect = track.getBoundingClientRect();
-    const position = Math.max(
-      0,
-      Math.min(1, (event.clientX - rect.left) / rect.width)
-    );
-    thumb.set(position, { instant: true });
-    value = Math.round(position * 3);
+    return Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+  }
+  // A press springs the thumb to the nearest detent; only a real drag follows the pointer.
+  function press(event: PointerEvent) {
+    value = Math.round(position(event) * 3);
+  }
+  function drag(event: PointerEvent) {
+    const at = position(event);
+    thumb.set(at, { instant: true });
+    value = Math.round(at * 3);
   }
   function keydown(event: KeyboardEvent) {
     const delta = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[
@@ -61,9 +65,9 @@
   class="slider"
   onkeydown={keydown}
   onpointercancel={() => { dragging = false; }}
-  onpointerdown={(event) => { dragging = true; event.currentTarget.setPointerCapture(event.pointerId); event.currentTarget.focus(); move(event); }}
-  onpointermove={(event) => { if (dragging) { move(event); } }}
-  onpointerup={(event) => { move(event); dragging = false; }}
+  onpointerdown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); event.currentTarget.focus(); press(event); }}
+  onpointermove={(event) => { if (event.buttons === 1) { dragging = true; drag(event); } }}
+  onpointerup={() => { dragging = false; }}
   role="slider"
   tabindex="0"
 >

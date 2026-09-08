@@ -17,7 +17,8 @@
     progress = 1,
     stagger = 0.06,
     duration = 0.45,
-    entering = false,
+    swap = false,
+    columns = 0,
   }: {
     items: T[];
     value: string;
@@ -31,7 +32,10 @@
     progress?: number;
     stagger?: number;
     duration?: number;
-    entering?: boolean;
+    /** Rows are swapped as a set: the old ones fly out left, the new fly in from the right, both staggered. */
+    swap?: boolean;
+    /** Lay items out on a grid with this many columns instead of a single row. */
+    columns?: number;
   } = $props();
   // biome-ignore lint/suspicious/noUnassignedVariables: assigned by Svelte bind:this
   let group: HTMLDivElement;
@@ -108,13 +112,16 @@
   aria-orientation={orientation}
   class="group"
   role="radiogroup"
+  style:border-radius="{radius}px"
+  style:grid-template-columns={columns ? `repeat(${columns}, minmax(0, 1fr))` : undefined}
   bind:this={group}
+  class:grid={columns > 0}
   class:vertical={orientation === 'vertical'}
 >
   <span
     aria-hidden="true"
     class="highlight"
-    style="opacity: {selected < 0 ? 0 : progress}; transform: translate({highlight.current.x}px, {highlight.current.y}px); width: {highlight.current.width}px; height: {highlight.current.height}px; border-radius: {radius}px;"
+    style="opacity: {selected < 0 ? 0 : progress}; transform: translate({highlight.current.x}px, {highlight.current.y}px); width: {highlight.current.width}px; height: {highlight.current.height}px; border-radius: {Math.max(0, radius - inset)}px;"
   ></span>
   {#each items as item, i (item.value)}
     <!-- biome-ignore lint/a11y/useSemanticElements: rich snippet content with roving radio keyboard behavior -->
@@ -127,7 +134,8 @@
       tabindex={value === item.value || (selected < 0 && i === 0) ? 0 : -1}
       type="button"
       bind:this={buttons[i]}
-      in:fly={{ y: 8, duration: entering && !prefersReducedMotion.current ? duration * 1000 : 0, delay: entering ? i * stagger * 1000 : 0 }}
+      in:fly|global={{ x: swap ? 28 : 0, y: swap ? 0 : 8, duration: swap && !prefersReducedMotion.current ? duration * 1000 : 0, delay: swap ? i * stagger * 1000 : 0 }}
+      out:fly|global={{ x: -28, duration: swap && !prefersReducedMotion.current ? duration * 600 : 0, delay: swap ? i * stagger * 600 : 0 }}
     >
       {@render children(item)}
     </button>
@@ -140,11 +148,13 @@
     display: flex;
     background: var(--surface-field);
     border: 1px solid var(--border-control);
-    border-radius: var(--radius-modal);
     isolation: isolate;
   }
   .vertical {
     flex-direction: column;
+  }
+  .grid {
+    display: grid;
   }
   .highlight {
     position: absolute;

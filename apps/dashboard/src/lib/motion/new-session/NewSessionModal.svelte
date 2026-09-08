@@ -4,6 +4,10 @@
   import { fade } from "svelte/transition";
   import { models } from "$lib/whiffle/models.svelte";
   import ClaudeMark from "~icons/logos/claude-icon";
+  import IconBypass from "~icons/solar/bolt-linear";
+  import IconAsk from "~icons/solar/chat-round-dots-linear";
+  import IconPlan from "~icons/solar/clipboard-list-linear";
+  import IconEdits from "~icons/solar/pen-new-square-linear";
   import EffortSlider from "./EffortSlider.svelte";
   import HighlightGroup from "./HighlightGroup.svelte";
   import OpenCodeMark from "./OpenCodeMark.svelte";
@@ -48,16 +52,14 @@
     {
       value: "claude",
       label: "Claude",
-      description: "Claude Code CLI",
       icon: ClaudeMark,
     },
     {
       value: "opencode",
       label: "OpenCode",
-      description: "OpenCode",
       icon: OpenCodeMark,
     },
-    { value: "pi", label: "pi", description: "pi", icon: PiMark },
+    { value: "pi", label: "pi", icon: PiMark },
   ];
   const demo: Record<HarnessKind, ModelInfo[]> = {
     claude: [
@@ -78,10 +80,10 @@
     ].map(([value, displayName]) => ({ value, displayName })),
   };
   const permissions = [
-    { value: "default", label: "Ask" },
-    { value: "acceptEdits", label: "Accept edits" },
-    { value: "plan", label: "Plan" },
-    { value: "bypassPermissions", label: "Bypass" },
+    { value: "default", label: "Ask", icon: IconAsk },
+    { value: "acceptEdits", label: "Accept edits", icon: IconEdits },
+    { value: "plan", label: "Plan", icon: IconPlan },
+    { value: "bypassPermissions", label: "Bypass", icon: IconBypass },
   ];
   const machines = ["obelisk-of-light", "aurora", "quarry"].map((value) => ({
     value,
@@ -94,7 +96,6 @@
   let machine = $state("obelisk-of-light");
   let directory = $state("");
   let prompt = $state("");
-  let swapped = $state(false);
   // biome-ignore lint/suspicious/noUnassignedVariables: assigned by Svelte bind:this
   let dialog: HTMLDialogElement;
   const rows = $derived(
@@ -107,7 +108,6 @@
   function chooseHarness(value: string) {
     harness = value as HarnessKind;
     model = catalog(harness)[0].value;
-    swapped = true;
   }
   function style(section: Section) {
     return `opacity: ${section.current.opacity}; transform: translateY(${section.current.y}px) scale(${section.current.scale});`;
@@ -162,120 +162,124 @@
       style:pointer-events={timeline.interactive.started ? 'auto' : 'none'}
     >
       <div class="body">
-        <section style={style(timeline.harness)}>
-          <h3>Harness</h3>
-          <HighlightGroup
-            items={harnesses}
-            label="Harness"
-            onchange={chooseHarness}
-            spring={params.highlightSpring}
-            value={harness}
-            {...params.highlight}
-            progress={timeline.harness.progress}
-            stagger={params.stagger}
-          >
-            {#snippet children(item)}
-              <span class="harness"
-                ><item.icon /><span>{item.label}</span
-                ><small>{item.description}</small></span
-              >
-            {/snippet}
-          </HighlightGroup>
-        </section>
-        <section style={style(timeline.model)}>
-          <h3>Model</h3>
-          <div class="models">
-            {#key harness}
-              <div class="model-list" out:fade={{ duration: 100 }}>
-                <HighlightGroup
-                  items={rows}
-                  label="Model"
-                  onchange={(value) => { model = value; }}
-                  orientation="vertical"
-                  spring={params.highlightSpring}
-                  value={model}
-                  {...params.highlight}
-                  entering={swapped}
-                  progress={timeline.model.progress}
-                  stagger={params.stagger}
+        <div class="column choose">
+          <section style={style(timeline.harness)}>
+            <h3>Harness</h3>
+            <HighlightGroup
+              items={harnesses}
+              label="Harness"
+              onchange={chooseHarness}
+              spring={params.highlightSpring}
+              value={harness}
+              {...params.highlight}
+              progress={timeline.harness.progress}
+              stagger={params.stagger}
+            >
+              {#snippet children(item)}
+                <span class="harness"
+                  ><item.icon /><span>{item.label}</span></span
                 >
-                  {#snippet children(item)}
-                    <span class="model-row"
-                      ><span class="model-name"
-                        >{item.displayName}<code>{item.value}</code></span
-                      ><small class="tier">{tier(item.value)}</small></span
-                    >
-                  {/snippet}
-                </HighlightGroup>
-              </div>
-            {/key}
-          </div>
-          <label class="custom"
-            >Custom model ID<input
-              aria-label="Custom model ID"
-              class="mono"
-              oninput={(event) => { model = event.currentTarget.value; }}
-              placeholder="provider/model-id"
-              value={rows.some((row) => row.value === model) ? '' : model}
-            ></label
-          >
-        </section>
-        <section style={style(timeline.effort)}>
-          <h3>Effort</h3>
-          <EffortSlider spring={params.sliderSpring} bind:value={effort} />
-        </section>
-        <section style={style(timeline.permissions)}>
-          <h3>Permissions</h3>
-          <HighlightGroup
-            items={permissions}
-            label="Permissions"
-            onchange={(value) => { permission = value; }}
-            spring={params.highlightSpring}
-            value={permission}
-            {...params.highlight}
-            duration={0.4}
-            progress={timeline.permissions.progress}
-            stagger={params.stagger}
-          >
-            {#snippet children(item)}
-              {item.label}
-            {/snippet}
-          </HighlightGroup>
-        </section>
-        <section style={style(timeline.machine)}>
-          <h3>Machine</h3>
-          <HighlightGroup
-            items={machines}
-            label="Machine"
-            onchange={(value) => { machine = value; }}
-            spring={params.highlightSpring}
-            value={machine}
-            {...params.highlight}
-            duration={0.4}
-            progress={timeline.machine.progress}
-            stagger={params.stagger}
-          >
-            {#snippet children(item)}
-              {item.label}
-            {/snippet}
-          </HighlightGroup>
-        </section>
-        <section class="fields" style={style(timeline.fields)}>
-          <label
-            >Working directory<input
-              class="mono"
-              placeholder="/home/bewinxed/cockpit"
-              bind:value={directory}
-            ></label
-          >
-          <label
-            >First prompt<textarea
-              placeholder="Describe the task"
-              rows="2"
-              bind:value={prompt}
-            ></textarea></label
-          >
-        </section>
+              {/snippet}
+            </HighlightGroup>
+          </section>
+          <section class="model" style={style(timeline.model)}>
+            <h3>Model</h3>
+            <div class="models">
+              {#key harness}
+                <div class="model-list">
+                  <HighlightGroup
+                    items={rows}
+                    label="Model"
+                    onchange={(value) => { model = value; }}
+                    orientation="vertical"
+                    spring={params.highlightSpring}
+                    swap
+                    value={model}
+                    {...params.highlight}
+                    progress={timeline.model.progress}
+                    stagger={params.stagger}
+                  >
+                    {#snippet children(item)}
+                      <span class="model-row"
+                        ><span class="model-name"
+                          >{item.displayName}<code>{item.value}</code></span
+                        ><small class="tier">{tier(item.value)}</small></span
+                      >
+                    {/snippet}
+                  </HighlightGroup>
+                </div>
+              {/key}
+            </div>
+            <label class="custom"
+              >Custom model ID<input
+                aria-label="Custom model ID"
+                class="mono"
+                oninput={(event) => { model = event.currentTarget.value; }}
+                placeholder="provider/model-id"
+                value={rows.some((row) => row.value === model) ? '' : model}
+              ></label
+            >
+          </section>
+        </div>
+        <div class="column configure">
+          <section style={style(timeline.machine)}>
+            <h3>Machine</h3>
+            <HighlightGroup
+              items={machines}
+              label="Machine"
+              onchange={(value) => { machine = value; }}
+              spring={params.highlightSpring}
+              value={machine}
+              {...params.highlight}
+              duration={0.4}
+              progress={timeline.machine.progress}
+              stagger={params.stagger}
+            >
+              {#snippet children(item)}
+                {item.label}
+              {/snippet}
+            </HighlightGroup>
+          </section>
+          <section style={style(timeline.effort)}>
+            <h3>Effort</h3>
+            <EffortSlider spring={params.sliderSpring} bind:value={effort} />
+          </section>
+          <section style={style(timeline.permissions)}>
+            <h3>Permissions</h3>
+            <HighlightGroup
+              columns={2}
+              items={permissions}
+              label="Permissions"
+              onchange={(value) => { permission = value; }}
+              spring={params.highlightSpring}
+              value={permission}
+              {...params.highlight}
+              duration={0.4}
+              progress={timeline.permissions.progress}
+              stagger={params.stagger}
+            >
+              {#snippet children(item)}
+                <span class="mode"><item.icon /><span>{item.label}</span></span>
+              {/snippet}
+            </HighlightGroup>
+          </section>
+          <section class="fields" style={style(timeline.fields)}>
+            <label
+              >Working directory<input
+                class="mono"
+                placeholder="/home/bewinxed/cockpit"
+                bind:value={directory}
+              ></label
+            >
+            <label
+              >First prompt<textarea
+                placeholder="Describe the task"
+                rows="2"
+                bind:value={prompt}
+              ></textarea></label
+            >
+          </section>
+        </div>
       </div>
       <footer style={style(timeline.footer)}>
         <span>Prototype</span
@@ -308,9 +312,9 @@
     position: relative;
     inset: auto;
     margin: 0;
-    width: 560px;
+    width: 840px;
     max-width: 100%;
-    max-height: calc(100dvh - var(--space-8));
+    max-height: min(720px, 100dvh - var(--space-8));
     display: flex;
     flex-direction: column;
     border: 1px solid var(--border-control);
@@ -342,12 +346,23 @@
     min-height: 0;
   }
   .body {
+    display: grid;
+    grid-template-columns: 1.15fr 1fr;
+    gap: var(--space-6);
     padding: var(--space-5) var(--space-6);
-    overflow-y: auto;
-    overscroll-behavior: contain;
+    min-height: 0;
+  }
+  .column {
     display: flex;
     flex-direction: column;
     gap: var(--space-5);
+    min-height: 0;
+  }
+  .model {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
   }
   h3,
   label {
@@ -359,24 +374,31 @@
     margin-bottom: var(--space-2);
   }
   .harness {
-    display: grid;
-    grid-template-columns: 24px 1fr;
-    gap: var(--space-2);
+    display: flex;
     align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
   }
   .harness :global(svg) {
-    width: 24px;
-    height: 24px;
+    width: 20px;
+    height: 20px;
   }
-  .harness small {
-    grid-column: 1 / -1;
-    font-size: var(--text-xs);
-    color: var(--ink-muted);
+  .mode {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .mode :global(svg) {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
   }
   .models {
     display: grid;
-    max-height: 260px;
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
+    overscroll-behavior: contain;
   }
   .model-list {
     grid-area: 1 / 1;
@@ -474,6 +496,18 @@
     outline: 2px solid var(--focus-ring);
     outline-offset: 2px;
   }
+  @media (max-width: 720px) {
+    dialog {
+      max-height: calc(100dvh - var(--space-4));
+    }
+    .body {
+      grid-template-columns: 1fr;
+      overflow-y: auto;
+    }
+    .models {
+      max-height: 240px;
+    }
+  }
   @media (max-width: 480px) {
     .overlay {
       padding: var(--space-2);
@@ -482,9 +516,6 @@
     .body,
     footer {
       padding-inline: var(--space-4);
-    }
-    .harness {
-      grid-template-columns: 1fr;
     }
   }
 </style>
