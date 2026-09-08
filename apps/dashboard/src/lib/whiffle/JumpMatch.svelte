@@ -48,11 +48,20 @@
 <span class={className}
   >{#each parts as part, i (i)}
     {#if part.hit}
-      <mark class="bg-transparent font-semibold text-foreground"
-        >{part.value}</mark
-      >
+      <mark>{part.value}</mark>
     {:else}
       {part.value}
     {/if}
   {/each}</span
 >
+
+<style>
+  /* Emphasis is weight and ink, never a highlighter fill: 500 is the top of
+     this system's weight ladder (600 and above do not exist here), and the
+     cleared background keeps the mark from fighting the selected-row fill. */
+  mark {
+    background: transparent;
+    color: var(--ink-strong);
+    font-weight: 500;
+  }
+</style>
