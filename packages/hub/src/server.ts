@@ -18,6 +18,7 @@ import type {
   HookDraft,
   IngestMark,
   InstanceRow,
+  InstanceSpec,
   MachineMemorySet,
   NeutralSessionInfo,
   PermissionMode,
@@ -269,17 +270,25 @@ const ack = (envelope: Envelope): Envelope<{ ok: true }> => ({
 
 /**
  * `register`'s ack, carrying the ingest ledger for the instances the daemon
- * says it is holding (sessiond design §7, step 3). Additive on {@link ack}: an
- * agent that predates the field reads `{ ok: true }` exactly as it always did,
- * and this hub gains nothing to explain to it.
+ * says it is holding (sessiond design §7, step 3), and how each of them was
+ * configured to run. Additive on {@link ack}: an agent that predates either
+ * field reads `{ ok: true }` exactly as it always did, and this hub gains
+ * nothing to explain to it.
+ *
+ * The specs ride here because this ack is the one moment the two ends agree on
+ * what this machine is carrying. A returning agent adopts survivors sessiond
+ * names, and sessiond knows a pid and a cwd — not that the operator had put
+ * the session on `bypassPermissions`. Without this the hand-off respawned it
+ * on `default` and the session started asking for every tool call again.
  */
 const registerAck = (
   envelope: Envelope,
-  ingested: Record<string, IngestMark>
+  ingested: Record<string, IngestMark>,
+  specs: Record<string, InstanceSpec>
 ): Envelope<RegisterAckPayload> => ({
   verb: envelope.verb,
   machineId: envelope.machineId,
-  payload: { ok: true, ingested },
+  payload: { ok: true, ingested, specs },
 });
 
 /** Sent back as a frame, the only verb a dashboard renders. */
@@ -678,6 +687,43 @@ export const reattachable = (
   reported: readonly string[],
   restored: readonly string[]
 ): string[] => [...new Set([...reported, ...restored])];
+
+/**
+ * How each of those was configured to run, for the ack the returning agent
+ * reattaches against.
+ *
+ * Only what a relaunch has to carry, and only where the row actually names it:
+ * an absent field is spread as nothing, so a relaunch falls back to the same
+ * harness default it always did rather than to a null the payload would then
+ * have to explain. Rows the hub has never heard of drop out silently — the id
+ * set comes from the daemon and may name a survivor the hub wrote off.
+ */
+export const instanceSpecs = (
+  rows: readonly {
+    id: string;
+    permissionMode?: string | null;
+    model?: string | null;
+    effort?: string | null;
+  }[],
+  ids: readonly string[]
+): Record<string, InstanceSpec> => {
+  const wanted = new Set(ids);
+  const specs: Record<string, InstanceSpec> = {};
+  for (const row of rows) {
+    if (!wanted.has(row.id)) {
+      continue;
+    }
+    const spec: InstanceSpec = {
+      ...(row.permissionMode ? { permissionMode: row.permissionMode } : {}),
+      ...(row.model ? { model: row.model } : {}),
+      ...(row.effort ? { effort: row.effort } : {}),
+    };
+    if (Object.keys(spec).length > 0) {
+      specs[row.id] = spec;
+    }
+  }
+  return specs;
+};
 
 /**
  * And of the SDK sessions it could resume. Absent from a daemon that could not
@@ -1702,6 +1748,10 @@ export const createServer = ({
       canDelegate: row.canDelegate ?? undefined,
     });
   };
+
+  /** {@link instanceSpecs} over this hub's rows — the ack's half of the relaunch. */
+  const specsFor = (ids: readonly string[]): Record<string, InstanceSpec> =>
+    instanceSpecs(db.listInstances(), ids);
 
   /**
    * Presence is the registry's; history is the database's.
@@ -4843,15 +4893,15 @@ export const createServer = ({
               // Computed AFTER `settleInstances` and after the restores above, so
               // it names exactly the sessions a reattach can act on — see
               // {@link reattachable} for why the restores have to be in it.
+              const reattaching = reattachable(
+                peekInstances(message.payload),
+                revivable.map((orphan) => orphan.row.id)
+              );
               ws.send(
                 registerAck(
                   message,
-                  streams.ingestedFor(
-                    reattachable(
-                      peekInstances(message.payload),
-                      revivable.map((orphan) => orphan.row.id)
-                    )
-                  )
+                  streams.ingestedFor(reattaching),
+                  specsFor(reattaching)
                 )
               );
               break;

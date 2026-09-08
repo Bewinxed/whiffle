@@ -18,6 +18,7 @@ import type {
   FsPayload,
   HarnessKind,
   IngestMark,
+  InstanceSpec,
   NeutralMessage,
   NeutralSessionInfo,
   NeutralUserMessage,
@@ -37,6 +38,7 @@ import {
   FLEET_SYNC,
   RESOLVE_PERMISSION,
   readIngested,
+  readSpecs,
   repoPath,
   resumeCursor,
   UPDATE_WHIFFLE,
@@ -892,7 +894,13 @@ export class SessionSupervisor {
      * or a hub that has nothing of this machine — means every row follows from
      * head, which is the honest-loss rule and not a degraded mode.
      */
-    ingested?: Record<string, IngestMark>
+    ingested?: Record<string, IngestMark>,
+    /**
+     * How each instance was configured to run, off the same ack. Absent from an
+     * older hub, and a relaunch then falls back to the harness defaults exactly
+     * as it did before the field existed.
+     */
+    specs?: Record<string, InstanceSpec>
   ): Promise<string[]> {
     const adapter = this.#adapter("claude");
     // `adopt` is claude's alone: opencode reattaches through its own server
@@ -933,6 +941,13 @@ export class SessionSupervisor {
         this.#ingested.delete(row.instanceId);
       }
       const afterSeq = cursor ?? row.afterSeq;
+      // The row wins where it has anything to say — a hub restore names the
+      // spec on the payload it sent — and the ack fills the rest. A survivor
+      // has only the ack, which is the whole reason the ack carries it.
+      const spec: InstanceSpec = {
+        ...specs?.[row.instanceId],
+        ...(row.permissionMode ? { permissionMode: row.permissionMode } : {}),
+      };
       const holder: { session: HarnessSession | null } = { session: null };
       const ctx = this.#context(row.instanceId, row.cwd, adapter, holder);
       // biome-ignore lint/performance/noAwaitInLoops: each row mutates the shared #ingested map before the next is reattached
@@ -952,8 +967,18 @@ export class SessionSupervisor {
               cwd: row.cwd,
               harness: "claude",
               ...(sessionId ? { resume: { sessionKey: sessionId } } : {}),
-              ...(row.permissionMode
-                ? { permissionMode: row.permissionMode }
+              // How it was configured to run, not how a fresh spawn would be.
+              // The row's own fields when the hub named it in a restore, the
+              // ack's spec when it did not — a survivor sessiond named carries
+              // a pid and a cwd and nothing else, and relaunching it on the
+              // harness defaults is what silently moved a `bypassPermissions`
+              // session back to asking for every tool call.
+              ...(spec.permissionMode
+                ? { permissionMode: spec.permissionMode as PermissionMode }
+                : {}),
+              ...(spec.model ? { model: spec.model } : {}),
+              ...(spec.effort
+                ? { effort: spec.effort as SpawnPayload["effort"] }
                 : {}),
             } satisfies SpawnPayload,
           } as Envelope);
@@ -995,7 +1020,7 @@ export class SessionSupervisor {
       permissionMode?: PermissionMode;
     }[]
   ): Promise<string[]> {
-    return this.reattach(rows, readIngested(ackPayload));
+    return this.reattach(rows, readIngested(ackPayload), readSpecs(ackPayload));
   }
 
   /** The harness session a side quest turned out to be writing, from its init frame. */
