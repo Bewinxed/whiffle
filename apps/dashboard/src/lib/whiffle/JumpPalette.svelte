@@ -5,7 +5,8 @@
   import { Kbd } from "$lib/components/ui/kbd";
   import { ACTIVITY_LABEL } from "./activity";
   import { whiffle } from "./client.svelte";
-  import { buildJumpIndex, filterJumpIndex } from "./jump-index";
+  import JumpMatch from "./JumpMatch.svelte";
+  import { buildJumpIndex, filterJumpIndex, type JumpKind } from "./jump-index";
   import { JumpTranscriptSearch } from "./jump-search.svelte";
 
   let { open = $bindable(false) }: { open?: boolean } = $props();
@@ -35,8 +36,22 @@
   const hostOf = $derived(
     new Map(whiffle.machines.map((m) => [m.machineId, m.hostname]))
   );
+
+  /** One glyph per kind, so rows are told apart before they are read. */
+  const GLYPH: Record<JumpKind, string> = {
+    project: "◆",
+    machine: "▣",
+    live: "●",
+    stored: "◇",
+  };
+
   const snippetMarkers = /「|」/;
+  /** The same markers for stripping: `replaceAll` refuses a non-global regex. */
+  const allSnippetMarkers = /「|」/g;
+  /** FTS5 wraps every matched term in 「…」; odd segments are the matches. */
   const segments = (snippet: string) => snippet.split(snippetMarkers);
+  const plain = (snippet: string) => snippet.replaceAll(allSnippetMarkers, "");
+  const leaf = (path: string) => path.split("/").filter(Boolean).pop() ?? path;
 
   async function jump(href: string) {
     open = false;
@@ -45,7 +60,7 @@
 </script>
 
 <Command.Dialog
-  class="sm:max-w-xl"
+  class="sm:max-w-2xl"
   description="Jump to a project, machine, or session"
   loop
   shouldFilter={false}
@@ -66,12 +81,21 @@
       <Command.Group heading={group.name}>
         {#each group.rows as entry (entry.id)}
           <Command.Item onSelect={() => jump(entry.href)} value={entry.id}>
-            <span class="truncate">{entry.label}</span>
             <span
-              class="ml-auto truncate font-mono text-xs text-muted-foreground"
+              aria-hidden="true"
+              class="w-3 shrink-0 text-center text-[10px] text-muted-foreground/60"
+              >{GLYPH[entry.kind]}</span
             >
-              {entry.detail}
-            </span>
+            <JumpMatch
+              class="min-w-0 flex-1 truncate"
+              ranges={entry.labelRanges}
+              text={entry.label}
+            />
+            <JumpMatch
+              class="ml-auto max-w-[45%] shrink-0 truncate font-mono text-xs text-muted-foreground"
+              ranges={entry.detailRanges}
+              text={entry.detail}
+            />
           </Command.Item>
         {/each}
       </Command.Group>
@@ -84,24 +108,44 @@
         {/if}
         {#each search.hits as hit (hit.docId)}
           <Command.Item
+            class="flex-col items-start gap-1 py-2"
             onSelect={() => jump(`/session/${hit.instanceId ?? hit.sessionId}`)}
             value={`hit:${hit.docId}`}
           >
-            <span class="truncate">
+            <!-- Which conversation this line came out of. Without it a list of
+                 snippets is a list of strangers. -->
+            <div class="flex w-full min-w-0 items-center gap-2">
+              <span
+                aria-hidden="true"
+                class="w-3 shrink-0 text-center text-[10px] text-muted-foreground/60"
+                >◇</span
+              >
+              <span class="min-w-0 flex-1 truncate">
+                {index.sessionTitles.get(hit.sessionId) ??
+                  (hit.cwd ? leaf(hit.cwd) : hit.sessionId.slice(0, 8))}
+              </span>
+              <span
+                class="ml-auto shrink-0 font-mono text-xs text-muted-foreground"
+              >
+                {hostOf.get(hit.machineId) ?? hit.machineId}
+                · {hit.role}
+              </span>
+            </div>
+            <!-- And the line itself, with the terms that matched marked. -->
+            <p
+              class="w-full truncate pl-5 text-xs text-muted-foreground"
+              title={plain(hit.snippet)}
+            >
               {#each segments(hit.snippet) as part, i (i)}
                 {#if i % 2 === 1}
-                  <span class="font-medium text-foreground">{part}</span>
+                  <mark class="bg-transparent font-semibold text-foreground"
+                    >{part}</mark
+                  >
                 {:else}
                   {part}
                 {/if}
               {/each}
-            </span>
-            <span
-              class="ml-auto truncate font-mono text-xs text-muted-foreground"
-            >
-              {hostOf.get(hit.machineId) ?? hit.machineId}
-              · {hit.role}
-            </span>
+            </p>
           </Command.Item>
         {/each}
       </Command.Group>
