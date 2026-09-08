@@ -689,28 +689,39 @@ export const reattachable = (
 ): string[] => [...new Set([...reported, ...restored])];
 
 /**
- * How each of those was configured to run, for the ack the returning agent
- * reattaches against.
+ * How this machine's sessions were configured to run, for the ack the
+ * returning agent reattaches against.
  *
- * Only what a relaunch has to carry, and only where the row actually names it:
- * an absent field is spread as nothing, so a relaunch falls back to the same
+ * SCOPED TO THE MACHINE, DELIBERATELY NOT TO {@link reattachable}. That set is
+ * the right one for the ledger — a mark for a session this hub never ingested
+ * is a mark the daemon could not act on — and it is the wrong one here, for
+ * the reason the ledger's own note gives: `instances` is empty for a daemon
+ * that just restarted, so the set reduces to the rows the hub chose to
+ * restore. A survivor is by definition the session the hub did NOT restore,
+ * and `reattachFrom` is handed it anyway, off sessiond's list. Scoping the
+ * specs to the restores therefore left them out of exactly the adoption that
+ * had no other source for them, and the hand-off respawned them on defaults.
+ *
+ * A spec is small and a machine's rows are few, so the honest scope is all of
+ * them: the daemon looks up the ids it actually adopted and ignores the rest.
+ * Only what a relaunch has to carry, and only where the row names it — an
+ * absent field is spread as nothing, so a relaunch falls back to the same
  * harness default it always did rather than to a null the payload would then
- * have to explain. Rows the hub has never heard of drop out silently — the id
- * set comes from the daemon and may name a survivor the hub wrote off.
+ * have to explain.
  */
 export const instanceSpecs = (
   rows: readonly {
     id: string;
+    machineId: string;
     permissionMode?: string | null;
     model?: string | null;
     effort?: string | null;
   }[],
-  ids: readonly string[]
+  machineId: string
 ): Record<string, InstanceSpec> => {
-  const wanted = new Set(ids);
   const specs: Record<string, InstanceSpec> = {};
   for (const row of rows) {
-    if (!wanted.has(row.id)) {
+    if (row.machineId !== machineId) {
       continue;
     }
     const spec: InstanceSpec = {
@@ -1750,8 +1761,8 @@ export const createServer = ({
   };
 
   /** {@link instanceSpecs} over this hub's rows — the ack's half of the relaunch. */
-  const specsFor = (ids: readonly string[]): Record<string, InstanceSpec> =>
-    instanceSpecs(db.listInstances(), ids);
+  const specsFor = (machineId: string): Record<string, InstanceSpec> =>
+    instanceSpecs(db.listInstances(), machineId);
 
   /**
    * Presence is the registry's; history is the database's.
@@ -4901,7 +4912,7 @@ export const createServer = ({
                 registerAck(
                   message,
                   streams.ingestedFor(reattaching),
-                  specsFor(reattaching)
+                  specsFor(message.machineId)
                 )
               );
               break;
