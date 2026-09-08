@@ -434,9 +434,13 @@
     color: var(--ink-muted);
   }
   /* An active filter is state the reader has to see, and this design keeps its
-     colour for exactly this — chips, badges and small marks. It was previously
-     filled with `--surface-field`, the same token as the well behind it, so
-     only its hairline was visible. */
+     colour for exactly this — chips, badges and small marks. It was filled
+     with `--surface-field`, the same token as the well behind it, so only a
+     hairline separated them; tinting alone did not fix it either, since a pale
+     tint on a pale well measured 1.03:1 against its background. Salience comes
+     the way this design already makes a control salient — a tint, its own ink
+     and a real edge — rather than from `--accent-solid` as a fill, which
+     belongs to the assistant orb. */
   .jump-chip {
     display: inline-flex;
     flex: none;
@@ -445,7 +449,7 @@
     height: 21px;
     padding: 0 3px 0 7px;
     transform-origin: left center;
-    border: 1px solid color-mix(in oklab, var(--accent-solid) 32%, transparent);
+    border: 1px solid var(--accent-solid);
     border-radius: var(--radius-pill);
     background: var(--accent-bg-subtle);
     color: var(--accent-text);
