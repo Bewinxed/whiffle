@@ -1,10 +1,10 @@
 <script lang="ts">
   import {
-    Comment01Icon,
+    BubbleChatIcon,
     ComputerIcon,
     CpuIcon,
-    File01Icon,
     Folder01Icon,
+    QuoteDownIcon,
   } from "@hugeicons/core-free-icons";
   import { HugeiconsIcon } from "@hugeicons/svelte";
   import { flip } from "svelte/animate";
@@ -53,7 +53,7 @@
     project: Folder01Icon,
     machine: ComputerIcon,
     live: CpuIcon,
-    stored: File01Icon,
+    stored: BubbleChatIcon,
   } as const satisfies Record<JumpKind, unknown>;
 
   const snippetMarkers = /「|」/;
@@ -178,7 +178,7 @@
                 <span class="jump-hit-head">
                   <HugeiconsIcon
                     class="jump-mark"
-                    icon={Comment01Icon}
+                    icon={QuoteDownIcon}
                     size={14}
                     strokeWidth={1.8}
                   />
@@ -282,6 +282,7 @@
     overflow: hidden;
     color: var(--ink-row);
     font-size: var(--text-base);
+    font-weight: var(--weight-medium);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
