@@ -103,112 +103,116 @@
   title="Jump to"
   bind:open
 >
-  <Command.Input
-    placeholder="Jump to a project, machine, or session…"
-    bind:value={query}
-  />
+  <!-- The signature move, applied to the whole panel rather than half of it:
+       ONE sunken well inside the raised card, holding the search line, the
+       results and the hints. The input was its own bordered control floating
+       above a separately bordered list — two boxes, two radii, two insets. -->
+  <div class="jump-well">
+    <Command.Input
+      placeholder="Jump to a project, machine, or session…"
+      bind:value={query}
+    />
 
-  <!-- The signature move: the list is a sunken well inside the raised dialog,
-       so the rows sit *in* the surface rather than on it. -->
-  <Command.List class="jump-list">
-    {#if !search.pending}
-      <Command.Empty>Nothing matches that.</Command.Empty>
-    {/if}
+    <Command.List class="jump-list">
+      {#if !search.pending}
+        <Command.Empty>Nothing matches that.</Command.Empty>
+      {/if}
 
-    {#each grouped as group (group.name)}
-      <Command.Group heading={group.name}>
-        {#each group.rows as entry (entry.id)}
-          <div animate:flip={settle}>
-            <Command.Item onSelect={() => jump(entry.href)} value={entry.id}>
-              <HugeiconsIcon
-                class="jump-mark"
-                icon={MARK[entry.kind]}
-                size={14}
-                strokeWidth={1.8}
-              />
-              <JumpMatch
-                class="jump-name"
-                ranges={entry.labelRanges}
-                text={entry.label}
-              />
-              <JumpMatch
-                class="jump-trail"
-                ranges={entry.detailRanges}
-                text={entry.detail}
-              />
-            </Command.Item>
-          </div>
-        {/each}
-      </Command.Group>
-    {/each}
-
-    {#if search.pending || search.hits.length > 0}
-      <Command.Group heading="Transcripts">
-        {#if search.pending && search.hits.length === 0}
-          <!-- The shape of what is coming, so the list does not jump when it lands. -->
-          <div aria-hidden="true" class="jump-skeletons">
-            {#each SKELETONS as row (row)}
-              <div class="jump-skeleton">
-                <span
-                  class="jump-skeleton-bar"
-                  style="width: {38 - row * 6}%"
-                ></span>
-                <span
-                  class="jump-skeleton-bar"
-                  style="width: {74 - row * 9}%"
-                ></span>
-              </div>
-            {/each}
-          </div>
-          <span class="sr-only" role="status">Searching transcripts</span>
-        {/if}
-        {#each search.hits as hit (hit.docId)}
-          <div in:fade={arrive} animate:flip={settle}>
-            <Command.Item
-              class="jump-hit"
-              onSelect={() =>
-                jump(`/session/${hit.instanceId ?? hit.sessionId}`)}
-              value={`hit:${hit.docId}`}
-            >
-              <!-- Which conversation this line came out of. Without it a list of
-                   snippets is a list of strangers. -->
-              <span class="jump-hit-head">
+      {#each grouped as group (group.name)}
+        <Command.Group heading={group.name}>
+          {#each group.rows as entry (entry.id)}
+            <div animate:flip={settle}>
+              <Command.Item onSelect={() => jump(entry.href)} value={entry.id}>
                 <HugeiconsIcon
                   class="jump-mark"
-                  icon={Comment01Icon}
+                  icon={MARK[entry.kind]}
                   size={14}
                   strokeWidth={1.8}
                 />
-                <span class="jump-name">
-                  {index.sessionTitles.get(hit.sessionId) ??
-                    (hit.cwd ? leaf(hit.cwd) : hit.sessionId.slice(0, 8))}
-                </span>
-                <span class="jump-trail">
-                  {hostOf.get(hit.machineId) ?? hit.machineId}
-                  · {hit.role}
-                </span>
-              </span>
-              <!-- And the line itself, with the terms that matched marked. -->
-              <span class="jump-snippet" title={plain(hit.snippet)}>
-                {#each segments(hit.snippet) as part, i (i)}
-                  {#if i % 2 === 1}
-                    <mark>{part}</mark>
-                  {:else}
-                    {part}
-                  {/if}
-                {/each}
-              </span>
-            </Command.Item>
-          </div>
-        {/each}
-      </Command.Group>
-    {/if}
-  </Command.List>
+                <JumpMatch
+                  class="jump-name"
+                  ranges={entry.labelRanges}
+                  text={entry.label}
+                />
+                <JumpMatch
+                  class="jump-trail"
+                  ranges={entry.detailRanges}
+                  text={entry.detail}
+                />
+              </Command.Item>
+            </div>
+          {/each}
+        </Command.Group>
+      {/each}
 
-  <div class="jump-footer">
-    <span><Kbd>↑↓</Kbd> navigate</span>
-    <span><Kbd>↵</Kbd> open</span>
-    <span><Kbd>esc</Kbd> close</span>
+      {#if search.pending || search.hits.length > 0}
+        <Command.Group heading="Transcripts">
+          {#if search.pending && search.hits.length === 0}
+            <!-- The shape of what is coming, so the list does not jump when it lands. -->
+            <div aria-hidden="true" class="jump-skeletons">
+              {#each SKELETONS as row (row)}
+                <div class="jump-skeleton">
+                  <span
+                    class="jump-skeleton-bar"
+                    style="width: {38 - row * 6}%"
+                  ></span>
+                  <span
+                    class="jump-skeleton-bar"
+                    style="width: {74 - row * 9}%"
+                  ></span>
+                </div>
+              {/each}
+            </div>
+            <span class="sr-only" role="status">Searching transcripts</span>
+          {/if}
+          {#each search.hits as hit (hit.docId)}
+            <div in:fade={arrive} animate:flip={settle}>
+              <Command.Item
+                class="jump-hit"
+                onSelect={() =>
+                jump(`/session/${hit.instanceId ?? hit.sessionId}`)}
+                value={`hit:${hit.docId}`}
+              >
+                <!-- Which conversation this line came out of. Without it a list of
+                   snippets is a list of strangers. -->
+                <span class="jump-hit-head">
+                  <HugeiconsIcon
+                    class="jump-mark"
+                    icon={Comment01Icon}
+                    size={14}
+                    strokeWidth={1.8}
+                  />
+                  <span class="jump-name">
+                    {index.sessionTitles.get(hit.sessionId) ??
+                    (hit.cwd ? leaf(hit.cwd) : hit.sessionId.slice(0, 8))}
+                  </span>
+                  <span class="jump-trail">
+                    {hostOf.get(hit.machineId) ?? hit.machineId}
+                    · {hit.role}
+                  </span>
+                </span>
+                <!-- And the line itself, with the terms that matched marked. -->
+                <span class="jump-snippet" title={plain(hit.snippet)}>
+                  {#each segments(hit.snippet) as part, i (i)}
+                    {#if i % 2 === 1}
+                      <mark>{part}</mark>
+                    {:else}
+                      {part}
+                    {/if}
+                  {/each}
+                </span>
+              </Command.Item>
+            </div>
+          {/each}
+        </Command.Group>
+      {/if}
+    </Command.List>
+
+    <div class="jump-footer">
+      <span><Kbd>↑↓</Kbd> navigate</span>
+      <span><Kbd>↵</Kbd> open</span>
+      <span><Kbd>esc</Kbd> close</span>
+    </div>
   </div>
 </Command.Dialog>
 
@@ -217,14 +221,52 @@
      under the fold. Measured before: at `top-1/3` with a 60vh list the panel
      ran 9px past the viewport and the key hints were unreachable. */
   :global(.jump-dialog) {
+    /* The inset the well sits at — and the term the concentric radius below
+       subtracts. Changing it in one place keeps the corners true. */
+    --jump-inset: 7px;
     max-height: 82vh;
+    padding: var(--jump-inset);
+  }
+  /* The command element carries its own 4px padding and an 8px corner that
+     nothing paints — left in, they push the well to a 10px inset and the
+     concentric radius below stops being true. */
+  :global(.jump-dialog [data-slot="command"]) {
+    padding: 0;
+    border-radius: 0;
+  }
+  /* One surface for the whole panel. Its radius is the shell's minus the inset
+     it sits at (20 − 7 = 13): a well cut to the card's own 7px corner read as
+     a tighter, unrelated box inside a rounder one. */
+  .jump-well {
+    display: flex;
+    min-height: 0;
+    flex: 1;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--border-hairline);
+    border-radius: calc(var(--radius-shell) - var(--jump-inset));
+    background: var(--surface-field);
+  }
+  /* The search line is the head of that surface, not a control resting on it:
+     the input group's own border, fill and corner are removed and a hairline
+     divides it from the results. */
+  :global(.jump-well [data-slot="command-input-wrapper"]) {
+    padding: 0;
+    border-bottom: 1px solid var(--border-hairline);
+  }
+  :global(.jump-well [data-slot="input-group"]) {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    min-height: 42px;
+  }
+  :global(.jump-well [data-slot="input-group"]:focus-within) {
+    box-shadow: none;
   }
   :global(.jump-list) {
-    max-height: calc(82vh - 96px);
-    margin: 0 7px;
-    border: 1px solid var(--border-hairline);
-    border-radius: var(--radius-well);
-    background: var(--surface-field);
+    max-height: calc(82vh - 104px);
+    padding: 4px;
     scroll-padding-block: 6px;
   }
   :global(.jump-mark) {
@@ -316,10 +358,13 @@
       opacity: 0.9;
     }
   }
+  /* Inside the well, divided from the results by the same hairline as the
+     search line above them — the panel reads as one object, top to bottom. */
   .jump-footer {
     display: flex;
+    flex: none;
     gap: 16px;
-    padding: 8px 14px;
+    padding: 7px 12px;
     border-top: 1px solid var(--border-hairline);
     color: var(--ink-muted);
     font-size: var(--text-sm);
