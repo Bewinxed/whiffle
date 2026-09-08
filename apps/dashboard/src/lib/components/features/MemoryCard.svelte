@@ -9,7 +9,7 @@
    * Read-only is the absence of `save`: a card nobody can write is a card with
    * nothing to click.
    */
-  import type { Snippet } from "svelte";
+  import { onMount, type Snippet } from "svelte";
   import { toast } from "svelte-sonner";
   import { Button } from "$lib/components/ui/button";
   import { Card } from "$lib/components/ui/card";
@@ -83,7 +83,61 @@
   }
 
   function cancel() {
+    forget();
     editing = false;
+  }
+
+  /**
+   * A draft outlives its editor. The tab panels are `{#if activeTab === ...}`,
+   * so switching tabs unmounts this card outright — which used to take an
+   * unsaved edit with it, without a word. The text is written to session
+   * storage as it is typed and read back on mount, so leaving and coming back
+   * returns the editor exactly as it was left. Cleared on save and on cancel,
+   * because those are the two ways a draft is genuinely finished with.
+   */
+  const stash = $derived(`whiffle:draft:${path}`);
+  function forget() {
+    if (typeof sessionStorage === "undefined") {
+      return;
+    }
+    sessionStorage.removeItem(stash);
+  }
+  $effect(() => {
+    if (typeof sessionStorage === "undefined") {
+      return;
+    }
+    if (editing && seeded && dirty) {
+      sessionStorage.setItem(stash, draft);
+    }
+  });
+  onMount(() => {
+    const kept = sessionStorage.getItem(stash);
+    if (kept === null || kept === (content ?? "")) {
+      return;
+    }
+    draft = kept;
+    seeded = true;
+    editing = true;
+  });
+
+  /**
+   * The shortcuts an editor is expected to have. Enter belongs to the
+   * document, so saving takes the modifier.
+   */
+  function keydown(event: KeyboardEvent) {
+    if (!editing) {
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      cancel();
+      return;
+    }
+    if (event.key === "Enter" && (event.metaKey || event.ctrlKey) && dirty) {
+      event.preventDefault();
+      // biome-ignore lint/complexity/noVoid: fire-and-forget — commit owns its own errors
+      void commit();
+    }
   }
 
   /**
@@ -111,6 +165,7 @@
     saving = true;
     try {
       if (await save(draft)) {
+        forget();
         editing = false;
       }
     } catch (error) {
@@ -124,8 +179,11 @@
 <Card
   class="w-full min-w-0 gap-0 rounded-[var(--radius-panel)] py-0 shadow-md [--card-spacing:var(--space-4)]"
 >
+  <!-- Sticky while editing: a long file used to push Save and Cancel a
+       screenful above the caret, so the way out of the editor scrolled away
+       from the person using it. -->
   <header
-    class="flex items-center gap-3 border-b border-border/50 px-[var(--space-4)] py-[var(--space-2)]"
+    class="sticky top-0 z-10 flex items-center gap-3 border-b border-border/50 bg-card px-[var(--space-4)] py-[var(--space-2)]"
   >
     <span
       class="min-w-0 truncate font-mono text-micro text-muted-foreground"
@@ -167,7 +225,15 @@
   </header>
 
   {#if editing}
-    <MarkdownEditor label={path} bind:value={draft} />
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <!-- biome-ignore lint/a11y/noStaticElementInteractions: a key handler over the editor, whose own controls are the interactive elements -->
+    <div
+      class="max-h-[60vh] overflow-y-auto"
+      onkeydown={keydown}
+      role="group"
+    >
+      <MarkdownEditor label={path} bind:value={draft} />
+    </div>
   {:else if content !== null && summary}
     <p class="px-[var(--space-4)] py-[var(--space-2)] text-caption">
       {summary}
