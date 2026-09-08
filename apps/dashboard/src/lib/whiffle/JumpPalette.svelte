@@ -310,12 +310,24 @@
     gap: 8px;
     min-width: 0;
   }
+  /* A session row and a transcript row invert each other, which is what tells
+     them apart before either is read. In a session row the name IS the thing.
+     In a transcript row the reader is scanning the line that matched, and the
+     session name above it is only the label saying which conversation it came
+     out of — so the name drops to the metadata rung and the line takes the
+     anchor. */
+  :global(.jump-hit .jump-name) {
+    color: var(--ink-muted);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-body);
+  }
   :global(.jump-snippet) {
     display: block;
     overflow: hidden;
     margin-left: 22px;
-    color: var(--ink-muted);
-    font-size: var(--text-sm);
+    color: var(--ink-row);
+    font-size: var(--text-base);
+    font-weight: var(--weight-medium);
     line-height: var(--leading-ui);
     text-overflow: ellipsis;
     white-space: nowrap;
