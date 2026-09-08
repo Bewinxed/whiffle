@@ -5,6 +5,8 @@
     CpuIcon,
     Folder01Icon,
     QuoteDownIcon,
+    RoboticIcon,
+    UserIcon,
   } from "@hugeicons/core-free-icons";
   import { HugeiconsIcon } from "@hugeicons/svelte";
   import { flip } from "svelte/animate";
@@ -18,7 +20,14 @@
   import { whiffle } from "./client.svelte";
   import JumpMatch from "./JumpMatch.svelte";
   import { buildJumpIndex, filterJumpIndex, type JumpKind } from "./jump-index";
-  import { JumpTranscriptSearch } from "./jump-search.svelte";
+  import {
+    AUTHORS,
+    type AuthorToken,
+    applyAuthor,
+    authorFragment,
+    JumpTranscriptSearch,
+    parseQuery,
+  } from "./jump-search.svelte";
 
   let { open = $bindable(false) }: { open?: boolean } = $props();
   let query = $state("");
@@ -89,6 +98,27 @@
 
   const SKELETONS = [0, 1, 2];
 
+  /** The `@…` the reader is part-way through typing, if any. */
+  const fragment = $derived(authorFragment(query));
+  /** The authors that `@…` could still become. */
+  const authorChoices = $derived(
+    fragment === null ? [] : AUTHORS.filter((a) => a.token.startsWith(fragment))
+  );
+  /** Who the settled query scopes to, for the heading to say so. */
+  const scopedRole = $derived(parseQuery(query).role);
+  const scopedLabel = $derived(
+    AUTHORS.find((a) => a.role === scopedRole)?.label
+  );
+  const AUTHOR_MARK = { me: UserIcon, agent: RoboticIcon } as const;
+
+  /** Settle the token and leave the caret after it, ready for the terms. */
+  function chooseAuthor(token: AuthorToken) {
+    query = applyAuthor(query, token);
+    input?.focus();
+  }
+
+  let input = $state<HTMLInputElement | null>(null);
+
   async function jump(href: string) {
     open = false;
     await goto(href);
@@ -109,16 +139,39 @@
        above a separately bordered list — two boxes, two radii, two insets. -->
   <div class="jump-well">
     <Command.Input
-      placeholder="Jump to a project, machine, or session…"
+      placeholder="Jump to a project, machine, or session…  (@ to pick an author)"
+      bind:ref={input}
       bind:value={query}
     />
 
     <Command.List class="jump-list">
-      {#if !search.pending}
+      {#if !(search.pending || fragment !== null)}
         <Command.Empty>Nothing matches that.</Command.Empty>
       {/if}
 
-      {#each grouped as group (group.name)}
+      <!-- Typing `@` asks who wrote the line, so the list answers that question
+           and nothing else until it is settled. -->
+      {#if fragment !== null}
+        <Command.Group heading="Search messages from">
+          {#each authorChoices as author (author.token)}
+            <Command.Item
+              onSelect={() => chooseAuthor(author.token)}
+              value={`author:${author.token}`}
+            >
+              <HugeiconsIcon
+                class="jump-mark"
+                icon={AUTHOR_MARK[author.token]}
+                size={14}
+                strokeWidth={1.8}
+              />
+              <span class="jump-name">{author.label}</span>
+              <span class="jump-trail">@{author.token} · {author.detail}</span>
+            </Command.Item>
+          {/each}
+        </Command.Group>
+      {/if}
+
+      {#each fragment === null ? grouped : [] as group (group.name)}
         <Command.Group heading={group.name}>
           {#each group.rows as entry (entry.id)}
             <div animate:flip={settle}>
@@ -146,7 +199,9 @@
       {/each}
 
       {#if search.pending || search.hits.length > 0}
-        <Command.Group heading="Transcripts">
+        <Command.Group
+          heading={scopedLabel ? `Transcripts · from ${scopedLabel}` : "Transcripts"}
+        >
           {#if search.pending && search.hits.length === 0}
             <!-- The shape of what is coming, so the list does not jump when it lands. -->
             <div aria-hidden="true" class="jump-skeletons">

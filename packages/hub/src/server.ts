@@ -3159,6 +3159,7 @@ export const createServer = ({
           query: t.Object({
             q: t.String(),
             limit: t.Optional(t.String()),
+            role: t.Optional(t.String()),
           }),
         },
         async ({ query, status }) => {
@@ -3167,6 +3168,12 @@ export const createServer = ({
             return status(400, "missing query");
           }
           const limit = Math.min(Math.max(1, Number(query.limit) || 20), 50);
+          // Who wrote the line. Anything else is no filter rather than an
+          // error: a reader who mistypes it gets everything, not nothing.
+          const role =
+            query.role === "user" || query.role === "assistant"
+              ? query.role
+              : undefined;
           const machineIds = registry.machineIds();
           if (machineIds.length === 0) {
             return { hits: [], machines: 0 };
@@ -3176,7 +3183,7 @@ export const createServer = ({
               const answer = await callAgent(
                 mid,
                 CONTROL_SEARCH_TRANSCRIPTS,
-                [q, { limit }],
+                [q, { limit, ...(role ? { role } : {}) }],
                 1500
               );
               if (answer === "offline" || answer === "timeout" || !answer.ok) {
