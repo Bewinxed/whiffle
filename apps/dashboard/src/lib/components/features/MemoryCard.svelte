@@ -14,7 +14,7 @@
   import { Button } from "$lib/components/ui/button";
   import { Card } from "$lib/components/ui/card";
   import { Markdown } from "$lib/components/ui/markdown";
-  import { Textarea } from "$lib/components/ui/textarea";
+  import MarkdownEditor from "./MarkdownEditor.svelte";
 
   interface Props {
     /** Extra header buttons. View mode only: editing has its own two. */
@@ -167,12 +167,7 @@
   </header>
 
   {#if editing}
-    <Textarea
-      aria-label={path}
-      class="min-h-72 rounded-none border-0 bg-transparent font-mono text-[length:var(--text-base)] focus-visible:ring-inset"
-      spellcheck="false"
-      bind:value={draft}
-    />
+    <MarkdownEditor label={path} bind:value={draft} />
   {:else if content !== null && summary}
     <p class="px-[var(--space-4)] py-[var(--space-2)] text-caption">
       {summary}
