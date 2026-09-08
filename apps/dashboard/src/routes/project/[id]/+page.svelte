@@ -364,7 +364,11 @@
       class="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 pb-6 lg:flex-row lg:gap-6 lg:overflow-hidden"
     >
       <!-- Main column: docs -->
-      <div class="flex min-w-0 flex-1 flex-col gap-4 lg:overflow-y-auto">
+      <!-- p/-m 1px: at lg+ this column is the scrollport, and a card flush with
+           its edge would lose the ring-1 it draws outside its border box. -->
+      <div
+        class="flex min-w-0 flex-1 flex-col gap-4 lg:-m-px lg:overflow-y-auto lg:p-px"
+      >
         {#if docs.length === 0 && !docsError}
           <Card
             class="rounded-[var(--radius-panel)] p-[var(--space-6)] shadow-md"
@@ -572,8 +576,10 @@
       </div>
 
       <!-- Right rail (320-380px on lg; stacked on mobile) -->
+      <!-- p/-m 1px for the same reason as the docs column: this rail is the
+           scrollport at lg+, and it holds the CLAUDE.md MemoryCard. -->
       <aside
-        class="mt-6 flex w-full shrink-0 flex-col gap-4 lg:mt-0 lg:w-[340px] lg:overflow-y-auto xl:w-[360px]"
+        class="mt-6 flex w-full shrink-0 flex-col gap-4 lg:-m-px lg:mt-0 lg:w-[340px] lg:overflow-y-auto lg:p-px xl:w-[360px]"
       >
         <!-- Sessions -->
         <Card class="gap-0 rounded-[var(--radius-panel)] py-0 shadow-md">

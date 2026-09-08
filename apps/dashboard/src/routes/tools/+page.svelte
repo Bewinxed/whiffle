@@ -354,9 +354,14 @@
       height: 18px;
     }
   }
-  /* Tables inside panels must not overflow the viewport. */
+  /* Tables inside panels must not overflow the viewport. The 1px
+     padding/margin pair keeps the scrollport from clipping the cards'
+     ring-1 — a ring is a box-shadow drawn OUTSIDE the border box, so a
+     card flush with the scrollport edge loses its left and right ring. */
   .pbody {
     overflow-x: auto;
+    padding: 1px;
+    margin: -1px;
   }
   .pbody :global(table) {
     min-width: 500px;
