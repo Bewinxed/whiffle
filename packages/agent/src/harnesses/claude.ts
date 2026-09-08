@@ -1225,6 +1225,52 @@ const idleVerdict = (
 const PEEK_LINES = 64;
 
 /**
+ * How many transcript records the peek-less idle check reads. Only the last
+ * assistant record decides, but a completed turn can be followed by a short
+ * run of user/tool records, so the tail is read wide enough to reach back past
+ * one of them.
+ */
+const IDLE_TAIL_RECORDS = 32;
+
+/**
+ * THE PEEK-LESS ADOPTION — the second boundary that never comes.
+ *
+ * {@link ClaudeHarness.adopt}'s ring peek settles idleness for a child whose
+ * tail sessiond can still serve. It cannot for the two cases that leave
+ * `peekSeq` undefined: a welcome carrying no usable `head`, and a peek window
+ * sessiond refuses outright because the ring has already wrapped past it —
+ * which is exactly what a long-lived session's ring does. Both used to fall
+ * through to the turn-boundary rule, and for a child whose turn ended BEFORE
+ * the agent died that boundary never arrives. The session then stayed in
+ * custody for good: every message sent to it held in `#held` and never
+ * delivered, every control refused, while the row still read `running`.
+ *
+ * The disk transcript covers precisely this middle, as the honest-loss rule
+ * already says it does. The read is the same tail the dashboard's first paint
+ * uses (~4ms on a 97MB file) and only the LAST assistant record is consulted:
+ * one that stopped for any reason other than `tool_use` is a completed turn,
+ * so the child is waiting. Everything else — a tool call still pending, no
+ * assistant record in the tail, a file that cannot be found or read — returns
+ * false and leaves the turn-boundary rule in charge. That asymmetry is the
+ * point: a missed idle costs a session that waits for the next real `result`,
+ * while a wrong "idle" would end stdin under a turn that is still running.
+ */
+const transcriptWaiting = async (
+  sessionId: string,
+  cwd?: string
+): Promise<boolean> => {
+  const file = await claudeSessionFile(sessionId, cwd);
+  if (!file) {
+    return false;
+  }
+  const { messages } = await readSessionEnd(file, IDLE_TAIL_RECORDS);
+  const last = (
+    messages as { message?: { role?: unknown; stop_reason?: unknown } }[]
+  ).findLast((record) => record.message?.role === "assistant");
+  return last !== undefined && last.message?.stop_reason !== "tool_use";
+};
+
+/**
  * Controls that only READ the session. A dashboard asks these on every open
  * (and a looping one asked them thousands of times in seconds), and nothing
  * in the session changes when they are refused — so the refusal goes back to
@@ -1703,6 +1749,12 @@ export class ClaudeHarness implements Harness {
       sessionId?: string | null;
       /** The ring's last seq as the welcome reported it; absent means no peek. */
       head?: number;
+      /**
+       * Where the session runs, for the peek-less idle check's transcript
+       * lookup. Absent only costs it the slug fast path — the scan still finds
+       * the file — so it is optional exactly as `claudeSessionFile` takes it.
+       */
+      cwd?: string;
       onHandoff: (handoff: {
         instanceId: string;
         sessionId: string | null;
@@ -1742,6 +1794,31 @@ export class ClaudeHarness implements Harness {
     let verdict: boolean | undefined;
     let seen = false;
     let reopened = false;
+    /**
+     * The peek-less hand-off (see {@link transcriptWaiting}). Fired for the two
+     * adoptions the ring cannot settle, and guarded twice over: `handedOff`
+     * because a `result` may have landed while the tail was being read, and the
+     * transcript verdict itself, which only says "waiting" for a turn that has
+     * demonstrably ended. Fire-and-forget — a transcript that cannot be read
+     * says nothing, and saying nothing is the turn-boundary rule, which is
+     * where this adoption already was.
+     */
+    const settleWithoutPeek = (): void => {
+      const { sessionId } = custody;
+      if (sessionId === null) {
+        return;
+      }
+      // biome-ignore lint/complexity/noVoid: fire-and-forget by intent — the caller returns the custody synchronously and nothing downstream waits on this verdict
+      void transcriptWaiting(sessionId, options.cwd)
+        .then((waiting) => {
+          if (waiting && !custody.handedOff) {
+            custody.handOff();
+          }
+        })
+        .catch(() => {
+          // Unreadable transcript: no verdict, and the boundary rule stands.
+        });
+    };
     // PROVENANCE (design §7). This frame came from exactly one sessiond line,
     // and this is the only place that knows which: the stamp goes one
     // statement before the ingest that emits it, because `ingest` emits
@@ -1819,6 +1896,9 @@ export class ClaudeHarness implements Harness {
           reopened = true;
           peekSeq = undefined;
           client.subscribe(instanceId, listener, boundary);
+          // The peek is now off for good, so no ring line will ever settle
+          // this adoption. The transcript is the only thing left that can.
+          settleWithoutPeek();
           return;
         }
         ctx.frame({
@@ -1829,6 +1909,12 @@ export class ClaudeHarness implements Harness {
       },
     };
     client.subscribe(instanceId, listener, peekSeq ?? options.afterSeq);
+    // An adoption that never had a peek to begin with — no usable `head`, or a
+    // cursor past it — is the same dead end the refused window reaches, and is
+    // settled the same way.
+    if (peekSeq === undefined) {
+      settleWithoutPeek();
+    }
     return custody;
   }
 
