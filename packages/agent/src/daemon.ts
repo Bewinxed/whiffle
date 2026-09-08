@@ -16,6 +16,7 @@ import {
   WHIFFLE_HUB_PORT,
 } from "@whiffle/core";
 import { fetchClaudeLimits } from "@whiffle/core/usage/limits";
+import { mergeObserved } from "@whiffle/core/usage/observed";
 import { Data, Duration, Effect, Fiber, Schedule } from "effect";
 import { buildInfo } from "./build";
 import { readConfig } from "./config";
@@ -567,7 +568,13 @@ const attach = (
             rebuilt ? scanner.fullRebuild() : scanner.incremental()
           );
           const buckets = scanner.reportBuckets(Date.now());
-          const limits = yield* Effect.promise(() => fetchClaudeLimits());
+          // The poll is the fallback, not the source: it alone carries plan
+          // tier, spend and the scoped windows, but the session stream has
+          // already reported the session and weekly windows straight off the
+          // response headers, for free. `mergeObserved` lays those over it.
+          const limits = mergeObserved(
+            yield* Effect.promise(() => fetchClaudeLimits())
+          );
           send(socket, {
             verb: "usage",
             machineId: identity.machineId,

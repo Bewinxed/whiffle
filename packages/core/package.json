@@ -12,6 +12,10 @@
       "types": "./src/usage/limits.ts",
       "default": "./src/usage/limits.ts"
     },
+    "./usage/observed": {
+      "types": "./src/usage/observed.ts",
+      "default": "./src/usage/observed.ts"
+    },
     "./sessiond": {
       "types": "./src/sessiond.ts",
       "default": "./src/sessiond.ts"
