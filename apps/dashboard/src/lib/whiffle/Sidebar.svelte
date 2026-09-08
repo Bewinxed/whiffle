@@ -26,6 +26,7 @@
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte component-group convention
   import * as Sidebar from "$lib/components/ui/sidebar";
   import {
+    IconBookDuo,
     IconBoxDuo,
     IconChevronRight,
     IconFolderDuo,
@@ -491,6 +492,20 @@
               <a href="/tools" {...props}>
                 <span class={SLOT}><IconTools class={SLOT_GLYPH} /></span>
                 <span>Tools</span>
+              </a>
+            {/snippet}
+          </Sidebar.MenuButton>
+        </Sidebar.MenuItem>
+
+        <Sidebar.MenuItem>
+          <Sidebar.MenuButton
+            class={NAV_ROW}
+            isActive={path.startsWith('/memory')}
+          >
+            {#snippet child({ props })}
+              <a href="/memory" {...props}>
+                <span class={SLOT}><IconBookDuo class={SLOT_GLYPH} /></span>
+                <span>Memory</span>
               </a>
             {/snippet}
           </Sidebar.MenuButton>
