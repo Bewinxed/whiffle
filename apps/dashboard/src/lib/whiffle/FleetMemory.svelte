@@ -408,10 +408,26 @@
   });
 
   const docAnchor = (path: string) => `memory-doc-${path}`;
-  const showDoc = (path: string) =>
-    document
-      .getElementById(docAnchor(path))
-      ?.scrollIntoView({ block: "center" });
+  /**
+   * Which documents are open. Empty to begin with: the page opens as a list of
+   * files you can read down in one screen, and a document renders when you ask
+   * for it. Opening one does not close another — a card being read is often a
+   * card being edited, and nothing here is allowed to throw away a draft to
+   * make room for something else.
+   */
+  let openDocs = $state<Record<string, boolean>>({});
+  function toggleDoc(path: string) {
+    if (openDocs[path]) {
+      delete openDocs[path];
+      return;
+    }
+    openDocs[path] = true;
+  }
+  async function showDoc(path: string) {
+    openDocs[path] = true;
+    await tick();
+    document.getElementById(docAnchor(path))?.scrollIntoView({ block: "center" });
+  }
 
   function startDoc() {
     draftPath = "";
@@ -540,6 +556,47 @@
   </li>
 {/snippet}
 
+{#snippet docRow(doc: FleetMemoryDocRow)}
+  {@const synced = inSync(doc.path)}
+  {@const drifted = kept(doc.path)}
+  <button
+    aria-expanded={false}
+    class="flex w-full min-w-0 items-center gap-x-3 rounded-[var(--radius-panel)] bg-card px-[var(--space-4)] py-[var(--space-3)] text-left shadow-md ring-1 ring-foreground/10 hover:bg-[var(--surface-hover)]"
+    onclick={() => toggleDoc(doc.path)}
+    type="button"
+  >
+    <IconChevronRight class="size-3.5 shrink-0 text-muted-foreground" />
+    <span class="min-w-0 flex-1 truncate font-mono text-micro text-muted-foreground"
+      >~/.claude/memories/{doc.path}</span
+    >
+    <span class="shrink-0 text-micro text-muted-foreground"
+      >{formatBytes(docBytes(doc))}</span
+    >
+    <span class="hidden shrink-0 text-micro text-muted-foreground sm:inline"
+      >saved {formatDistanceToNow(new Date(doc.updatedAt))}</span
+    >
+    <!-- A document that drifted says so on its own row, so a closed list still
+         shows the one thing that needs a decision. -->
+    {#if drifted.length > 0}
+      <span
+        class="flex shrink-0 items-center gap-1 text-micro text-warning"
+        title={names(drifted)}
+      >
+        <IconWarningTriangle class="size-3.5 shrink-0" />
+        {drifted.length} kept own
+      </span>
+    {:else if synced.length > 0}
+      <span
+        class="flex shrink-0 items-center gap-1 text-micro text-muted-foreground"
+        title={names(synced)}
+      >
+        <IconCheck class="size-3.5 shrink-0 text-success" />
+        in sync on {synced.length}
+      </span>
+    {/if}
+  </button>
+{/snippet}
+
 {#snippet docCard(doc: FleetMemoryDocRow)}
   {@const synced = inSync(doc.path)}
   {@const drifted = kept(doc.path)}
@@ -565,6 +622,14 @@
       </span>
     {/snippet}
     {#snippet actions()}
+      <Button
+        aria-expanded={true}
+        aria-label="Close {doc.path}"
+        class="text-muted-foreground"
+        onclick={() => toggleDoc(doc.path)}
+        size="icon-sm"
+        variant="ghost"><IconChevronDown /></Button
+      >
       <Tooltip.Root>
         <Tooltip.Trigger>
           {#snippet child({ props })}
@@ -806,7 +871,11 @@
        to the card that has it. -->
   {#each docs as doc (doc.path)}
     <div class="min-w-0 scroll-mt-4" id={docAnchor(doc.path)}>
-      {@render docCard(doc)}
+      {#if openDocs[doc.path]}
+        {@render docCard(doc)}
+      {:else}
+        {@render docRow(doc)}
+      {/if}
     </div>
   {/each}
   {#if drafting}
