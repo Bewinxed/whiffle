@@ -51,6 +51,7 @@
   let list = $state<HTMLDivElement>();
   let height = $state(36);
   const highlight = new Spring(0);
+  let measuredHarness = $state<HarnessKind | null>(null);
   const catalog = $derived(models.forHarness(shown));
   const use = $derived.by<ModelUse>(() => ({
     lastSpawnAt: lastSpawnAt(shown),
@@ -124,18 +125,32 @@
   });
   $effect(() => {
     const index = Math.min(active, rows.length - 1);
+    const node = list;
+    const currentHarness = shown;
+    const firstMeasure = untrack(() => measuredHarness) !== currentHarness;
+    let cancelled = false;
     const frequency = 4.6 / (spring.visualDuration * 60);
     highlight.stiffness = frequency * frequency;
     highlight.damping = Math.min(1, 2 * frequency * (1 - spring.bounce));
     tick().then(() => {
-      const row = list?.querySelector<HTMLElement>(`[data-index="${index}"]`);
+      const row = node?.querySelector<HTMLElement>(`[data-index="${index}"]`);
+      if (cancelled) {
+        return;
+      }
       if (!row) {
+        measuredHarness = null;
         return;
       }
       height = row.offsetHeight;
-      highlight.set(row.offsetTop, { instant: reducedMotion.current });
+      highlight.set(row.offsetTop, {
+        instant: firstMeasure || reducedMotion.current,
+      });
+      measuredHarness = currentHarness;
       row.scrollIntoView({ block: "nearest" });
     });
+    return () => {
+      cancelled = true;
+    };
   });
 
   function enter(node: HTMLElement, index: number) {
@@ -255,14 +270,15 @@
       style:--travel={`${-direction * 8}px`}
       class:leaving={leaving}
     >
-      {#if rows.length}
-        <div
-          class="highlight"
-          style:height={`${height}px`}
-          style:transform={`translateY(${highlight.current}px)`}
-        ></div>
-      {/if}
       {#key shown}
+        {#if rows.length}
+          <div
+            class="highlight"
+            style:height={`${height}px`}
+            style:transform={`translateY(${highlight.current}px)`}
+            class:ready={measuredHarness === shown}
+          ></div>
+        {/if}
         {#each rows as entry, index (entry.id)}
           {@const group = groups.find((group) => group.entries[0]?.id === entry.id)}
           {#if group}
@@ -354,12 +370,24 @@
     pointer-events: none;
   }
   .highlight {
+    opacity: 0;
     position: absolute;
     inset: 0 0 auto;
     border-radius: var(--radius-well);
     background: var(--surface-active);
     box-shadow: var(--shadow-inset-sel);
     pointer-events: none;
+  }
+  .highlight.ready {
+    animation: highlight-in var(--c-100) var(--e-in) both;
+  }
+  @keyframes highlight-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
   .row {
     display: flex;

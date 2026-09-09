@@ -17,6 +17,8 @@
   import { goto } from "$app/navigation";
   import ProviderLogo from "$lib/components/features/ProviderLogo.svelte";
   import { IconClose } from "$lib/icons";
+  import ClaudeIcon from "~icons/logos/claude-icon";
+  import MachineIcon from "~icons/solar/server-linear";
   import {
     createProject,
     machineFs,
@@ -205,12 +207,7 @@
   });
   const reading = $derived(
     whiffle.hub === "connected"
-      ? error ||
-          locationReading ||
-          (locationUnverified ? "Reading…" : "") ||
-          (permissionMode === "bypassPermissions"
-            ? "Every tool runs unprompted."
-            : "")
+      ? error || locationReading || (locationUnverified ? "Reading…" : "")
       : "No spawn while the hub is unreachable. Reconnect to continue."
   );
   const rowClip = $derived(
@@ -304,12 +301,52 @@
       error = "";
       popover = null;
       verifiedLocation = "";
+      if (
+        !(prefill?.machineId || prefill?.cwd || prefill?.projectId) &&
+        spawnPrefs.machineId &&
+        spawnPrefs.cwd
+      ) {
+        restoreLocation(
+          { machineId: spawnPrefs.machineId, cwd: spawnPrefs.cwd },
+          submission,
+          machineId
+        );
+      }
     });
     return () => {
       submission += 1;
       opener?.focus();
     };
   });
+  async function restoreLocation(
+    saved: { machineId: string; cwd: string },
+    request: number,
+    initialMachine: string
+  ) {
+    try {
+      await Promise.all([
+        inspectMachine(saved.machineId, saved.cwd),
+        machineFs(saved.machineId, "list", saved.cwd),
+      ]);
+      if (
+        !open ||
+        request !== submission ||
+        machineId !== initialMachine ||
+        cwd ||
+        popover
+      ) {
+        return;
+      }
+      ({ machineId, cwd } = saved);
+      verifiedLocation = JSON.stringify([machineId, cwd.trim()]);
+      projectId = whiffle.projects.find(
+        (row) => row.machineId === machineId && row.cwd === cwd
+      )?.id;
+      error = "";
+    } catch {
+      // A stale saved directory leaves the location picker available for a fresh choice.
+    }
+  }
   let focused = false;
   $effect(() => {
     if (!(open && timeline.focus.started)) {
@@ -493,6 +530,8 @@
       });
       recordModelUse(draft.harness, draft.usedModel);
       rememberSpawn({
+        machineId: draft.machineId,
+        cwd: draft.cwd,
         harness: draft.harness,
         model: draft.model,
         permissionMode: draft.permissionMode,
@@ -572,19 +611,19 @@
 
 <svelte:window onkeydown={keydown} />
 {#snippet claudeMark()}
-  <HarnessGlyph harness="claude" />
+  <span class="agent-mark claude-mark"><ClaudeIcon /></span>
 {/snippet}
 {#snippet opencodeMark()}
-  <HarnessGlyph harness="opencode" />
+  <span class="agent-mark"><HarnessGlyph harness="opencode" /></span>
 {/snippet}
 {#snippet piMark()}
-  <HarnessGlyph harness="pi" />
+  <span class="agent-mark"><HarnessGlyph harness="pi" /></span>
 {/snippet}
 {#snippet modelMark()}
   <ProviderLogo model={selected?.id ?? model} size={16} />
 {/snippet}
 {#snippet locationMark()}
-  <span class="online" class:offline={machine?.status !== "online"}></span>
+  <MachineIcon />
 {/snippet}
 {#if open}
   <div
@@ -644,6 +683,7 @@
         <LedgerRow controlId="session-location" label="Location"
           ><div class="location-value">
             <ValueButton
+              dot={machine?.status === "online"}
               expanded={popover === "location"}
               id="session-location"
               label={locationLabel}
@@ -779,6 +819,7 @@
     background: var(--scrim);
   }
   .session-card {
+    --session-content-inset: calc(var(--space-4) + 1px);
     position: fixed;
     z-index: 81;
     top: 12vh;
@@ -799,7 +840,7 @@
     height: 44px;
     display: flex;
     align-items: center;
-    padding-inline: var(--space-5);
+    padding-inline: var(--session-content-inset);
   }
   h2 {
     margin: 0;
@@ -809,6 +850,9 @@
     line-height: var(--leading-ui);
   }
   .ledger {
+    display: grid;
+    gap: var(--space-1);
+    background: var(--surface-field);
     margin-top: var(--space-3);
     border-radius: var(--radius-well);
   }
@@ -828,7 +872,7 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    padding-inline: var(--space-3);
+    padding-inline: var(--session-content-inset);
   }
   footer p {
     white-space: nowrap;
@@ -857,14 +901,20 @@
     width: 16px;
     height: 16px;
   }
-  .online {
-    width: 7px;
-    height: 7px;
-    border-radius: var(--radius-pill);
-    background: var(--status-live-bg);
+  .agent-mark {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    color: var(--ink-body);
   }
-  .offline {
-    background: var(--ink-muted);
+  .agent-mark :global(svg) {
+    width: 16px;
+    height: 16px;
+  }
+  .claude-mark :global(path) {
+    fill: currentColor;
   }
   button:focus-visible {
     outline: 2px solid var(--focus-ring);
@@ -888,9 +938,6 @@
     .session-card :global(textarea) {
       border-radius: calc(var(--radius-shell) - var(--space-2));
       font-size: 16px;
-    }
-    .ledger {
-      margin-inline: 6px;
     }
     .chips {
       flex-wrap: wrap;

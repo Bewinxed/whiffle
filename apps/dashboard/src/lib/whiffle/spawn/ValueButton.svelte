@@ -1,11 +1,13 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import Chevron from "~icons/solar/alt-arrow-down-linear";
+  import Server from "~icons/solar/server-linear";
 
   let {
     label,
     meta,
     mark,
+    dot = false,
     empty = false,
     loading = false,
     expanded,
@@ -18,6 +20,7 @@
     label: string;
     meta?: string;
     mark?: Snippet;
+    dot?: boolean;
     empty?: boolean;
     loading?: boolean;
     expanded: boolean;
@@ -41,8 +44,14 @@
   bind:this={element}
   class:empty={empty}
 >
-  {#if mark}
-    <span class="mark">{@render mark()}</span>
+  {#if dot || mark}
+    <span class="mark"
+      >{#if dot}
+        <Server /><span class="dot"></span>
+      {:else if mark}
+        {@render mark()}
+      {/if}</span
+    >
   {/if}
   <span class="label">{label}</span>
   {#if loading || meta}
@@ -82,6 +91,24 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .mark {
+    position: relative;
+    color: var(--ink-body);
+  }
+  .mark :global(svg) {
+    width: 16px;
+    height: 16px;
+  }
+  .dot {
+    position: absolute;
+    right: -1px;
+    bottom: -1px;
+    width: 6px;
+    height: 6px;
+    border-radius: var(--radius-pill);
+    background: var(--status-live-bg);
+    box-shadow: 0 0 0 1px var(--surface-field);
   }
   .meta {
     margin-left: auto;

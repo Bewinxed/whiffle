@@ -71,13 +71,17 @@
     background: var(--surface-field);
     color: var(--ink-strong);
     font: 400 var(--text-md) / var(--leading-body) var(--font-body);
+    transition: border-color var(--c-100) var(--e-toggle);
   }
   textarea::placeholder {
     color: var(--ink-muted);
   }
+  /* A text field shows focus with its caret and a darkened edge, the same
+     treatment as the popover search field; the ring is for non-text controls. */
+  textarea:focus,
   textarea:focus-visible {
-    outline: 2px solid var(--focus-ring);
-    outline-offset: 2px;
+    outline: none;
+    border-color: var(--ink-muted);
   }
   @media (max-width: 479px) {
     textarea {

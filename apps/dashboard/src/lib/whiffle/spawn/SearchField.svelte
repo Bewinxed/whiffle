@@ -49,8 +49,15 @@
     gap: var(--space-2);
     padding: var(--space-2) var(--space-3);
     background: var(--surface-overlay);
-    border-bottom: 1px solid var(--border-divider);
+    border-bottom: 1px solid var(--border-control);
     color: var(--ink-muted);
+    transition:
+      border-color var(--c-100) var(--e-toggle),
+      color var(--c-100) var(--e-toggle);
+  }
+  .search:focus-within {
+    border-color: var(--ink-muted);
+    color: var(--ink-strong);
   }
   .search :global(svg) {
     width: 16px;
@@ -71,9 +78,10 @@
   input::placeholder {
     color: var(--ink-muted);
   }
+  input,
+  input:focus,
   input:focus-visible {
-    outline: 2px solid var(--focus-ring);
-    outline-offset: 2px;
+    outline: none;
   }
   @media (pointer: coarse) {
     input {

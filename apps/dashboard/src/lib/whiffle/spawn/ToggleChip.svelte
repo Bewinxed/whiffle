@@ -33,6 +33,7 @@
     viewBox="0 0 14 14"
     width="14"
   >
+    <circle cx="7" cy="7" r="6.5" />
     <path d="m3 7 2.5 2.5L11 4" pathLength="1" />
   </svg>
   {label}
@@ -49,13 +50,15 @@
     gap: 6px;
     height: 28px;
     padding: 0 var(--space-3);
-    border: 1px solid var(--border-hairline);
+    border: 1px solid var(--border-control);
     border-radius: var(--radius-pill);
     background: var(--surface-field);
     color: var(--ink-body);
     font: 400 var(--text-sm) / var(--leading-ui) var(--font-body);
     cursor: pointer;
-    transition: background var(--c-100) var(--e-toggle);
+    transition:
+      background var(--c-100) var(--e-toggle),
+      border-color var(--c-100) var(--e-toggle);
   }
   button[aria-checked="true"] {
     background: var(--surface-active);
@@ -64,8 +67,20 @@
   svg {
     flex-shrink: 0;
   }
+  circle {
+    fill: transparent;
+    stroke: var(--ink-muted);
+    stroke-width: 1;
+    transition:
+      fill var(--c-100) var(--e-toggle),
+      stroke var(--c-100) var(--e-toggle);
+  }
+  [aria-checked="true"] circle {
+    fill: var(--ink-strong);
+    stroke: var(--ink-strong);
+  }
   path {
-    stroke: currentColor;
+    stroke: var(--on-brand);
     stroke-width: 1.5;
     stroke-linecap: round;
     stroke-linejoin: round;
@@ -98,6 +113,12 @@
   }
   @media (hover: hover) {
     button:hover:not(:disabled) {
+      border-color: var(--ink-muted);
+    }
+    button:hover:not(:disabled):not([aria-checked="true"]) circle {
+      stroke: var(--ink-strong);
+    }
+    button:hover:not(:disabled):not([aria-checked="true"]) {
       background: var(--surface-hover);
     }
   }

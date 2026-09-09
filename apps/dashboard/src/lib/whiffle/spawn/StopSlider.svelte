@@ -1,6 +1,11 @@
 <script lang="ts">
   import { prefersReducedMotion, Spring } from "svelte/motion";
   import { fade } from "svelte/transition";
+  import Bolt from "~icons/solar/bolt-linear";
+  import Fire from "~icons/solar/fire-linear";
+  import Flame from "~icons/solar/flame-linear";
+  import Leaf from "~icons/solar/leaf-linear";
+  import Rocket from "~icons/solar/rocket-2-linear";
   import { type SpringSpec, springFromVisual } from "./motion";
 
   let {
@@ -33,11 +38,9 @@
     springFromVisual({ visualDuration: 0.18, bounce: 0 })
   );
   const isSet = $derived(value !== null);
+  const icons = [Leaf, Bolt, Fire, Flame, Rocket];
   $effect(() => {
-    if (isSet) {
-      appearance.set(0, { instant: true });
-      appearance.set(1, { instant: prefersReducedMotion.current });
-    }
+    appearance.set(isSet ? 1 : 0, { instant: prefersReducedMotion.current });
   });
   const index = $derived(stops.findIndex((stop) => stop.value === value));
   const reachable = $derived(
@@ -162,27 +165,35 @@
     bind:this={slider}
   >
     <div class="rail">
-      <span class="fill" style:width={value === null ? "0%" : `${x}%`}></span>
+      <span
+        class="fill"
+        style:opacity={appearance.current}
+        style:width={`${x}%`}
+      ></span>
       {#each stops as stop, i (stop.value)}
+        {@const Icon = icons[i]}
         <span
           class="tick"
           style:left={`${i / (stops.length - 1) * 100}%`}
           class:first={i === 0}
           class:last={i === stops.length - 1}
           class:reachable={stop.reachable}
-          ><span class="caption">{stop.label}</span></span
+          ><span class="caption" class:active={value === stop.value}
+            ><Icon />{stop.label}</span
+          ></span
         >
       {/each}
-      <span class="thumb" style:left={`${x}%`} class:visible={value !== null}
-        ><span
-          class="knob"
-          style:transform={`scale(${appearance.current})`}
-        ></span></span
+      <span
+        class="thumb"
+        style:left={`${x}%`}
+        style:transform={`translate(-50%, -50%) scale(${appearance.current})`}
+        class:dragging
+        ><span class="knob"></span></span
       >
     </div>
   </div>
   <div class="reading">
-    <span class="readout"
+    <span class="readout" title={readout}
       >{#key readout}
         <span
           transition:fade={{ duration: prefersReducedMotion.current ? 1 : fadeMs }}
@@ -233,23 +244,41 @@
   .tick {
     position: absolute;
     top: 1px;
-    width: 6px;
-    height: 6px;
-    border: 1px solid var(--ink-body);
+    width: 4px;
+    height: 4px;
+    border: 1px solid var(--border-control);
     border-radius: var(--radius-pill);
     background: var(--surface-raised);
     transform: translate(-50%, -50%);
   }
   .tick.reachable {
     background: var(--ink-body);
+    border-color: var(--ink-body);
   }
   .caption {
     position: absolute;
-    top: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    white-space: nowrap;
+    top: 9px;
     left: 50%;
     transform: translateX(-50%);
     color: var(--ink-muted);
     font: 400 var(--text-xs) / var(--leading-ui) var(--font-body);
+    transition: color var(--c-100) var(--e-toggle);
+  }
+  .caption :global(svg) {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+  }
+  .tick.reachable .caption {
+    color: var(--ink-body);
+  }
+  .caption.active {
+    color: var(--ink-strong);
   }
   .tick.first .caption {
     transform: none;
@@ -263,12 +292,6 @@
     top: 1px;
     width: 14px;
     height: 14px;
-    transform: translate(-50%, -50%) scale(0);
-    transition: transform var(--c-100) var(--e-out);
-  }
-  .thumb.visible {
-    transform: translate(-50%, -50%) scale(1);
-    transition: none;
   }
   .knob {
     display: block;
@@ -277,10 +300,16 @@
     border: 2px solid var(--brand-solid);
     border-radius: var(--radius-pill);
     background: var(--surface-raised);
+    box-shadow: var(--shadow-tile);
+    transition: scale var(--c-100) var(--e-toggle);
+  }
+  .thumb.dragging .knob {
+    scale: 1.08;
   }
   .reading {
     display: flex;
     align-items: center;
+    flex-shrink: 0;
     min-width: 0;
     gap: var(--space-2);
     color: var(--ink-muted);
@@ -290,15 +319,24 @@
   .readout {
     display: grid;
     align-items: center;
+    width: 12ch;
+    height: 1lh;
+    text-align: right;
+    overflow: hidden;
   }
   .readout > span {
     grid-area: 1 / 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
   button {
     display: flex;
     align-items: center;
     justify-content: center;
     height: 28px;
+    width: 5ch;
     flex-shrink: 0;
     padding: 0 var(--space-1);
     border: 0;
@@ -324,6 +362,9 @@
     cursor: default;
   }
   @media (hover: hover) {
+    .thumb:hover .knob {
+      scale: 1.08;
+    }
     button:hover {
       background: var(--surface-hover);
     }
@@ -333,6 +374,19 @@
     button {
       min-height: 44px;
       min-width: 44px;
+    }
+  }
+  @media (max-width: 479px) {
+    /* Five captions need the full row; the reading takes its own line. */
+    .effort {
+      flex-wrap: wrap;
+      row-gap: 0;
+    }
+    .slider {
+      flex-basis: 100%;
+    }
+    .reading {
+      margin-left: auto;
     }
   }
 </style>

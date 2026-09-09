@@ -82,6 +82,10 @@
     present = true;
     closing = false;
     untrack(measure);
+    if (prefersReducedMotion.current) {
+      // The panel must paint at its end state on its first frame, not one tick later.
+      progress.set(1, { instant: true });
+    }
     tick().then(() => {
       if (cancelled) {
         return;

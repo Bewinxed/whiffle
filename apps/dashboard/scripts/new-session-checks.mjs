@@ -79,6 +79,13 @@ const projects = machines.map((machine) => ({
   cwd: "/home/check/project",
   name: `${machine.hostname} project`,
 }));
+// Concurrent component edits must not hot-reload a browser in the middle of an assertion.
+await page.routeWebSocket(
+  (url) => url.pathname !== "/ws/dashboard",
+  () => {
+    /* The authoring socket is intentionally isolated during measurement. */
+  }
+);
 await page.addInitScript(
   ({ catalog }) => {
     const kind = new URL(location.href).searchParams.get("fixture");
@@ -92,7 +99,13 @@ await page.addInitScript(
       "whiffle-models:by-harness",
       JSON.stringify(
         ["claude", "opencode", "pi"].flatMap((harness) =>
-          rows.map((row) => ({ ...row, harness }))
+          rows.map((row) => ({
+            ...row,
+            harness,
+            supportsEffort: harness === "pi" ? false : row.supportsEffort,
+            supportedEffortLevels:
+              harness === "pi" ? [] : row.supportedEffortLevels,
+          }))
         )
       )
     );
@@ -105,8 +118,15 @@ await page.addInitScript(
         permissionMode: "default",
         model: "",
         effort: null,
+        machineId: kind?.startsWith("remembered") ? "check-online" : undefined,
+        cwd: kind === "remembered-missing" ? "/definitely/missing" : undefined,
       })
     );
+    if (kind === "remembered") {
+      const prefs = JSON.parse(localStorage.getItem("whiffle-spawn-prefs"));
+      prefs.cwd = "/home/check/remembered";
+      localStorage.setItem("whiffle-spawn-prefs", JSON.stringify(prefs));
+    }
   },
   { catalog: namingRows }
 );
@@ -204,6 +224,12 @@ const model = page.locator("#session-model");
 const location = page.locator("#session-location");
 let failures = 0;
 async function check(number, label, run) {
+  if (
+    process.env.NEW_SESSION_CHECK &&
+    String(number) !== process.env.NEW_SESSION_CHECK
+  ) {
+    return;
+  }
   try {
     console.log(`PASS ${number} ${label}: ${JSON.stringify(await run())}`);
   } catch (error) {
@@ -240,7 +266,7 @@ async function open(query = "") {
   await page.locator("main button", { hasText: "New session" }).click();
   await dialog.waitFor();
   if (reduced) {
-    const instant = await page.evaluate(() => {
+    const instant = await page.evaluate(async () => {
       const card = document.querySelector(".session-card");
       const css = getComputedStyle(card);
       const track = document.querySelector("#session-agent");
@@ -248,26 +274,55 @@ async function open(query = "") {
       const selected = track
         .querySelector('[aria-checked="true"]')
         .getBoundingClientRect();
-      return {
+      const initial = {
         opacity: Number(css.opacity),
         transform: css.transform,
         inert: card.inert,
+        maxInitialDurationMs: Math.max(
+          0,
+          ...document
+            .getAnimations()
+            .map((animation) => Number(animation.effect.getTiming().duration))
+        ),
+        thumbDelta: Math.abs(thumb.x - selected.x),
+        rowOpacities: [...card.querySelectorAll(".ledger > div")].map((row) =>
+          Number(getComputedStyle(row).opacity)
+        ),
+      };
+      // Inspect endpoints before a paint, then allow the specified 1ms CSS/WAAPI budget to finish.
+      for (let paint = 0; paint < 4; paint += 1) {
+        const animations = document
+          .getAnimations()
+          .filter(
+            (animation) =>
+              animation.playState === "running" || animation.pending
+          );
+        initial.maxInitialDurationMs = Math.max(
+          initial.maxInitialDurationMs,
+          ...animations.map((animation) =>
+            Number(animation.effect.getTiming().duration)
+          )
+        );
+        if (paint > 0 && animations.length === 0) {
+          break;
+        }
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+      }
+      return {
+        ...initial,
         activeAnimations: document
           .getAnimations()
           .filter(
             (animation) =>
               animation.playState === "running" || animation.pending
           ).length,
-        thumbDelta: Math.abs(thumb.x - selected.x),
-        rowOpacities: [...card.querySelectorAll(".ledger > div")].map((row) =>
-          Number(getComputedStyle(row).opacity)
-        ),
       };
     });
     instantSamples.push(instant);
     assert.equal(instant.opacity, 1, JSON.stringify(instant));
     assert.equal(instant.transform, "none", JSON.stringify(instant));
     assert.equal(instant.inert, false, JSON.stringify(instant));
+    assert.ok(instant.maxInitialDurationMs <= 1, JSON.stringify(instant));
     assert.equal(instant.activeAnimations, 0, JSON.stringify(instant));
     assert.ok(
       instant.thumbDelta <= 1 &&
@@ -293,7 +348,7 @@ async function toggle(locator) {
   );
   const before = await locator.getAttribute("aria-checked");
   await locator.click();
-  await page.waitForTimeout(650);
+  await page.waitForTimeout(reduced ? 0 : 650);
   assert.notEqual(
     await locator.getAttribute("aria-checked"),
     before,
@@ -310,6 +365,9 @@ async function stillness() {
     await page.setViewportSize({ width, height });
     await open();
     const before = await rect();
+    const effortBefore = await page
+      .locator('[data-ledger-row="Effort"]')
+      .boundingBox();
     const measure = async (action) => {
       const after = await rect();
       actions += 1;
@@ -321,7 +379,7 @@ async function stillness() {
     };
     for (const trigger of [model, location]) {
       await trigger.click();
-      await page.waitForTimeout(650);
+      await page.waitForTimeout(reduced ? 0 : 650);
       await measure(await trigger.getAttribute("id"));
       if (trigger === location) {
         await page
@@ -344,16 +402,22 @@ async function stillness() {
     for (const name of ["OpenCode", "pi", "Claude"]) {
       await toggle(page.getByRole("radio", { name, exact: true }));
       await measure(name);
+      assert.deepEqual(
+        await page.locator('[data-ledger-row="Effort"]').boundingBox(),
+        effortBefore,
+        `${name} changed Effort row rect`
+      );
     }
     await model.click();
     await page
       .getByPlaceholder("Search, or type a model id")
       .fill("foo/no-effort-scale-9");
     await page.keyboard.press("Enter");
-    await page.waitForTimeout(650);
+    await page.waitForTimeout(reduced ? 0 : 650);
     await measure("model without effort");
     await toggle(page.getByRole("radio", { name: "Bypass all", exact: true }));
     await measure("Bypass all");
+    assert.equal((await dialog.locator("footer p").innerText()).trim(), "");
     for (const name of [
       "Side quest",
       "Worktree",
@@ -386,7 +450,7 @@ async function stillness() {
       .locator('.position [role="option"]')
       .filter({ hasText: "offline-host project" })
       .click();
-    await page.waitForTimeout(650);
+    await page.waitForTimeout(reduced ? 0 : 650);
     assert.ok(
       (await dialog.locator("footer").innerText()).includes(
         "offline-host is offline"
@@ -399,7 +463,7 @@ async function stillness() {
     );
     actions += 1;
   }
-  return { actions, maxRectDelta: 0 };
+  return { actions, maxRectDelta: 0, effortRowDelta: 0, bypassReading: "" };
 }
 
 async function containment() {
@@ -419,7 +483,7 @@ async function containment() {
       }, scroll);
       for (const trigger of [model, location]) {
         await trigger.click();
-        await page.waitForTimeout(650);
+        await page.waitForTimeout(reduced ? 0 : 650);
         const box = await page.locator(".position > .panel").boundingBox();
         assert.ok(box, "Popover has no rendered bounds");
         const margins = [
@@ -496,7 +560,7 @@ async function centering() {
   await slider.focus();
   await page.keyboard.press("Home");
   for (let index = 0; index < 5; index += 1) {
-    await page.waitForTimeout(650);
+    await page.waitForTimeout(reduced ? 0 : 650);
     positions.push(
       await slider.evaluate((element) => {
         const thumb = element.querySelector(".thumb")?.getBoundingClientRect();
@@ -536,7 +600,107 @@ await check(1, "Stillness", stillness);
 await check(2, "Containment", containment);
 await check(3, "Centering", centering);
 
+await check("3.layout", "Content Edge And Ledger Rhythm", async () => {
+  const measurements = [];
+  for (const width of [1440, 1024, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await open();
+    const result = await dialog.evaluate((card) => {
+      const title = card.querySelector("h2").getBoundingClientRect();
+      const well = card.querySelector("textarea");
+      const style = getComputedStyle(well);
+      const textLeft =
+        well.getBoundingClientRect().left +
+        Number.parseFloat(style.paddingLeft) +
+        Number.parseFloat(style.borderLeftWidth);
+      const rows = [...card.querySelectorAll(".ledger-row")].map((row) => {
+        const bounds = row.getBoundingClientRect();
+        const control = row.querySelector(".control").getBoundingClientRect();
+        return {
+          label: row.dataset.ledgerRow,
+          top: bounds.top,
+          bottom: bounds.bottom,
+          height: bounds.height,
+          labelLeft: row.querySelector("label").getBoundingClientRect().left,
+          centerDelta: Math.abs(
+            control.top - bounds.top - (bounds.bottom - control.bottom)
+          ),
+          divider: getComputedStyle(row).borderBottomWidth,
+        };
+      });
+      const marks = [...card.querySelectorAll(".agent-mark svg")].map((svg) => {
+        const bounds = svg.getBoundingClientRect();
+        let opacity = 1;
+        for (let node = svg; node && node !== card; node = node.parentElement) {
+          opacity *= Number(getComputedStyle(node).opacity);
+        }
+        return {
+          width: bounds.width,
+          height: bounds.height,
+          color: getComputedStyle(svg).color,
+          opacity,
+        };
+      });
+      return {
+        titleLeft: title.left,
+        textLeft,
+        rows,
+        gaps: rows.slice(1).map((row, index) => row.top - rows[index].bottom),
+        marks,
+        locationDot: Boolean(card.querySelector("#session-location .dot")),
+        locationIcon: Boolean(
+          card.querySelector("#session-location .mark svg")
+        ),
+      };
+    });
+    assert.ok(
+      Math.abs(result.titleLeft - result.textLeft) <= 1,
+      JSON.stringify(result)
+    );
+    assert.ok(
+      result.rows.every(
+        (row) =>
+          Math.abs(row.labelLeft - result.textLeft) <= 1 &&
+          row.divider === "0px"
+      ),
+      JSON.stringify(result)
+    );
+    assert.ok(
+      result.gaps.every((gap) => Math.abs(gap - 4) <= 0.01),
+      JSON.stringify(result)
+    );
+    if (width > 480) {
+      assert.ok(
+        result.rows.every((row) => row.height === 40 && row.centerDelta <= 1),
+        JSON.stringify(result)
+      );
+    }
+    assert.equal(result.marks.length, 3);
+    assert.ok(
+      result.marks.every(
+        (mark) => mark.width === 16 && mark.height === 16 && mark.opacity === 1
+      ),
+      JSON.stringify(result.marks)
+    );
+    assert.ok(result.locationDot && result.locationIcon);
+    measurements.push({
+      width,
+      contentEdgeDelta: Math.abs(result.titleLeft - result.textLeft),
+      labelEdgeDeltas: result.rows.map((row) =>
+        Math.abs(row.labelLeft - result.textLeft)
+      ),
+      heights: result.rows.map((row) => row.height),
+      centerDeltas: result.rows.map((row) => row.centerDelta),
+      gaps: result.gaps,
+      marks: result.marks,
+      locationDot: true,
+    });
+  }
+  return measurements;
+});
+
 await check(4, "Radii", async () => {
+  await page.setViewportSize({ width: 1440, height: 900 });
   await open();
   await model.click();
   await page.waitForTimeout(650);
@@ -726,6 +890,11 @@ await check(7, "Submitted Frames", async () => {
     await page.keyboard.press("Control+Enter");
     await until(() => spawns().length === before + 1);
     const frame = spawns().at(-1);
+    const prefs = await page.evaluate(() =>
+      JSON.parse(localStorage.getItem("whiffle-spawn-prefs"))
+    );
+    assert.equal(prefs.machineId, frame.machineId);
+    assert.equal(prefs.cwd, frame.payload.cwd);
     if (expected) {
       assert.equal(frame.payload.model, expected);
     } else {
@@ -739,7 +908,18 @@ await check(7, "Submitted Frames", async () => {
       shortcut: "Control+Enter",
       intercepted: true,
     });
-    await page.keyboard.press("Escape");
+    await page
+      .waitForURL((url) => url.pathname === `/session/${frame.instanceId}`)
+      .catch(async () => {
+        throw new Error(
+          JSON.stringify({
+            expected: frame.instanceId,
+            url: page.url(),
+            dialog: await dialog.count(),
+            footer: await dialog.locator("footer").allTextContents(),
+          })
+        );
+      });
   }
   return measured;
 });
@@ -972,6 +1152,57 @@ await check("9c", "Harness Availability", async () => {
   };
 });
 
+await check("9.defaults", "Verified Saved Location", async () => {
+  const readStart = reads.length;
+  try {
+    fixture = "remembered";
+    await open();
+    await until(async () =>
+      (await location.innerText()).includes("~/remembered")
+    );
+    const savedReads = reads
+      .slice(readStart)
+      .filter((entry) => entry.path === "/home/check/remembered");
+    assert.ok(
+      savedReads.some((entry) => entry.kind === "inspect") &&
+        savedReads.some((entry) => entry.kind === "fs")
+    );
+    assert.equal(
+      await dialog
+        .getByRole("button", { name: "Start session", exact: true })
+        .isEnabled(),
+      true
+    );
+    const retained = await page.evaluate(async () => {
+      const { rememberSpawn, spawnPrefs } = await import(
+        "/src/lib/whiffle/spawnPrefs.svelte.ts"
+      );
+      rememberSpawn({
+        harness: "pi",
+        model: "",
+        permissionMode: "default",
+        effort: null,
+      });
+      return { machineId: spawnPrefs.machineId, cwd: spawnPrefs.cwd };
+    });
+    assert.deepEqual(retained, {
+      machineId: "check-online",
+      cwd: "/home/check/remembered",
+    });
+    fixture = "remembered-missing";
+    await open();
+    assert.ok(!(await location.innerText()).includes("/definitely/missing"));
+    return {
+      restored: retained,
+      verification: savedReads,
+      legacyCallPreservesLocation: true,
+      invalidSavedLocationAdopted: false,
+    };
+  } finally {
+    fixture = "normal";
+  }
+});
+
 await check(10, "Reduced Motion", async () => {
   reduced = true;
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -1012,9 +1243,11 @@ await check("10.1", "Reduced Stillness", stillness);
 await check("10.2", "Reduced Containment", containment);
 await check("10.3", "Reduced Centering", centering);
 await check("10.8", "Reduced Keyboard", keyboard);
-console.log(
-  `Reduced immediate samples: ${instantSamples.length}; active WAAPI animations=0; all sampled springs at end state`
-);
+if (instantSamples.length) {
+  console.log(
+    `Reduced immediate measurements: ${JSON.stringify({ samples: instantSamples.length, maxInitialDurationMs: Math.max(...instantSamples.map((sample) => sample.maxInitialDurationMs)), maxActiveAfterPaint: Math.max(...instantSamples.map((sample) => sample.activeAnimations)), maxThumbDelta: Math.max(...instantSamples.map((sample) => sample.thumbDelta)), minRowOpacity: Math.min(...instantSamples.flatMap((sample) => sample.rowOpacities)) })}`
+  );
+}
 
 await check("10.tokens", "Token Gates", () => {
   const outcomes = [

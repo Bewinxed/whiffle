@@ -8,7 +8,7 @@ The operator is writing a brief; the settings are usually last time's. So: one r
 
 | Setting | Tier | Why |
 |---|---|---|
-| Prompt | the well | It is the task. Empty prompt starts an idle session — one button; a "Start empty" twin duplicates Enter on an empty field. |
+| Prompt | the well | It is the task. Empty prompt starts an idle session using the same Start button or submit shortcut. |
 | Agent | 3-segment | Root setting: re-derives models and modes; three marks cost one line. |
 | Model | value button; list disclosed | 20+ rows are long; "Opus 5 · 1M" is not. |
 | Location | value button; picker disclosed | 10 machines × 100 dirs are long; "nixbox · ~/cockpit" is not. |
@@ -18,13 +18,13 @@ The operator is writing a brief; the settings are usually last time's. So: one r
 
 ## 2. Layout
 
-Card: `--surface-raised`, radius `--radius-panel` 14, `--shadow-overlay`, over `--scrim`. Width `clamp(640px, 72vw, 760px)`, **anchored `top: 12vh`, never vertically centred**, so growth (prompt 5→10 lines) extends downward only. Padding `--space-2` 7 → every interior surface is radius `--radius-well` 7 (14 − 7). Header 44px, padding-inline `--space-5`: "New session" `--text-lg` 500 `--ink-strong`; close trailing.
+Card: `--surface-raised`, radius `--radius-panel` 14, `--shadow-overlay`, over `--scrim`. Width `clamp(640px, 72vw, 760px)`, **anchored `top: 12vh`, never vertically centred**, so growth (prompt 5→10 lines) extends downward only. Padding `--space-2` 7 → every interior surface is radius `--radius-well` 7 (14 − 7). Header 44px: "New session" `--text-lg` 500 `--ink-strong`; close trailing. Title, prompt text and ledger labels share one content edge: `--space-4` plus the prompt's 1px hairline inset.
 
 Prompt well: `--surface-field`, 1px `--border-hairline`, radius 7, padding `--space-4`, `--text-md` 400 `--leading-body`; placeholder `--ink-muted` "What should this session do?"; 5–10 lines.
 
-Ledger: one group, radius 7, `--border-divider` between rows, pitch 40px, grid `96px 1fr`, margin-top `--space-3`; labels `--text-sm` 450 `--ink-label`, values `--text-base` `--ink-row`.
+Ledger: one quiet `--surface-field` group, radius 7, no row dividers, even `--space-1` (4px) gaps between 40px rows, grid `96px 1fr`, margin-top `--space-3`; labels `--text-sm` 450 `--ink-label`, values `--text-base` `--ink-row`. Controls are vertically centred in each row.
 
-Footer 52px: a reading slot (`--text-sm` `--ink-muted`, one line always reserved) and `Start session` trailing — 36px, `--gradient-action` + `--shadow-action`, `--on-brand`, radius `--radius-control` 8.
+Footer 52px: a reading slot (`--text-sm` `--ink-muted`, one line always reserved) shows actual problems only (unverified or unreadable location, offline machine, unreachable hub, submit failure). No always-on permission explanation. `Start session` trailing — 36px, `--gradient-action` + `--shadow-action`, `--on-brand`, radius `--radius-control` 8.
 
 **Below 480px**: bottom sheet, `--radius-shell` 20 top corners, `--shadow-drawer`, 7px padding (interior 13, ledger 7 inside a 6px frame). Labels stack above values (pitch 56); Permissions fixed 2×2; Start full-width above the safe area; prompt 16px; pickers are full-height panels sliding over the sheet.
 
@@ -32,7 +32,7 @@ Footer 52px: a reading slot (`--text-sm` `--ink-muted`, one line always reserved
 
 Shared states: hover `--surface-hover` (off under `hover: none`); active `--surface-active` + `--shadow-inset-sel`; focus-visible 2px `--focus-ring`, 2px offset; disabled `--ink-muted` at 0.55, `reason` via `aria-describedby`; targets ≥44px under `pointer: coarse`.
 
-**Segmented** (Agent, Permissions). Track `--surface-field`, radius 7, 1px `--border-control`, 2px inset; one travelling thumb `--surface-raised` + `--shadow-tile`, radius 5. Content: 14px `HarnessGlyph` in `currentColor` + 6px + label, padding-inline 12/11 (mark side −1, optical). Selected `--ink-strong` 450; rest `--ink-body`. `Bypass all` selected takes `--status-attn-bg`/`--status-attn-ink`; the footer reads "Every tool runs unprompted." Modes the harness cannot honour are disabled, not removed. `radiogroup`/`radio`, roving tabindex, ←→ live, Home/End.
+**Segmented** (Agent, Permissions). Track `--surface-field`, radius 7, 1px `--border-control`, 2px inset; one travelling thumb `--surface-raised` + `--shadow-tile`, radius 5. Agent marks are 16px at `--ink-body`: Claude uses the anthropic mark from ProviderLogo, monochrome via currentColor; OpenCode and pi use HarnessGlyph. Content gap 6px; padding-inline 12/11 (mark side −1, optical). Selected `--ink-strong` 450; rest `--ink-body`. `Bypass all` selected takes `--status-attn-bg`/`--status-attn-ink` without an explanatory footer. Modes the harness cannot honour are disabled, not removed. `radiogroup`/`radio`, roving tabindex, ←→ live, Home/End.
 
 **Value button** (Model, Location). Full-width 32px, `--surface-field`, radius 7, hairline; 16px mark (`ProviderLogo`; online dot `--status-live-bg` for location), label, muted meta, chevron. Empty: "Choose a model" / "Choose a machine and directory" in `--ink-muted`. Loading: meta "Reading…". `aria-haspopup=listbox aria-expanded`.
 

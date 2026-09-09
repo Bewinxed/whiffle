@@ -21,8 +21,7 @@
     grid-template-columns: 96px minmax(0, 1fr);
     min-height: 40px;
     align-items: center;
-    padding-inline: var(--space-3);
-    border-bottom: 1px solid var(--border-divider);
+    padding-inline: var(--session-content-inset, var(--space-4));
   }
   label {
     font-size: var(--text-sm);

@@ -39,6 +39,7 @@
   const uid = $props.id();
   const trailingSlashes = /\/+$/;
   const leadingSlash = /^\//;
+  const scratchPath = /^\/tmp(?:\/|$)|(?:^|\/)\.claude\/jobs(?:\/|$)/;
   interface LocationRow {
     cwd: string;
     group: string;
@@ -64,6 +65,9 @@
   let rowHeight = $state(36);
   const railY = new Spring(0);
   const rowY = new Spring(0);
+  let railReady = $state(false);
+  let measuredDirectory = $state("");
+  const directoryKey = $derived(JSON.stringify([selectedMachine, mode]));
   const machine = $derived(
     whiffle.machines.find((row) => row.machineId === selectedMachine)
   );
@@ -84,6 +88,13 @@
   const recent = $derived(
     whiffle.machines.flatMap((hostRow) => {
       const projects = whiffle.projectsOn(hostRow.machineId);
+      const scratchDirs = whiffle.instances
+        .filter(
+          (session) =>
+            session.machineId === hostRow.machineId &&
+            session.kind === "scratch"
+        )
+        .map((session) => session.cwd.replace(trailingSlashes, ""));
       const paths = [
         ...new Set(
           [...whiffle.catalogOf(hostRow.machineId)]
@@ -92,7 +103,16 @@
         ),
       ];
       return paths
-        .filter((path) => !projects.some((project) => project.cwd === path))
+        .filter(
+          (path) =>
+            !(
+              scratchPath.test(path) ||
+              scratchDirs.some(
+                (dir) => path === dir || path.startsWith(`${dir}/`)
+              ) ||
+              projects.some((project) => project.cwd === path)
+            )
+        )
         .map((path) => ({
           machineId: hostRow.machineId,
           name: path.split("/").filter(Boolean).at(-1) || path,
@@ -318,6 +338,12 @@
   });
   $effect(() => {
     const index = Math.min(active, rows.length - 1);
+    const railNode = rail;
+    const listNode = list;
+    const key = directoryKey;
+    const firstRailMeasure = !untrack(() => railReady);
+    const firstDirectoryMeasure = untrack(() => measuredDirectory) !== key;
+    let cancelled = false;
     const machineIndex = whiffle.machines.findIndex(
       (row) => row.machineId === selectedMachine
     );
@@ -328,21 +354,39 @@
     railY.damping = Math.min(1, 2 * frequency * (1 - spring.bounce));
     rowY.damping = Math.min(1, 2 * frequency * (1 - spring.bounce));
     tick().then(() => {
-      const railRow = rail?.querySelector<HTMLElement>(
+      if (cancelled) {
+        return;
+      }
+      const railRow = railNode?.querySelector<HTMLElement>(
         `[data-machine-index="${machineIndex}"]`
       );
-      const row = list?.querySelector<HTMLElement>(`[data-index="${index}"]`);
+      const row = listNode?.querySelector<HTMLElement>(
+        `[data-index="${index}"]`
+      );
       if (railRow) {
         railHeight = railRow.offsetHeight;
-        railY.set(railRow.offsetTop, { instant: reducedMotion.current });
+        railY.set(railRow.offsetTop, {
+          instant: firstRailMeasure || reducedMotion.current,
+        });
+        railReady = true;
         railRow.scrollIntoView({ block: "nearest" });
+      } else {
+        railReady = false;
       }
       if (row) {
         rowHeight = row.offsetHeight;
-        rowY.set(row.offsetTop, { instant: reducedMotion.current });
+        rowY.set(row.offsetTop, {
+          instant: firstDirectoryMeasure || reducedMotion.current,
+        });
+        measuredDirectory = key;
         row.scrollIntoView({ block: "nearest" });
+      } else {
+        measuredDirectory = "";
       }
     });
+    return () => {
+      cancelled = true;
+    };
   });
 
   function chooseMachine(id: string) {
@@ -460,6 +504,7 @@
               class="highlight"
               style:height={`${railHeight}px`}
               style:transform={`translateY(${railY.current}px)`}
+              class:ready={railReady}
             ></div>
           {/if}
           {#each whiffle.machines as row, index (row.machineId)}
@@ -506,13 +551,16 @@
             tabindex="0"
             bind:this={list}
           >
-            {#if rows.length}
-              <div
-                class="highlight"
-                style:height={`${rowHeight}px`}
-                style:transform={`translateY(${rowY.current}px)`}
-              ></div>
-            {/if}
+            {#key directoryKey}
+              {#if rows.length}
+                <div
+                  class="highlight"
+                  style:height={`${rowHeight}px`}
+                  style:transform={`translateY(${rowY.current}px)`}
+                  class:ready={measuredDirectory === directoryKey}
+                ></div>
+              {/if}
+            {/key}
             {#each rows as row, index (optionId(row))}
               {#if index === 0 || rows[index - 1].group !== row.group}
                 <div class="caption" role="presentation">{row.group}</div>
@@ -611,12 +659,24 @@
     padding: var(--space-1);
   }
   .highlight {
+    opacity: 0;
     position: absolute;
     inset: 0 0 auto;
     pointer-events: none;
     background: var(--surface-active);
     box-shadow: var(--shadow-inset-sel);
     border-radius: var(--radius-well);
+  }
+  .highlight.ready {
+    animation: highlight-in var(--c-100) var(--e-in) both;
+  }
+  @keyframes highlight-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
   .row {
     display: flex;
@@ -759,8 +819,25 @@
     .rail-scroll {
       flex-basis: min(168px, 40%);
     }
-    .meta {
-      max-width: 40%;
+    /* The narrow pane cannot hold name and path side by side; the path
+       drops under the name in full rather than truncating to "host · …". */
+    .directories .row {
+      flex-wrap: wrap;
+      height: auto;
+      min-height: 44px;
+      padding-block: var(--space-1);
+      row-gap: 0;
+    }
+    .directories .name {
+      flex: 1;
+      min-width: 0;
+    }
+    .directories .meta {
+      flex-basis: 100%;
+      margin-left: calc(16px + var(--space-2));
+      font-size: var(--text-xs);
+      white-space: normal;
+      overflow-wrap: anywhere;
     }
   }
   @media (prefers-reduced-motion: reduce) {

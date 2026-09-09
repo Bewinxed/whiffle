@@ -121,6 +121,13 @@
 {/if}
 
 <style>
+  @media (prefers-reduced-motion: reduce) {
+    /* The global 1ms rule restarts inherited-color transitions down the SVG tree. */
+    :global(body:has(.session-card) *:not([data-motion-loop])) {
+      transition-duration: 0ms !important;
+      animation-duration: 0ms !important;
+    }
+  }
   main {
     padding: var(--space-8);
     color: var(--ink-body);
