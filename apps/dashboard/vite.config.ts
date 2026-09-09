@@ -48,32 +48,44 @@ const markedLookbehindProbe = (): Plugin => {
   const FOLDABLE = 'try{return!!new RegExp("(?<=1)(?<!1)")}catch{return!1}';
   const SURVIVES =
     'try{return new RegExp("(?<=1)(?<!1)").source.length>0}catch{return!1}';
-  let seen = false;
-  let rewrote = false;
+  /** Modules that reached the bundler with a probe that cannot be folded. */
+  let safe = 0;
+  /** Modules matching marked's entry, whatever shape they turned out to be. */
+  let seen = 0;
   return {
     name: "whiffle:marked-lookbehind-probe",
     apply: "build",
     buildStart() {
-      seen = false;
-      rewrote = false;
+      safe = 0;
+      seen = 0;
     },
     transform(code, id) {
       if (!MARKED_ESM.test(id)) {
         return null;
       }
-      seen = true;
+      seen += 1;
+      // What is checked is the shape the bundler ends up with, not whether
+      // this plugin was the one that put it there. A tree whose marked is
+      // already in the durable form — the leftover of an older fix, or a
+      // marked that grew one of its own — is fine, and asserting "I rewrote
+      // something" would fail the build over it. That is not hypothetical:
+      // it is how this plugin first broke the deploy.
+      if (code.includes(SURVIVES)) {
+        safe += 1;
+        return null;
+      }
       if (!code.includes(FOLDABLE)) {
         return null;
       }
-      rewrote = true;
+      safe += 1;
       return { code: code.replaceAll(FOLDABLE, SURVIVES), map: null };
     },
     buildEnd() {
-      if (seen && !rewrote) {
+      if (seen > 0 && safe === 0) {
         this.error(
-          "whiffle:marked-lookbehind-probe found nothing to rewrite. marked's " +
-            "lookbehind feature detection is no longer spelled\n\n  " +
-            `${FOLDABLE}\n\n` +
+          "whiffle:marked-lookbehind-probe found no probe it recognises. " +
+            "marked's lookbehind feature detection is spelled neither\n\n  " +
+            `${FOLDABLE}\n\nnor\n\n  ${SURVIVES}\n\n` +
             "so this plugin is not protecting it any more. Check how the " +
             "current marked writes that probe (search its lib/marked.esm.js " +
             'for "(?<=1)(?<!1)"), then either update FOLDABLE/SURVIVES here or ' +
