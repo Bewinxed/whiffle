@@ -6,6 +6,85 @@ import Icons from "unplugin-icons/vite";
 import { defineConfig, type Plugin } from "vite";
 
 /**
+ * marked's probe, rewritten into a shape the bundler cannot delete.
+ *
+ * Safari only grew regex lookbehind in 16.4, so marked asks the engine at
+ * module load whether it has it, and picks one of two patterns from the
+ * answer:
+ *
+ *   try { return !!new RegExp("(?<=1)(?<!1)") } catch { return false }
+ *
+ * rolldown treats `new RegExp(...)` as side-effect-free, drops the
+ * construction, and folds `!!<object>` to `true` — the detector now answers
+ * "yes, always", marked takes the lookbehind branch, and the pattern throws
+ * `SyntaxError: invalid group specifier name` on any Safari below 16.4 while
+ * the markdown chunk is still evaluating. Only the transcript imports that
+ * chunk, which is how an iPad on iPadOS 15.6 got "500 — Internal Error" on one
+ * screen while the rest of the dashboard behaved.
+ *
+ * oxc's MINIFIER has since learned to keep these probes when a `build.target`
+ * says the pattern might not compile (oxc#24712, and `build.target` below is
+ * set for that reason among others), but the fold also happens without the
+ * minifier — an unminified build shows `try { return true } catch` too — so
+ * the target alone does not save it. Reading `.source` off the result is what
+ * does: the value is no longer a bare constructed object the bundler can
+ * reason away, and it survives both DCE and minification.
+ *
+ * Deliberately fails the build when the expected source is missing, rather
+ * than passing silently: a version of marked this no longer matches is a
+ * version whose probe may be intact, may be spelled differently, or may be
+ * getting folded again with nothing to show for it. Loud is recoverable —
+ * look at the new source and update the pattern here, or delete this plugin
+ * once rolldown stops folding it. Silent is another iPad bug reported weeks
+ * later.
+ */
+const markedLookbehindProbe = (): Plugin => {
+  const FOLDABLE = 'try{return!!new RegExp("(?<=1)(?<!1)")}catch{return!1}';
+  const SURVIVES =
+    'try{return new RegExp("(?<=1)(?<!1)").source.length>0}catch{return!1}';
+  // marked is a browser-only dependency here, so it is in the client graph and
+  // absent from the server one. Each build is judged on whether the module it
+  // actually pulled in was the shape this expects — a build that never loads
+  // marked has nothing to protect and nothing to complain about.
+  const MARKED = /[\\/]marked[\\/]lib[\\/]marked\.esm\.js$/;
+  let seen = false;
+  let rewrote = false;
+  return {
+    name: "whiffle:marked-lookbehind-probe",
+    apply: "build",
+    buildStart() {
+      seen = false;
+      rewrote = false;
+    },
+    transform(code, id) {
+      if (!MARKED.test(id)) {
+        return null;
+      }
+      seen = true;
+      if (!code.includes(FOLDABLE)) {
+        return null;
+      }
+      rewrote = true;
+      return { code: code.replaceAll(FOLDABLE, SURVIVES), map: null };
+    },
+    buildEnd() {
+      if (seen && !rewrote) {
+        this.error(
+          "whiffle:marked-lookbehind-probe found nothing to rewrite. marked's " +
+            "lookbehind feature detection is no longer spelled\n\n  " +
+            `${FOLDABLE}\n\n` +
+            "so this plugin is not protecting it any more. Check how the " +
+            "current marked writes that probe (search its lib/marked.esm.js " +
+            'for "(?<=1)(?<!1)"), then either update FOLDABLE/SURVIVES here or ' +
+            "drop this plugin if the bundler has stopped folding it. Shipping " +
+            "as-is breaks the transcript on Safari below 16.4."
+        );
+      }
+    },
+  };
+};
+
+/**
  * Proxies the dashboard's `/ws` upgrade to the hub, by hand.
  *
  * Vite's built-in `server.proxy['/ws'] { ws: true }` stopped upgrading the
@@ -78,6 +157,7 @@ const hubWsProxy = (): Plugin => ({
 
 export default defineConfig({
   plugins: [
+    markedLookbehindProbe(),
     hubWsProxy(),
     tailwindcss(),
     sveltekit(),
@@ -94,6 +174,32 @@ export default defineConfig({
     // NOTE: the /ws websocket is proxied by hubWsProxy() above, not here —
     // rolldown-vite's built-in ws proxy fails the 101 upgrade. REST /api is
     // handled by SvelteKit's own route (routes/api/[...path]).
+  },
+  /**
+   * The browsers this dashboard is actually opened in — an iPad on iPadOS 15.6
+   * among them, which is why this is spelled out rather than left to default.
+   *
+   * Naming a target is not only about which syntax gets lowered. oxc's
+   * minifier decides whether a `new RegExp(...)` is safe to delete by asking
+   * whether every configured target can compile that pattern, and with no
+   * target configured it assumes the newest engine and deletes it. That is not
+   * a cosmetic difference: libraries feature-detect regex support by
+   * constructing a pattern inside a try/catch, and deleting the construction
+   * turns `try { return !!new RegExp("(?<=1)(?<!1)") } catch { return false }`
+   * into `try { return true } catch { return false }` — a detector that always
+   * answers yes. `marked` does exactly this for lookbehind, which Safari only
+   * grew in 16.4, so the minified bundle took the lookbehind branch and threw
+   * `SyntaxError: invalid group specifier name` while the markdown chunk was
+   * evaluating. Only the transcript loads that chunk, so the whole app worked
+   * on an iPad except the one screen, which rendered "500 — Internal Error".
+   *
+   * With the target named, the same minifier keeps every such probe intact,
+   * for marked and for anything else that detects a feature this way. Do not
+   * replace this with `esnext`, and do not drop it: either brings the bug back
+   * for every dependency at once.
+   */
+  build: {
+    target: ["safari15.6", "chrome107", "firefox104", "edge107"],
   },
   resolve: {
     alias: {
