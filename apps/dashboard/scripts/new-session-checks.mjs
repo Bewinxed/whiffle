@@ -1,5 +1,6 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: Browser interactions and measurements are sequential.
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { chromium } from "playwright-core";
 
@@ -215,6 +216,82 @@ async function check(label, run) {
 const spawns = () => frames.filter((frame) => frame.verb === "spawn");
 const rect = () => dialog.boundingBox();
 
+async function mobileGates() {
+  const facts = await page.evaluate(() => {
+    const sheet = document.querySelector(".session-card");
+    const rows = [
+      ...document.querySelectorAll(".settings-row, .actions-row"),
+    ].map((node) => node.getBoundingClientRect());
+    const context = document.createElement("canvas").getContext("2d");
+    const labels = [
+      ...document.querySelectorAll(
+        ".settings-row .composer-pill > span:not(.harness-logo):not(.machine-dot)"
+      ),
+    ]
+      .filter((node) => node.getClientRects().length)
+      .map((node) => {
+        const css = getComputedStyle(node);
+        context.font = `${css.fontSize} ${css.fontFamily}`;
+        return {
+          text: node.textContent.trim(),
+          full: node.scrollWidth <= node.clientWidth + 1,
+          ellipsis: css.textOverflow === "ellipsis",
+          width: node.clientWidth,
+          eightCharacters: context.measureText(
+            `${node.textContent.trim().slice(0, 8)}…`
+          ).width,
+        };
+      });
+    return {
+      sheet: sheet.getBoundingClientRect().toJSON(),
+      overflow: sheet.scrollWidth - sheet.clientWidth,
+      rowHeights: rows.map((row) => row.height),
+      gap: rows[1].top - rows[0].bottom,
+      startWidth: document
+        .querySelector("#session-start")
+        .getBoundingClientRect().width,
+      effortWidth: document
+        .querySelector(".effort-slot")
+        .getBoundingClientRect().width,
+      labels,
+      targets: [
+        ...document.querySelectorAll(
+          ".composer-pill, #session-start, .effort-slider"
+        ),
+      ]
+        .filter((node) => !node.closest("[inert]"))
+        .map((node) => ({
+          name: node.id || node.className,
+          width: node.getBoundingClientRect().width,
+          height: node.getBoundingClientRect().height,
+        })),
+    };
+  });
+  const viewport = page.viewportSize();
+  assert.ok(Math.abs(facts.sheet.y + facts.sheet.height - viewport.height) < 1);
+  assert.equal(facts.sheet.width, viewport.width);
+  assert.ok(facts.sheet.y >= 0);
+  assert.ok(facts.overflow <= 1);
+  assert.deepEqual(facts.rowHeights, [44, 44]);
+  assert.equal(facts.gap, 8);
+  assert.ok(facts.startWidth >= 96);
+  assert.ok(facts.effortWidth >= 160);
+  assert.ok(
+    facts.labels.every(
+      (label) =>
+        label.full || (label.ellipsis && label.width >= label.eightCharacters)
+    ),
+    JSON.stringify(facts.labels)
+  );
+  assert.ok(
+    facts.targets.every((target) => target.width >= 44 && target.height >= 44),
+    JSON.stringify(facts.targets)
+  );
+  console.log(
+    `MOBILE ${viewport.width}x${viewport.height}: ${JSON.stringify(facts)}`
+  );
+}
+
 await check("centered composer, prompt focus, fixed 40px bar", async () => {
   await open();
   const box = await rect();
@@ -243,7 +320,23 @@ await check("centered composer, prompt focus, fixed 40px bar", async () => {
         .observations
   );
   console.log("OBSERVER desktop", JSON.stringify(observations));
-  await page.screenshot({ path: "/tmp/ns-rest.png" });
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: "/tmp/ns-rest.png", caret: "hide" });
+  if (process.env.NS_DESKTOP_BASELINE) {
+    await page.screenshot({
+      path: "/tmp/ns-desktop-before.png",
+      caret: "hide",
+    });
+  }
+  if (process.env.NS_DESKTOP_COMPARE) {
+    const before = await readFile("/tmp/ns-desktop-before.png");
+    const after = await readFile("/tmp/ns-rest.png");
+    assert.ok(
+      before.equals(after),
+      "Desktop screenshot differs from /tmp/ns-desktop-before.png"
+    );
+    console.log("DESKTOP DIFF: pixel-identical PNG buffers at 1440x900");
+  }
 });
 await check(
   "model naming, dedupe, all harness logos, no layout shift",
@@ -281,6 +374,100 @@ await check(
     await dismiss("model");
   }
 );
+await check("mobile two-row sheet and keyboard containment", async () => {
+  for (const [width, height] of [
+    [390, 844],
+    [390, 500],
+    [600, 800],
+    [320, 568],
+  ]) {
+    await page.setViewportSize({ width, height });
+    await open();
+    assert.equal(await page.locator("textarea").getAttribute("rows"), "6");
+    await mobileGates();
+    if (width === 390) {
+      const path =
+        height === 844 ? "/tmp/ns-mobile.png" : "/tmp/ns-mobile-keyboard.png";
+      await page.screenshot({ path, caret: "hide" });
+    }
+    for (const name of ["model", "location", "mode", "options"]) {
+      await show(name);
+      const bounds = await pop(name).boundingBox();
+      assert.deepEqual(bounds, { x: 0, y: 0, width, height });
+      assert.ok(
+        await pop(name).evaluate(
+          (node) => node.scrollWidth <= node.clientWidth + 1
+        )
+      );
+      const targets = await pop(name)
+        .locator("button")
+        .evaluateAll((nodes) =>
+          nodes.map((node) => ({
+            width: node.getBoundingClientRect().width,
+            height: node.getBoundingClientRect().height,
+          }))
+        );
+      assert.ok(
+        targets.every((target) => target.width >= 44 && target.height >= 44),
+        JSON.stringify(targets)
+      );
+      const modelRows = await pop(name)
+        .getByRole("option")
+        .evaluateAll((nodes) =>
+          nodes.map((node) => node.getBoundingClientRect().height)
+        );
+      assert.ok(
+        modelRows.every((rowHeight) =>
+          name === "model" ? rowHeight === 48 : rowHeight >= 44
+        )
+      );
+      const tiles = await pop(name)
+        .locator(".agent-tile")
+        .evaluateAll((nodes) =>
+          nodes.map((node) => ({
+            width: node.getBoundingClientRect().width,
+            y: node.getBoundingClientRect().y,
+          }))
+        );
+      assert.ok(
+        tiles.every(
+          (tile) =>
+            Math.abs(tile.width - tiles[0].width) <= 1 && tile.y === tiles[0].y
+        )
+      );
+      if (width === 390 && height === 844) {
+        await page.screenshot({
+          path: `/tmp/ns-mobile-${name}.png`,
+          caret: "hide",
+        });
+      }
+      await dismiss(name);
+    }
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await open();
+  await show("model");
+  await page
+    .getByPlaceholder("Search, or type a model id")
+    .fill("company/custom-model-with-a-very-long-name-2026");
+  await page.keyboard.press("Enter");
+  await show("mode");
+  await pop("mode").getByRole("radio", { name: "Bypass all" }).click();
+  await page.waitForTimeout(500);
+  await mobileGates();
+  const scrolling = await page.locator(".settings-row").evaluate((node) => {
+    node.scrollLeft = node.scrollWidth;
+    return {
+      moved: node.scrollLeft > 0,
+      scrollbar: getComputedStyle(node).scrollbarWidth,
+    };
+  });
+  assert.deepEqual(scrolling, { moved: true, scrollbar: "none" });
+  await page.setViewportSize({ width: 390, height: 500 });
+  await page.waitForTimeout(100);
+  await mobileGates();
+  await page.setViewportSize({ width: 1440, height: 900 });
+});
 await check("known release metadata relative to last use", async () => {
   await open("?dates=1");
   await show("model");
@@ -363,7 +550,11 @@ await check("contained popovers desktop and mobile", async () => {
     await page.setViewportSize({ width, height });
     await open();
     const box = await rect();
-    assert.ok(Math.abs(box.y + box.height / 2 - height / 2) < 1);
+    const vertical =
+      width <= 600
+        ? box.y + box.height - height
+        : box.y + box.height / 2 - height / 2;
+    assert.ok(Math.abs(vertical) < 1);
     assert.ok(box.x >= 0 && box.x + box.width <= width);
     assert.ok(
       await page
@@ -375,11 +566,12 @@ await check("contained popovers desktop and mobile", async () => {
     for (const name of ["model", "location", "mode", "options"]) {
       await show(name);
       const bounds = await pop(name).boundingBox();
+      const margin = width <= 600 ? 0 : 7;
       assert.ok(
-        bounds.x >= 7 &&
-          bounds.y >= 7 &&
-          bounds.x + bounds.width <= width - 7 &&
-          bounds.y + bounds.height <= height - 7,
+        bounds.x >= margin &&
+          bounds.y >= margin &&
+          bounds.x + bounds.width <= width - margin &&
+          bounds.y + bounds.height <= height - margin,
         `${name}: ${JSON.stringify(bounds)}`
       );
       await dismiss(name);
@@ -549,12 +741,13 @@ await check("polish light and dark desktop and mobile", async () => {
       colorScheme: scheme,
       reducedMotion: "no-preference",
     });
-    for (const [width, height] of [
-      [1440, 900],
-      [390, 844],
+    for (const { width, height, minEffort, iconSize, margin } of [
+      { width: 1440, height: 900, minEffort: 150, iconSize: 16, margin: 7 },
+      { width: 390, height: 844, minEffort: 160, iconSize: 20, margin: 0 },
     ]) {
       await page.setViewportSize({ width, height });
       await open();
+      await page.waitForTimeout(400);
       await page.evaluate(
         (dark) => document.documentElement.classList.toggle("dark", dark),
         scheme === "dark"
@@ -585,6 +778,7 @@ await check("polish light and dark desktop and mobile", async () => {
             document.querySelector(".effort-thumb.default-value")
           ),
           escapes: [...bar.children]
+            .filter((node) => node.getClientRects().length)
             .filter((node) => {
               const r = node.getBoundingClientRect();
               return r.left < bounds.left - 1 || r.right > bounds.right + 1;
@@ -596,22 +790,23 @@ await check("polish light and dark desktop and mobile", async () => {
       assert.notEqual(facts.well, facts.card);
       assert.notEqual(facts.shadow, "none");
       assert.equal(facts.track.height, 4);
-      assert.equal(facts.effortWidth, 150);
+      assert.ok(facts.effortWidth >= minEffort);
       assert.equal(facts.defaultThumb, true);
       assert.deepEqual(facts.escapes, []);
       assert.ok(
-        facts.icons.every((icon) => icon.width === 16 && icon.height === 16)
+        facts.icons.every(
+          (icon) => icon.width === iconSize && icon.height === iconSize
+        )
       );
       await page.screenshot({
         path: `/tmp/ns-polish-${scheme}-${width}-rest.png`,
       });
       const primary = {
-        "light-1440": "/tmp/ns-rest.png",
         "dark-1440": "/tmp/ns-dark.png",
         "light-390": "/tmp/ns-mobile.png",
       }[`${scheme}-${width}`];
       if (primary) {
-        await page.screenshot({ path: primary });
+        await page.screenshot({ path: primary, caret: "hide" });
       }
       for (const name of ["model", "location", "mode", "options"]) {
         await show(name);
@@ -643,10 +838,10 @@ await check("polish light and dark desktop and mobile", async () => {
         );
         const bounds = await pop(name).boundingBox();
         assert.ok(
-          bounds.x >= 7 &&
-            bounds.y >= 7 &&
-            bounds.x + bounds.width <= width - 7 &&
-            bounds.y + bounds.height <= height - 7
+          bounds.x >= margin &&
+            bounds.y >= margin &&
+            bounds.x + bounds.width <= width - margin &&
+            bounds.y + bounds.height <= height - margin
         );
         console.log(
           `POLISH POPOVER ${scheme} ${width} ${name}: ${JSON.stringify(bounds)}`
@@ -687,7 +882,20 @@ await check("reduced motion endpoints", async () => {
     durations.every((duration) => duration <= 1),
     JSON.stringify(durations)
   );
+  await page.setViewportSize({ width: 390, height: 500 });
+  await open();
+  await mobileGates();
 });
+if (process.env.NS_DESKTOP_COMPARE) {
+  await check("final desktop screenshot is pixel-identical", async () => {
+    const before = await readFile("/tmp/ns-desktop-before.png");
+    const after = await readFile("/tmp/ns-rest.png");
+    assert.ok(
+      before.equals(after),
+      "Final desktop screenshot differs from its baseline"
+    );
+  });
+}
 if (errors.length) {
   failures += 1;
   console.error(`PAGE ERRORS ${JSON.stringify(errors)}`);

@@ -2,9 +2,13 @@
 
 ## 1. Layout
 
-The modal is 640px wide, centered on both viewport axes, with viewport containment on small screens. It uses the app Dialog parts and bits-ui focus management, `--surface-raised`, `--radius-modal`, and `--shadow-modal`. The recessed prompt uses `--surface-well`. These two semantic aliases resolve to the existing field surface and overlay shadow in app.css. The authoritative design file is `/DESIGN.md` at the repository root.
+Above 600px the modal is 640px wide and centered on both viewport axes. It uses the app Dialog parts and bits-ui focus management, `--surface-raised`, `--radius-modal`, and `--shadow-modal`. The recessed prompt uses `--surface-well`. These two semantic aliases resolve to the existing field surface and overlay shadow in app.css. The authoritative design file is `/DESIGN.md` at the repository root.
 
 There are two regions: a borderless prompt well with at least eight rows, and a composer region with a reserved error-reading slot and one 40px flex row. The placeholder is "What should the agent do?". Focus changes the well's inset edge and ink. Start remains anchored right through all selections. No control or surface has a hairline.
+
+At 600px and below, the modal is a full-width bottom sheet with rounded top corners, flush bottom corners, and safe-area bottom padding. The prompt starts at six rows and can shrink within the available viewport. The app's `interactive-widget=resizes-content` declaration is supplemented by a modal-scoped visual-viewport listener; both the sheet and mobile panels stay inside its height and offset.
+
+The mobile composer has two 44px rows separated by 8px. The first contains model, last directory segment, and mode, including all labels. Labels can reach 22ch before ellipsis. The row has 16px edge padding and scrolls horizontally without a scrollbar when needed. The second contains a flexible effort slider (minimum 160px, 20px icons), a 44px options target, and Start (minimum 96px wide). All touch targets are at least 44px. Mobile pickers occupy the available viewport, with a Back control, three equal agent tiles, and 48px model rows.
 
 ## 2. Composer Bar
 
@@ -28,6 +32,8 @@ Start is gated while a popover is open, location is unreadable or unverified, a 
 ## 4. Motion
 
 DialKit controls the scrim, card scale .96 to 1 and fade, prompt arrival, pills staggered left to right, then Start. The live demo retains its parameter subscription and scrubbable timeline; changing either replays the sequence. DialRoot and DialTimeline mount only at widths of at least 481px.
+
+Mobile uses the same card clip for an upward slide and fade after the scrim begins. Reduced motion places the sheet directly at its resting position.
 
 Popover scale, list highlight, effort thumb, switch thumbs, and model row springs derive from `springFromVisual`. On each harness change old rows leave left with a stagger, then new rows enter from the right with a stagger. Highlights snap to the selected row on mount and fade in. Reduced motion jumps springs to their end states and removes delays.
 
@@ -59,3 +65,5 @@ The composer exposes only Scratch and Bootstrap switches. Worktree and Save as p
 ## 8. Verification
 
 `apps/dashboard/scripts/new-session-checks.mjs` intercepts the dashboard WebSocket and API writes. It never connects a spawn socket to the hub. Checks cover centering, fixed bar/card bounds, popover containment, all harness logos, canonical/custom/untouched payloads, keyboard submission, cancellation, invalid paths, options, and reduced motion. Stagger is sampled at `3 * stagger + 60ms` from entry of the new list. Any page error makes the script exit non-zero.
+
+Mobile gates cover row heights, label readability (full text or at least eight characters before ellipsis), 44px touch targets, Start width, sheet overflow, full-viewport panels, and a 390x500 keyboard simulation. `NS_DESKTOP_BASELINE=1` captures the desktop reference; `NS_DESKTOP_COMPARE=1` verifies an identical desktop PNG.

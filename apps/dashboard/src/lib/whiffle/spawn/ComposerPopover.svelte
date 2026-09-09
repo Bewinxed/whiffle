@@ -1,11 +1,13 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import { prefersReducedMotion, Spring } from "svelte/motion";
+  import { MediaQuery } from "svelte/reactivity";
   import {
     Popover,
     PopoverContent,
     PopoverTrigger,
   } from "$lib/components/ui/popover";
+  import Back from "~icons/solar/alt-arrow-left-linear";
   import { type SpringSpec, springFromVisual } from "./motion";
 
   let {
@@ -36,6 +38,7 @@
     align?: "start" | "end";
   } = $props();
   const progress = new Spring(0);
+  const mobile = new MediaQuery("(max-width: 600px)");
   $effect(() => {
     Object.assign(progress, springFromVisual(spring));
     if (open) {
@@ -67,8 +70,17 @@
     trapFocus
   >
     {#snippet child({ props, wrapperProps })}
-      <div {...wrapperProps}>
+      <div {...wrapperProps} class="composer-popover-shell">
         <div {...props} id={`${id}-popover`}>
+          {#if mobile.current}
+            <button
+              class="panel-back"
+              onclick={() => onchange(false)}
+              type="button"
+            >
+              <Back />Back
+            </button>
+          {/if}
           {@render children()}
         </div>
       </div>
@@ -134,6 +146,55 @@
   @media (hover: hover) {
     :global(.composer-pill:hover) {
       background: var(--surface-hover);
+    }
+  }
+  @media (max-width: 600px) {
+    .composer-popover-shell {
+      position: fixed !important;
+      top: var(--ns-viewport-top, 0px) !important;
+      left: 0 !important;
+      right: 0 !important;
+      width: 100% !important;
+      min-width: 0 !important;
+      max-width: 100vw !important;
+      height: var(--ns-viewport-height, 100dvh) !important;
+      transform: none !important;
+      z-index: 90 !important;
+    }
+    :global(.composer-popover) {
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
+      height: 100%;
+      max-height: 100%;
+      border-radius: 0;
+      padding: calc(var(--space-2) + env(safe-area-inset-top)) 16px
+        calc(var(--space-2) + env(safe-area-inset-bottom));
+      scale: 1 !important;
+      overflow-y: auto;
+      overflow-x: hidden;
+      transform-origin: bottom center;
+    }
+    .panel-back {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      height: 44px;
+      min-height: 44px;
+      align-self: flex-start;
+      padding-inline: var(--space-2);
+      border-radius: var(--radius-control);
+      color: var(--ink-strong);
+    }
+    .panel-back :global(svg) {
+      width: 20px;
+      height: 20px;
+    }
+    .panel-back:focus-visible {
+      outline: 2px solid var(--focus-ring);
+    }
+    :global(.composer-popover [role="combobox"]) {
+      min-height: 44px;
     }
   }
 </style>

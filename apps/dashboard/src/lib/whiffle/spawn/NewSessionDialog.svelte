@@ -15,6 +15,7 @@
   } from "dialkit/timeline";
   import { tick, untrack } from "svelte";
   import { prefersReducedMotion } from "svelte/motion";
+  import { MediaQuery } from "svelte/reactivity";
   import { goto } from "$app/navigation";
   import {
     Dialog,
@@ -81,6 +82,32 @@
     params: Params;
   } = $props();
   let card = $state<HTMLElement | null>(null);
+  const mobile = new MediaQuery("(max-width: 600px)");
+  $effect(() => {
+    if (!(open && mobile.current)) {
+      return;
+    }
+    const viewport = window.visualViewport;
+    const root = document.documentElement.style;
+    const measure = () => {
+      root.setProperty(
+        "--ns-viewport-height",
+        `${viewport?.height ?? window.innerHeight}px`
+      );
+      root.setProperty("--ns-viewport-top", `${viewport?.offsetTop ?? 0}px`);
+    };
+    measure();
+    viewport?.addEventListener("resize", measure);
+    viewport?.addEventListener("scroll", measure);
+    window.addEventListener("resize", measure);
+    return () => {
+      viewport?.removeEventListener("resize", measure);
+      viewport?.removeEventListener("scroll", measure);
+      window.removeEventListener("resize", measure);
+      root.removeProperty("--ns-viewport-height");
+      root.removeProperty("--ns-viewport-top");
+    };
+  });
   let modelAnchor = $state<HTMLButtonElement | null>(null);
   let locationAnchor = $state<HTMLButtonElement | null>(null);
   let opener: HTMLElement | null = null;
@@ -589,14 +616,14 @@
       class="session-card"
       inert={busy || !(timeline.interactive.started || prefersReducedMotion.current)}
       onOpenAutoFocus={(event) => { event.preventDefault(); card?.querySelector('textarea')?.focus(); }}
-      style={`opacity:${prefersReducedMotion.current ? 1 : timeline.card.current.opacity};scale:${prefersReducedMotion.current ? 1 : timeline.card.current.scale}`}
+      style={`opacity:${prefersReducedMotion.current ? 1 : timeline.card.current.opacity};scale:${prefersReducedMotion.current || mobile.current ? 1 : timeline.card.current.scale};--sheet-enter:${prefersReducedMotion.current ? 0 : (1 - timeline.card.current.opacity) * 48}px`}
       bind:ref={card}
     >
       <DialogTitle class="sr-only">New session</DialogTitle>
-      <div style={rowStyle(0)}>
+      <div class="prompt-region" style={rowStyle(0)}>
         <PromptWell
           maxRows={10}
-          minRows={8}
+          minRows={mobile.current ? 6 : 8}
           onsubmit={start}
           placeholder="What should the agent do?"
           bind:value={prompt}
@@ -684,5 +711,50 @@
     line-height: var(--leading-ui);
     margin: 0;
     height: var(--space-5);
+  }
+  @media (max-width: 600px) {
+    :global(.session-card) {
+      top: auto;
+      bottom: calc(
+        100% -
+        var(--ns-viewport-height, 100dvh) -
+        var(--ns-viewport-top, 0px)
+      );
+      left: 0;
+      translate: 0 var(--sheet-enter);
+      width: 100%;
+      max-width: 100%;
+      max-height: var(--ns-viewport-height, 100dvh);
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      padding: var(--space-2) 0
+        calc(var(--space-2) + env(safe-area-inset-bottom));
+      border-radius: var(--radius-modal) var(--radius-modal) 0 0;
+    }
+    .prompt-region {
+      margin-inline: var(--space-2);
+      min-height: 0;
+      overflow: auto;
+    }
+    .prompt-region :global(textarea) {
+      max-height: max(
+        44px,
+        calc(
+          var(--ns-viewport-height, 100dvh) -
+          160px -
+          env(safe-area-inset-bottom)
+        )
+      );
+      font-size: 16px;
+    }
+    .bar-region {
+      padding: var(--space-2) 0 0;
+      flex: none;
+      min-width: 0;
+    }
+    .reading {
+      margin-inline: 16px;
+    }
   }
 </style>

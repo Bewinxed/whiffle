@@ -3,6 +3,7 @@
   import { RadioGroup } from "bits-ui";
   import { untrack } from "svelte";
   import { prefersReducedMotion, Spring } from "svelte/motion";
+  import { MediaQuery } from "svelte/reactivity";
   import Notes from "~icons/solar/notes-linear";
   import Pen from "~icons/solar/pen-linear";
   import Shield from "~icons/solar/shield-check-linear";
@@ -31,10 +32,14 @@
   let active = $state(
     untrack(() => modes.findIndex((mode) => mode.value === value))
   );
-  const highlight = new Spring(untrack(() => active * 40));
+  const mobile = new MediaQuery("(max-width: 600px)");
+  const rowHeight = $derived(mobile.current ? 44 : 40);
+  const highlight = new Spring(untrack(() => active * rowHeight));
   $effect(() => {
     Object.assign(highlight, springFromVisual(spring));
-    highlight.set(active * 40, { instant: prefersReducedMotion.current });
+    highlight.set(active * rowHeight, {
+      instant: prefersReducedMotion.current,
+    });
   });
 </script>
 
@@ -119,6 +124,12 @@
     :global(.mode-row) {
       animation-duration: 1ms;
       animation-delay: 0s;
+    }
+  }
+  @media (max-width: 600px) {
+    .highlight,
+    :global(.mode-row) {
+      height: 44px;
     }
   }
 </style>

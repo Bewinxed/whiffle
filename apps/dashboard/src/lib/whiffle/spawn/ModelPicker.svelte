@@ -553,4 +553,28 @@
       transition-duration: 1ms;
     }
   }
+  @media (max-width: 600px) {
+    .picker {
+      flex: 1;
+      min-width: 0;
+      width: 100%;
+      height: auto;
+      max-height: none;
+    }
+    .scroll {
+      flex: 1;
+    }
+    .row {
+      height: 48px;
+    }
+    :global(.agent-tiles) {
+      flex: none;
+    }
+    :global(.agent-tile) {
+      min-width: 0;
+      min-height: 44px;
+      flex: 1 1 0;
+      white-space: nowrap;
+    }
+  }
 </style>

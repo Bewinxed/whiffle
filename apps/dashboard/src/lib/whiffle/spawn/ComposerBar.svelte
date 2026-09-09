@@ -132,137 +132,147 @@
 </script>
 
 <div class="composer-bar">
-  <ComposerPopover
-    id="session-model"
-    label="Agent and model"
-    onchange={(open) => change("model", open)}
-    open={popover === "model"}
-    spring={params.pop.open}
-    style={rowStyle(1)}
-    bind:anchor={modelAnchor}
-  >
-    {#snippet trigger()}
-      <HarnessLogo {harness} /><span class="model-label">{modelName}</span>
-    {/snippet}
-    <ModelPicker
-      {harness}
-      {installedHarnesses}
-      {machineName}
-      {onharness}
-      onselect={onmodel}
-      spring={params.list.highlight}
-      stagger={params.pop.rowStagger}
-      swapSpring={params.swap.spring}
-      swapStagger={params.swap.stagger}
-      value={model}
-    />
-  </ComposerPopover>
-  <ComposerPopover
-    id="session-location"
-    label={`Location: ${locationLabel}`}
-    onchange={(open) => change("location", open)}
-    open={popover === "location"}
-    spring={params.pop.open}
-    style={rowStyle(2)}
-    width={520}
-    bind:anchor={locationAnchor}
-  >
-    {#snippet trigger()}
-      <span aria-hidden="true" class="machine-dot" class:online={online}></span
-      ><span class="location-label"
-        >{cwd ? cwd.replace(/^\/home\/[^/]+/, "~") : "Location"}</span
-      >
-    {/snippet}
-    <LocationPicker
-      {cwd}
-      locked={locked ? { projectName } : undefined}
-      {machineId}
-      mode={repo === undefined ? "directory" : "repository"}
-      onmodechange={onlocationmode}
-      onselect={onlocation}
-      {repo}
-      spring={params.list.highlight}
-      stagger={params.pop.rowStagger}
-    />
-  </ComposerPopover>
-  <ComposerPopover
-    attention={permissionMode === "bypassPermissions"}
-    id="session-mode"
-    label="Permission mode"
-    onchange={(open) => change("mode", open)}
-    open={popover === "mode"}
-    spring={params.pop.open}
-    style={rowStyle(3)}
-    width={220}
-  >
-    {#snippet trigger()}
-      <ModeIcon />
-      <span class="mode-label"
-        >{modes.find((mode) => mode.value === permissionMode)?.label}</span
-      >
-    {/snippet}
-    <ModePicker
-      {modes}
-      onselect={(value) => { onmode(value); popover = null; }}
-      spring={params.list.highlight}
-      stagger={params.pop.rowStagger}
-      value={permissionMode}
-    />
-  </ComposerPopover>
-  <div class="effort-slot" style={rowStyle(4)}>
-    <div class="effort-collapse" inert={!scale} class:collapsed={!scale}>
-      <ComposerEffort
+  <div class="settings-row">
+    <ComposerPopover
+      id="session-model"
+      label="Agent and model"
+      onchange={(open) => change("model", open)}
+      open={popover === "model"}
+      spring={params.pop.open}
+      style={rowStyle(1)}
+      bind:anchor={modelAnchor}
+    >
+      {#snippet trigger()}
+        <HarnessLogo {harness} /><span class="model-label">{modelName}</span>
+      {/snippet}
+      <ModelPicker
         {harness}
-        onchange={oneffort}
-        spring={params.slider.thumb}
-        {stops}
-        value={effort}
+        {installedHarnesses}
+        {machineName}
+        {onharness}
+        onselect={onmodel}
+        spring={params.list.highlight}
+        stagger={params.pop.rowStagger}
+        swapSpring={params.swap.spring}
+        swapStagger={params.swap.stagger}
+        value={model}
       />
-    </div>
+    </ComposerPopover>
+    <ComposerPopover
+      id="session-location"
+      label={`Location: ${locationLabel}`}
+      onchange={(open) => change("location", open)}
+      open={popover === "location"}
+      spring={params.pop.open}
+      style={rowStyle(2)}
+      width={520}
+      bind:anchor={locationAnchor}
+    >
+      {#snippet trigger()}
+        <span
+          aria-hidden="true"
+          class="machine-dot"
+          class:online={online}
+        ></span><span class="location-label desktop-location"
+          >{cwd ? cwd.replace(/^\/home\/[^/]+/, "~") : "Location"}</span
+        >
+        <span class="location-label mobile-location"
+          >{cwd.split('/').filter(Boolean).at(-1) || cwd || "Location"}</span
+        >
+      {/snippet}
+      <LocationPicker
+        {cwd}
+        locked={locked ? { projectName } : undefined}
+        {machineId}
+        mode={repo === undefined ? "directory" : "repository"}
+        onmodechange={onlocationmode}
+        onselect={onlocation}
+        {repo}
+        spring={params.list.highlight}
+        stagger={params.pop.rowStagger}
+      />
+    </ComposerPopover>
+    <ComposerPopover
+      attention={permissionMode === "bypassPermissions"}
+      id="session-mode"
+      label="Permission mode"
+      onchange={(open) => change("mode", open)}
+      open={popover === "mode"}
+      spring={params.pop.open}
+      style={rowStyle(3)}
+      width={220}
+    >
+      {#snippet trigger()}
+        <ModeIcon />
+        <span class="mode-label"
+          >{modes.find((mode) => mode.value === permissionMode)?.label}</span
+        >
+      {/snippet}
+      <ModePicker
+        {modes}
+        onselect={(value) => { onmode(value); popover = null; }}
+        spring={params.list.highlight}
+        stagger={params.pop.rowStagger}
+        value={permissionMode}
+      />
+    </ComposerPopover>
   </div>
-  <ComposerPopover
-    align="end"
-    id="session-options"
-    label="Options"
-    onchange={(open) => change("options", open)}
-    open={popover === "options"}
-    spring={params.pop.open}
-    style={rowStyle(5)}
-    width={240}
-  >
-    {#snippet trigger()}
-      <Dots />
-    {/snippet}
-    <div class="option-row">
-      <label for="session-scratch">Scratch</label>
-      <Switch
-        checked={sideQuest}
-        class="composer-switch"
-        id="session-scratch"
-        onCheckedChange={onscratch}
-        style={`--thumb-x:${scratchThumb.current}px`}
-      />
+  <div class="actions-row">
+    <div class="effort-slot" style={rowStyle(4)}>
+      <div class="effort-collapse" inert={!scale} class:collapsed={!scale}>
+        <ComposerEffort
+          {harness}
+          onchange={oneffort}
+          spring={params.slider.thumb}
+          {stops}
+          value={effort}
+        />
+      </div>
     </div>
-    <div class="option-row">
-      <label for="session-bootstrap">Bootstrap</label>
-      <Switch
-        checked={repo !== undefined}
-        class="composer-switch"
-        id="session-bootstrap"
-        onCheckedChange={onbootstrap}
-        style={`--thumb-x:${bootstrapThumb.current}px`}
-      />
-    </div>
-  </ComposerPopover>
-  <span class="start-slot" style={rowStyle(6)}
-    ><Button
-      class="composer-start"
-      disabled={busy || disabled || popover !== null}
-      id="session-start"
-      onclick={onstart}
-      >{busy ? "Starting…" : "Start"}<kbd>⌘↵</kbd></Button
-    ></span
-  >
+    <ComposerPopover
+      align="end"
+      id="session-options"
+      label="Options"
+      onchange={(open) => change("options", open)}
+      open={popover === "options"}
+      spring={params.pop.open}
+      style={rowStyle(5)}
+      width={240}
+    >
+      {#snippet trigger()}
+        <Dots />
+      {/snippet}
+      <div class="option-row">
+        <label for="session-scratch">Scratch</label>
+        <Switch
+          checked={sideQuest}
+          class="composer-switch"
+          id="session-scratch"
+          onCheckedChange={onscratch}
+          style={`--thumb-x:${scratchThumb.current}px`}
+        />
+      </div>
+      <div class="option-row">
+        <label for="session-bootstrap">Bootstrap</label>
+        <Switch
+          checked={repo !== undefined}
+          class="composer-switch"
+          id="session-bootstrap"
+          onCheckedChange={onbootstrap}
+          style={`--thumb-x:${bootstrapThumb.current}px`}
+        />
+      </div>
+    </ComposerPopover>
+    <span class="start-slot" style={rowStyle(6)}
+      ><Button
+        class="composer-start"
+        disabled={busy || disabled || popover !== null}
+        id="session-start"
+        onclick={onstart}
+        >{busy ? "Starting…" : "Start"}<kbd>⌘↵</kbd></Button
+      ></span
+    >
+  </div>
 </div>
 
 <style>
@@ -273,6 +283,13 @@
     height: 40px;
     gap: var(--space-1);
     width: 100%;
+  }
+  .settings-row,
+  .actions-row {
+    display: contents;
+  }
+  .mobile-location {
+    display: none;
   }
   .model-label {
     max-width: 132px;
@@ -348,31 +365,102 @@
     background: var(--ink-muted);
   }
   @media (max-width: 600px) {
+    :global(.composer-pill) {
+      height: 44px;
+      min-width: 44px;
+      padding-inline: var(--space-2);
+      gap: var(--space-2);
+    }
     .model-label {
-      max-width: 48px;
+      max-width: 22ch;
     }
     .location-label {
-      max-width: 24px;
+      max-width: 22ch;
     }
-    .mode-label {
+    .desktop-location {
       display: none;
     }
-    .composer-bar {
-      gap: 0;
+    .mobile-location {
+      display: inline;
     }
-    .effort-slot {
-      min-width: 0;
-      flex: 0 0 150px;
+    .composer-bar {
+      flex-direction: column;
+      height: auto;
+      gap: 8px;
+    }
+    .settings-row,
+    .actions-row {
+      display: flex;
+      align-items: center;
+      width: 100%;
+      height: 44px;
+      flex: none;
+      padding-inline: 16px;
+    }
+    .settings-row {
+      overflow-x: auto;
+      overscroll-behavior-inline: contain;
+      scrollbar-width: none;
+      scroll-padding-inline: 16px;
+    }
+    .settings-row::-webkit-scrollbar {
+      display: none;
+    }
+    .settings-row :global(.composer-pill) {
+      flex: 1 0 auto;
+    }
+    .actions-row {
+      gap: var(--space-1);
+    }
+    .actions-row :global(#session-options) {
+      width: 44px;
+      flex: 0 0 44px;
+    }
+    .option-row {
+      min-height: 44px;
+    }
+    :global(.composer-switch) {
+      width: 44px;
+      height: 44px;
+      padding-inline: var(--space-2);
+      background: transparent !important;
+    }
+    :global(.composer-switch::before) {
+      content: "";
+      position: absolute;
+      inset: 10px 0;
+      border-radius: var(--radius-pill);
+      background: var(--border-control);
+    }
+    :global(.composer-switch[data-state="checked"]::before) {
+      background: var(--brand-solid);
+    }
+    :global(.composer-switch [data-slot="switch-thumb"]) {
+      z-index: 1;
+    }
+    .effort-collapse {
+      width: 100%;
+    }
+    .start-slot {
+      height: 44px;
     }
     :global(.composer-start) {
-      padding-inline: var(--space-2);
+      min-width: 96px;
+      height: 44px;
+      padding-inline: var(--space-3);
+    }
+    .effort-slot {
+      min-width: 160px;
+      flex: 1;
     }
     kbd {
       display: none;
     }
-    :global(.composer-pill) {
+  }
+  @media (max-width: 360px) {
+    .actions-row {
       padding-inline: var(--space-1);
-      gap: var(--space-1);
+      gap: 0;
     }
   }
   @media (prefers-reduced-motion: reduce) {

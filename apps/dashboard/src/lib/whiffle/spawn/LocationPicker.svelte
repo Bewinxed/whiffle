@@ -865,4 +865,20 @@
       transform: translateY(0);
     }
   }
+  @media (max-width: 600px) {
+    .picker {
+      flex: 1;
+      min-width: 0;
+      width: 100%;
+      height: auto;
+      max-height: none;
+    }
+    .panes {
+      min-width: 0;
+    }
+    .row,
+    :global(.location-types button) {
+      min-height: 44px;
+    }
+  }
 </style>

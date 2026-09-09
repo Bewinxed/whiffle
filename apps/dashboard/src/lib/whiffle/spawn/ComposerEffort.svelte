@@ -61,11 +61,14 @@
   }
   function pointerIndex(event: PointerEvent) {
     const box = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    const inset = window.matchMedia("(max-width: 600px)").matches ? 11 : 9;
     return Math.max(
       0,
       Math.min(
         4,
-        Math.round(((event.clientX - box.left - 9) / (box.width - 18)) * 4)
+        Math.round(
+          ((event.clientX - box.left - inset) / (box.width - inset * 2)) * 4
+        )
       )
     );
   }
@@ -111,7 +114,7 @@
     <span
       aria-hidden="true"
       class="effort-thumb"
-      style:left={`calc(9px + (100% - 18px) * ${x.current / 4})`}
+      style:left={`calc(var(--effort-inset, 9px) + (100% - var(--effort-inset, 9px) * 2) * ${x.current / 4})`}
       class:default-value={value === null}
       ><ActiveIcon viewBox="2 2 20 20" /></span
     >
@@ -210,5 +213,25 @@
     box-shadow: var(--shadow-overlay);
     color: var(--ink-strong);
     font-size: var(--text-sm);
+  }
+  @media (max-width: 600px) {
+    .effort {
+      --effort-inset: 11px;
+      width: 100%;
+      height: 44px;
+    }
+    .detent {
+      width: 20px;
+      height: 22px;
+    }
+    .detent :global(svg),
+    .effort-thumb :global(svg) {
+      width: 20px;
+      height: 20px;
+    }
+    .effort-thumb {
+      width: 22px;
+      height: 22px;
+    }
   }
 </style>
