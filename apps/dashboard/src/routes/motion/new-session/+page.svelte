@@ -3,12 +3,15 @@
     createDialKit,
     createDialTimeline,
     DialRoot,
+    DialStore,
     DialTimeline,
   } from "dialkit/svelte";
   import { prefersReducedMotion } from "svelte/motion";
   import NewSessionModal from "$lib/motion/new-session/NewSessionModal.svelte";
   import "dialkit/styles.css";
 
+  const TIMELINE_ID = "new-session-open-v2";
+  const PARAMS_ID = "new-session-params-v1";
   let open = $state(false);
   let submitted = $state(false);
   const section = (at: number, duration: number) => ({
@@ -51,7 +54,7 @@
       footer: section(0.5, 0.4),
       interactive: { at: 0.5, duration: 0 },
     },
-    { autoplay: false, id: "new-session-open-v2", persist: import.meta.env.DEV }
+    { autoplay: false, id: TIMELINE_ID, persist: import.meta.env.DEV }
   );
   const params = createDialKit(
     "New session",
@@ -64,8 +67,34 @@
       highlight: { inset: [3, 0, 8], radius: [12, 4, 24] },
       replay: { type: "action" },
     },
-    { onAction: () => replay() }
+    { id: PARAMS_ID, onAction: () => replay() }
   );
+  // Any edit in the panel or the timeline replays the open sequence, so a tuned
+  // value is seen in motion the moment it changes.
+  $effect(() => {
+    let pending: ReturnType<typeof setTimeout> | undefined;
+    // The store also notifies on registration and preset loads; only a value
+    // that actually differs from the last one seen restarts playback.
+    const watch = (id: string) => {
+      let seen = JSON.stringify(DialStore.getValues(id));
+      return DialStore.subscribe(id, () => {
+        const next = JSON.stringify(DialStore.getValues(id));
+        if (next === seen) {
+          return;
+        }
+        seen = next;
+        clearTimeout(pending);
+        pending = setTimeout(replay, 120);
+      });
+    };
+    const stop = [watch(PARAMS_ID), watch(TIMELINE_ID)];
+    return () => {
+      clearTimeout(pending);
+      for (const unsubscribe of stop) {
+        unsubscribe();
+      }
+    };
+  });
   function replay() {
     open = true;
     submitted = false;

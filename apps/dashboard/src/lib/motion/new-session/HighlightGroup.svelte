@@ -166,6 +166,8 @@
     z-index: -1;
   }
   button {
+    display: flex;
+    align-items: center;
     flex: 1;
     min-width: 0;
     min-height: 44px;
@@ -176,8 +178,14 @@
     border-radius: var(--radius-control);
     text-align: left;
     font-size: var(--text-sm);
+    line-height: 1.3;
     cursor: pointer;
     overflow-wrap: anywhere;
+  }
+  /* The snippet's root fills the button so rows can space their ends apart. */
+  button > :global(*) {
+    flex: 1 1 auto;
+    min-width: 0;
   }
   button[aria-checked="true"] {
     color: var(--ink-strong);

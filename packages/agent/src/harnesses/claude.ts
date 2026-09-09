@@ -47,6 +47,7 @@ import type {
 import {
   ASK_USER_QUESTION,
   CONTROL_CONTEXT_USAGE,
+  CONTROL_INTERRUPT,
   CONTROL_MCP_STATUS,
   CONTROL_SET_EFFORT,
   CONTROL_SUPPORTED_COMMANDS,
@@ -1490,6 +1491,13 @@ export class ClaudeCustody implements HarnessSession {
    * {@link READ_ONLY_CONTROLS}).
    */
   control(method: string): Promise<unknown> {
+    // The one control custody can serve itself: an interrupt is a raw
+    // control_request on the child's stdin, not something the dead `Query` had
+    // to route. Stopping a runaway turn is exactly what an operator needs
+    // during custody, so it is dispatched here rather than refused.
+    if (method === CONTROL_INTERRUPT) {
+      return this.interrupt();
+    }
     const reason = `whiffle: agent restarted; control \`${method}\` is unavailable until this session hands back (custody)`;
     if (!READ_ONLY_CONTROLS.has(method)) {
       this.#ctx.frame({
@@ -1659,8 +1667,19 @@ async function probeModels(): Promise<ModelInfo[] | undefined> {
   }
   const defaultModel = aliases?.find((model) => model.value === "default");
   const values = new Set(aliases?.map((model) => model.value));
+  // An alias resolves to a concrete model (`sonnet` → `claude-sonnet-5`, with
+  // or without a `[1m]` context suffix), so it carries that model's release.
+  const releasedById = new Map(
+    (accountModels ?? []).map((model) => [model.id, model.created_at.slice(0, 10)])
+  );
+  const dated = (aliases ?? []).map((alias) => {
+    const released = releasedById.get(
+      (alias.resolvedModel ?? alias.value).replace(/\[1m\]$/, "")
+    );
+    return released ? { ...alias, released } : alias;
+  });
   return [
-    ...(aliases ?? []),
+    ...dated,
     ...(accountModels ?? [])
       .filter((model) => !values.has(model.id))
       .sort((a, b) => b.created_at.localeCompare(a.created_at))

@@ -9,8 +9,12 @@
   import IconBypass from "~icons/solar/bolt-linear";
   import IconAsk from "~icons/solar/chat-round-dots-linear";
   import IconPlan from "~icons/solar/clipboard-list-linear";
+  import IconModel from "~icons/solar/cpu-bolt-linear";
+  import IconHigh from "~icons/solar/fire-linear";
   import IconFolder from "~icons/solar/folder-linear";
+  import IconLow from "~icons/solar/leaf-linear";
   import IconEdits from "~icons/solar/pen-new-square-linear";
+  import IconMax from "~icons/solar/rocket-2-linear";
   import EffortSlider from "./EffortSlider.svelte";
   import HighlightGroup from "./HighlightGroup.svelte";
   import LocationPicker, { type Place } from "./LocationPicker.svelte";
@@ -118,7 +122,12 @@
     { value: "plan", label: "Plan", icon: IconPlan },
     { value: "bypassPermissions", label: "Bypass", icon: IconBypass },
   ];
-  const efforts = ["Low", "Medium", "High", "Max"];
+  const efforts = [
+    { label: "Low", icon: IconLow },
+    { label: "Medium", icon: IconBypass },
+    { label: "High", icon: IconHigh },
+    { label: "Max", icon: IconMax },
+  ];
   const USAGE_KEY = "whiffle:new-session:model-usage";
 
   function catalog(kind: HarnessKind) {
@@ -172,7 +181,7 @@
       label: harnesses.find((h) => h.value === harness)?.label ?? harness,
       icon: harnesses.find((h) => h.value === harness)?.icon,
     },
-    { value: "model", label: modelRow?.displayName ?? model },
+    { value: "model", label: modelRow?.displayName ?? model, icon: IconModel },
     {
       value: "where",
       label: `${place.machine} · ${place.name ?? place.cwd}`,
@@ -184,7 +193,11 @@
         permissions.find((p) => p.value === permission)?.label ?? permission,
       icon: permissions.find((p) => p.value === permission)?.icon,
     },
-    { value: "effort", label: `Effort ${efforts[effort]}` },
+    {
+      value: "effort",
+      label: `Effort ${efforts[effort].label}`,
+      icon: efforts[effort].icon,
+    },
   ]);
 
   /** The expanded setting's height, sprung so the card grows and shrinks rather than jumps. */
@@ -372,12 +385,14 @@
 
 <style>
   .overlay {
+    --card-top: clamp(40px, 12dvh, 140px);
     position: fixed;
     inset: 0;
     z-index: 80;
     display: grid;
-    place-items: center;
-    padding: var(--space-5);
+    justify-items: center;
+    align-items: start;
+    padding: var(--card-top) var(--space-5) var(--space-5);
     pointer-events: none;
   }
   .scrim {
@@ -394,7 +409,7 @@
     margin: 0;
     width: 640px;
     max-width: 100%;
-    max-height: calc(100dvh - var(--space-8));
+    max-height: calc(100dvh - var(--card-top) - var(--space-5));
     display: flex;
     flex-direction: column;
     border: 1px solid var(--border-control);
@@ -453,8 +468,11 @@
     padding: var(--space-2) var(--space-3);
     font-size: var(--text-xs);
   }
+  .chips :global(.group > button > *) {
+    flex: 0 0 auto;
+  }
   .chip {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     gap: var(--space-2);
     white-space: nowrap;
@@ -477,7 +495,7 @@
   }
   .harness,
   .mode {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     gap: var(--space-2);
   }

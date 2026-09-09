@@ -41,9 +41,10 @@
     ...custom,
   ]);
   const OUT = 0.22;
+  const lastUse = $derived(Object.values(usage).sort().at(-1));
+  /** "New" is relative to your own history: released after the last session you started. */
   function tier(row: ModelInfo) {
-    const { released } = row;
-    if (released && !Object.values(usage).some((at) => at > released)) {
+    if (lastUse && row.released && row.released > lastUse) {
       return "New";
     }
     if (usage[row.value]) {
