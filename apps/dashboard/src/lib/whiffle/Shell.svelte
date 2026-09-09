@@ -78,12 +78,30 @@
     setRail(Number.isFinite(stored) && stored > 0 ? stored : railWidth);
   });
 
-  function setRail(px: number) {
+  /**
+   * Show a width. Runs on every frame of a drag, so it does no more than that.
+   *
+   * `--sidebar-width` resolves through `--rail-w` (see the shell's inline
+   * style), so the value the inline script established is replaced rather than
+   * fought with.
+   */
+  function showRail(px: number) {
     railWidth = clamp(px);
-    // The one place the width is applied. `--sidebar-width` resolves through it
-    // (see the shell's inline style), so the value the inline script established
-    // is replaced rather than fought with.
     document.documentElement.style.setProperty("--rail-w", `${railWidth}px`);
+  }
+
+  /**
+   * Remember the width the reader settled on. Runs once, when they let go.
+   *
+   * Separated from showing it because these two writes are not cheap where it
+   * matters: both localStorage and `document.cookie` are synchronous, and in
+   * WebKit both are a round trip to another process. Doing them per
+   * `pointermove` — 120 a second on an iPad — is what made dragging this
+   * handle unusable on one, while staying fast enough on a desktop to hide.
+   * The width is a preference; it is worth storing when it stops changing,
+   * not while it is changing.
+   */
+  function rememberRail() {
     try {
       localStorage.setItem(RAIL_KEY, String(railWidth));
       // biome-ignore lint/suspicious/noDocumentCookie: +layout.server.ts reads this same cookie for the SSR-resolved rail width; the Cookie Store API is unavailable in every browser this app supports
@@ -93,11 +111,66 @@
     }
   }
 
+  /** Both, for the callers that change the width one step at a time. */
+  function setRail(px: number) {
+    showRail(px);
+    rememberRail();
+  }
+
+  /**
+   * Dragging the handle writes the width onto the rail itself, not through
+   * `--rail-w`.
+   *
+   * `--rail-w` lives on the root so that the inline script in `app.html` can
+   * set it before the body parses, and that is the right home for a value
+   * settled once. It is the wrong one for a value changing every frame: a
+   * custom property on the root is inherited by the whole document, so each
+   * write invalidates every element's style, and the transcript's and the
+   * panes' ResizeObservers all fire behind it. Measured on this page in
+   * WebKit, per frame of a drag:
+   *
+   *   root `--rail-w`              682 ms   1050 ResizeObserver entries
+   *   shell `--sidebar-width`      557 ms    960
+   *   rail's own width              74 ms    733
+   *
+   * against 17 ms for a frame that forces layout and changes nothing. The
+   * rail's width and flex-basis are the two things that actually have to
+   * change, so during a drag they are set directly and the cascade is left
+   * out of it. On release the settled width goes back through `--rail-w` and
+   * the inline overrides are dropped in the same task — one style flush, so
+   * the stylesheet takes the rail back without a frame of the old width.
+   *
+   * `railWidth` is deliberately NOT written while dragging: it is read by the
+   * shell's inline `style`, so assigning it would put `--sidebar-width` back
+   * on the shell every frame and buy back the cost this avoids. It catches up
+   * on release, which is also when `aria-valuenow` settles.
+   */
   function startDrag(event: PointerEvent) {
     const handle = event.currentTarget as HTMLElement;
+    // The grip is a child of the rail it resizes.
+    const rail = handle.parentElement as HTMLElement;
     handle.setPointerCapture(event.pointerId);
-    const move = (e: PointerEvent) => setRail(e.clientX);
+    // Coalesced to a frame: a 120 Hz pointer emitting two moves in one frame
+    // would otherwise pay for the layout twice and show one of them.
+    let frame = 0;
+    let latest = railWidth;
+    const paint = () => {
+      frame = 0;
+      latest = clamp(latest);
+      rail.style.width = `${latest}px`;
+      rail.style.flexBasis = `${latest}px`;
+    };
+    const move = (e: PointerEvent) => {
+      latest = e.clientX;
+      frame ||= requestAnimationFrame(paint);
+    };
     const stop = () => {
+      if (frame) {
+        cancelAnimationFrame(frame);
+      }
+      setRail(latest);
+      rail.style.width = "";
+      rail.style.flexBasis = "";
       handle.removeEventListener("pointermove", move);
       handle.removeEventListener("pointerup", stop);
       handle.removeEventListener("pointercancel", stop);
