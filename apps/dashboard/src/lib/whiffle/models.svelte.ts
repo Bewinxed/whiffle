@@ -24,10 +24,6 @@ const RECENT_KEY = `${MODEL_STORAGE_PREFIX}:recent`;
 /** How many typed-in model ids are remembered — a shortlist, not a history. */
 const RECENT_LIMIT = 5;
 
-/** Whether this id is known — it matches an offered model by value or resolvedModel. */
-const isKnownModel = (id: string): boolean =>
-  store.offered.some((row) => covers(row, id));
-
 /** What the form sends when the user has not chosen: nothing, and the SDK picks. */
 export const MODEL_DEFAULT = "";
 
@@ -46,18 +42,6 @@ if (typeof localStorage !== "undefined") {
   store.offered = readJson<HarnessModel[]>(OFFERED_KEY, []);
   store.recent = readJson<string[]>(RECENT_KEY, []);
 
-  // A past session may have remembered an id that no offered model covers — a
-  // typo, a dot where a hyphen belongs, or a model that was removed. Drop those
-  // once so they stop being offered, rather than lingering in localStorage.
-  // Guard: if the offered list itself is empty (first visit, no session yet),
-  // keep everything — nothing to validate against.
-  if (store.offered.length > 0) {
-    const cleaned = store.recent.filter((id) => isKnownModel(id));
-    if (cleaned.length !== store.recent.length) {
-      store.recent = cleaned;
-      writeJson(RECENT_KEY, cleaned);
-    }
-  }
 }
 
 /** One running session per unique harness, so each harness type is queried. */
@@ -376,17 +360,14 @@ export { providerOf } from "./provider";
 
 /**
  * Remembers an id the user typed, so the next session can pick it off a list.
- * Only ids that match an offered model are stored — anything else would persist
- * typos and invalid ids that force themselves into the picker on every load.
- * When the offered list is empty (no session has reported models yet), the id is
- * stored optimistically and cleaned on the next load that has a list.
+ * A typed id is, by definition, one the catalog does not offer — that is the
+ * whole reason it was typed — so nothing here checks it against the catalog.
+ * `models.recent` hides any that the catalog later comes to cover, and the
+ * shortlist is capped, so a typo costs one slot until it scrolls off.
  */
 export function rememberModel(model: string): void {
   const id = model.trim();
   if (!id) {
-    return;
-  }
-  if (store.offered.length > 0 && !isKnownModel(id)) {
     return;
   }
   store.recent = [id, ...store.recent.filter((seen) => seen !== id)].slice(
