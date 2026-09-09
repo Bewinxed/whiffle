@@ -49,14 +49,10 @@
     gap: var(--space-2);
     padding: var(--space-2) var(--space-3);
     background: var(--surface-overlay);
-    border-bottom: 1px solid var(--border-control);
     color: var(--ink-muted);
-    transition:
-      border-color var(--c-100) var(--e-toggle),
-      color var(--c-100) var(--e-toggle);
+    transition: color var(--c-100) var(--e-toggle);
   }
   .search:focus-within {
-    border-color: var(--ink-muted);
     color: var(--ink-strong);
   }
   .search :global(svg) {
@@ -67,6 +63,7 @@
   input {
     width: 100%;
     min-width: 0;
+    text-overflow: ellipsis;
     height: 32px;
     padding: 0 var(--space-1);
     border: 0;

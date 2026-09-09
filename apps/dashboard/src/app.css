@@ -473,6 +473,8 @@
     0 6px 18px var(--shadow-tint-2), 0 1px 3px var(--shadow-tint);
   --shadow-overlay:
     0 18px 48px var(--shadow-tint-3), 0 2px 6px var(--shadow-tint);
+  --shadow-modal: var(--shadow-overlay);
+  --surface-well: var(--surface-field);
   --shadow-drawer: 0 12px 40px var(--shadow-tint-3);
   --shadow-inset-sel: inset 0 1px 1px var(--shadow-tint);
   --shadow-action:

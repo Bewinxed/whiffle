@@ -12,15 +12,15 @@
   import NewSessionDialog from "$lib/whiffle/spawn/NewSessionDialog.svelte";
   import "dialkit/styles.css";
 
-  const TIMELINE_ID = "new-session-open-v3";
-  const PARAMS_ID = "new-session-params-v2";
+  const TIMELINE_ID = "new-session-open-v4";
+  const PARAMS_ID = "new-session-params-v3";
   const desktop = new MediaQuery("(min-width: 481px)");
   let open = $state(false);
   // TODO(production): DialKit clip.current values are the scrubbable authoring preview. Replace with the app's real transitions using the tuned timings, then remove createDialTimeline and <DialTimeline />.
   const timeline = createDialTimeline(
     "New session",
     {
-      // Keep the last row scrubbable at the largest exposed stagger (7 × 100ms).
+      // Keep Start scrubbable at the largest exposed pill stagger.
       duration: 1.1,
       scrim: {
         at: 0,
@@ -32,7 +32,7 @@
       card: {
         at: 0.04,
         duration: 0.32,
-        from: { opacity: 0, scale: 0.98, y: 8 },
+        from: { opacity: 0, scale: 0.96, y: 0 },
         to: { opacity: 1, scale: 1, y: 0 },
         transition: { type: "spring", visualDuration: 0.32, bounce: 0 },
       },
@@ -52,7 +52,7 @@
     "New session",
     {
       open: { rowStagger: [0.024, 0, 0.1, 0.002] },
-      seg: { thumb: { type: "spring", visualDuration: 0.26, bounce: 0 } },
+      toggle: { thumb: { type: "spring", visualDuration: 0.26, bounce: 0 } },
       pop: {
         open: { type: "spring", visualDuration: 0.2, bounce: 0 },
         rowStagger: [0.014, 0, 0.05, 0.002],

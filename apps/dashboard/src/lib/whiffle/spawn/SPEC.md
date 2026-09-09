@@ -1,126 +1,61 @@
-# New session — surface spec (Quiet Ledger)
+# New Session Composer
 
-Authored by the design delegate from PRODUCT.md, DESIGN.md, JOURNEY.md, WORDS.md and the facts in SpawnPanel.svelte. Implement verbatim. Tokens come from DESIGN.md / app.css only.
+## 1. Layout
 
-## 1. The decision
+The modal is 640px wide, centered on both viewport axes, with viewport containment on small screens. It uses the app Dialog parts and bits-ui focus management, `--surface-raised`, `--radius-modal`, and `--shadow-modal`. The recessed prompt uses `--surface-well`. These two semantic aliases resolve to the existing field surface and overlay shadow in app.css. The authoritative design file is `/DESIGN.md` at the repository root.
 
-The operator is writing a brief; the settings are usually last time's. So: one recessed well for the prompt, then a **ledger** of six one-line rows, each stating a setting as a fact and each a control. What fits one line is visible; only the two long lists are disclosed.
+There are two regions: a borderless prompt well with at least eight rows, and a composer region with a reserved error-reading slot and one 40px flex row. The placeholder is "What should the agent do?". Focus changes the well's inset edge and ink. Start remains anchored right through all selections. No control or surface has a hairline.
 
-| Setting | Tier | Why |
-|---|---|---|
-| Prompt | the well | It is the task. Empty prompt starts an idle session using the same Start button or submit shortcut. |
-| Agent | 3-segment | Root setting: re-derives models and modes; three marks cost one line. |
-| Model | value button; list disclosed | 20+ rows are long; "Opus 5 · 1M" is not. |
-| Location | value button; picker disclosed | 10 machines × 100 dirs are long; "nixbox · ~/cockpit" is not. |
-| Permissions | 4-segment | Consequential; `Bypass all` must be read, never found. |
-| Effort | slider, constant height | Five stops fit one line; a row appearing per model would shift the card. |
-| Side quest · Worktree · Save as project · Clone repo | toggle chips, one row | Rare but cheap; each changes another row's reading, never adds a field. |
+## 2. Composer Bar
 
-## 2. Layout
+In order: agent/model pill, location pill, mode pill, effort slider, options, Start.
 
-Card: `--surface-raised`, radius `--radius-panel` 14, `--shadow-overlay`, over `--scrim`. Width `clamp(640px, 72vw, 760px)`, **anchored `top: 12vh`, never vertically centred**, so growth (prompt 5→10 lines) extends downward only. Padding `--space-2` 7 → every interior surface is radius `--radius-well` 7 (14 − 7). Header 44px: "New session" `--text-lg` 500 `--ink-strong`; close trailing. Title, prompt text and ledger labels share one content edge: `--space-4` plus the prompt's 1px hairline inset.
+- Agent/model shows the harness's actual 16px logo and the canonical model name. Its single popover contains three ToggleGroup agent tiles, then the model search/list. Uninstalled harnesses are disabled with a machine-specific accessible reason.
+- Location shows machine status and a shortened path. It opens LocationPicker.
+- Mode shows a Solar icon and short name. Its popover contains four RadioGroup rows. Bypass all uses `--status-attn-bg` / `--status-attn-ink` on the trigger.
+- Effort uses a 150px bits-ui Slider with five 16px Solar detents. Inactive icons use full-opacity `--ink-muted`; the active filled icon rides an 18px spring thumb in `--brand-solid`. The visible 4px track uses `--border-control`. Hover/drag shows the level name. Null shows the documented harness default in muted ink and remains omitted from the payload: Claude Code xhigh where supported, otherwise the API high default. Unsupported effort collapses inside a reserved slot.
+- Options contains two app Switch controls: Scratch and Bootstrap. Scratch maps to the existing scratch payload. Bootstrap opens the repository location picker.
+- Start is the app Button using `--gradient-action` / `--shadow-action`, with the keyboard hint.
 
-Prompt well: `--surface-field`, 1px `--border-hairline`, radius 7, padding `--space-4`, `--text-md` 400 `--leading-body`; placeholder `--ink-muted` "What should this session do?"; 5–10 lines.
+Pills are transparent, with `--surface-hover` on hover and `--surface-active` while open. Selected agent tiles and rows use a 12% `--brand-solid` tint with `--ink-strong` text; the travelling hover/keyboard highlight uses `--surface-hover`. Brand is reserved for selection, effort, enabled switches, and Start. Identity logos retain their own colours.
 
-Ledger: one quiet `--surface-field` group, radius 7, no row dividers, even `--space-1` (4px) gaps between 40px rows, grid `96px 1fr`, margin-top `--space-3`; labels `--text-sm` 450 `--ink-label`, values `--text-base` `--ink-row`. Controls are vertically centred in each row.
+## 3. Interaction
 
-Footer 52px: a reading slot (`--text-sm` `--ink-muted`, one line always reserved) shows actual problems only (unverified or unreadable location, offline machine, unreachable hub, submit failure). No always-on permission explanation. `Start session` trailing — 36px, `--gradient-action` + `--shadow-action`, `--on-brand`, radius `--radius-control` 8.
+Prompt receives initial focus. Cmd/Ctrl+Enter submits. Escape closes the topmost popover before the dialog; focus returns to the trigger. The Dialog and Popover primitives own focus trapping and dismissal.
 
-**Below 480px**: bottom sheet, `--radius-shell` 20 top corners, `--shadow-drawer`, 7px padding (interior 13, ledger 7 inside a 6px frame). Labels stack above values (pitch 56); Permissions fixed 2×2; Start full-width above the safe area; prompt 16px; pickers are full-height panels sliding over the sheet.
+Start is gated while a popover is open, location is unreadable or unverified, a submission is busy, or the hub is unreachable. A stale saved location cannot overwrite a newer user choice. Changing machines selects an installed harness if the previous harness is unavailable.
 
-## 3. Controls
+## 4. Motion
 
-Shared states: hover `--surface-hover` (off under `hover: none`); active `--surface-active` + `--shadow-inset-sel`; focus-visible 2px `--focus-ring`, 2px offset; disabled `--ink-muted` at 0.55, `reason` via `aria-describedby`; targets ≥44px under `pointer: coarse`.
+DialKit controls the scrim, card scale .96 to 1 and fade, prompt arrival, pills staggered left to right, then Start. The live demo retains its parameter subscription and scrubbable timeline; changing either replays the sequence. DialRoot and DialTimeline mount only at widths of at least 481px.
 
-**Segmented** (Agent, Permissions). Track `--surface-field`, radius 7, 1px `--border-control`, 2px inset; one travelling thumb `--surface-raised` + `--shadow-tile`, radius 5. Agent marks are 16px at `--ink-body`: Claude uses the anthropic mark from ProviderLogo, monochrome via currentColor; OpenCode and pi use HarnessGlyph. Content gap 6px; padding-inline 12/11 (mark side −1, optical). Selected `--ink-strong` 450; rest `--ink-body`. `Bypass all` selected takes `--status-attn-bg`/`--status-attn-ink` without an explanatory footer. Modes the harness cannot honour are disabled, not removed. `radiogroup`/`radio`, roving tabindex, ←→ live, Home/End.
+Popover scale, list highlight, effort thumb, switch thumbs, and model row springs derive from `springFromVisual`. On each harness change old rows leave left with a stagger, then new rows enter from the right with a stagger. Highlights snap to the selected row on mount and fade in. Reduced motion jumps springs to their end states and removes delays.
 
-**Value button** (Model, Location). Full-width 32px, `--surface-field`, radius 7, hairline; 16px mark (`ProviderLogo`; online dot `--status-live-bg` for location), label, muted meta, chevron. Empty: "Choose a model" / "Choose a machine and directory" in `--ink-muted`. Loading: meta "Reading…". `aria-haspopup=listbox aria-expanded`.
+## 5. Model Naming And Ordering
 
-**Anchored popover**. `--surface-overlay`, radius `--radius-modal` 12, `--shadow-overlay`, width = anchor, 6px below; flips above when <320px remain; max-height `min(420px, viewport − anchor − 16px)`, scrolls inside; viewport-positioned, never clipped. Esc/outside click close.
+`deriveModelEntries` is pure over `models.forHarness(harness)`:
 
-**Model list**. Search pinned (`combobox` → `listbox`, `aria-activedescendant`), placeholder "Search, or type a model id". Rows 36px: mark 16 · name `--ink-strong` · meta `--text-sm` `--ink-muted` right, tabular; captions `--text-xs` `--ink-label`. Empty catalog: "No models reported for {agent}." → [Refresh models]. ↑↓, Enter, type-to-filter.
+1. Canonical ID is `resolvedModel ?? value`. Dedupe by ID, merging supported effort levels and release dates. Aliases collapse into canonical entries. The entry resolved by `default` carries the default tag.
+2. Names derive from canonical IDs. Route prefixes become provider metadata; strip `claude-`, title-case the family, join numeric version tokens with dots, and render `[1m]` as ` · 1M`. Examples: `claude-opus-5[1m]` becomes "Opus 5 · 1M"; `claude-fable-5-1` becomes "Fable 5.1"; `deepseek-v4-pro` becomes "DeepSeek V4 Pro". Unknown families use merged displayName or a monospaced ID.
+3. Group order: New since the last spawn; Recent by last-used descending; All by released descending with undated last; Typed remembered custom IDs. Record model use only when a session starts.
+4. A row contains provider logo, model name, an optional default tag, and a known release date at the right in muted ink. Release timing is relative to the last model use, falling back to the last harness use; without usage history it is relative to today. Unknown dates have no placeholder. Provider text, max support, and separate last-used trailers are omitted.
+5. One search matches name, canonical ID, aliases, and provider. An unmatched ID-shaped query is a selectable Typed/custom row; Enter selects it and remembers the ID.
+6. Submit the canonical ID after selection. Untouched model is `""` internally and omitted from the wire payload.
 
-**Location picker**. Search pinned. Machine rail 168px (`listbox`: hostname, online dot; offline dimmed, selectable) beside a directory `listbox` captioned Projects / Recent / Browse. Pane head: 2-segment `Directory | Repository`; Repository lists `listRepos` (name, visibility) with a reserved "Clone into" line at the foot. ↑↓ directories; ⌘/Ctrl+↑↓ machines; Enter accepts.
+## 6. Location
 
-**Effort slider**. 2px track `--border-control`, five ticks: reachable filled `--ink-body`, unreachable hollow, inert; labels `--text-xs` (`low medium high xhigh max`). Thumb 14px `--brand-solid` ring on `--surface-raised`. Unset = no thumb, readout "Harness default", "Reset" once set. No scale: ticks hollow, readout "No effort scale on this model", same height. `slider` 0–4, `aria-valuetext`, ←→ Home End, Backspace resets.
+Location is `{ machineId, cwd, repo? }`. Search spans machine names, project names and paths across every machine. Results include Projects, Recent and Browse. Selecting a cross-machine result moves the machine selection. Project prefill remains locked until Edit.
 
-**Toggle chips**. `--radius-pill`, 28px, `--surface-field`, hairline; on: `--surface-active`, `--ink-strong`, check glyph. `Worktree` needs `Side quest`; `Save as project` disabled with a project attached (name = directory leaf); `Clone repo` ↔ Repository mode. `role=switch`.
+A query starting `/` or `~` browses children of its longest existing prefix, filtered by the tail. Tab completes; Enter accepts the typed path after verification. `inspectMachine` and `machineFs(list)` verify readability. Inspection runs after 600ms and again before spawning. Unreadable locations display a path error and block submission. Repository mode supports reported repositories and typed URLs.
 
-**Dialog**. `dialog aria-modal aria-labelledby`, focus trap, initial focus on the prompt; Esc closes an open popover first; ⌘/Ctrl+Enter starts. Hub unreachable: Start disabled, reading "No spawn while the hub is unreachable. Reconnect to continue."
+## 7. Submission
 
-## 4. Model list
+Snapshot every submission input before asynchronous work. Closing invalidates the submission generation. Recheck the generation after directory verification, project creation, and exit animation.
 
-`deriveModelEntries`, pure over `models.forHarness(harness)`:
+Preserve createProject-before-spawnSession ordering when saveAsProject is selected internally. Spawn receives machineId, workdir, prompt, harness, permissionMode, optional model/effort, scratch `{ worktree, baseCwd }`, bootstrap `{ repo, baseDir }`, and projectId. `spawnSession` sends the spawn frame and then a separate prompt send frame. Store preferences and model usage after spawning.
 
-1. **Canonical id** = `resolvedModel ?? value`; dedupe on it, merging `supportedEffortLevels` (union) and `released`. Alias rows (`default`, `sonnet`) collapse into their canonical row; the one `default` resolves to carries a "default" tag.
-2. **Name** from the canonical id, never `displayName`: route prefix (`opencode-go/`) → meta; strip `claude-`; family Title-cased; version tokens joined by `.`; `[1m]` → ` · 1M`. `claude-opus-5[1m]` → **Opus 5 · 1M**, `claude-fable-5-1` → **Fable 5.1**, `deepseek-v4-pro` → **DeepSeek V4 Pro**. Unrecognised family → merged `displayName`, else the id in `--font-mono`.
-3. **Order**: (a) `released` after the operator's last spawn on this harness → "New since you last used {agent}"; (b) `lastUsedAt` desc → "Recent"; (c) `released` desc, undated last → "All"; (d) `models.recent` → "Typed", mono. Needs `modelUse.svelte.ts`: `recordModelUse(harness, id)` on spawn, `lastSpawnAt(harness)`, `lastUsedAt(harness, id)`.
-4. **Meta**: released relative ("2d ago") or "—"; "used 3h ago"; "default"; `max` when reached.
-5. **Search/custom**: one field matching name, id, aliases, provider. No match and id-shaped → single row "Use `{query}`" (mono, meta "custom"); Enter submits; `rememberModel` stores.
-6. **Submitted**: canonical id, never an alias; `""` when untouched.
+The composer exposes only Scratch and Bootstrap switches. Worktree and Save as project remain in the submission logic but have no composer controls.
 
-## 5. Location
+## 8. Verification
 
-One value `{ machineId, cwd, repo? }`; the button reads `hostname · ~/path`. Search matches hostname, project name and path segments across **all** machines; a hit elsewhere moves the rail highlight. Prefill locks the value under "From project {name}" with "Edit".
-
-Typed path: a query starting `/` or `~` lists `machineFs(list)` children of the longest existing prefix, filtered by the tail; Tab completes; Enter accepts verbatim. After 600ms `inspectMachine` runs; unreadable → reading under the button "That directory can't be read on {host}. Check the path and try again.", submit blocked. Offline machine: allowed, reading "{host} is offline. Pick another machine, or start when it returns."
-
-## 6. Motion
-
-Springs default `bounce: 0` (DESIGN.md bans elastic easing); DialKit range 0–0.15 is for auditioning.
-
-| Moment | Property | Value | Param |
-|---|---|---|---|
-| Open scrim | opacity | `--c-300` `--e-in` | `open.scrim.ms` |
-| Open card | opacity, scale .98→1, y 8→0 | spring vd .32 | `open.card.*` |
-| Open rows (well, 6 rows, footer) | opacity, y 6→0 | spring vd .28, stagger 24ms from t+60; caret at t+120 | `open.rows.*`, `open.focus.at` |
-| Segment thumb | x, width | spring vd .26 | `seg.thumb.*` |
-| Segment ink / attn tint | color / background + reading | `--c-100` `--e-toggle` / `--c-300` `--e-in` | `seg.ink.ms`, `attn.ms` |
-| Popover open / close | opacity, scale .98→1 from anchor edge | spring vd .20 / `--c-100` `--e-out` | `pop.*` |
-| Popover rows | opacity, y 6→0 | stagger 14ms, first 12 then simultaneous | `pop.rows.stagger` |
-| List swap on harness change | out: opacity, x ∓8 `--c-100` `--e-out`; in: opacity, x ±8→0 (sign = travel direction), spring vd .24, stagger 18ms | | `swap.*` |
-| List highlight | y | spring vd .22 | `list.hl.vd` |
-| Slider thumb/fill, readout | x/width; cross-fade | spring vd .22; `--c-100` | `slider.*` |
-| Thumb appear/reset | scale | spring vd .18 / `--c-100` `--e-out` | `slider.thumb.*` |
-| Chip | background; check stroke-dashoffset | `--c-100` `--e-toggle`; `--c-300` `--e-in` | `chip.*` |
-| Press / chevron | y .5px + `--shadow-inset-sel` / rotate 180° | `--c-100` / `--c-300` `--e-in` | `press.ms`, `chev.ms` |
-| Error | outline 0→2px `--error-9`; reading | `--c-300` `--e-in` | `err.ms` |
-| Start | label "Starting…"; card opacity, scale 1→.98 | `--c-300` `--e-out` | `exit.*` |
-
-Reduced motion: durations 0/1ms, springs at end state, stagger 0.
-
-## 7. Component tree
-
-```
-NewSessionDialog { open: boolean; prefill?: { machineId?: string; cwd?: string; projectId?: string }; onclose(): void }
-├ PromptWell { value: string; placeholder: string; minRows: number; maxRows: number; onsubmit: () => void }
-├ LedgerRow { label: string; controlId: string; reading?: string } ×6
-│ ├ Segmented<T> { options: { value: T; label: string; mark?: Snippet; disabled?: boolean; reason?: string; tone?: 'neutral'|'attn' }[]; value: T; onchange: (v: T) => void }  reusable — Agent, Permissions
-│ ├ ValueButton { label: string; meta?: string; mark?: Snippet; empty?: boolean; expanded: boolean; onclick: () => void }  reusable — Model, Location
-│ ├ AnchoredPopover { anchor: HTMLElement; open: boolean; onclose: () => void; children }  reusable
-│ │ ├ ModelPicker { harness: HarnessKind; value: string; onselect: (id: string) => void }
-│ │ │ └ SearchField · ModelRow { entry: ModelEntry; selected: boolean; active: boolean }
-│ │ └ LocationPicker { machineId: string; cwd: string; repo?: string; locked?: { projectName: string }; onselect: (v: { machineId: string; cwd: string; repo?: string }) => void }
-│ │   └ SearchField · MachineRail · DirectoryList
-│ ├ StopSlider { stops: { value: string; label: string; reachable: boolean }[]; value: string | null; readout: string; onchange: (v: string | null) => void }  reusable
-│ └ ToggleChip { label: string; checked: boolean; disabled?: boolean; reason?: string; onchange: (c: boolean) => void }  reusable
-└ ActionButton { label: string; busy?: boolean; disabled?: boolean; onclick: () => void }  reusable, never-flat
-SearchField, HarnessGlyph, ProviderLogo: reusable/existing.
-deriveModelEntries(rows: ModelInfo[], use: ModelUse): ModelEntry[]
-type ModelEntry = { id: string; name: string; provider: string | null; released?: string; lastUsedAt?: string; isDefault: boolean; isCustom: boolean; effort: EffortLevel[]; aliases: string[] }
-```
-
-## 8. Acceptance checks (headless)
-
-1. **Stillness**: card rect byte-equal at rest and after: open/close each popover, Repository mode, each harness, a model without effort, `Bypass all`, each chip, prefill lock/edit — at 1440×900 and 1024×768.
-2. **Containment**: above 480px, every popover ⊂ viewport with ≥8px margin. At ≤480px, each picker fills the viewport minus safe-area insets (0px margin when insets are 0). Check 1440×900, 1024×640, 768×1024, 390×844, 320×568, card scrolled top and bottom.
-3. **Centering**: every segment, chip, value button, Start: |content centre − control centre| ≤1px both axes; each slider stop |thumb − tick| ≤1px.
-4. **Radii**: card 14, well/ledger/controls 7, thumb 5, popover 12.
-5. **Stagger both ways**: Claude→pi and pi→Claude; sample the entering list at `t = 3 × stagger + 60ms` (114ms at the default 18ms stagger): `opacity(row0) > opacity(row3) > opacity(row8)`, with row8 allowed to be 0. All rows opacity 1 by 600ms after the harness change; `translateX` sign matches travel.
-6. **Naming**: fixture `[default→claude-opus-5[1m], opus→claude-opus-5[1m], claude-opus-5[1m], sonnet→claude-sonnet-5, claude-fable-5-1]` renders exactly "Opus 5 · 1M" (tag default), "Sonnet 5", "Fable 5.1"; no row contains "Default (recommended)".
-7. **Submitted**: selecting Opus via query "default" spawns `model: "claude-opus-5[1m]"`; `foo/bar-9` + Enter spawns `model: "foo/bar-9"`; untouched sends no `model`/`effort` keys.
-8. **Keyboard**: Tab order prompt → Agent → Model → Location → Permissions → Effort → chips → Start → close; Esc closes only the popover; ⌘Enter spawns; focus returns to the trigger.
-9. **Typed path**: `/definitely/missing` → no `spawn` frame; reading and focus on Location.
-10. **Reduced motion**: all above pass with transitions ≤1ms. **Tokens**: `mocks/literalcheck.py` and `typecheck.mjs` clean.
-
-Notes from the designer: effort `null` is honest (the harness decides; no thumb rather than a guessed stop). The DESIGN.md "structure never moves" rule is deliberately crossed on this surface only, by the owner's mandate; every animation is confined to this surface and to token durations/easings.
+`apps/dashboard/scripts/new-session-checks.mjs` intercepts the dashboard WebSocket and API writes. It never connects a spawn socket to the hub. Checks cover centering, fixed bar/card bounds, popover containment, all harness logos, canonical/custom/untouched payloads, keyboard submission, cancellation, invalid paths, options, and reduced motion. Stagger is sampled at `3 * stagger + 60ms` from entry of the new list. Any page error makes the script exit non-zero.

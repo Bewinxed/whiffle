@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { FsEntry, RepoInfo, ReposResult } from "@whiffle/core";
+  import { ToggleGroup } from "bits-ui";
   import { flushSync, onDestroy, tick, untrack } from "svelte";
   import { Spring } from "svelte/motion";
   import IconFolder from "~icons/solar/folder-linear";
@@ -7,8 +8,8 @@
   import { machineControl, machineFs, whiffle } from "../client.svelte";
   import { inspectMachine } from "../fleet";
   import { reducedMotion } from "../motion.svelte";
+  import { springFromVisual } from "./motion";
   import SearchField from "./SearchField.svelte";
-  import Segmented from "./Segmented.svelte";
 
   let {
     machineId,
@@ -347,12 +348,8 @@
     const machineIndex = whiffle.machines.findIndex(
       (row) => row.machineId === selectedMachine
     );
-    const frequency = 4.6 / (spring.visualDuration * 60);
-    const stiffness = frequency * frequency;
-    railY.stiffness = stiffness;
-    rowY.stiffness = stiffness;
-    railY.damping = Math.min(1, 2 * frequency * (1 - spring.bounce));
-    rowY.damping = Math.min(1, 2 * frequency * (1 - spring.bounce));
+    Object.assign(railY, springFromVisual(spring));
+    Object.assign(rowY, springFromVisual(spring));
     tick().then(() => {
       if (cancelled) {
         return;
@@ -534,11 +531,16 @@
       </div>
       <div class="pane">
         <div class="pane-head">
-          <Segmented
-            onchange={(value) => { onmodechange(value); query = ''; }}
-            options={[{ value: 'directory', label: 'Directory' }, { value: 'repository', label: 'Repository' }]}
+          <ToggleGroup.Root
+            aria-label="Location type"
+            class="location-types"
+            onValueChange={(value) => { if (value) { onmodechange(value as 'directory' | 'repository'); query = ''; } }}
+            type="single"
             value={mode}
-          />
+          >
+            <ToggleGroup.Item value="directory">Directory</ToggleGroup.Item>
+            <ToggleGroup.Item value="repository">Repository</ToggleGroup.Item>
+          </ToggleGroup.Root>
         </div>
         <div class="directory-scroll">
           <div
@@ -566,7 +568,7 @@
                 <div class="caption" role="presentation">{row.group}</div>
               {/if}
               <button
-                aria-selected={index === active}
+                aria-selected={row.cwd === cwd && row.machineId === machineId && row.repo === repo}
                 class="row"
                 data-index={index}
                 id={optionId(row)}
@@ -626,8 +628,17 @@
     flex: none;
     padding: var(--space-2);
   }
-  .search {
-    border-bottom: 1px solid var(--border-divider);
+  :global(.location-types) {
+    display: flex;
+    gap: var(--space-1);
+  }
+  :global(.location-types button) {
+    padding: var(--space-2);
+    border-radius: var(--radius-control);
+    color: var(--ink-body);
+  }
+  :global(.location-types button[data-state="on"]) {
+    background: var(--surface-active);
   }
   .panes {
     display: flex;
@@ -638,7 +649,6 @@
     flex: 0 0 168px;
     min-width: 0;
     overflow: auto;
-    border-right: 1px solid var(--border-divider);
     padding: var(--space-1);
   }
   .rail,
@@ -663,8 +673,7 @@
     position: absolute;
     inset: 0 0 auto;
     pointer-events: none;
-    background: var(--surface-active);
-    box-shadow: var(--shadow-inset-sel);
+    background: var(--surface-hover);
     border-radius: var(--radius-well);
   }
   .highlight.ready {
@@ -703,6 +712,9 @@
     width: 16px;
     height: 16px;
     flex: none;
+  }
+  .row[aria-selected="true"] {
+    background: color-mix(in oklab, var(--brand-solid) 12%, transparent);
   }
   .mark :global(svg) {
     width: 16px;
@@ -751,7 +763,6 @@
     gap: var(--space-2);
     min-height: 36px;
     padding: var(--space-2);
-    border-top: 1px solid var(--border-divider);
     color: var(--ink-muted);
     font-size: var(--text-sm);
   }
@@ -785,7 +796,7 @@
     justify-content: center;
     margin-left: auto;
     padding: var(--space-2);
-    border: 1px solid var(--border-control);
+    border: 0;
     border-radius: var(--radius-well);
     background: var(--surface-field);
     box-shadow: var(--shadow-tile);
@@ -802,7 +813,7 @@
     box-shadow: var(--shadow-inset-sel);
   }
   @media (hover: hover) {
-    .row:hover {
+    .row:hover:not([aria-selected="true"]) {
       background: var(--surface-hover);
     }
   }
@@ -814,31 +825,29 @@
   }
   @media (max-width: 479px) {
     .picker {
-      height: 100%;
+      height: 360px;
     }
     .rail-scroll {
       flex-basis: min(168px, 40%);
     }
-    /* The narrow pane cannot hold name and path side by side; the path
-       drops under the name in full rather than truncating to "host · …". */
-    .directories .row {
-      flex-wrap: wrap;
-      height: auto;
-      min-height: 44px;
-      padding-block: var(--space-1);
-      row-gap: 0;
-    }
-    .directories .name {
-      flex: 1;
-      min-width: 0;
-    }
-    .directories .meta {
-      flex-basis: 100%;
-      margin-left: calc(16px + var(--space-2));
-      font-size: var(--text-xs);
-      white-space: normal;
-      overflow-wrap: anywhere;
-    }
+  }
+  .directories .row {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: 44px;
+    padding-block: var(--space-1);
+    row-gap: 0;
+  }
+  .directories .name {
+    flex: 1;
+    min-width: 0;
+  }
+  .directories .meta {
+    flex-basis: 100%;
+    margin-left: calc(16px + var(--space-2));
+    font-size: var(--text-xs);
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
   @media (prefers-reduced-motion: reduce) {
     .row {

@@ -1,9 +1,10 @@
 <script lang="ts">
-  import type { HarnessKind } from "@whiffle/core";
+  import { HARNESSES, type HarnessKind } from "@whiffle/core";
+  import { ToggleGroup } from "bits-ui";
   import { tick, untrack } from "svelte";
   import { Spring } from "svelte/motion";
   import ProviderLogo from "$lib/components/features/ProviderLogo.svelte";
-  import HarnessGlyph from "../HarnessGlyph.svelte";
+  import HarnessLogo from "../HarnessLogo.svelte";
   import {
     ensureModels,
     models,
@@ -20,10 +21,14 @@
     matchesQuery,
   } from "./model-entries";
   import { lastSpawnAt, lastUsedAt, type ModelUse } from "./modelUse.svelte";
+  import { springFromVisual } from "./motion";
   import SearchField from "./SearchField.svelte";
 
   let {
     harness,
+    installedHarnesses,
+    machineName,
+    onharness,
     value,
     onselect,
     spring = { visualDuration: 0.22, bounce: 0 },
@@ -32,6 +37,9 @@
     swapStagger = 0.018,
   }: {
     harness: HarnessKind;
+    installedHarnesses: HarnessKind[];
+    machineName: string;
+    onharness: (value: HarnessKind) => void;
     value: string;
     onselect: (id: string) => void;
     spring?: { visualDuration: number; bounce: number };
@@ -40,7 +48,6 @@
     swapStagger?: number;
   } = $props();
   const uid = $props.id();
-  const order: HarnessKind[] = ["claude", "opencode", "pi"];
   const labels = { claude: "Claude", opencode: "OpenCode", pi: "pi" };
   let shown = $state<HarnessKind>(untrack(() => harness));
   let query = $state("");
@@ -66,6 +73,9 @@
     ),
   }));
   const entries = $derived(deriveModelEntries(catalog, use));
+  const selectedId = $derived(
+    value || entries.find((entry) => entry.isDefault)?.id
+  );
   const groups = $derived(
     groupModelEntries(entries, use, models.recent)
       .map((group) => ({
@@ -81,7 +91,7 @@
       ? [
           {
             id: query.trim(),
-            name: `Use \`${query.trim()}\``,
+            name: query.trim(),
             provider: null,
             isCustom: true,
             isDefault: false,
@@ -107,21 +117,23 @@
       leaving = false;
       return;
     }
-    direction =
-      order.indexOf(next) > order.indexOf(untrack(() => shown)) ? 1 : -1;
+    direction = 1;
     leaving = true;
     const timer = setTimeout(
       () => {
         shown = next;
         leaving = false;
       },
-      reducedMotion.current ? 0 : 100
+      reducedMotion.current
+        ? 0
+        : swapSpring.visualDuration * 1000 +
+            Math.min(rows.length - 1, 12) * swapStagger * 1000
     );
     return () => clearTimeout(timer);
   });
   $effect(() => {
     const ids = rows.map((row) => row.id);
-    active = Math.max(0, ids.indexOf(value));
+    active = Math.max(0, selectedId ? ids.indexOf(selectedId) : 0);
   });
   $effect(() => {
     const index = Math.min(active, rows.length - 1);
@@ -129,9 +141,7 @@
     const currentHarness = shown;
     const firstMeasure = untrack(() => measuredHarness) !== currentHarness;
     let cancelled = false;
-    const frequency = 4.6 / (spring.visualDuration * 60);
-    highlight.stiffness = frequency * frequency;
-    highlight.damping = Math.min(1, 2 * frequency * (1 - spring.bounce));
+    Object.assign(highlight, springFromVisual(spring));
     tick().then(() => {
       const row = node?.querySelector<HTMLElement>(`[data-index="${index}"]`);
       if (cancelled) {
@@ -155,15 +165,11 @@
 
   function enter(node: HTMLElement, index: number) {
     const travel = direction;
-    const frequency = 4.6 / (swapSpring.visualDuration * 60);
-    const progress = new Spring(reducedMotion.current ? 1 : 0, {
-      stiffness: frequency * frequency,
-      damping: Math.min(1, 2 * frequency * (1 - swapSpring.bounce)),
-    });
-    const swapInterval = Math.min(
-      swapStagger,
-      0.25 / Math.max(1, rows.length - 1)
+    const progress = new Spring(
+      reducedMotion.current ? 1 : 0,
+      springFromVisual(swapSpring)
     );
+    const swapInterval = swapStagger;
     const delay =
       (travel ? index * swapInterval : Math.min(index, 12) * stagger) * 1000;
     const timer = setTimeout(
@@ -172,42 +178,43 @@
       },
       reducedMotion.current ? 0 : delay
     );
-    // The 100ms exit leaves 500ms for entry; reserve one frame before the deadline.
-    const settled = travel
-      ? setTimeout(
-          () => progress.set(1, { instant: true }),
-          reducedMotion.current
-            ? 0
-            : Math.min(delay + swapSpring.visualDuration * 1000, 480)
-        )
-      : undefined;
     const stop = $effect.root(() => {
+      $effect(() => {
+        if (!leaving) {
+          return;
+        }
+        const exit = setTimeout(
+          () => progress.set(0, { instant: reducedMotion.current }),
+          reducedMotion.current ? 0 : index * swapStagger * 1000
+        );
+        return () => clearTimeout(exit);
+      });
       $effect(() => {
         const remaining = 1 - progress.current;
         node.style.opacity = `${progress.current}`;
-        node.style.transform = `translate(${travel * 8 * remaining}px, ${travel ? 0 : 6 * remaining}px)`;
+        node.style.transform = `translate(${(leaving ? -1 : travel) * 8 * remaining}px, ${travel || leaving ? 0 : 6 * remaining}px)`;
       });
     });
     return {
       destroy() {
         clearTimeout(timer);
-        clearTimeout(settled);
         stop();
       },
     };
   }
-  function relative(date: string): string {
-    const minutes = Math.max(
-      0,
-      Math.floor((Date.now() - Date.parse(date)) / 60_000)
-    );
+  function relative(date: string, lastUse?: string): string {
+    const difference =
+      (lastUse ? Date.parse(lastUse) : Date.now()) - Date.parse(date);
+    const minutes = Math.max(0, Math.floor(Math.abs(difference) / 60_000));
+    const relation = difference < 0 ? "after last use" : "before last use";
+    const suffix = lastUse ? relation : "ago";
     if (minutes < 60) {
-      return `${minutes}m ago`;
+      return `${minutes}m ${suffix}`;
     }
     if (minutes < 1440) {
-      return `${Math.floor(minutes / 60)}h ago`;
+      return `${Math.floor(minutes / 60)}h ${suffix}`;
     }
-    return `${Math.floor(minutes / 1440)}d ago`;
+    return `${Math.floor(minutes / 1440)}d ${suffix}`;
   }
   function select(entry: ModelEntry) {
     if (harness !== shown || leaving) {
@@ -251,6 +258,29 @@
 </script>
 
 <div class="picker">
+  <ToggleGroup.Root
+    aria-label="Agent"
+    class="agent-tiles"
+    onValueChange={(value) => { if (value) { onharness(value as HarnessKind); } }}
+    type="single"
+    value={harness}
+  >
+    {#each HARNESSES as kind (kind)}
+      <ToggleGroup.Item
+        aria-describedby={installedHarnesses.includes(kind) ? undefined : `${uid}-${kind}-unavailable`}
+        class="agent-tile"
+        disabled={!installedHarnesses.includes(kind)}
+        value={kind}
+      >
+        <HarnessLogo harness={kind} />{labels[kind]}
+      </ToggleGroup.Item>
+      {#if !installedHarnesses.includes(kind)}
+        <span class="sr-only" id={`${uid}-${kind}-unavailable`}
+          >Not installed on {machineName}</span
+        >
+      {/if}
+    {/each}
+  </ToggleGroup.Root>
   <!-- biome-ignore lint/a11y/useAriaActivedescendantWithTabindex: SearchField renders a native focusable input. -->
   <SearchField
     aria-activedescendant={rows[active] ? `${uid}-model-${active}` : undefined}
@@ -274,6 +304,7 @@
         {#if rows.length}
           <div
             class="highlight"
+            style:background={rows[active]?.id === selectedId ? "transparent" : "var(--surface-hover)"}
             style:height={`${height}px`}
             style:transform={`translateY(${highlight.current}px)`}
             class:ready={measuredHarness === shown}
@@ -281,13 +312,15 @@
         {/if}
         {#each rows as entry, index (entry.id)}
           {@const group = groups.find((group) => group.entries[0]?.id === entry.id)}
-          {#if group}
+          {#if custom}
+            <div class="caption" role="presentation">Typed</div>
+          {:else if group}
             <div class="caption" role="presentation">
               {captions[group.group]}
             </div>
           {/if}
           <button
-            aria-selected={entry.id === value}
+            aria-selected={entry.id === selectedId}
             class="row"
             data-index={index}
             id={`${uid}-model-${index}`}
@@ -296,35 +329,25 @@
             role="option"
             tabindex="-1"
             type="button"
+            class:active={active === index}
             use:enter={index}
           >
             <span class="mark"
               >{#if providerOf(entry.id)}
                 <ProviderLogo model={entry.id} size={16} />
               {:else}
-                <HarnessGlyph harness={shown} />
+                <HarnessLogo harness={shown} />
               {/if}</span
             >
             <span class="name" class:mono={entry.mono}>{entry.name}</span>
-            <span class="meta"
-              >{#if custom}
-                custom
-              {:else}
-                {#if entry.provider}
-                  <span>{entry.provider}</span>
-                {/if}
-                <span>{entry.released ? relative(entry.released) : '—'}</span>
-                {#if entry.lastUsedAt}
-                  <span>used {relative(entry.lastUsedAt)}</span>
-                {/if}
-                {#if entry.isDefault}
-                  <span>default</span>
-                {/if}
-                {#if entry.effort.includes('max')}
-                  <span>max</span>
-                {/if}
-              {/if}</span
-            >
+            {#if entry.isDefault}
+              <span class="default-tag">default</span>
+            {/if}
+            {#if entry.released}
+              <time class="meta" datetime={entry.released}
+                >{relative(entry.released, entry.lastUsedAt ?? use.lastSpawnAt)}</time
+              >
+            {/if}
           </button>
         {/each}
       {/key}
@@ -352,6 +375,33 @@
     color: var(--ink-strong);
     font: var(--text-base) / var(--leading-ui) var(--font-body);
   }
+  :global(.agent-tiles) {
+    display: flex;
+    gap: var(--space-2);
+    padding: var(--space-2);
+  }
+  :global(.agent-tile) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    gap: var(--space-2);
+    height: 40px;
+    border: 0;
+    border-radius: var(--radius-control);
+    background: transparent;
+    color: var(--ink-body);
+  }
+  :global(.agent-tile[data-state="on"]) {
+    background: color-mix(in oklab, var(--brand-solid) 12%, transparent);
+    color: var(--ink-strong);
+  }
+  :global(.agent-tile:disabled) {
+    opacity: 0.55;
+  }
+  :global(.agent-tile:hover:not(:disabled):not([data-state="on"])) {
+    background: var(--surface-hover);
+  }
   .scroll {
     min-height: 0;
     overflow: auto;
@@ -365,8 +415,6 @@
       transform var(--c-100) var(--e-out);
   }
   .leaving {
-    opacity: 0;
-    transform: translateX(var(--travel));
     pointer-events: none;
   }
   .highlight {
@@ -374,8 +422,7 @@
     position: absolute;
     inset: 0 0 auto;
     border-radius: var(--radius-well);
-    background: var(--surface-active);
-    box-shadow: var(--shadow-inset-sel);
+    background: var(--surface-hover);
     pointer-events: none;
   }
   .highlight.ready {
@@ -404,6 +451,14 @@
     font: inherit;
     text-align: left;
     cursor: pointer;
+  }
+  .row[aria-selected="true"] {
+    font-weight: 500;
+    background: color-mix(in oklab, var(--brand-solid) 12%, transparent);
+  }
+  .default-tag {
+    color: var(--ink-muted);
+    font-size: var(--text-xs);
   }
   .mark {
     display: flex;
@@ -462,7 +517,7 @@
     align-items: center;
     justify-content: center;
     padding: var(--space-2);
-    border: 1px solid var(--border-control);
+    border: 0;
     border-radius: var(--radius-well);
     background: var(--surface-field);
     box-shadow: var(--shadow-tile);
@@ -477,11 +532,6 @@
   button:active {
     background: var(--surface-active);
     box-shadow: var(--shadow-inset-sel);
-  }
-  @media (hover: hover) {
-    .row:hover {
-      background: var(--surface-hover);
-    }
   }
   @media (pointer: coarse) {
     .row {

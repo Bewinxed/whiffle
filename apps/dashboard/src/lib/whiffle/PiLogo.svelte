@@ -1,0 +1,8 @@
+<!-- Official mark linked from badlogic/pi-mono: https://pi.dev/logo-auto.svg -->
+<svg aria-hidden="true" fill="currentColor" viewBox="0 0 800 800">
+  <path
+    d="M165.29 165.29 H517.36 V400 H400 V517.36 H282.65 V634.72 H165.29 Z M282.65 282.65 V400 H400 V282.65 Z"
+    fill-rule="evenodd"
+  />
+  <path d="M517.36 400 H634.72 V634.72 H517.36 Z" />
+</svg>

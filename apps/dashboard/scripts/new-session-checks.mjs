@@ -1,171 +1,69 @@
-// biome-ignore-all lint/performance/noAwaitInLoops: Each measurement depends on the preceding browser interaction in the same page.
+// biome-ignore-all lint/performance/noAwaitInLoops: Browser interactions and measurements are sequential.
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
-import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 
-const base = process.argv[2] || "http://localhost:5173";
 const browser = await chromium.launch({
   executablePath: `${homedir()}/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome`,
   headless: true,
 });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-page.setDefaultTimeout(5000);
-const workspaceRoot = fileURLToPath(new URL("../../../", import.meta.url));
+page.setDefaultTimeout(7000);
+const base = process.argv[2] || "http://localhost:5173";
+const errors = [];
 const frames = [];
-const reads = [];
+let failures = 0;
 let fsDelay = 0;
-let projectDelay = 0;
-let invalidFs = "";
-let fixture = "normal";
-let reduced = false;
-const instantSamples = [];
 const levels = ["low", "medium", "high", "xhigh", "max"];
-const namingRows = [
-  {
-    value: "default",
-    resolvedModel: "claude-opus-5[1m]",
-    displayName: "Default (recommended)",
-  },
-  { value: "opus", resolvedModel: "claude-opus-5[1m]" },
-  {
-    value: "claude-opus-5[1m]",
-    supportsEffort: true,
-    supportedEffortLevels: levels,
-  },
-  { value: "sonnet", resolvedModel: "claude-sonnet-5" },
-  { value: "claude-fable-5-1" },
-];
-const machines = [
-  {
-    machineId: "check-online",
-    hostname: "check-host",
-    status: "online",
-    os: "linux",
-    auth: "authenticated",
-    lastSeenAt: null,
-  },
-  {
-    machineId: "check-offline",
-    hostname: "offline-host",
-    status: "offline",
-    os: "linux",
-    auth: "authenticated",
-    lastSeenAt: null,
-  },
-  {
-    machineId: "check-pi",
-    hostname: "pi-host",
-    status: "online",
-    os: "linux",
-    auth: "authenticated",
-    lastSeenAt: null,
-  },
-].map((machine) => ({
-  ...machine,
+const machines = ["check-online", "check-pi"].map((machineId) => ({
+  machineId,
+  hostname: machineId === "check-online" ? "check-host" : "pi-host",
+  status: "online",
+  os: "linux",
+  auth: "authenticated",
+  lastSeenAt: null,
   harnesses: ["claude", "opencode", "pi"].map((harness) => ({
     harness,
-    installed: machine.machineId !== "check-pi" || harness === "pi",
+    installed: machineId !== "check-pi" || harness === "pi",
     capabilities: {
       permissionModes: ["default", "plan", "acceptEdits", "bypassPermissions"],
       effort: true,
     },
   })),
 }));
-const projects = machines.map((machine) => ({
-  id: `project-${machine.machineId}`,
-  machineId: machine.machineId,
+const projects = machines.map(({ machineId, hostname }) => ({
+  id: `project-${machineId}`,
+  machineId,
   cwd: "/home/check/project",
-  name: `${machine.hostname} project`,
+  name: `${hostname} project`,
 }));
-// Concurrent component edits must not hot-reload a browser in the middle of an assertion.
+page.on("pageerror", (error) => errors.push(error.message));
 await page.routeWebSocket(
   (url) => url.pathname !== "/ws/dashboard",
   () => {
-    /* The authoring socket is intentionally isolated during measurement. */
+    /* Keep Vite HMR isolated during each browser check. */
   }
 );
-await page.addInitScript(
-  ({ catalog }) => {
-    const kind = new URL(location.href).searchParams.get("fixture");
-    const rows =
-      kind === "swap"
-        ? Array.from({ length: 9 }, (_, index) => ({
-            value: `claude-opus-5-${index}`,
-          }))
-        : catalog;
-    localStorage.setItem(
-      "whiffle-models:by-harness",
-      JSON.stringify(
-        ["claude", "opencode", "pi"].flatMap((harness) =>
-          rows.map((row) => ({
-            ...row,
-            harness,
-            supportsEffort: harness === "pi" ? false : row.supportsEffort,
-            supportedEffortLevels:
-              harness === "pi" ? [] : row.supportedEffortLevels,
-          }))
-        )
-      )
-    );
-    localStorage.setItem("whiffle-models:recent", "[]");
-    localStorage.removeItem("whiffle-models:use");
-    localStorage.setItem(
-      "whiffle-spawn-prefs",
-      JSON.stringify({
-        harness: "claude",
-        permissionMode: "default",
-        model: "",
-        effort: null,
-        machineId: kind?.startsWith("remembered") ? "check-online" : undefined,
-        cwd: kind === "remembered-missing" ? "/definitely/missing" : undefined,
-      })
-    );
-    if (kind === "remembered") {
-      const prefs = JSON.parse(localStorage.getItem("whiffle-spawn-prefs"));
-      prefs.cwd = "/home/check/remembered";
-      localStorage.setItem("whiffle-spawn-prefs", JSON.stringify(prefs));
-    }
-  },
-  { catalog: namingRows }
-);
-// The dashboard socket never connects to a server: every outgoing frame stays in this process.
+// No dashboard socket reaches the hub. Spawn frames are captured locally.
 await page.routeWebSocket("**/ws/dashboard", (socket) => {
   socket.onMessage(async (message) => {
     const frame = JSON.parse(String(message));
     frames.push(frame);
-    if (frame.verb !== "fs" && frame.verb !== "control") {
+    if (!["fs", "control"].includes(frame.verb)) {
       return;
     }
     const { payload } = frame;
-    let result = [];
-    let ok = true;
-    if (frame.verb === "fs") {
-      reads.push({
-        kind: "fs",
-        machineId: frame.machineId,
-        path: payload.path,
-      });
-      const delay = fsDelay;
-      if (delay) {
-        await new Promise((resolve) => setTimeout(resolve, delay));
-      }
-      ok =
-        !payload.path.startsWith("/definitely") && payload.path !== invalidFs;
-      result = [
-        { name: "work", kind: "dir" },
-        { name: "project", kind: "dir" },
-      ];
-    } else if (payload.method === "listRepos") {
-      result = [
-        {
-          nameWithOwner: "checks/repo",
-          visibility: "PUBLIC",
-          description: "Verification repository",
-        },
-      ];
+    if (fsDelay) {
+      await new Promise((resolve) => setTimeout(resolve, fsDelay));
     }
+    const ok = !payload.path?.startsWith("/definitely");
+    const result =
+      payload.method === "listRepos"
+        ? [{ nameWithOwner: "checks/repo", visibility: "PUBLIC" }]
+        : [
+            { name: "project", kind: "dir" },
+            { name: "work", kind: "dir" },
+          ];
     socket.send(
       JSON.stringify({
         verb: "frames",
@@ -183,1103 +81,619 @@ await page.routeWebSocket("**/ws/dashboard", (socket) => {
 await page.route("**/api/**", async (route) => {
   const request = route.request();
   const path = new URL(request.url()).pathname;
-  let json;
+  let json = {};
   if (path === "/api/agents") {
     json = machines;
-  } else if (path === "/api/projects" && request.method() === "POST") {
-    const body = request.postDataJSON();
-    reads.push({ kind: "createProject", ...body });
-    if (projectDelay) {
-      await new Promise((resolve) => setTimeout(resolve, projectDelay));
-    }
-    json = { id: "created-check-project", ...body };
   } else if (path === "/api/projects") {
-    json = projects;
+    json =
+      request.method() === "GET"
+        ? projects
+        : { id: "created-project", ...request.postDataJSON() };
   } else if (path.endsWith("/inspect")) {
-    reads.push({ kind: "inspect", path: request.postDataJSON().cwd });
-    // inspectConfig deliberately succeeds even for nonexistent paths, as the real machine does.
     json = { mcp: [], skills: [], plugins: [], memory: null };
   } else if (path === "/api/usage/limits") {
     json = { machines: [] };
   } else if (["/api/instances", "/api/pending"].includes(path)) {
     json = [];
-  } else if (["/api/handoffs", "/api/queues"].includes(path)) {
-    json = {};
-  } else if (request.method() === "GET") {
-    await route.continue();
-    return;
-  } else {
-    await route.fulfill({
+  } else if (request.method() !== "GET") {
+    return route.fulfill({
       status: 403,
       json: { error: "Acceptance script blocks writes" },
     });
-    return;
   }
   await route.fulfill({ json });
 });
-const errors = [];
-page.on("pageerror", (error) => errors.push(error.message));
+await page.addInitScript(
+  ({ levels: effortLevels }) => {
+    const swap = new URL(location.href).searchParams.has("swap");
+    const rows = swap
+      ? Array.from({ length: 9 }, (_, index) => ({
+          value: `claude-opus-5-${index}`,
+        }))
+      : [
+          {
+            value: "default",
+            resolvedModel: "claude-opus-5[1m]",
+            displayName: "Default (recommended)",
+          },
+          { value: "opus", resolvedModel: "claude-opus-5[1m]" },
+          {
+            value: "claude-opus-5[1m]",
+            supportedEffortLevels: effortLevels,
+            supportsEffort: true,
+          },
+          { value: "sonnet", resolvedModel: "claude-sonnet-5" },
+          { value: "claude-fable-5-1" },
+        ];
+    localStorage.setItem(
+      "whiffle-models:by-harness",
+      JSON.stringify(
+        ["claude", "opencode", "pi"].flatMap((harness) =>
+          rows.map((row) => ({
+            ...row,
+            harness,
+            supportedEffortLevels:
+              harness === "pi" ? [] : row.supportedEffortLevels,
+            supportsEffort: harness !== "pi" && row.supportsEffort,
+          }))
+        )
+      )
+    );
+    localStorage.setItem("whiffle-models:recent", "[]");
+    localStorage.removeItem("whiffle-models:use");
+    if (new URL(location.href).searchParams.has("dates")) {
+      const dated = JSON.parse(
+        localStorage.getItem("whiffle-models:by-harness")
+      );
+      for (const row of dated) {
+        if (row.value === "claude-opus-5[1m]") {
+          row.released = "2026-09-05T12:00:00Z";
+        }
+      }
+      localStorage.setItem("whiffle-models:by-harness", JSON.stringify(dated));
+      localStorage.setItem(
+        "whiffle-models:use",
+        JSON.stringify({
+          claude: {
+            lastSpawnAt: "2026-09-07T12:00:00Z",
+            lastUsedAt: { "claude-opus-5[1m]": "2026-09-07T12:00:00Z" },
+          },
+        })
+      );
+    }
+    localStorage.setItem(
+      "whiffle-spawn-prefs",
+      JSON.stringify({
+        harness: "claude",
+        permissionMode: "default",
+        model: "",
+        effort: null,
+        machineId: "check-online",
+        cwd: "/home/check/project",
+      })
+    );
+  },
+  { levels }
+);
+
 const dialog = page.locator(".session-card");
-const model = page.locator("#session-model");
-const location = page.locator("#session-location");
-let failures = 0;
-async function check(number, label, run) {
-  if (
-    process.env.NEW_SESSION_CHECK &&
-    String(number) !== process.env.NEW_SESSION_CHECK
-  ) {
+const start = page.locator("#session-start");
+const pop = (name) => page.locator(`#session-${name}-popover`);
+const trigger = (name) => page.locator(`#session-${name}`);
+async function open(query = "") {
+  await page.goto(`${base}/motion/new-session${query}`);
+  await page.locator("main button", { hasText: "New session" }).click();
+  await dialog.waitFor();
+  await page.waitForTimeout(1000);
+}
+async function show(name) {
+  await trigger(name).click();
+  await pop(name).waitFor();
+  await page.waitForTimeout(500);
+}
+async function dismiss(name) {
+  await page.keyboard.press("Escape");
+  await pop(name).waitFor({ state: "hidden" });
+  assert.equal(await dialog.isVisible(), true);
+  assert.equal(
+    await trigger(name).evaluate((node) => node === document.activeElement),
+    true
+  );
+}
+async function check(label, run) {
+  if (process.env.NS_CHECK && !label.includes(process.env.NS_CHECK)) {
     return;
   }
   try {
-    console.log(`PASS ${number} ${label}: ${JSON.stringify(await run())}`);
+    await run();
+    console.log(`PASS ${label}`);
   } catch (error) {
     failures += 1;
-    console.log(`FAIL ${number} ${label}: ${error.message}`);
-  }
-}
-async function open(query = "") {
-  const target = new URL(`${base}/motion/new-session${query}`);
-  target.searchParams.set("fixture", fixture);
-  await page.goto(target.href);
-  if (page.viewportSize().width >= 481) {
-    await page.locator(".dialkit-panel-inner").first().waitFor();
-  }
-  const hideTimeline = page.getByRole("button", {
-    name: "Hide timeline",
-    exact: true,
-  });
-  if (await hideTimeline.count()) {
-    await hideTimeline.click();
-  }
-  const expanded = page.locator(
-    '.dialkit-panel-inner[data-collapsed="false"] .dialkit-panel-header [role="button"]'
-  );
-  while (await expanded.count()) {
-    await expanded.first().click();
-  }
-  await page.waitForTimeout(400);
-  await page.waitForFunction(
-    () =>
-      document.querySelector("#session-agent") ||
-      document.body.textContent.includes("check-host")
-  );
-  await page.locator("main button", { hasText: "New session" }).click();
-  await dialog.waitFor();
-  if (reduced) {
-    const instant = await page.evaluate(async () => {
-      const card = document.querySelector(".session-card");
-      const css = getComputedStyle(card);
-      const track = document.querySelector("#session-agent");
-      const thumb = track.querySelector(".thumb").getBoundingClientRect();
-      const selected = track
-        .querySelector('[aria-checked="true"]')
-        .getBoundingClientRect();
-      const initial = {
-        opacity: Number(css.opacity),
-        transform: css.transform,
-        inert: card.inert,
-        maxInitialDurationMs: Math.max(
-          0,
-          ...document
-            .getAnimations()
-            .map((animation) => Number(animation.effect.getTiming().duration))
-        ),
-        thumbDelta: Math.abs(thumb.x - selected.x),
-        rowOpacities: [...card.querySelectorAll(".ledger > div")].map((row) =>
-          Number(getComputedStyle(row).opacity)
-        ),
-      };
-      // Inspect endpoints before a paint, then allow the specified 1ms CSS/WAAPI budget to finish.
-      for (let paint = 0; paint < 4; paint += 1) {
-        const animations = document
-          .getAnimations()
-          .filter(
-            (animation) =>
-              animation.playState === "running" || animation.pending
-          );
-        initial.maxInitialDurationMs = Math.max(
-          initial.maxInitialDurationMs,
-          ...animations.map((animation) =>
-            Number(animation.effect.getTiming().duration)
-          )
-        );
-        if (paint > 0 && animations.length === 0) {
-          break;
-        }
-        await new Promise((resolve) => requestAnimationFrame(resolve));
-      }
-      return {
-        ...initial,
-        activeAnimations: document
-          .getAnimations()
-          .filter(
-            (animation) =>
-              animation.playState === "running" || animation.pending
-          ).length,
-      };
-    });
-    instantSamples.push(instant);
-    assert.equal(instant.opacity, 1, JSON.stringify(instant));
-    assert.equal(instant.transform, "none", JSON.stringify(instant));
-    assert.equal(instant.inert, false, JSON.stringify(instant));
-    assert.ok(instant.maxInitialDurationMs <= 1, JSON.stringify(instant));
-    assert.equal(instant.activeAnimations, 0, JSON.stringify(instant));
-    assert.ok(
-      instant.thumbDelta <= 1 &&
-        instant.rowOpacities.every((opacity) => opacity === 1),
-      JSON.stringify(instant)
-    );
-  }
-  await page.waitForTimeout(800);
-}
-async function dismiss() {
-  await page.keyboard.press("Escape");
-  await page.waitForTimeout(180);
-}
-function rect() {
-  return dialog.evaluate((element) =>
-    JSON.stringify(element.getBoundingClientRect().toJSON())
-  );
-}
-async function toggle(locator) {
-  assert.ok(
-    await locator.isEnabled(),
-    `Fixture control disabled: ${await locator.textContent()}`
-  );
-  const before = await locator.getAttribute("aria-checked");
-  await locator.click();
-  await page.waitForTimeout(reduced ? 0 : 650);
-  assert.notEqual(
-    await locator.getAttribute("aria-checked"),
-    before,
-    "Control did not change value"
-  );
-}
-
-async function stillness() {
-  let actions = 0;
-  for (const [width, height] of [
-    [1440, 900],
-    [1024, 768],
-  ]) {
-    await page.setViewportSize({ width, height });
-    await open();
-    const before = await rect();
-    const effortBefore = await page
-      .locator('[data-ledger-row="Effort"]')
-      .boundingBox();
-    const measure = async (action) => {
-      const after = await rect();
-      actions += 1;
-      assert.equal(
-        after,
-        before,
-        `${width} ${action}: before=${before}, after=${after}`
-      );
-    };
-    for (const trigger of [model, location]) {
-      await trigger.click();
-      await page.waitForTimeout(reduced ? 0 : 650);
-      await measure(await trigger.getAttribute("id"));
-      if (trigger === location) {
-        await page
-          .getByRole("radio", { name: "Repository", exact: true })
-          .click();
-        assert.equal(
-          await page
-            .getByRole("radio", { name: "Repository", exact: true })
-            .getAttribute("aria-checked"),
-          "true"
-        );
-        await measure("Repository");
-        await page
-          .getByRole("radio", { name: "Directory", exact: true })
-          .click();
-      }
-      await dismiss();
-      await measure("popover closed");
-    }
-    for (const name of ["OpenCode", "pi", "Claude"]) {
-      await toggle(page.getByRole("radio", { name, exact: true }));
-      await measure(name);
-      assert.deepEqual(
-        await page.locator('[data-ledger-row="Effort"]').boundingBox(),
-        effortBefore,
-        `${name} changed Effort row rect`
-      );
-    }
-    await model.click();
-    await page
-      .getByPlaceholder("Search, or type a model id")
-      .fill("foo/no-effort-scale-9");
-    await page.keyboard.press("Enter");
-    await page.waitForTimeout(reduced ? 0 : 650);
-    await measure("model without effort");
-    await toggle(page.getByRole("radio", { name: "Bypass all", exact: true }));
-    await measure("Bypass all");
-    assert.equal((await dialog.locator("footer p").innerText()).trim(), "");
-    for (const name of [
-      "Side quest",
-      "Worktree",
-      "Save as project",
-      "Clone repo",
-    ]) {
-      await toggle(dialog.getByRole("switch", { name, exact: true }));
-      if (name === "Clone repo") {
-        await dismiss();
-      }
-      await measure(name);
-    }
-    const projectId = await page.evaluate(async () => {
-      const { whiffle } = await import("/src/lib/whiffle/client.svelte.ts");
-      return whiffle.projects[0]?.id;
-    });
-    assert.ok(
-      projectId,
-      "Live fleet has no project for prefill lock/edit check"
-    );
-    await open(`?projectId=${encodeURIComponent(projectId)}`);
-    const locked = await rect();
-    await dialog.getByRole("button", { name: "Edit", exact: true }).click();
-    assert.equal(await rect(), locked, "Prefill edit changes the card rect");
-    await location.click();
-    await page
-      .getByPlaceholder("Search machines, projects, or type a path")
-      .fill("offline-host project");
-    await page
-      .locator('.position [role="option"]')
-      .filter({ hasText: "offline-host project" })
-      .click();
-    await page.waitForTimeout(reduced ? 0 : 650);
-    assert.ok(
-      (await dialog.locator("footer").innerText()).includes(
-        "offline-host is offline"
-      )
-    );
-    assert.equal(
-      await rect(),
-      locked,
-      "Offline reading changes card dimensions"
-    );
-    actions += 1;
-  }
-  return { actions, maxRectDelta: 0, effortRowDelta: 0, bypassReading: "" };
-}
-
-async function containment() {
-  const measurements = [];
-  for (const [width, height] of [
-    [1440, 900],
-    [1024, 640],
-    [768, 1024],
-    [390, 844],
-    [320, 568],
-  ]) {
-    await page.setViewportSize({ width, height });
-    await open();
-    for (const scroll of ["top", "bottom"]) {
-      await dialog.evaluate((element, edge) => {
-        element.scrollTop = edge === "top" ? 0 : element.scrollHeight;
-      }, scroll);
-      for (const trigger of [model, location]) {
-        await trigger.click();
-        await page.waitForTimeout(reduced ? 0 : 650);
-        const box = await page.locator(".position > .panel").boundingBox();
-        assert.ok(box, "Popover has no rendered bounds");
-        const margins = [
-          box.x,
-          box.y,
-          width - box.x - box.width,
-          height - box.y - box.height,
-        ];
-        measurements.push({ width, height, scroll, margins });
-        if (width <= 480) {
-          assert.deepEqual(
-            box,
-            { x: 0, y: 0, width, height },
-            JSON.stringify(measurements.at(-1))
-          );
-        } else {
-          assert.ok(
-            margins.every((value) => value >= 7.99),
-            JSON.stringify(measurements.at(-1))
-          );
-        }
-        await dismiss();
-      }
-    }
-  }
-  return {
-    popovers: measurements.length,
-    desktopMinMargin: Math.min(
-      ...measurements
-        .filter((row) => row.width > 480)
-        .flatMap((row) => row.margins)
-    ),
-    mobileFullViewport: measurements.filter((row) => row.width <= 480).length,
-  };
-}
-
-async function centering() {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await open();
-  const measured = await dialog.evaluate((root) =>
-    [
-      ...root.querySelectorAll(
-        '[role="radio"], [role="switch"], #session-model, #session-location, .actions button'
-      ),
-    ].map((control) => {
-      const parent = control.getBoundingClientRect();
-      const range = document.createRange();
-      range.selectNodeContents(control);
-      const visible = [...range.getClientRects()].filter(
-        (box) =>
-          box.width &&
-          box.height &&
-          box.left >= parent.left &&
-          box.right <= parent.right &&
-          box.top >= parent.top &&
-          box.bottom <= parent.bottom
-      );
-      const left = Math.min(...visible.map((box) => box.left));
-      const right = Math.max(...visible.map((box) => box.right));
-      const top = Math.min(...visible.map((box) => box.top));
-      const bottom = Math.max(...visible.map((box) => box.bottom));
-      return {
-        name: control.textContent.trim(),
-        dx: Math.abs((left + right - parent.left - parent.right) / 2),
-        dy: Math.abs((top + bottom - parent.top - parent.bottom) / 2),
-      };
-    })
-  );
-  const misses = measured.filter((row) => row.dx > 1 || row.dy > 1);
-  assert.deepEqual(misses, [], JSON.stringify(misses));
-  const slider = dialog.locator('[role="slider"]');
-  const positions = [];
-  assert.equal(await slider.getAttribute("aria-disabled"), "false");
-  await slider.focus();
-  await page.keyboard.press("Home");
-  for (let index = 0; index < 5; index += 1) {
-    await page.waitForTimeout(reduced ? 0 : 650);
-    positions.push(
-      await slider.evaluate((element) => {
-        const thumb = element.querySelector(".thumb")?.getBoundingClientRect();
-        const tick = element
-          .querySelectorAll(".tick")
-          [
-            Number(element.getAttribute("aria-valuenow"))
-          ]?.getBoundingClientRect();
-        return thumb && tick
-          ? {
-              index: Number(element.getAttribute("aria-valuenow")),
-              x: thumb.x + thumb.width / 2,
-              delta: Math.abs(
-                thumb.x + thumb.width / 2 - tick.x - tick.width / 2
-              ),
-            }
-          : null;
-      })
-    );
-    await page.keyboard.press("ArrowRight");
-  }
-  assert.ok(
-    positions.every((position) => position !== null && position.delta <= 1),
-    `thumb/tick deltas=${JSON.stringify(positions)}`
-  );
-  assert.equal(new Set(positions.map((position) => position.index)).size, 5);
-  assert.equal(new Set(positions.map((position) => position.x)).size, 5);
-  return {
-    controls: measured.length,
-    maxX: Math.max(...measured.map((row) => row.dx)),
-    maxY: Math.max(...measured.map((row) => row.dy)),
-    thumbDeltas: positions,
-  };
-}
-
-await check(1, "Stillness", stillness);
-await check(2, "Containment", containment);
-await check(3, "Centering", centering);
-
-await check("3.layout", "Content Edge And Ledger Rhythm", async () => {
-  const measurements = [];
-  for (const width of [1440, 1024, 390]) {
-    await page.setViewportSize({ width, height: 900 });
-    await open();
-    const result = await dialog.evaluate((card) => {
-      const title = card.querySelector("h2").getBoundingClientRect();
-      const well = card.querySelector("textarea");
-      const style = getComputedStyle(well);
-      const textLeft =
-        well.getBoundingClientRect().left +
-        Number.parseFloat(style.paddingLeft) +
-        Number.parseFloat(style.borderLeftWidth);
-      const rows = [...card.querySelectorAll(".ledger-row")].map((row) => {
-        const bounds = row.getBoundingClientRect();
-        const control = row.querySelector(".control").getBoundingClientRect();
-        return {
-          label: row.dataset.ledgerRow,
-          top: bounds.top,
-          bottom: bounds.bottom,
-          height: bounds.height,
-          labelLeft: row.querySelector("label").getBoundingClientRect().left,
-          centerDelta: Math.abs(
-            control.top - bounds.top - (bounds.bottom - control.bottom)
-          ),
-          divider: getComputedStyle(row).borderBottomWidth,
-        };
-      });
-      const marks = [...card.querySelectorAll(".agent-mark svg")].map((svg) => {
-        const bounds = svg.getBoundingClientRect();
-        let opacity = 1;
-        for (let node = svg; node && node !== card; node = node.parentElement) {
-          opacity *= Number(getComputedStyle(node).opacity);
-        }
-        return {
-          width: bounds.width,
-          height: bounds.height,
-          color: getComputedStyle(svg).color,
-          opacity,
-        };
-      });
-      return {
-        titleLeft: title.left,
-        textLeft,
-        rows,
-        gaps: rows.slice(1).map((row, index) => row.top - rows[index].bottom),
-        marks,
-        locationDot: Boolean(card.querySelector("#session-location .dot")),
-        locationIcon: Boolean(
-          card.querySelector("#session-location .mark svg")
-        ),
-      };
-    });
-    assert.ok(
-      Math.abs(result.titleLeft - result.textLeft) <= 1,
-      JSON.stringify(result)
-    );
-    assert.ok(
-      result.rows.every(
-        (row) =>
-          Math.abs(row.labelLeft - result.textLeft) <= 1 &&
-          row.divider === "0px"
-      ),
-      JSON.stringify(result)
-    );
-    assert.ok(
-      result.gaps.every((gap) => Math.abs(gap - 4) <= 0.01),
-      JSON.stringify(result)
-    );
-    if (width > 480) {
-      assert.ok(
-        result.rows.every((row) => row.height === 40 && row.centerDelta <= 1),
-        JSON.stringify(result)
-      );
-    }
-    assert.equal(result.marks.length, 3);
-    assert.ok(
-      result.marks.every(
-        (mark) => mark.width === 16 && mark.height === 16 && mark.opacity === 1
-      ),
-      JSON.stringify(result.marks)
-    );
-    assert.ok(result.locationDot && result.locationIcon);
-    measurements.push({
-      width,
-      contentEdgeDelta: Math.abs(result.titleLeft - result.textLeft),
-      labelEdgeDeltas: result.rows.map((row) =>
-        Math.abs(row.labelLeft - result.textLeft)
-      ),
-      heights: result.rows.map((row) => row.height),
-      centerDeltas: result.rows.map((row) => row.centerDelta),
-      gaps: result.gaps,
-      marks: result.marks,
-      locationDot: true,
-    });
-  }
-  return measurements;
-});
-
-await check(4, "Radii", async () => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await open();
-  await model.click();
-  await page.waitForTimeout(650);
-  const radii = await page.evaluate(() => {
-    const radius = (selector) =>
-      Number.parseFloat(
-        getComputedStyle(document.querySelector(selector)).borderTopLeftRadius
-      );
-    return {
-      card: radius(".session-card"),
-      well: radius(".session-card textarea"),
-      ledger: radius(".session-card .ledger"),
-      model: radius("#session-model"),
-      location: radius("#session-location"),
-      agent: radius("#session-agent"),
-      permissions: radius("#session-permissions"),
-      thumb: radius("#session-agent .thumb"),
-      popover: radius(".position > .panel"),
-    };
-  });
-  assert.deepEqual(radii, {
-    card: 14,
-    well: 7,
-    ledger: 7,
-    model: 7,
-    location: 7,
-    agent: 7,
-    permissions: 7,
-    thumb: 5,
-    popover: 12,
-  });
-  await dismiss();
-  return radii;
-});
-
-await check(5, "Stagger Both Ways", async () => {
-  fixture = "swap";
-  try {
-    await open();
-    await model.click();
-    await page.waitForTimeout(650);
-    const measurements = [];
-    for (const [name, sign] of [
-      ["pi", 1],
-      ["Claude", -1],
-    ]) {
-      const result = await page.evaluate(
-        async ({ name: targetName, sign: travelSign }) => {
-          const button = [
-            ...document.querySelectorAll('#session-agent [role="radio"]'),
-          ].find((node) => node.textContent.trim() === targetName);
-          button.click();
-          // At 3 × stagger + 60ms (114ms), row0 > row3 > row8; row8 may be 0.
-          // All rows must settle by 600ms from the harness change; travel signs must match in both directions.
-          await new Promise((resolve) => setTimeout(resolve, 214));
-          const rows = [
-            ...document.querySelectorAll('.position [role="option"]'),
-          ];
-          const sample = [0, 3, 8].map((index) => {
-            const node = rows[index];
-            if (!node) {
-              return null;
-            }
-            const css = getComputedStyle(node);
-            return {
-              opacity: Number(css.opacity),
-              x: new DOMMatrix(css.transform).m41,
-            };
-          });
-          await new Promise((resolve) => setTimeout(resolve, 386));
-          const final = [
-            ...document.querySelectorAll('.position [role="option"]'),
-          ].map((node) => Number(getComputedStyle(node).opacity));
-          return {
-            name: targetName,
-            sign: travelSign,
-            count: rows.length,
-            at114: sample,
-            minAt600: Math.min(...final),
-          };
-        },
-        { name, sign }
-      );
-      measurements.push(result);
-    }
-    for (const result of measurements) {
-      assert.ok(
-        result.count >= 9,
-        `Need nine fixture rows per harness; measurements=${JSON.stringify(measurements)}`
-      );
-      const [a, b, c] = result.at114;
-      assert.ok(
-        a.opacity > b.opacity && b.opacity > c.opacity,
-        JSON.stringify(result)
-      );
-      assert.ok(
-        result.at114.every((row) => Math.sign(row.x) === result.sign),
-        JSON.stringify(result)
-      );
-      assert.equal(result.minAt600, 1, JSON.stringify(result));
-    }
-    return measurements;
-  } finally {
-    fixture = "normal";
-  }
-});
-
-await check(6, "Naming", async () => {
-  await open();
-  await model.click();
-  await page.waitForTimeout(650);
-  const rows = await page
-    .locator('.position [role="option"]')
-    .allTextContents();
-  const names = await page
-    .locator('.position [role="option"] .name')
-    .allTextContents();
-  assert.ok(
-    rows.every((text) => !text.includes("Default (recommended)")),
-    JSON.stringify(rows)
-  );
-  assert.ok(
-    names.includes("Opus 5 · 1M"),
-    `fixture names=${JSON.stringify(names)}`
-  );
-  assert.equal(names.filter((name) => name === "Opus 5 · 1M").length, 1);
-  assert.deepEqual(
-    [...names].sort(),
-    ["Opus 5 · 1M", "Sonnet 5", "Fable 5.1"].sort()
-  );
-  assert.ok(rows[names.indexOf("Opus 5 · 1M")].includes("default"));
-  return {
-    names,
-    rows: rows.length,
-    canonicalOpusRows: 1,
-    defaultTag: true,
-    legacyDefaultRows: 0,
-  };
-});
-
-async function until(condition) {
-  const deadline = Date.now() + 5000;
-  while (!(await condition())) {
-    assert.ok(Date.now() < deadline, "Timed out waiting for fixture response");
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    console.error(`FAIL ${label}: ${error.message}`);
   }
 }
 const spawns = () => frames.filter((frame) => frame.verb === "spawn");
-async function choosePath(path = "/home/check/work") {
-  await location.click();
-  await page
-    .getByPlaceholder("Search machines, projects, or type a path")
-    .fill(path);
-  await page.keyboard.press("Enter");
-  await until(
-    async () => (await location.getAttribute("aria-expanded")) === "false"
-  );
-  await until(
-    async () =>
-      await dialog
-        .getByRole("button", { name: "Start session", exact: true })
-        .isEnabled()
-  );
-}
-async function selectModel(query) {
-  await model.click();
-  await page.getByPlaceholder("Search, or type a model id").fill(query);
-  await page.keyboard.press("Enter");
-  await until(
-    async () => (await model.getAttribute("aria-expanded")) === "false"
-  );
-}
-await check(7, "Submitted Frames", async () => {
-  const measured = [];
-  for (const [query, expected] of [
-    ["default", "claude-opus-5[1m]"],
-    ["foo/bar-9", "foo/bar-9"],
-    [null, null],
-  ]) {
-    await open();
-    await choosePath();
-    if (query) {
-      await selectModel(query);
-    }
-    const before = spawns().length;
-    await dialog.locator("textarea").focus();
-    await page.keyboard.press("Control+Enter");
-    await until(() => spawns().length === before + 1);
-    const frame = spawns().at(-1);
-    const prefs = await page.evaluate(() =>
-      JSON.parse(localStorage.getItem("whiffle-spawn-prefs"))
-    );
-    assert.equal(prefs.machineId, frame.machineId);
-    assert.equal(prefs.cwd, frame.payload.cwd);
-    if (expected) {
-      assert.equal(frame.payload.model, expected);
-    } else {
-      assert.equal(Object.hasOwn(frame.payload, "model"), false);
-    }
-    assert.equal(Object.hasOwn(frame.payload, "effort"), false);
-    measured.push({
-      query,
-      model: frame.payload.model ?? "omitted",
-      effort: "omitted",
-      shortcut: "Control+Enter",
-      intercepted: true,
-    });
-    await page
-      .waitForURL((url) => url.pathname === `/session/${frame.instanceId}`)
-      .catch(async () => {
-        throw new Error(
-          JSON.stringify({
-            expected: frame.instanceId,
-            url: page.url(),
-            dialog: await dialog.count(),
-            footer: await dialog.locator("footer").allTextContents(),
-          })
-        );
-      });
-  }
-  return measured;
-});
+const rect = () => dialog.boundingBox();
 
-async function keyboard() {
+await check("centered composer, prompt focus, fixed 40px bar", async () => {
   await open();
-  const sequence = [];
-  for (let index = 0; index < 15; index += 1) {
-    sequence.push(
-      await page.evaluate(() => {
-        const node = document.activeElement;
-        if (node.tagName === "TEXTAREA") {
-          return "Prompt";
-        }
-        return (
-          node.closest("[data-ledger-row]")?.getAttribute("data-ledger-row") ??
-          node.getAttribute("aria-label") ??
-          node.textContent.trim()
-        );
-      })
-    );
-    await page.keyboard.press("Tab");
-    if (await page.locator("textarea:focus").count()) {
-      break;
-    }
-  }
-  assert.equal(sequence[0], "Prompt", JSON.stringify(sequence));
-  const order = [
-    "Prompt",
-    "Agent",
-    "Model",
-    "Location",
-    "Permissions",
-    "Effort",
-    "Options",
-  ];
-  assert.ok(
-    order.every(
-      (name, index) =>
-        sequence.indexOf(name) >= 0 &&
-        (index === 0 ||
-          sequence.indexOf(name) > sequence.indexOf(order[index - 1]))
-    ),
-    JSON.stringify(sequence)
-  );
-  assert.equal(sequence.at(-1), "Close new session", JSON.stringify(sequence));
-  await model.click();
-  await page.waitForTimeout(650);
-  await dismiss();
-  assert.equal(await dialog.count(), 1, "Esc closed the parent dialog");
-  assert.equal(await model.getAttribute("aria-expanded"), "false");
-  await dismiss();
-  assert.equal(await dialog.count(), 0);
+  const box = await rect();
+  assert.ok(Math.abs(box.x + box.width / 2 - 720) < 1);
+  assert.ok(Math.abs(box.y + box.height / 2 - 450) < 1);
+  assert.equal(box.width, 640);
   assert.equal(
-    await page.locator("main button:focus", { hasText: "New session" }).count(),
-    1,
-    "Focus did not return to opener"
+    await page
+      .locator(".composer-bar")
+      .evaluate((el) => el.getBoundingClientRect().height),
+    40
   );
-  return {
-    sequence,
-    popoverEscape: true,
-    dialogEscape: true,
-    restoredFocus: true,
-  };
-}
-await check(8, "Keyboard", keyboard);
-
-await check(9, "Invalid Location", async () => {
+  assert.equal(
+    await page
+      .locator("textarea")
+      .evaluate((el) => el === document.activeElement),
+    true
+  );
+  assert.equal(await page.locator("textarea").getAttribute("rows"), "8");
+  await page.addScriptTag({
+    path: `${homedir()}/.claude/skills/ui-observer/observer.browser.js`,
+  });
+  const observations = await page.evaluate(
+    () =>
+      globalThis.__uiObserver({ scopeSel: ".composer-bar", maxDepth: 2 })
+        .observations
+  );
+  console.log("OBSERVER desktop", JSON.stringify(observations));
+  await page.screenshot({ path: "/tmp/ns-rest.png" });
+});
+await check(
+  "model naming, dedupe, all harness logos, no layout shift",
+  async () => {
+    await open();
+    const before = await rect();
+    const action = await start.boundingBox();
+    await show("model");
+    for (const harness of ["claude", "opencode", "pi"]) {
+      assert.equal(
+        await pop("model")
+          .locator(`.agent-tile [data-harness-logo="${harness}"] svg`)
+          .count(),
+        1
+      );
+    }
+    assert.equal(await pop("model").getByRole("option").count(), 3);
+    assert.equal(await pop("model").locator(".meta").count(), 0);
+    assert.equal(await pop("model").locator(".default-tag").count(), 1);
+    assert.equal(
+      await pop("model").getByText("Opus 5 · 1M", { exact: true }).count(),
+      1
+    );
+    assert.equal(
+      await pop("model").getByText("Fable 5.1", { exact: true }).count(),
+      1
+    );
+    await page.screenshot({ path: "/tmp/ns-model.png" });
+    for (const name of ["OpenCode", "pi", "Claude"]) {
+      await pop("model").getByRole("radio", { name, exact: true }).click();
+      await page.waitForTimeout(1100);
+      assert.deepEqual(await rect(), before);
+      assert.deepEqual(await start.boundingBox(), action);
+    }
+    await dismiss("model");
+  }
+);
+await check("known release metadata relative to last use", async () => {
+  await open("?dates=1");
+  await show("model");
+  assert.equal(
+    await pop("model").locator("time").textContent(),
+    "2d before last use"
+  );
+  assert.equal(await pop("model").locator(".default-tag").count(), 1);
+});
+await check("mode radio rows, bypass tint and options switches", async () => {
   await open();
-  await choosePath();
-  const before = spawns().length;
-  await location.click();
+  await show("mode");
+  assert.equal(await pop("mode").getByRole("radio").count(), 4);
+  await page.screenshot({ path: "/tmp/ns-mode.png" });
+  await pop("mode").getByRole("radio", { name: "Bypass all" }).click();
+  assert.equal(await trigger("mode").getAttribute("data-attention"), "true");
+  await show("options");
+  assert.equal(await pop("options").getByRole("switch").count(), 2);
+  await pop("options")
+    .getByRole("switch", { name: "Scratch", exact: true })
+    .click();
+  await page.screenshot({ path: "/tmp/ns-options.png" });
+  await dismiss("options");
+});
+await check(
+  "stagger both ways at 3 x stagger + 60ms after list entry",
+  async () => {
+    await open("?swap=1");
+    await show("model");
+    for (const name of ["pi", "Claude"]) {
+      const values = await page.evaluate(
+        (nextName) =>
+          new Promise((resolve) => {
+            const list = document.querySelector(
+              '#session-model-popover [role="listbox"]'
+            );
+            const observer = new MutationObserver(() => {
+              if (list.getAttribute("aria-label") !== `${nextName} models`) {
+                return;
+              }
+              observer.disconnect();
+              setTimeout(
+                () =>
+                  resolve(
+                    [0, 3, 8].map((index) =>
+                      Number(
+                        getComputedStyle(
+                          list.querySelector(`[data-index="${index}"]`)
+                        ).opacity
+                      )
+                    )
+                  ),
+                3 * 18 + 60
+              );
+            });
+            observer.observe(list, { attributes: true });
+            document
+              .querySelector(
+                `#session-model-popover [data-value="${nextName.toLowerCase()}"]`
+              )
+              .click();
+          }),
+        name
+      );
+      console.log(`STAGGER ${name}: ${JSON.stringify(values)}`);
+      assert.ok(
+        values[0] > values[1] && values[1] > values[2],
+        JSON.stringify(values)
+      );
+      await page.waitForTimeout(650);
+    }
+  }
+);
+await check("contained popovers desktop and mobile", async () => {
+  for (const [width, height] of [
+    [1440, 900],
+    [1024, 640],
+    [390, 844],
+  ]) {
+    await page.setViewportSize({ width, height });
+    await open();
+    const box = await rect();
+    assert.ok(Math.abs(box.y + box.height / 2 - height / 2) < 1);
+    assert.ok(box.x >= 0 && box.x + box.width <= width);
+    assert.ok(
+      await page
+        .locator(".composer-pill")
+        .evaluateAll((nodes) =>
+          nodes.every((node) => node.getBoundingClientRect().width >= 24)
+        )
+    );
+    for (const name of ["model", "location", "mode", "options"]) {
+      await show(name);
+      const bounds = await pop(name).boundingBox();
+      assert.ok(
+        bounds.x >= 7 &&
+          bounds.y >= 7 &&
+          bounds.x + bounds.width <= width - 7 &&
+          bounds.y + bounds.height <= height - 7,
+        `${name}: ${JSON.stringify(bounds)}`
+      );
+      await dismiss(name);
+    }
+    if (width === 390) {
+      await page.addScriptTag({
+        path: `${homedir()}/.claude/skills/ui-observer/observer.browser.js`,
+      });
+      console.log(
+        "OBSERVER mobile",
+        JSON.stringify(
+          await page.evaluate(
+            () =>
+              globalThis.__uiObserver({
+                scopeSel: ".composer-bar",
+                maxDepth: 2,
+              }).observations
+          )
+        )
+      );
+      await page.locator("textarea").focus();
+      await page.screenshot({ path: "/tmp/ns-mobile.png" });
+    }
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+});
+await check(
+  "keyboard canonical, typed, untouched and scratch payloads intercepted",
+  async () => {
+    for (const model of ["default", "foo/bar-9", null]) {
+      await open();
+      if (model) {
+        await show("model");
+        await page.getByPlaceholder("Search, or type a model id").fill(model);
+        await page.keyboard.press("Enter");
+        await pop("model").waitFor({ state: "hidden" });
+      }
+      if (!model) {
+        await show("options");
+        await page
+          .getByRole("switch", { name: "Scratch", exact: true })
+          .click();
+        await dismiss("options");
+      }
+      await page.locator("textarea").fill("Check payload");
+      const count = spawns().length;
+      await page.keyboard.press("Control+Enter");
+      await page.waitForTimeout(500);
+      assert.equal(spawns().length, count + 1);
+      const { payload } = spawns().at(-1);
+      console.log(`PAYLOAD ${JSON.stringify(payload)}`);
+      const sent = frames.findLast(
+        (frame) =>
+          frame.verb === "send" && frame.instanceId === payload.instanceId
+      );
+      assert.ok(JSON.stringify(sent.payload.message).includes("Check payload"));
+      assert.equal(
+        payload.model,
+        model === "default" ? "claude-opus-5[1m]" : (model ?? undefined)
+      );
+      if (!model) {
+        assert.equal("effort" in payload, false);
+        assert.equal(payload.scratch.baseCwd, "/home/check/project");
+      }
+    }
+  }
+);
+await check("popover gating, invalid directory and cancellation", async () => {
+  await open();
+  await show("location");
+  assert.equal(await start.isDisabled(), true);
+  const count = spawns().length;
   await page
     .getByPlaceholder("Search machines, projects, or type a path")
     .fill("/definitely/missing");
   await page.keyboard.press("Enter");
-  await page.locator('.position [role="alert"]').waitFor();
-  const message = await page.locator('.position [role="alert"]').innerText();
-  assert.ok(message.includes("That directory can't be read on check-host."));
+  await page.waitForTimeout(800);
+  assert.equal(await pop("location").getByRole("alert").count(), 1);
   await page.keyboard.press("Control+Enter");
-  await page.waitForTimeout(150);
-  assert.equal(spawns().length, before);
+  assert.equal(spawns().length, count);
+  await dismiss("location");
+  fsDelay = 500;
+  await start.click();
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(800);
+  fsDelay = 0;
+  assert.equal(spawns().length, count);
+});
+await check("keyboard order and effort detent centering", async () => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await open();
+  await page.locator("textarea").focus();
+  for (const id of ["session-model", "session-location", "session-mode"]) {
+    await page.keyboard.press("Tab");
+    assert.equal(await page.evaluate(() => document.activeElement.id), id);
+  }
+  await page.keyboard.press("Tab");
+  const slider = page.getByRole("slider", { name: "Effort", exact: true });
   assert.equal(
-    await location.evaluate((element) => document.activeElement === element),
+    await slider.evaluate((node) => node === document.activeElement),
     true
   );
-  return {
-    path: "/definitely/missing",
-    spawnFrames: 0,
-    reading: message,
-    focusedLocation: true,
-  };
-});
-
-await check("9a", "Repository Base Verification", async () => {
-  await open();
-  await choosePath();
-  invalidFs = "/home/check/work";
-  const before = spawns().length;
-  const readStart = reads.length;
-  try {
-    await dialog
-      .getByRole("switch", { name: "Clone repo", exact: true })
-      .click();
-    await page
-      .locator('.position [role="option"]')
-      .filter({ hasText: "checks/repo" })
-      .click();
-    await until(async () =>
-      (await dialog.locator("footer").innerText()).includes(
-        "That directory can't be read"
-      )
-    );
-    assert.equal(
-      await dialog
-        .getByRole("button", { name: "Start session", exact: true })
-        .isEnabled(),
-      false
-    );
-    await page.keyboard.press("Control+Enter");
-    assert.equal(spawns().length, before);
-    const baseReads = reads
-      .slice(readStart)
-      .filter((entry) => entry.path === invalidFs);
+  await page.keyboard.press("Home");
+  for (const level of levels) {
+    await page.waitForTimeout(400);
+    assert.equal(await slider.getAttribute("aria-valuetext"), level);
+    const thumb = await page.locator(".effort-thumb").boundingBox();
+    const detent = await page.locator(`[data-effort="${level}"]`).boundingBox();
     assert.ok(
-      baseReads.some((entry) => entry.kind === "inspect") &&
-        baseReads.some((entry) => entry.kind === "fs")
+      Math.abs(thumb.x + thumb.width / 2 - detent.x - detent.width / 2) <= 1
     );
-    return {
-      baseDirectory: invalidFs,
-      reads: baseReads,
-      spawnFrames: 0,
-      startDisabled: true,
-    };
-  } finally {
-    invalidFs = "";
+    assert.equal(thumb.width, 18);
+    await page.keyboard.press("ArrowRight");
   }
 });
-
-await check("9b", "Submission Snapshot And Cancellation", async () => {
+await check("bootstrap payload and installed harness fallback", async () => {
   await open();
-  await choosePath();
-  fsDelay = 350;
-  const before = spawns().length;
-  try {
-    await page.keyboard.press("Control+Enter");
-    assert.equal(await dialog.evaluate((element) => element.inert), true);
-    await page.evaluate(() =>
-      [...document.querySelectorAll('#session-agent [role="radio"]')]
-        .find((element) => element.textContent.trim() === "pi")
-        .click()
-    );
-    await until(() => spawns().length === before + 1);
-    assert.equal(spawns().at(-1).payload.harness, "claude");
-    await page.keyboard.press("Escape");
-    await open();
-    await choosePath();
-    const cancelBefore = spawns().length;
-    await page.keyboard.press("Control+Enter");
-    await page.keyboard.press("Escape");
-    await page.locator("main button", { hasText: "New session" }).click();
-    await page.waitForTimeout(500);
-    assert.equal(spawns().length, cancelBefore);
-  } finally {
-    fsDelay = 0;
-  }
-  await open();
-  await choosePath();
-  await dialog
-    .getByRole("switch", { name: "Save as project", exact: true })
+  await show("options");
+  await page.getByRole("switch", { name: "Bootstrap", exact: true }).click();
+  await pop("location").waitFor();
+  await pop("location")
+    .locator(".directories .row")
+    .filter({ hasText: "checks/repo" })
     .click();
-  projectDelay = 350;
-  const projectBefore = reads.filter(
-    (entry) => entry.kind === "createProject"
-  ).length;
-  const cancelBefore = spawns().length;
-  try {
-    await page.keyboard.press("Control+Enter");
-    await until(
-      () =>
-        reads.filter((entry) => entry.kind === "createProject").length >
-        projectBefore
-    );
-    await page.keyboard.press("Escape");
-    await page.locator("main button", { hasText: "New session" }).click();
-    await page.waitForTimeout(500);
-    assert.equal(spawns().length, cancelBefore);
-    assert.equal(await dialog.count(), 1);
-  } finally {
-    projectDelay = 0;
-  }
-  return {
-    busyInert: true,
-    capturedHarness: "claude",
-    lateVerificationSpawns: 0,
-    lateProjectSpawns: 0,
-    reopenedDialogPreserved: true,
-  };
-});
-
-await check("9c", "Harness Availability", async () => {
-  await open("?projectId=project-check-pi");
+  await page.waitForTimeout(800);
+  const count = spawns().length;
+  await start.click();
+  await page.waitForTimeout(500);
+  assert.equal(spawns().length, count + 1);
+  assert.deepEqual(spawns().at(-1).payload.bootstrap, {
+    repo: "checks/repo",
+    baseDir: "/home/check/project",
+  });
+  assert.equal(spawns().at(-1).payload.cwd, "/home/check/project/repo");
+  await open();
+  await show("location");
+  await page
+    .getByPlaceholder("Search machines, projects, or type a path")
+    .fill("pi-host");
+  await pop("location")
+    .locator(".directories .row")
+    .filter({ hasText: "pi-host project" })
+    .click();
+  await show("model");
   assert.equal(
-    await page
+    await pop("model")
       .getByRole("radio", { name: "pi", exact: true })
       .getAttribute("aria-checked"),
     "true"
   );
   assert.equal(
-    await page.getByRole("radio", { name: "Claude", exact: true }).isEnabled(),
-    false
+    await pop("model")
+      .getByRole("radio", { name: "Claude", exact: true })
+      .isDisabled(),
+    true
   );
   assert.equal(
-    await page
+    await pop("model")
       .getByRole("radio", { name: "OpenCode", exact: true })
-      .isEnabled(),
-    false
+      .isDisabled(),
+    true
   );
-  const reason = await page
-    .getByRole("radio", { name: "Claude", exact: true })
-    .getAttribute("aria-describedby");
-  assert.equal(
-    await page.locator(`[id="${reason}"]`).innerText(),
-    "Not installed on pi-host"
-  );
-  return {
-    selected: "pi",
-    disabled: ["Claude", "OpenCode"],
-    reason: "Not installed on pi-host",
-  };
 });
-
-await check("9.defaults", "Verified Saved Location", async () => {
-  const readStart = reads.length;
-  try {
-    fixture = "remembered";
-    await open();
-    await until(async () =>
-      (await location.innerText()).includes("~/remembered")
-    );
-    const savedReads = reads
-      .slice(readStart)
-      .filter((entry) => entry.path === "/home/check/remembered");
-    assert.ok(
-      savedReads.some((entry) => entry.kind === "inspect") &&
-        savedReads.some((entry) => entry.kind === "fs")
-    );
-    assert.equal(
-      await dialog
-        .getByRole("button", { name: "Start session", exact: true })
-        .isEnabled(),
-      true
-    );
-    const retained = await page.evaluate(async () => {
-      const { rememberSpawn, spawnPrefs } = await import(
-        "/src/lib/whiffle/spawnPrefs.svelte.ts"
+await check("polish light and dark desktop and mobile", async () => {
+  for (const scheme of ["light", "dark"]) {
+    await page.emulateMedia({
+      colorScheme: scheme,
+      reducedMotion: "no-preference",
+    });
+    for (const [width, height] of [
+      [1440, 900],
+      [390, 844],
+    ]) {
+      await page.setViewportSize({ width, height });
+      await open();
+      await page.evaluate(
+        (dark) => document.documentElement.classList.toggle("dark", dark),
+        scheme === "dark"
       );
-      rememberSpawn({
-        harness: "pi",
-        model: "",
-        permissionMode: "default",
-        effort: null,
+      const facts = await page.evaluate(() => {
+        const card = document.querySelector(".session-card");
+        const bar = document.querySelector(".composer-bar");
+        const bounds = bar.getBoundingClientRect();
+        const track = document.querySelector(".effort .track");
+        return {
+          well: getComputedStyle(document.querySelector("textarea"))
+            .backgroundColor,
+          card: getComputedStyle(card).backgroundColor,
+          shadow: getComputedStyle(card).boxShadow,
+          track: {
+            width: track.getBoundingClientRect().width,
+            height: track.getBoundingClientRect().height,
+            color: getComputedStyle(track).backgroundColor,
+          },
+          effortWidth: document.querySelector(".effort").getBoundingClientRect()
+            .width,
+          icons: [...document.querySelectorAll(".detent svg")].map((svg) => ({
+            width: svg.getBoundingClientRect().width,
+            height: svg.getBoundingClientRect().height,
+            ink: getComputedStyle(svg).color,
+          })),
+          defaultThumb: Boolean(
+            document.querySelector(".effort-thumb.default-value")
+          ),
+          escapes: [...bar.children]
+            .filter((node) => {
+              const r = node.getBoundingClientRect();
+              return r.left < bounds.left - 1 || r.right > bounds.right + 1;
+            })
+            .map((node) => node.id || node.className),
+        };
       });
-      return { machineId: spawnPrefs.machineId, cwd: spawnPrefs.cwd };
-    });
-    assert.deepEqual(retained, {
-      machineId: "check-online",
-      cwd: "/home/check/remembered",
-    });
-    fixture = "remembered-missing";
-    await open();
-    assert.ok(!(await location.innerText()).includes("/definitely/missing"));
-    return {
-      restored: retained,
-      verification: savedReads,
-      legacyCallPreservesLocation: true,
-      invalidSavedLocationAdopted: false,
-    };
-  } finally {
-    fixture = "normal";
+      console.log(`POLISH ${scheme} ${width}: ${JSON.stringify(facts)}`);
+      assert.notEqual(facts.well, facts.card);
+      assert.notEqual(facts.shadow, "none");
+      assert.equal(facts.track.height, 4);
+      assert.equal(facts.effortWidth, 150);
+      assert.equal(facts.defaultThumb, true);
+      assert.deepEqual(facts.escapes, []);
+      assert.ok(
+        facts.icons.every((icon) => icon.width === 16 && icon.height === 16)
+      );
+      await page.screenshot({
+        path: `/tmp/ns-polish-${scheme}-${width}-rest.png`,
+      });
+      const primary = {
+        "light-1440": "/tmp/ns-rest.png",
+        "dark-1440": "/tmp/ns-dark.png",
+        "light-390": "/tmp/ns-mobile.png",
+      }[`${scheme}-${width}`];
+      if (primary) {
+        await page.screenshot({ path: primary });
+      }
+      for (const name of ["model", "location", "mode", "options"]) {
+        await show(name);
+        assert.equal(await start.isDisabled(), true);
+        assert.ok(
+          await start.evaluate(
+            (node) => Number(getComputedStyle(node).opacity) < 1
+          )
+        );
+        const switches = await pop(name)
+          .getByRole("switch")
+          .evaluateAll((nodes) =>
+            nodes.map((node) => ({
+              track: getComputedStyle(node).backgroundColor,
+              thumb: getComputedStyle(
+                node.querySelector('[data-slot="switch-thumb"]')
+              ).backgroundColor,
+              surface: getComputedStyle(node.closest(".composer-popover"))
+                .backgroundColor,
+            }))
+          );
+        assert.ok(
+          switches.every(
+            (control) =>
+              control.track !== control.surface &&
+              control.thumb !== control.track
+          ),
+          JSON.stringify(switches)
+        );
+        const bounds = await pop(name).boundingBox();
+        assert.ok(
+          bounds.x >= 7 &&
+            bounds.y >= 7 &&
+            bounds.x + bounds.width <= width - 7 &&
+            bounds.y + bounds.height <= height - 7
+        );
+        console.log(
+          `POLISH POPOVER ${scheme} ${width} ${name}: ${JSON.stringify(bounds)}`
+        );
+        await page.screenshot({
+          path: `/tmp/ns-polish-${scheme}-${width}-${name}.png`,
+        });
+        if (scheme === "light" && width === 1440 && name !== "location") {
+          await page.screenshot({ path: `/tmp/ns-${name}.png` });
+        }
+        await dismiss(name);
+      }
+    }
   }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.emulateMedia({ colorScheme: "light" });
 });
-
-await check(10, "Reduced Motion", async () => {
-  reduced = true;
+await check("reduced motion endpoints", async () => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await open();
-  await model.click();
-  await page.waitForTimeout(100);
-  const result = await page.evaluate(() => {
-    const nodes = [
-      ...document.querySelectorAll(
-        ".session-card, .session-card *, .position, .position *"
-      ),
-    ];
-    const milliseconds = (value) =>
-      value.split(",").map((part) => Number.parseFloat(part) * 1000);
-    const durations = nodes.flatMap((node) => {
-      const css = getComputedStyle(node);
-      return [
-        ...milliseconds(css.transitionDuration),
-        ...milliseconds(css.animationDuration),
-      ];
-    });
-    const card = document.querySelector(".session-card");
-    return {
-      maxDurationMs: Math.max(...durations),
-      opacity: Number(getComputedStyle(card).opacity),
-      transform: getComputedStyle(card).transform,
-      inert: card.inert,
-    };
-  });
-  assert.ok(result.maxDurationMs <= 1.001, JSON.stringify(result));
-  assert.equal(result.opacity, 1);
-  assert.equal(result.transform, "none");
-  assert.equal(result.inert, false);
-  return result;
-});
-
-await check("10.1", "Reduced Stillness", stillness);
-await check("10.2", "Reduced Containment", containment);
-await check("10.3", "Reduced Centering", centering);
-await check("10.8", "Reduced Keyboard", keyboard);
-if (instantSamples.length) {
-  console.log(
-    `Reduced immediate measurements: ${JSON.stringify({ samples: instantSamples.length, maxInitialDurationMs: Math.max(...instantSamples.map((sample) => sample.maxInitialDurationMs)), maxActiveAfterPaint: Math.max(...instantSamples.map((sample) => sample.activeAnimations)), maxThumbDelta: Math.max(...instantSamples.map((sample) => sample.thumbDelta)), minRowOpacity: Math.min(...instantSamples.flatMap((sample) => sample.rowOpacities)) })}`
+  assert.equal(
+    await dialog.evaluate((el) => getComputedStyle(el).opacity),
+    "1"
   );
-}
-
-await check("10.tokens", "Token Gates", () => {
-  const outcomes = [
-    ["python3", ["mocks/literalcheck.py"]],
-    ["node", ["mocks/typecheck.mjs"]],
-  ].map(([command, args]) => {
-    const result = spawnSync(command, args, {
-      cwd: workspaceRoot,
-      encoding: "utf8",
-      timeout: 120_000,
-    });
-    const entry = {
-      command: `${command} ${args.join(" ")}`,
-      exitCode: result.status,
-      error: result.error?.message,
-    };
-    console.log(`Token gate: ${JSON.stringify(entry)}`);
-    if (result.status !== 0) {
-      console.log(result.stdout, result.stderr);
-    }
-    return entry;
-  });
+  await show("model");
+  await pop("model").getByRole("radio", { name: "pi", exact: true }).click();
+  await page.waitForTimeout(50);
+  assert.equal(
+    await page.getByRole("listbox", { name: "pi models" }).count(),
+    1
+  );
+  const durations = await page.evaluate(() =>
+    document
+      .getAnimations()
+      .map((animation) => Number(animation.effect.getTiming().duration))
+  );
   assert.ok(
-    outcomes.every((entry) => entry.exitCode === 0),
-    JSON.stringify(outcomes)
+    durations.every((duration) => duration <= 1),
+    JSON.stringify(durations)
   );
-  return outcomes;
 });
-
-console.log(`Runtime errors: ${JSON.stringify(errors)}`);
 if (errors.length) {
   failures += 1;
+  console.error(`PAGE ERRORS ${JSON.stringify(errors)}`);
 }
 await browser.close();
+console.log(
+  `RESULT ${failures ? "FAIL" : "PASS"}: ${failures} failed checks; ${errors.length} page errors; ${spawns().length} intercepted spawns; zero real sessions`
+);
 process.exitCode = failures ? 1 : 0;

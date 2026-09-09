@@ -6,6 +6,7 @@
     type PermissionMode,
     repoPath,
   } from "@whiffle/core";
+  import { Dialog as DialogPrimitive } from "bits-ui";
   import type { TransitionConfig } from "dialkit";
   import {
     computeClipState,
@@ -15,10 +16,12 @@
   import { tick, untrack } from "svelte";
   import { prefersReducedMotion } from "svelte/motion";
   import { goto } from "$app/navigation";
-  import ProviderLogo from "$lib/components/features/ProviderLogo.svelte";
-  import { IconClose } from "$lib/icons";
-  import ClaudeIcon from "~icons/logos/claude-icon";
-  import MachineIcon from "~icons/solar/server-linear";
+  import {
+    Dialog,
+    DialogOverlay,
+    DialogPortal,
+    DialogTitle,
+  } from "$lib/components/ui/dialog";
   import {
     createProject,
     machineFs,
@@ -27,22 +30,13 @@
   } from "../client.svelte";
   import { EFFORT_LEVELS } from "../effort-levels";
   import { inspectMachine } from "../fleet";
-  import HarnessGlyph from "../HarnessGlyph.svelte";
   import { models } from "../models.svelte";
   import { PERMISSION_MODES } from "../permission-modes";
   import { rememberSpawn, spawnPrefs } from "../spawnPrefs.svelte";
-  import ActionButton from "./ActionButton.svelte";
-  import AnchoredPopover from "./AnchoredPopover.svelte";
-  import LedgerRow from "./LedgerRow.svelte";
-  import LocationPicker from "./LocationPicker.svelte";
-  import ModelPicker from "./ModelPicker.svelte";
+  import ComposerBar from "./ComposerBar.svelte";
   import { deriveModelEntries } from "./model-entries";
   import { lastSpawnAt, lastUsedAt, recordModelUse } from "./modelUse.svelte";
   import PromptWell from "./PromptWell.svelte";
-  import Segmented from "./Segmented.svelte";
-  import StopSlider from "./StopSlider.svelte";
-  import ToggleChip from "./ToggleChip.svelte";
-  import ValueButton from "./ValueButton.svelte";
 
   interface Clip {
     at: number;
@@ -69,9 +63,9 @@
     list: { highlight: SpringParams };
     open: { rowStagger: number };
     pop: { open: SpringParams; rowStagger: number };
-    seg: { thumb: SpringParams };
     slider: { thumb: SpringParams };
     swap: { spring: SpringParams; stagger: number };
+    toggle: { thumb: SpringParams };
   }
   let {
     open,
@@ -86,9 +80,9 @@
     timeline: Timeline;
     params: Params;
   } = $props();
-  let card = $state<HTMLElement>();
-  let modelAnchor = $state<HTMLButtonElement>();
-  let locationAnchor = $state<HTMLButtonElement>();
+  let card = $state<HTMLElement | null>(null);
+  let modelAnchor = $state<HTMLButtonElement | null>(null);
+  let locationAnchor = $state<HTMLButtonElement | null>(null);
   let opener: HTMLElement | null = null;
   let submission = 0;
   let prompt = $state("");
@@ -112,7 +106,7 @@
   const locationUnverified = $derived(
     Boolean(machineId && cwd.trim()) && verifiedLocation !== locationKey
   );
-  let popover = $state<"model" | "location" | null>(null);
+  let popover = $state<"model" | "location" | "mode" | "options" | null>(null);
   const machine = $derived(
     whiffle.machines.find((row) => row.machineId === machineId)
   );
@@ -394,7 +388,7 @@
     };
   });
   function closePopover() {
-    const anchor = popover === "model" ? modelAnchor : locationAnchor;
+    const anchor = document.getElementById(`session-${popover}`);
     popover = null;
     anchor?.focus();
   }
@@ -427,6 +421,7 @@
     repo?: string;
   }) {
     ({ machineId, cwd, repo } = value);
+    editing = true;
     verifiedLocation =
       repo === undefined ? JSON.stringify([machineId, cwd.trim()]) : "";
     projectId =
@@ -463,7 +458,7 @@
     }
   }
   async function start() {
-    if (busy || whiffle.hub !== "connected") {
+    if (busy || popover || whiffle.hub !== "connected") {
       return;
     }
     error = validate();
@@ -573,388 +568,121 @@
     await goto(`/session/${instanceId}`);
   }
   function keydown(event: KeyboardEvent) {
-    if (!open || event.defaultPrevented) {
+    if (!open || event.defaultPrevented || event.isComposing) {
       return;
-    }
-    if (event.key === "Escape") {
-      event.preventDefault();
-      if (popover) {
-        closePopover();
-      } else {
-        close();
-      }
     }
     if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
       event.preventDefault();
       start();
     }
-    const focusScope = popover
-      ? document.getElementById(`session-${popover}-popover`)
-      : card;
-    if (event.key === "Tab" && focusScope) {
-      const controls = [
-        ...focusScope.querySelectorAll<HTMLElement>(
-          'input:not(:disabled), textarea, button:not(:disabled), [tabindex="0"]'
-        ),
-      ].filter(
-        (node) => node.tabIndex >= 0 && node.getClientRects().length > 0
-      );
-      const current = controls.indexOf(document.activeElement as HTMLElement);
-      event.preventDefault();
-      controls[
-        (current + (event.shiftKey ? -1 : 1) + controls.length) %
-          controls.length
-      ]?.focus();
-    }
   }
 </script>
 
 <svelte:window onkeydown={keydown} />
-{#snippet claudeMark()}
-  <span class="agent-mark claude-mark"><ClaudeIcon /></span>
-{/snippet}
-{#snippet opencodeMark()}
-  <span class="agent-mark"><HarnessGlyph harness="opencode" /></span>
-{/snippet}
-{#snippet piMark()}
-  <span class="agent-mark"><HarnessGlyph harness="pi" /></span>
-{/snippet}
-{#snippet modelMark()}
-  <ProviderLogo model={selected?.id ?? model} size={16} />
-{/snippet}
-{#snippet locationMark()}
-  <MachineIcon />
-{/snippet}
-{#if open}
-  <div
-    class="scrim"
-    style:opacity={prefersReducedMotion.current ? 1 : timeline.scrim.current.opacity}
-  ></div>
-  <div
-    aria-labelledby="new-session-title"
-    aria-modal="true"
-    class="session-card"
-    inert={busy || !(timeline.interactive.started || prefersReducedMotion.current)}
-    role="dialog"
-    tabindex="-1"
-    bind:this={card}
-    style:opacity={prefersReducedMotion.current ? 1 : timeline.card.current.opacity}
-    style:transform={prefersReducedMotion.current ? "none" : `translateY(${timeline.card.current.y}px) scale(${timeline.card.current.scale})`}
-  >
-    <header><h2 id="new-session-title">New session</h2></header>
-    <div style={rowStyle(0)}>
-      <PromptWell
-        maxRows={10}
-        minRows={5}
-        onsubmit={start}
-        placeholder="What should this session do?"
-        bind:value={prompt}
-      />
-    </div>
-    <div class="ledger">
-      <div style={rowStyle(1)}>
-        <LedgerRow controlId="session-agent" label="Agent"
-          ><Segmented
-            aria-label="Agent"
-            id="session-agent"
-            onchange={chooseHarness}
-            options={HARNESSES.map((value) => ({ value, label: { claude: "Claude", opencode: "OpenCode", pi: "pi" }[value], mark: { claude: claudeMark, opencode: opencodeMark, pi: piMark }[value], disabled: !installedHarnesses.includes(value), reason: installedHarnesses.includes(value) ? undefined : `Not installed on ${machine?.hostname ?? machineId}` }))}
-            spring={params.seg.thumb}
-            value={harness}
-          /></LedgerRow
-        >
-      </div>
-      <div style={rowStyle(2)}>
-        <LedgerRow controlId="session-model" label="Model"
-          ><div>
-            <ValueButton
-              empty={!(selected || model)}
-              expanded={popover === "model"}
-              id="session-model"
-              label={selected?.name ?? (model || "Choose a model")}
-              mark={modelMark}
-              onclick={() => { popover = popover === "model" ? null : "model"; }}
-              bind:element={modelAnchor}
-            />
-          </div></LedgerRow
-        >
-      </div>
-      <div style={rowStyle(3)}>
-        <LedgerRow controlId="session-location" label="Location"
-          ><div class="location-value">
-            <ValueButton
-              dot={machine?.status === "online"}
-              expanded={popover === "location"}
-              id="session-location"
-              label={locationLabel}
-              mark={locationMark}
-              onclick={() => { if (!locked) { popover = popover === "location" ? null : "location"; } }}
-              reason={locationReading}
-              bind:element={locationAnchor}
-            />
-            {#if locked}
-              <button onclick={() => { editing = true; }} type="button">
-                Edit
-              </button>
-            {/if}
-          </div></LedgerRow
-        >
-      </div>
-      <div style={rowStyle(4)}>
-        <LedgerRow controlId="session-permissions" label="Permissions"
-          ><Segmented
-            aria-label="Permissions"
-            id="session-permissions"
-            onchange={(value) => { permissionMode = value; }}
-            options={modes}
-            spring={params.seg.thumb}
-            value={permissionMode}
-          /></LedgerRow
-        >
-      </div>
-      <div style={rowStyle(5)}>
-        <LedgerRow controlId="session-effort" label="Effort"
-          ><StopSlider
-            id="session-effort"
-            onchange={(value) => { effort = value as EffortLevel | null; }}
-            readout={scale ? effort ?? "Harness default" : "No effort scale on this model"}
-            spring={params.slider.thumb}
-            {stops}
-            value={effort}
-          /></LedgerRow
-        >
-      </div>
-      <div style={rowStyle(6)}>
-        <LedgerRow controlId="session-options" label="Options"
-          ><fieldset aria-label="Options" class="chips" id="session-options">
-            <ToggleChip
-              checked={sideQuest}
-              label="Side quest"
-              onchange={(value) => { sideQuest = value; if (!value) { worktree = false; } }}
-            /><ToggleChip
-              checked={worktree}
-              disabled={!sideQuest}
-              label="Worktree"
-              onchange={(value) => { worktree = value; }}
-              reason="Worktree needs Side quest."
-            /><ToggleChip
-              checked={saveAsProject}
-              disabled={Boolean(project)}
-              label="Save as project"
-              onchange={(value) => { saveAsProject = value; }}
-              reason="A project is already attached."
-            /><ToggleChip
-              checked={repo !== undefined}
-              label="Clone repo"
-              onchange={(value) => { repo = value ? "" : undefined; projectId = undefined; editing = true; if (value) { cwd ||= "~"; popover = "location"; } }}
-            />
-          </fieldset></LedgerRow
-        >
-      </div>
-    </div>
-    <footer style={rowStyle(7)}>
-      <p aria-live="polite" title={reading}>{reading || "\u00a0"}</p>
-      <div class="actions">
-        <ActionButton
-          {busy}
-          disabled={whiffle.hub !== "connected" || unreadable || locationUnverified}
-          label="Start session"
-          onclick={start}
+<Dialog onOpenChange={(value) => { if (!value) { close(); } }} {open}>
+  <DialogPortal>
+    <DialogOverlay
+      class="session-scrim"
+      style={`opacity:${prefersReducedMotion.current ? 1 : timeline.scrim.current.opacity}`}
+    />
+    <DialogPrimitive.Content
+      class="session-card"
+      inert={busy || !(timeline.interactive.started || prefersReducedMotion.current)}
+      onOpenAutoFocus={(event) => { event.preventDefault(); card?.querySelector('textarea')?.focus(); }}
+      style={`opacity:${prefersReducedMotion.current ? 1 : timeline.card.current.opacity};scale:${prefersReducedMotion.current ? 1 : timeline.card.current.scale}`}
+      bind:ref={card}
+    >
+      <DialogTitle class="sr-only">New session</DialogTitle>
+      <div style={rowStyle(0)}>
+        <PromptWell
+          maxRows={10}
+          minRows={8}
+          onsubmit={start}
+          placeholder="What should the agent do?"
+          bind:value={prompt}
         />
       </div>
-    </footer>
-    <button
-      aria-label="Close new session"
-      class="close"
-      onclick={close}
-      type="button"
-    >
-      <IconClose />
-    </button>
-  </div>
-  {#if modelAnchor}
-    <AnchoredPopover
-      anchor={modelAnchor}
-      id="session-model-popover"
-      onclose={closePopover}
-      open={popover === "model"}
-      spring={params.pop.open}
-      ><ModelPicker
-        {harness}
-        onselect={(id) => { model = id; closePopover(); }}
-        spring={params.list.highlight}
-        stagger={params.pop.rowStagger}
-        swapSpring={params.swap.spring}
-        swapStagger={params.swap.stagger}
-        value={model}
-      /></AnchoredPopover
-    >
-  {/if}
-  {#if locationAnchor}
-    <AnchoredPopover
-      anchor={locationAnchor}
-      id="session-location-popover"
-      onclose={closePopover}
-      open={popover === "location"}
-      spring={params.pop.open}
-      ><LocationPicker
-        {cwd}
-        {machineId}
-        mode={repo === undefined ? "directory" : "repository"}
-        onmodechange={(mode) => { repo = mode === "repository" ? repo ?? "" : undefined; projectId = undefined; editing = true; }}
-        onselect={chooseLocation}
-        {repo}
-        spring={params.list.highlight}
-        stagger={params.pop.rowStagger}
-      /></AnchoredPopover
-    >
-  {/if}
-{/if}
+      <div class="bar-region">
+        <p aria-live="polite" class="reading" title={reading}>
+          {reading || "\u00a0"}
+        </p>
+        <ComposerBar
+          {busy}
+          {cwd}
+          disabled={whiffle.hub !== "connected" || unreadable || locationUnverified}
+          {effort}
+          {harness}
+          {installedHarnesses}
+          {locationLabel}
+          {locked}
+          {machineId}
+          machineName={machine?.hostname ?? machineId}
+          {model}
+          modelName={selected?.name ?? (model || "Choose model")}
+          {modes}
+          onbootstrap={(value) => { repo = value ? "" : undefined; projectId = undefined; editing = true; if (value) { cwd ||= "~"; popover = "location"; } }}
+          oneffort={(value) => { effort = value; }}
+          onharness={chooseHarness}
+          online={machine?.status === "online"}
+          onlocation={chooseLocation}
+          onlocationmode={(mode) => { repo = mode === "repository" ? repo ?? "" : undefined; projectId = undefined; editing = true; }}
+          onmode={(value) => { permissionMode = value; }}
+          onmodel={(id) => { model = id; closePopover(); }}
+          onscratch={(value) => { sideQuest = value; if (!value) { worktree = false; } }}
+          onstart={start}
+          {params}
+          {permissionMode}
+          projectName={project?.name ?? cwd.split('/').pop() ?? ''}
+          {repo}
+          {rowStyle}
+          {scale}
+          {sideQuest}
+          {stops}
+          bind:locationAnchor
+          bind:modelAnchor
+          bind:popover
+        />
+      </div>
+    </DialogPrimitive.Content>
+  </DialogPortal>
+</Dialog>
 
 <style>
-  .scrim {
+  :global(.session-scrim) {
     position: fixed;
     inset: 0;
     z-index: 80;
     background: var(--scrim);
+    animation: none !important;
   }
-  .session-card {
-    --session-content-inset: calc(var(--space-4) + 1px);
+  :global(.session-card) {
     position: fixed;
     z-index: 81;
-    top: 12vh;
-    left: 0;
-    right: 0;
-    margin-inline: auto;
-    width: clamp(640px, 72vw, 760px);
-    max-width: calc(100vw - 16px);
-    max-height: 86dvh;
+    top: 50%;
+    left: 50%;
+    translate: -50% -50%;
+    width: 640px;
+    max-width: calc(100vw - var(--space-4));
+    max-height: calc(100dvh - var(--space-4));
     overflow-y: auto;
     padding: var(--space-2);
-    border-radius: var(--radius-panel);
+    border-radius: var(--radius-modal);
     background: var(--surface-raised);
-    box-shadow: var(--shadow-overlay);
-    transform-origin: top center;
+    box-shadow: var(--shadow-modal);
+    outline: none;
+    transform-origin: center;
   }
-  header {
-    height: 44px;
-    display: flex;
-    align-items: center;
-    padding-inline: var(--session-content-inset);
+  .bar-region {
+    padding: var(--space-2) var(--space-1) var(--space-1);
   }
-  h2 {
-    margin: 0;
-    color: var(--ink-strong);
-    font-size: var(--text-lg);
-    font-weight: 500;
-    line-height: var(--leading-ui);
-  }
-  .ledger {
-    display: grid;
-    gap: var(--space-1);
-    background: var(--surface-field);
-    margin-top: var(--space-3);
-    border-radius: var(--radius-well);
-  }
-  .chips,
-  .actions,
-  .location-value {
-    display: flex;
-    align-items: center;
-    gap: var(--space-1);
-  }
-  .location-value > :global(:first-child) {
-    flex: 1;
-    min-width: 0;
-  }
-  footer {
-    height: 52px;
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding-inline: var(--session-content-inset);
-  }
-  footer p {
+  .reading {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    flex: 1;
-    min-width: 0;
     font-size: var(--text-sm);
     color: var(--ink-muted);
     line-height: var(--leading-ui);
     margin: 0;
-  }
-  .close {
-    position: absolute;
-    top: var(--space-2);
-    right: var(--space-3);
-    width: 44px;
-    height: 44px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: var(--radius-well);
-    color: var(--ink-muted);
-  }
-  .close :global(svg) {
-    width: 16px;
-    height: 16px;
-  }
-  .agent-mark {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 16px;
-    height: 16px;
-    color: var(--ink-body);
-  }
-  .agent-mark :global(svg) {
-    width: 16px;
-    height: 16px;
-  }
-  .claude-mark :global(path) {
-    fill: currentColor;
-  }
-  button:focus-visible {
-    outline: 2px solid var(--focus-ring);
-    outline-offset: 2px;
-  }
-  @media (hover: hover) {
-    .close:hover {
-      background: var(--surface-hover);
-    }
-  }
-  @media (max-width: 479px) {
-    .session-card {
-      top: auto;
-      bottom: 0;
-      width: 100%;
-      max-width: 100%;
-      max-height: 94dvh;
-      border-radius: var(--radius-shell) var(--radius-shell) 0 0;
-      box-shadow: var(--shadow-drawer);
-    }
-    .session-card :global(textarea) {
-      border-radius: calc(var(--radius-shell) - var(--space-2));
-      font-size: 16px;
-    }
-    .chips {
-      flex-wrap: wrap;
-    }
-    footer {
-      height: auto;
-      min-height: 92px;
-      flex-direction: column;
-      align-items: stretch;
-      padding-block: var(--space-2)
-        calc(var(--space-2) + env(safe-area-inset-bottom));
-    }
-    footer p {
-      min-height: 1lh;
-    }
-    .actions > :global(*) {
-      flex: 1;
-    }
+    height: var(--space-5);
   }
 </style>

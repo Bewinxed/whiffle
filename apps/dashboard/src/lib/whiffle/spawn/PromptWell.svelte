@@ -1,8 +1,8 @@
 <script lang="ts">
   let {
     value = $bindable(""),
-    placeholder = "What should this session do?",
-    minRows = 5,
+    placeholder = "What should the agent do?",
+    minRows = 8,
     maxRows = 10,
     onsubmit,
     element = $bindable(),
@@ -66,12 +66,15 @@
     resize: none;
     overflow-y: auto;
     padding: var(--space-4);
-    border: 1px solid var(--border-hairline);
+    border: 0;
     border-radius: var(--radius-well);
-    background: var(--surface-field);
+    background: var(--surface-well);
     color: var(--ink-strong);
     font: 400 var(--text-md) / var(--leading-body) var(--font-body);
-    transition: border-color var(--c-100) var(--e-toggle);
+    box-shadow: var(--shadow-inset-sel);
+    transition:
+      color var(--c-100) var(--e-toggle),
+      box-shadow var(--c-100) var(--e-toggle);
   }
   textarea::placeholder {
     color: var(--ink-muted);
@@ -81,7 +84,7 @@
   textarea:focus,
   textarea:focus-visible {
     outline: none;
-    border-color: var(--ink-muted);
+    box-shadow: inset 0 1px 2px var(--shadow-tint-2);
   }
   @media (max-width: 479px) {
     textarea {
