@@ -15,15 +15,35 @@
    */
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte convention for component groups
   import * as Resizable from "$lib/components/ui/resizable";
+  import { IsCoarsePointer } from "$lib/hooks/is-mobile.svelte";
   import Self from "./PaneGrid.svelte";
   import PaneLeaf from "./PaneLeaf.svelte";
   import { type PaneNode, workspace } from "./workspace.svelte";
 
   let { node }: { node: PaneNode } = $props();
+
+  /**
+   * The grid is not only a desk any more: a tablet turned landscape gets it
+   * too, and a tablet has fingers. So the tab swipe is armed here as well,
+   * on the one group the reader is in — the same rule the deck uses, for the
+   * same reason. A swipe is a claim on the whole width of a group, and two
+   * groups either side of a split both answering it would make the gesture
+   * mean "whichever one you happened to start over".
+   *
+   * Kept off a cursor rather than left harmless. Touch handlers on a mouse
+   * never fire, so the gesture itself costs nothing there, but arming it also
+   * mounts and builds the neighbouring tabs so a swipe reveals a transcript
+   * instead of a blank frame (PaneLeaf). That work is worth paying for where
+   * the swipe exists, and is pure waste where it cannot happen.
+   */
+  const coarse = new IsCoarsePointer();
 </script>
 
 {#if node.t === 'l'}
-  <PaneLeaf leaf={node} />
+  <PaneLeaf
+    leaf={node}
+    swipeable={coarse.current && workspace.focusedLeafId === node.id}
+  />
 {:else}
   <Resizable.PaneGroup
     class="grid-group"

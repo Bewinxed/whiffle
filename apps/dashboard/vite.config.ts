@@ -5,6 +5,12 @@ import tailwindcss from "@tailwindcss/vite";
 import Icons from "unplugin-icons/vite";
 import { defineConfig, type Plugin } from "vite";
 
+// marked is a browser-only dependency here, so it is in the client graph and
+// absent from the server one. Each build is judged on whether the module it
+// actually pulled in was the shape the plugin below expects — a build that
+// never loads marked has nothing to protect and nothing to complain about.
+const MARKED_ESM = /[\\/]marked[\\/]lib[\\/]marked\.esm\.js$/;
+
 /**
  * marked's probe, rewritten into a shape the bundler cannot delete.
  *
@@ -42,11 +48,6 @@ const markedLookbehindProbe = (): Plugin => {
   const FOLDABLE = 'try{return!!new RegExp("(?<=1)(?<!1)")}catch{return!1}';
   const SURVIVES =
     'try{return new RegExp("(?<=1)(?<!1)").source.length>0}catch{return!1}';
-  // marked is a browser-only dependency here, so it is in the client graph and
-  // absent from the server one. Each build is judged on whether the module it
-  // actually pulled in was the shape this expects — a build that never loads
-  // marked has nothing to protect and nothing to complain about.
-  const MARKED = /[\\/]marked[\\/]lib[\\/]marked\.esm\.js$/;
   let seen = false;
   let rewrote = false;
   return {
@@ -57,7 +58,7 @@ const markedLookbehindProbe = (): Plugin => {
       rewrote = false;
     },
     transform(code, id) {
-      if (!MARKED.test(id)) {
+      if (!MARKED_ESM.test(id)) {
         return null;
       }
       seen = true;

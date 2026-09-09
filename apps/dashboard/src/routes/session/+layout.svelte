@@ -25,7 +25,7 @@
   import { browser } from "$app/environment";
   import { afterNavigate } from "$app/navigation";
   import { page } from "$app/state";
-  import { IsMobile } from "$lib/hooks/is-mobile.svelte";
+  import { IsMobile, IsTouchPortrait } from "$lib/hooks/is-mobile.svelte";
   import {
     type HistorySource,
     syncSubscriptions,
@@ -52,20 +52,35 @@
   /** 900px is this app's desktop line, not the 768 the hook defaults to. */
   const mobile = new IsMobile(900);
   /**
+   * A tablet held upright is the deck too, however wide it is.
+   *
+   * The width line alone was drawn for phones, and a tablet clears it: every
+   * iPad is 1024 CSS px or more in landscape, and the 12.9" is 1024 in
+   * portrait as well. So an iPad got the grid, and with the grid it got
+   * neither gesture — the two-finger paging lives on the deck, and the
+   * one-finger tab swipe was armed only for the deck's focused group. Held
+   * upright there is one conversation's worth of room anyway, which is what
+   * the deck is for, so the same orientation that makes the grid cramped is
+   * the one that turns the gestures on. Turned landscape it is a desk again:
+   * the grid comes back, and the tab swipe is armed there instead (PaneGrid).
+   */
+  const touchPortrait = new IsTouchPortrait();
+  /**
    * The media query cannot run on the server, so its answer there is the
    * `whiffle-narrow` cookie this browser wrote last time (or, on a first
    * visit, what its headers suggest). On the client the query is right
    * synchronously, so hydration on a phone finds the deck already painted.
    */
-  const narrow = $derived(
-    browser ? mobile.current : (page.data.narrow as boolean)
-  );
+  const deck = $derived(mobile.current || touchPortrait.current);
+  const narrow = $derived(browser ? deck : (page.data.narrow as boolean));
 
   $effect(() => {
     // The Cookie Store API is async and unsupported in Safari; this write must
-    // land synchronously before the next SSR request reads it back.
+    // land synchronously before the next SSR request reads it back. It carries
+    // the answer the page actually used, orientation included, so a reload on
+    // a tablet is served the layout it was already showing.
     // biome-ignore lint/suspicious/noDocumentCookie: needs the synchronous write; Cookie Store API is async and Safari lacks it
-    document.cookie = `whiffle-narrow=${mobile.current ? 1 : 0};path=/;max-age=31536000;samesite=lax`;
+    document.cookie = `whiffle-narrow=${deck ? 1 : 0};path=/;max-age=31536000;samesite=lax`;
   });
 
   const onBoard = $derived(workspace.activeSessionId === null);
