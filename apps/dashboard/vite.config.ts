@@ -5,94 +5,110 @@ import tailwindcss from "@tailwindcss/vite";
 import Icons from "unplugin-icons/vite";
 import { defineConfig, type Plugin } from "vite";
 
-// marked is a browser-only dependency here, so it is in the client graph and
-// absent from the server one. Each build is judged on whether the module it
-// actually pulled in was the shape the plugin below expects — a build that
-// never loads marked has nothing to protect and nothing to complain about.
-const MARKED_ESM = /[\\/]marked[\\/]lib[\\/]marked\.esm\.js$/;
-
 /**
- * marked's probe, rewritten into a shape the bundler cannot delete.
+ * Lookbehind, patched out of the dependencies that would compile it.
  *
- * Safari only grew regex lookbehind in 16.4, so marked asks the engine at
- * module load whether it has it, and picks one of two patterns from the
- * answer:
+ * Safari grew regex lookbehind in 16.4, and this dashboard is opened on an
+ * iPad running iPadOS 15.6. A lookbehind reaching that engine is not a
+ * degraded feature, it is a `SyntaxError: invalid group specifier name`
+ * thrown while the module is still evaluating — so the chunk never finishes,
+ * and whichever route imported it renders SvelteKit's "500 — Internal Error"
+ * while the rest of the app carries on working. That is how this started:
+ * one screen down, everything else fine.
  *
- *   try { return !!new RegExp("(?<=1)(?<!1)") } catch { return false }
- *
- * rolldown treats `new RegExp(...)` as side-effect-free, drops the
- * construction, and folds `!!<object>` to `true` — the detector now answers
- * "yes, always", marked takes the lookbehind branch, and the pattern throws
- * `SyntaxError: invalid group specifier name` on any Safari below 16.4 while
- * the markdown chunk is still evaluating. Only the transcript imports that
- * chunk, which is how an iPad on iPadOS 15.6 got "500 — Internal Error" on one
- * screen while the rest of the dashboard behaved.
- *
- * oxc's MINIFIER has since learned to keep these probes when a `build.target`
- * says the pattern might not compile (oxc#24712, and `build.target` below is
- * set for that reason among others), but the fold also happens without the
- * minifier — an unminified build shows `try { return true } catch` too — so
- * the target alone does not save it. Reading `.source` off the result is what
- * does: the value is no longer a bare constructed object the bundler can
- * reason away, and it survives both DCE and minification.
- *
- * Deliberately fails the build when the expected source is missing, rather
- * than passing silently: a version of marked this no longer matches is a
- * version whose probe may be intact, may be spelled differently, or may be
- * getting folded again with nothing to show for it. Loud is recoverable —
- * look at the new source and update the pattern here, or delete this plugin
- * once rolldown stops folding it. Silent is another iPad bug reported weeks
- * later.
+ * Each entry names the module it applies to and the exact text it swaps. The
+ * build FAILS when a listed module contains neither the text to replace nor
+ * the replacement — an upgrade that respells the code silently un-fixes the
+ * iPad otherwise, and a build that stops is recoverable in a way a bug
+ * reported three weeks later is not. A module already carrying the
+ * replacement is fine and says nothing: bun can serve a previously patched
+ * copy out of its cache, and failing on that stopped a deploy once already.
  */
-const markedLookbehindProbe = (): Plugin => {
-  const FOLDABLE = 'try{return!!new RegExp("(?<=1)(?<!1)")}catch{return!1}';
-  const SURVIVES =
-    'try{return new RegExp("(?<=1)(?<!1)").source.length>0}catch{return!1}';
-  /** Modules that reached the bundler with a probe that cannot be folded. */
-  let safe = 0;
-  /** Modules matching marked's entry, whatever shape they turned out to be. */
-  let seen = 0;
+const LOOKBEHIND_SHIMS = [
+  {
+    /**
+     * marked feature-DETECTS lookbehind, and the bundler broke the detection
+     * rather than the feature: it treats `new RegExp(...)` as pure, drops the
+     * construction, and folds `!!<object>` to `true`, so the probe answers
+     * "supported" on an engine that does not support it and marked takes the
+     * lookbehind branch. oxc's minifier learned to keep these when a
+     * `build.target` rules the pattern out (oxc#24712, and `build.target`
+     * below is set for that reason among others), but the fold also happens
+     * without the minifier — an unminified build shows `try { return true }
+     * catch` too. Reading `.source` off the result is what survives: the
+     * value is no longer a bare constructed object to reason away.
+     */
+    id: /[\\/]marked[\\/]lib[\\/]marked\.esm\.js$/,
+    from: 'try{return!!new RegExp("(?<=1)(?<!1)")}catch{return!1}',
+    to: 'try{return new RegExp("(?<=1)(?<!1)").source.length>0}catch{return!1}',
+  },
+  {
+    /**
+     * @pierre/diffs does not detect anything — it builds `/(?<=\n)/` at module
+     * scope, so importing it is enough to throw, which is what took out the
+     * Tools route. The regex exists to split a patch into lines that keep
+     * their newline, and `split` asks the separator for `Symbol.split` before
+     * treating it as a pattern, so an object answering that is a drop-in at
+     * both call sites with no lookbehind anywhere. Checked against the
+     * original on empty strings, bare and repeated newlines, CRLF, and a hunk
+     * body: identical output on every one.
+     */
+    id: /[\\/]@pierre[\\/]diffs[\\/]dist[\\/](constants|worker-portable)\.js$/,
+    from: "const SPLIT_WITH_NEWLINES = /(?<=\\n)/;",
+    to:
+      "const SPLIT_WITH_NEWLINES = { [Symbol.split](s) { const out = []; " +
+      "let start = 0; for (let i = 0; i < s.length; i++) { if (s[i] === '\\n') " +
+      "{ out.push(s.slice(start, i + 1)); start = i + 1; } } " +
+      "if (start < s.length || out.length === 0) { out.push(s.slice(start)); } " +
+      "return out; } };",
+  },
+];
+
+const lookbehindShims = (): Plugin => {
+  /** Per shim: modules that matched, and modules left in a safe shape. */
+  let matched: number[] = [];
+  let safe: number[] = [];
   return {
-    name: "whiffle:marked-lookbehind-probe",
+    name: "whiffle:lookbehind-shims",
     apply: "build",
     buildStart() {
-      safe = 0;
-      seen = 0;
+      matched = LOOKBEHIND_SHIMS.map(() => 0);
+      safe = LOOKBEHIND_SHIMS.map(() => 0);
     },
     transform(code, id) {
-      if (!MARKED_ESM.test(id)) {
-        return null;
-      }
-      seen += 1;
-      // What is checked is the shape the bundler ends up with, not whether
-      // this plugin was the one that put it there. A tree whose marked is
-      // already in the durable form — the leftover of an older fix, or a
-      // marked that grew one of its own — is fine, and asserting "I rewrote
-      // something" would fail the build over it. That is not hypothetical:
-      // it is how this plugin first broke the deploy.
-      if (code.includes(SURVIVES)) {
-        safe += 1;
-        return null;
-      }
-      if (!code.includes(FOLDABLE)) {
-        return null;
-      }
-      safe += 1;
-      return { code: code.replaceAll(FOLDABLE, SURVIVES), map: null };
+      let output = code;
+      let touched = false;
+      LOOKBEHIND_SHIMS.forEach((shim, i) => {
+        if (!shim.id.test(id)) {
+          return;
+        }
+        matched[i] += 1;
+        if (output.includes(shim.to)) {
+          safe[i] += 1;
+          return;
+        }
+        if (!output.includes(shim.from)) {
+          return;
+        }
+        safe[i] += 1;
+        output = output.replaceAll(shim.from, shim.to);
+        touched = true;
+      });
+      return touched ? { code: output, map: null } : null;
     },
     buildEnd() {
-      if (seen > 0 && safe === 0) {
-        this.error(
-          "whiffle:marked-lookbehind-probe found no probe it recognises. " +
-            "marked's lookbehind feature detection is spelled neither\n\n  " +
-            `${FOLDABLE}\n\nnor\n\n  ${SURVIVES}\n\n` +
-            "so this plugin is not protecting it any more. Check how the " +
-            "current marked writes that probe (search its lib/marked.esm.js " +
-            'for "(?<=1)(?<!1)"), then either update FOLDABLE/SURVIVES here or ' +
-            "drop this plugin if the bundler has stopped folding it. Shipping " +
-            "as-is breaks the transcript on Safari below 16.4."
-        );
-      }
+      LOOKBEHIND_SHIMS.forEach((shim, i) => {
+        if (matched[i] > 0 && safe[i] === 0) {
+          this.error(
+            `whiffle:lookbehind-shims matched ${matched[i]} module(s) for ` +
+              `${shim.id} and found neither\n\n  ${shim.from}\n\nnor\n\n  ` +
+              `${shim.to}\n\nin any of them, so that dependency is no longer ` +
+              "being patched. Read how it spells the lookbehind now and either " +
+              "update this entry or delete it if the code is gone. Shipping " +
+              "as-is breaks that route on Safari below 16.4 (iPadOS 15.6)."
+          );
+        }
+      });
     },
   };
 };
@@ -170,7 +186,7 @@ const hubWsProxy = (): Plugin => ({
 
 export default defineConfig({
   plugins: [
-    markedLookbehindProbe(),
+    lookbehindShims(),
     hubWsProxy(),
     tailwindcss(),
     sveltekit(),

@@ -28,7 +28,8 @@
   },
   "overrides": {
     "@types/bun": "latest",
-    "vite": "npm:rolldown-vite@latest"
+    "vite": "npm:rolldown-vite@latest",
+    "oniguruma-to-es": "^4.3.6"
   },
   "dependencies": {
     "torph": "^0.1.0"
