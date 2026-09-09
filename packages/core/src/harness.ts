@@ -101,6 +101,8 @@ export interface McpServerStatus {
 export interface ModelInfo {
   description?: string;
   displayName: string;
+  /** ISO date the model was released, when the catalog source says. */
+  released?: string;
   resolvedModel?: string;
   supportedEffortLevels?: EffortLevel[];
   supportsAdaptiveThinking?: boolean;

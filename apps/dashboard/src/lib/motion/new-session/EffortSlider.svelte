@@ -1,5 +1,9 @@
 <script lang="ts">
   import { prefersReducedMotion, Spring } from "svelte/motion";
+  import IconMedium from "~icons/solar/bolt-linear";
+  import IconHigh from "~icons/solar/fire-linear";
+  import IconLow from "~icons/solar/leaf-linear";
+  import IconMax from "~icons/solar/rocket-2-linear";
   import { springFromVisual } from "./spring";
 
   let {
@@ -7,8 +11,14 @@
     spring,
   }: { value?: number; spring: { visualDuration?: number; bounce?: number } } =
     $props();
-  const labels = ["Low", "Medium", "High", "Max"];
-  const thumb = new Spring(2 / 3);
+  const detents = [
+    { label: "Low", icon: IconLow },
+    { label: "Medium", icon: IconMedium },
+    { label: "High", icon: IconHigh },
+    { label: "Max", icon: IconMax },
+  ];
+  const last = detents.length - 1;
+  const thumb = new Spring(2 / last);
   let dragging = $state(false);
   // biome-ignore lint/suspicious/noUnassignedVariables: assigned by Svelte bind:this
   let track: HTMLDivElement;
@@ -22,7 +32,7 @@
   });
   $effect(() => {
     if (!dragging) {
-      thumb.set(value / 3, { instant: prefersReducedMotion.current });
+      thumb.set(value / last, { instant: prefersReducedMotion.current });
     }
   });
   function position(event: PointerEvent) {
@@ -31,12 +41,12 @@
   }
   // A press springs the thumb to the nearest detent; only a real drag follows the pointer.
   function press(event: PointerEvent) {
-    value = Math.round(position(event) * 3);
+    value = Math.round(position(event) * last);
   }
   function drag(event: PointerEvent) {
     const at = position(event);
     thumb.set(at, { instant: true });
-    value = Math.round(at * 3);
+    value = Math.round(at * last);
   }
   function keydown(event: KeyboardEvent) {
     const delta = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[
@@ -46,22 +56,22 @@
       return;
     }
     event.preventDefault();
-    value = Math.max(0, Math.min(3, value + (delta ?? 0)));
+    value = Math.max(0, Math.min(last, value + (delta ?? 0)));
     if (event.key === "Home") {
       value = 0;
     }
     if (event.key === "End") {
-      value = 3;
+      value = last;
     }
   }
 </script>
 
 <div
   aria-label="Effort"
-  aria-valuemax="3"
+  aria-valuemax={last}
   aria-valuemin="0"
   aria-valuenow={value}
-  aria-valuetext={labels[value]}
+  aria-valuetext={detents[value].label}
   class="slider"
   onkeydown={keydown}
   onpointercancel={() => { dragging = false; }}
@@ -73,14 +83,16 @@
 >
   <div class="track" bind:this={track}>
     <div class="fill" style:width="{thumb.current * 100}%"></div>
-    {#each labels as label, i (label)}
-      <span class="detent" style:left="{i / 3 * 100}%"></span>
+    {#each detents as detent, i (detent.label)}
+      <span class="detent" style:left="{(i / last) * 100}%"></span>
     {/each}
     <span class="thumb" style:left="{thumb.current * 100}%"></span>
   </div>
   <div class="labels">
-    {#each labels as label, i (label)}
-      <span class:active={i === value}>{label}</span>
+    {#each detents as detent, i (detent.label)}
+      <span class="label" class:active={i === value}
+        ><detent.icon /><span>{detent.label}</span></span
+      >
     {/each}
   </div>
 </div>
@@ -133,6 +145,18 @@
     margin-top: var(--space-4);
     font-size: var(--text-sm);
     color: var(--ink-muted);
+  }
+  .label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    transition:
+      color var(--c-300) var(--e-out),
+      font-weight var(--c-300) var(--e-out);
+  }
+  .label :global(svg) {
+    width: 14px;
+    height: 14px;
   }
   .active {
     color: var(--ink-strong);

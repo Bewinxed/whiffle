@@ -112,9 +112,9 @@
   aria-orientation={orientation}
   class="group"
   role="radiogroup"
+  bind:this={group}
   style:border-radius="{radius}px"
   style:grid-template-columns={columns ? `repeat(${columns}, minmax(0, 1fr))` : undefined}
-  bind:this={group}
   class:grid={columns > 0}
   class:vertical={orientation === 'vertical'}
 >

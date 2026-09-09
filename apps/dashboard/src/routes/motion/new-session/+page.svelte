@@ -46,16 +46,12 @@
         from: { y: 8, opacity: 0 },
         to: { y: 0, opacity: 1 },
       },
-      harness: section(0.24, 0.45),
-      model: section(0.36, 0.45),
-      effort: section(0.46, 0.4),
-      permissions: section(0.54, 0.4),
-      machine: section(0.62, 0.4),
-      fields: section(0.7, 0.4),
-      footer: section(0.8, 0.4),
+      prompt: section(0.24, 0.45),
+      chips: section(0.36, 0.45),
+      footer: section(0.5, 0.4),
       interactive: { at: 0.5, duration: 0 },
     },
-    { autoplay: false, id: "new-session-open-v1", persist: import.meta.env.DEV }
+    { autoplay: false, id: "new-session-open-v2", persist: import.meta.env.DEV }
   );
   const params = createDialKit(
     "New session",
@@ -63,6 +59,7 @@
       stagger: [0.06, 0, 0.2, 0.005],
       highlightSpring: { type: "spring", visualDuration: 0.35, bounce: 0.15 },
       sliderSpring: { type: "spring", visualDuration: 0.3, bounce: 0.25 },
+      panelSpring: { type: "spring", visualDuration: 0.4, bounce: 0.1 },
       card: { radius: [20, 8, 32], blur: [12, 0, 32], scrim: [0.55, 0, 1] },
       highlight: { inset: [3, 0, 8], radius: [12, 4, 24] },
       replay: { type: "action" },

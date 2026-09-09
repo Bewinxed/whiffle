@@ -1668,6 +1668,7 @@ async function probeModels(): Promise<ModelInfo[] | undefined> {
         value: model.id,
         resolvedModel: model.id,
         displayName: model.display_name,
+        released: model.created_at.slice(0, 10),
         description: `Released ${model.created_at.slice(0, 10)}`,
         ...(defaultModel
           ? {
