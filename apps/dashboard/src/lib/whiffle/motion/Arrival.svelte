@@ -313,6 +313,10 @@
 
   /* The row still arrives; it just arrives already there. */
   @media (prefers-reduced-motion: reduce) {
+    .arrive.opens.measured,
+    .arrive.rail::before {
+      animation: none;
+    }
     .arrive,
     .arrive.rail::before,
     .clip {

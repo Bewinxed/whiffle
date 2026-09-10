@@ -4,7 +4,7 @@
   import type { SizeVariant } from "./size-context";
 
   export type ThinkingIndicatorProps = WithElementRef<
-    HTMLAttributes<HTMLDivElement>
+    HTMLAttributes<HTMLSpanElement>
   > & {
     showIcon?: boolean;
     size?: SizeVariant;
@@ -41,8 +41,8 @@
   );
 </script>
 
-<div
-  class={cn("flex items-center gap-2 px-3 py-2 text-muted-foreground", className)}
+<span
+  class={cn("indicator", className)}
   bind:this={ref}
   {...restProps}
   data-size={compact ? "compact" : "default"}
@@ -89,17 +89,35 @@
       </span>
     {/each}
   </span>
-</div>
+</span>
 
 <style>
+  .indicator {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    color: var(--ink-muted);
+    font-family: inherit;
+    font-weight: var(--weight-body);
+  }
+  .indicator svg {
+    flex: 0 0 auto;
+    width: var(--thinking-icon-size, 20px);
+    height: var(--thinking-icon-size, 20px);
+  }
+  .indicator[data-size="compact"] svg {
+    width: var(--thinking-icon-size, 18px);
+    height: var(--thinking-icon-size, 18px);
+  }
   .labels {
     display: inline-grid;
     overflow: hidden;
-    font-size: 0.8125rem;
-    line-height: 1.5;
+    font-size: var(--text-sm);
+    line-height: var(--leading-body);
 
     &.compact {
-      font-size: 0.75rem;
+      font-size: var(--text-xs);
     }
   }
 
@@ -124,9 +142,9 @@
       color: transparent;
       background: linear-gradient(
         90deg,
-        var(--muted-foreground) 0% 35%,
-        var(--foreground) 50%,
-        var(--muted-foreground) 65% 100%
+        var(--ink-muted) 0% 35%,
+        var(--ink-body) 50%,
+        var(--ink-muted) 65% 100%
       );
       background-size: 300% 100%;
       background-clip: text;

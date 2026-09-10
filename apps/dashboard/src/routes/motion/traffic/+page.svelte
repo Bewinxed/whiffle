@@ -179,6 +179,12 @@
       run,
       landed: () => landed,
       rows: () => session.messages.length,
+      patch: (next: Partial<SessionState>) => Object.assign(session, next),
+      user: (content: string) => {
+        n += 1;
+        push({ id: `user-${n}`, type: "user", content, timestamp: now() });
+        session.busy = true;
+      },
     };
   });
 </script>

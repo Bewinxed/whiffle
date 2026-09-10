@@ -27,7 +27,6 @@
   import { Virtualizer, type VirtualizerHandle } from "virtua/svelte";
   import { browser } from "$app/environment";
   import { describeTool } from "$lib/components/features/tool-cards/descriptors";
-  import { ThinkingIndicator } from "$lib/components/ui/thinking-indicator";
   import Arrival from "$lib/whiffle/motion/Arrival.svelte";
   import { ARRIVAL, arrivalVars } from "$lib/whiffle/motion/arrival";
   import Reveal from "$lib/whiffle/motion/Reveal.svelte";
@@ -375,6 +374,58 @@
   });
   const itemSize = measuredCount ? measuredHeight / measuredCount : 320;
 
+  // Virtua removes missing keys immediately. Keep a reasoning tail in its
+  // original slot until Swap has closed it, including thinking -> tool/done.
+  interface Departure {
+    index: number;
+    row: Extract<Row, { kind: "live" }>;
+    until: number;
+  }
+  let retired: Departure | null = null;
+  let exitTick = $state(0);
+  let priorLive: { row: Extract<Row, { kind: "live" }>; index: number } | null =
+    null;
+  const presentation = $derived.by(() => {
+    // biome-ignore lint/complexity/noVoid: expiry invalidates the retained row without changing session data.
+    void exitTick;
+    const next = built.rows;
+    const index = next.findIndex((row) => row.kind === "live");
+    const live = next[index];
+    if (live?.kind === "live") {
+      retired = null;
+      priorLive = { row: live, index };
+    } else {
+      if (priorLive && !priorLive.row.text) {
+        retired = { ...priorLive, until: Date.now() + ARRIVAL.reserveMs + 50 };
+      }
+      priorLive = null;
+    }
+    if (retired && Date.now() >= retired.until) {
+      retired = null;
+    }
+    if (!retired) {
+      return { rows: next, departing: null };
+    }
+    const displayed = [...next];
+    displayed.splice(Math.min(retired.index, displayed.length), 0, retired.row);
+    return { rows: displayed, departing: retired };
+  });
+  const departing = $derived(presentation.departing);
+  const renderedRows = $derived(presentation.rows);
+  $effect(() => {
+    const leaving = departing;
+    if (!leaving) {
+      return;
+    }
+    const timer = setTimeout(
+      () => {
+        exitTick += 1;
+      },
+      Math.max(0, leaving.until - Date.now())
+    );
+    return () => clearTimeout(timer);
+  });
+
   /**
    * How many rows the SERVER paints — and nothing the browser ever hears about.
    *
@@ -509,7 +560,6 @@
       cancelAnimationFrame(following);
     }
     following = null;
-    lastWrite = -1;
   }
 
   /**
@@ -541,6 +591,7 @@
    * space is open, for the streaming that follows.
    */
   let opening = 0;
+  const resizing = new Set<Element>();
   let glued: ResizeObserver | null = null;
 
   function unglue(): void {
@@ -572,7 +623,7 @@
       return;
     }
     const bottom = scroller.scrollHeight - scroller.clientHeight;
-    if (scroller.scrollTop < bottom) {
+    if (Math.abs(scroller.scrollTop - bottom) > 0.5) {
       scroller.scrollTop = bottom;
       lastWrite = scroller.scrollTop;
     }
@@ -592,7 +643,8 @@
     if (!isOpening(event.animationName)) {
       return;
     }
-    opening += 1;
+    resizing.add(event.target as Element);
+    opening = resizing.size;
     // The paced loop and the glue must never both be writing scrollTop.
     stopFollow();
     glue(event.target as Element);
@@ -600,16 +652,58 @@
 
   function onanimationend(event: AnimationEvent): void {
     if (isOpening(event.animationName)) {
-      opening = Math.max(0, opening - 1);
+      resizing.delete(event.target as Element);
+      opening = resizing.size;
       if (opening === 0) {
         unglue();
+        if (atBottom) {
+          followBottom();
+        }
       }
     }
   }
 
+  $effect(() => {
+    const node = scroller;
+    if (!node) {
+      return;
+    }
+    node.addEventListener("animationcancel", onanimationend);
+    const removed = new MutationObserver(() => {
+      const before = resizing.size;
+      for (const element of resizing) {
+        if (!element.isConnected) {
+          resizing.delete(element);
+        }
+      }
+      if (before === resizing.size) {
+        return;
+      }
+      opening = resizing.size;
+      if (opening === 0) {
+        unglue();
+        if (atBottom) {
+          followBottom();
+        }
+      }
+    });
+    removed.observe(node, { childList: true, subtree: true });
+    return () => {
+      removed.disconnect();
+      node.removeEventListener("animationcancel", onanimationend);
+      if (landingFrame !== null) {
+        cancelAnimationFrame(landingFrame);
+      }
+      stopFollow();
+      unglue();
+      resizing.clear();
+      opening = 0;
+    };
+  });
+
   const FOLLOW_SPEED = 360; // px/s — a calm reading pace
   function followBottom(): void {
-    if (!scroller) {
+    if (!scroller || opening > 0) {
       return;
     }
     const target = () =>
@@ -623,6 +717,7 @@
       gap > scroller.clientHeight * 2
     ) {
       scroller.scrollTop = scroller.scrollHeight;
+      lastWrite = scroller.scrollTop;
       return;
     }
     if (following !== null) {
@@ -659,7 +754,11 @@
     following = requestAnimationFrame(step);
   }
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: first landing and streaming follow share the scroll ownership state
   function land(): void {
+    if (landed && opening > 0) {
+      return;
+    }
     // `scrollToIndex` is virtua's far-row measuring power — needed for the
     // first landing and for catching up from a real distance. For the
     // message-sized follow it was the hard jump per stream batch that read as
@@ -828,7 +927,7 @@
     void (rows.length === 0);
     const box = scroller;
     const observer = new ResizeObserver(() => {
-      if (!(landed && atBottom) || following !== null) {
+      if (!(landed && atBottom) || following !== null || opening > 0) {
         return;
       }
       if (box.scrollTop >= box.scrollHeight - box.clientHeight) {
@@ -1353,7 +1452,7 @@
 
   <Virtualizer
     cache={snapshot?.cache}
-    data={built.rows}
+    data={renderedRows}
     getKey={(r) => r.key}
     {itemSize}
     scrollRef={scroller}
@@ -1389,25 +1488,29 @@
         {:else if row.kind === 'thinking'}
           <Thinking live={row.live} text={row.text} />
         {:else if row.kind === 'live'}
-          {#if row.indicating}
-            <ThinkingIndicator
-              aria-live={active ? 'polite' : 'off'}
-              class="mt-[var(--space-4)] px-0"
-            />
-          {/if}
+          {@const livePhase = row.text ? 'answer' : 'reasoning'}
           <!-- One container for the whole live tail. The reasoning unreveals
                in place, the answer reveals into the same box, and the box
                tweens from one height to the other — the space is never
                surrendered between them. -->
-          <Swap phase={row.thinking === null ? 'answer' : 'reasoning'}>
-            {#if row.thinking === null && row.text}
-              <section class="turn">
-                <Who name={agentName} />
-                <MessageBody source={row.text} streaming />
-              </section>
-            {:else if row.thinking}
-              <Thinking live={row.thinkingLive} text={row.thinking} />
-            {/if}
+          <Swap
+            phase={departing?.row.key === row.key ? 'empty' : livePhase}
+            value={departing?.row.key === row.key ? null : row}
+          >
+            {#snippet children(face)}
+              {#if face?.thinking === null && face.text}
+                <section class="turn">
+                  <Who name={agentName} />
+                  <MessageBody source={face.text} streaming />
+                </section>
+              {:else if face}
+                <Thinking
+                  announce={active}
+                  live={face.indicating}
+                  text={face.thinking ?? ''}
+                />
+              {/if}
+            {/snippet}
           </Swap>
         {:else if row.kind === 'queued'}
           <Queued queued={row.queued} />

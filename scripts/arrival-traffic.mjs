@@ -67,7 +67,8 @@ const opt = Object.fromEntries(
  * which is exactly how it went missing. Longest alternative first so
  * `msg-word` is not read as `word`.
  */
-const STORYBOARD = /(?:^|-)(msg-word|reserve|render|reveal|draw|word)$/;
+const STORYBOARD =
+  /(?:^|-)(thinking-open-reserve|thinking-close-reserve|swap-reserve|msg-word|reserve|render|reveal|draw|word)$/;
 
 const base = opt.url ?? "http://127.0.0.1:3000";
 const scenario = opt.scenario ?? "all";
@@ -167,6 +168,7 @@ const SCENARIOS = {
     },
     expect: (a) => [
       ["the container reserves once, not twice", a.count("reserve"), 1],
+      ["the same container morphs between phases", a.count("swap-reserve"), 1],
     ],
   },
 
@@ -190,6 +192,8 @@ const ctx = await browser.newContext({
   viewport: { width: 1500, height: 950 },
 });
 const page = await ctx.newPage();
+// Bench traffic is local; isolate the recording from dev-server HMR.
+await page.routeWebSocket(/.*/, () => undefined);
 await page.goto(`${base}/motion/traffic`, { waitUntil: "networkidle" });
 
 const cdp = await ctx.newCDPSession(page);
