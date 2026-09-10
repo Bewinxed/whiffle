@@ -15,7 +15,11 @@
 
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { Model } from "@earendil-works/pi-ai/compat";
+import type {
+  ImageContent,
+  Model,
+  TextContent,
+} from "@earendil-works/pi-ai/compat";
 import {
   type AgentSession,
   type AgentSessionEvent,
@@ -32,6 +36,7 @@ import type {
   HarnessCapabilities,
   HarnessReport,
   NeutralAssistantBlock,
+  NeutralContentBlock,
   NeutralSessionInfo,
   NeutralUserMessage,
   PermissionResult,
@@ -107,6 +112,26 @@ const textOf = (content: unknown): string => {
       .join("\n");
   }
   return "";
+};
+
+const contentOf = (content: unknown): string | NeutralContentBlock[] => {
+  if (
+    !(Array.isArray(content) && content.some((block) => block.type === "image"))
+  ) {
+    return textOf(content);
+  }
+  return (content as (TextContent | ImageContent)[]).map((block) =>
+    block.type === "image"
+      ? {
+          type: "image",
+          source: {
+            type: "base64",
+            media_type: block.mimeType,
+            data: block.data,
+          },
+        }
+      : { type: "text", text: block.text }
+  );
 };
 
 /** A pi `Model` is resolved by its `id`, which is what the dashboard sends. */
@@ -229,7 +254,7 @@ class PiSession implements HarnessSession {
         const content = Array.isArray(result)
           ? ""
           : // biome-ignore lint/suspicious/noUnnecessaryConditions: `as` is an unchecked cast; result can still be undefined at runtime even though the cast type says otherwise
-            textOf((result as { content?: unknown })?.content) || "";
+            contentOf((result as { content?: unknown })?.content);
         const details = (result as { details?: Record<string, unknown> } | null)
           ?.details;
         const structuredContent =
@@ -558,7 +583,7 @@ export class PiHarness implements Harness {
           type: "user",
           uuid: entry.id,
           session_id: sessionKey,
-          message: { role: "user", content: textOf(message.content) },
+          message: { role: "user", content: contentOf(message.content) },
           parent_tool_use_id: null,
           parent_agent_id: null,
         });
@@ -583,7 +608,7 @@ export class PiHarness implements Harness {
               {
                 type: "tool_result",
                 tool_use_id: tool.toolCallId ?? "",
-                content: textOf(message.content),
+                content: contentOf(message.content),
                 is_error: tool.isError,
               },
             ],

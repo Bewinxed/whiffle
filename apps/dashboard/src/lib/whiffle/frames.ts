@@ -32,6 +32,7 @@ type AssistantBlock = SDKAssistantMessage["message"]["content"][number];
 
 /** A tool result to fold into the `tool.use` message that opened it. */
 export interface ToolResult {
+  images?: Array<{ mediaType: string; dataUri: string }>;
   isError: boolean;
   /** The answer payload of an `AskUserQuestion`, normalised by the harness adapter. */
   questionResult?: UserQuestionResult;
@@ -306,6 +307,12 @@ const HANDOFF_TOOLS: Record<string, "handoff" | "start" | "delegate"> = {
   delegate: "delegate",
 };
 
+export const SHOW_IMAGE_TOOLS = new Set([
+  "mcp__whiffle__show_image",
+  "whiffle_show_image",
+  "show_image",
+]);
+
 /**
  * Whether a parked ask was routed to its parent session rather than to the
  * user's attention queue. The hub tags such a frame's payload with
@@ -351,6 +358,24 @@ function resultText(content: unknown): string {
   return content === undefined || content === null
     ? ""
     : JSON.stringify(content);
+}
+
+function resultParts(content: unknown): {
+  text: string;
+  images?: ToolResult["images"];
+} {
+  const images: NonNullable<ToolResult["images"]> = [];
+  if (Array.isArray(content)) {
+    for (const block of content) {
+      if (block.type === "image" && block.source.type === "base64") {
+        images.push({
+          mediaType: block.source.media_type,
+          dataUri: `data:${block.source.media_type};base64,${block.source.data}`,
+        });
+      }
+    }
+  }
+  return { text: resultText(content), ...(images.length ? { images } : {}) };
 }
 
 function blockToMessage(
@@ -714,7 +739,7 @@ export function mapFrame(instanceId: string, sdk: SDKMessage): FrameMapping {
         if (block.type !== "tool_result") {
           continue;
         }
-        const resultBody = resultText(block.content);
+        const { text: resultBody, images } = resultParts(block.content);
         // A launch is not a report. It says the delegate started, so that is all
         // it does here: the branch moves to running and the metadata stops —
         // it never reaches a `result`, a message, or the card.
@@ -725,6 +750,7 @@ export function mapFrame(instanceId: string, sdk: SDKMessage): FrameMapping {
         mapping.toolResults.push({
           toolId: block.tool_use_id,
           result: resultBody,
+          ...(images ? { images } : {}),
           isError: block.is_error === true,
           structuredContent: block.structuredContent,
           questionResult: block.questionResult,
@@ -2251,7 +2277,14 @@ export function isDelegateReport(
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: one dispatch over every tool-result shape a `tool.use` can be answered by
 export function applyToolResult(
   messages: Message[],
-  { toolId, result, isError, structuredContent, questionResult }: ToolResult
+  {
+    toolId,
+    result,
+    images,
+    isError,
+    structuredContent,
+    questionResult,
+  }: ToolResult
 ): void {
   // `tool.handoff` is a tool call too — it just renders as a receipt. Matching
   // only `tool.use` left it stuck on "sending…" with the answer never applied.
@@ -2299,6 +2332,7 @@ export function applyToolResult(
   target.metadata = {
     ...target.metadata,
     toolResult: result,
+    ...(images ? { resultImages: images } : {}),
     toolStatus: isError ? "error" : "success",
     ...(questionResult ? { toolUseResult: questionResult } : {}),
     ...(delegateInstanceId ? { delegateInstanceId } : {}),

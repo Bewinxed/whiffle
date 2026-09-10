@@ -10,6 +10,7 @@
   import type { Message } from "../types";
   import MessageBody from "./MessageBody.svelte";
   import Peer from "./Peer.svelte";
+  import Shot from "./Shot.svelte";
   import SystemLine from "./SystemLine.svelte";
   import Thinking from "./Thinking.svelte";
   import Who from "./Who.svelte";
@@ -157,11 +158,11 @@
         {/each}
         {#each message.metadata.images ?? [] as img, i (img.dataUri ?? `${img.mediaType}-${i}`)}
           {#if img.dataUri}
-            <img
+            <Shot
               alt="Attachment {i + 1} sent with this message"
-              class="shot"
+              size="thumb"
               src={img.dataUri}
-            >
+            />
           {:else}
             <!-- A stored transcript can name an image it no longer carries. -->
             <Badge class={chipClass} variant="secondary"
@@ -254,16 +255,6 @@
       margin-inline: calc(var(--space-3) * -1);
       padding-inline: var(--space-3);
     }
-  }
-
-  /* What was actually sent, not the word "image". */
-  .shot {
-    width: 48px;
-    height: 48px;
-    object-fit: cover;
-    border-radius: var(--radius-mark);
-    border: 1px solid var(--border-hairline);
-    display: block;
   }
 
   /* The reason + actions unfold on a `grid-template-rows` track rather than

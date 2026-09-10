@@ -344,17 +344,52 @@ export function handoffTools(deps: HandoffDeps) {
       "send_to_user",
       "Display a message directly to the user (delivered to their Telegram). Use this for " +
         "progress updates, partial results, or content the user must see exactly as written " +
-        "before the task finishes.",
+        "before the task finishes. Attach images by absolute path — they are read off this " +
+        "machine when sent; you do not need to read them yourself.",
       {
         message: z
           .string()
           .describe("The text to show the user, exactly as it should read."),
+        attachments: z
+          .array(z.string())
+          .optional()
+          .describe(
+            "Absolute paths of image files on this machine to send with the message."
+          ),
       },
-      async ({ message }) => ({
+      async ({ message, attachments }) => ({
         content: [
-          { type: "text" as const, text: await actions.sendToUser(message) },
+          {
+            type: "text" as const,
+            text: await actions.sendToUser(message, attachments),
+          },
         ],
       })
+    ),
+    tool(
+      "show_image",
+      "Show an image file to the user inline in this session's transcript, by path. The " +
+        "dashboard renders it from disk when the user looks; you do not read the image and " +
+        "spend no tokens on its pixels. Use this for screenshots, renders, plots and diagrams " +
+        "you produced or found — whenever the user should SEE the file rather than hear about it.",
+      {
+        path: z
+          .string()
+          .describe("Absolute path of the image file on this machine."),
+        caption: z
+          .string()
+          .optional()
+          .describe("One line under the image saying what it shows."),
+      },
+      ({ path }) =>
+        Promise.resolve({
+          content: [
+            {
+              type: "text" as const,
+              text: `Shown in the transcript: ${path}. If the file is missing or later moves, the user sees that instead.`,
+            },
+          ],
+        })
     ),
     tool(
       "note_for_user",

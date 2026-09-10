@@ -6,7 +6,7 @@
    * genuine arrivals — and blocked-on-you — through a dedicated live region
    * beside the log, never through the virtualized container itself.
    */
-  import { tick, untrack } from "svelte";
+  import { setContext, tick, untrack } from "svelte";
   import { Virtualizer } from "virtua/svelte";
   import { browser } from "$app/environment";
   import { describeTool } from "$lib/components/features/tool-cards/descriptors";
@@ -64,6 +64,8 @@
     /** Optional callback when the transcript first renders content. */
     onlanded?: () => void;
   } = $props();
+
+  setContext("whiffle:machine", () => session.machineId);
 
   /** One transcript, on screen, being read: `focused` follows `visible`. */
   const isFocused = $derived(focused ?? visible);
@@ -860,17 +862,17 @@
   /** Keys of rows whose line is the same line as the row above them ON SCREEN. */
   const continued = $derived.by(() => {
     const keys = new Set<string>();
-    const list = built.rows;
-    for (let i = 1; i < list.length; i++) {
-      if (!railLed(list[i])) {
+    const rowList = built.rows;
+    for (let i = 1; i < rowList.length; i += 1) {
+      if (!railLed(rowList[i])) {
         continue;
       }
       let above = i - 1;
-      while (above >= 0 && unpainted(list[above])) {
+      while (above >= 0 && unpainted(rowList[above])) {
         above -= 1;
       }
-      if (above >= 0 && railLed(list[above])) {
-        keys.add(list[i].key);
+      if (above >= 0 && railLed(rowList[above])) {
+        keys.add(rowList[i].key);
       }
     }
     return keys;
@@ -998,15 +1000,15 @@
    * shares a row, and each call in it lands separately.
    */
   function allowed(row: Row): boolean {
-    const list = built.rows;
+    const rowList = built.rows;
     const atTail =
-      list.findIndex((r) => r.key === row.key) >= list.length - TAIL;
+      rowList.findIndex((r) => r.key === row.key) >= rowList.length - TAIL;
     // The settled half of a turn that just finished streaming. Its words are
     // already on screen; revealing them again is not an arrival, it is a
     // flicker.
     const settling =
       wasStreaming && row.kind === "single" && row.message.type === "assistant";
-    const settled = landedAt > 0 && performance.now() - landedAt > SETTLE_MS;
+    const pastSettle = landedAt > 0 && performance.now() - landedAt > SETTLE_MS;
     // Measured here, not read off `atBottom`. That flag is recomputed by
     // `onscroll` against a 120px threshold, and sending a message resizes the
     // composer — which changes this scroller's padding, and its scrollHeight,
@@ -1018,7 +1020,7 @@
       ? scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight
       : Number.POSITIVE_INFINITY;
     const nearTail = atBottom || (!!scroller && reach < scroller.clientHeight);
-    return landed && settled && nearTail && atTail && !bulk && !settling;
+    return landed && pastSettle && nearTail && atTail && !bulk && !settling;
   }
 
   /**
@@ -1134,7 +1136,11 @@
    * than its row key, which virtua reuses for every tool in turn.
    */
   function announceKeyOf(row: Row): string {
-    if (row.kind === "stream" || row.kind === "thinking" || row.kind === "live") {
+    if (
+      row.kind === "stream" ||
+      row.kind === "thinking" ||
+      row.kind === "live"
+    ) {
       return "";
     }
     // A harness notification is plumbing the operator never asked for. It is

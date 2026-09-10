@@ -345,7 +345,7 @@ export interface HandoffActions {
   listSessions(): Promise<string>;
   /** Pushes a note to the owner's Telegram — no peer, no ask, fire-and-forget. */
   // biome-ignore lint/style/useConsistentMethodSignatures: implemented below; property-style would change parameter variance against that implementation
-  sendToUser(message: string): Promise<string>;
+  sendToUser(message: string, attachments?: string[]): Promise<string>;
   // biome-ignore lint/style/useConsistentMethodSignatures: implemented below; property-style would change parameter variance against that implementation
   startSession(
     cwd: string,
@@ -732,12 +732,17 @@ export const handoffActions = ({
   },
 
   // biome-ignore lint/suspicious/useAwait: HandoffActions.sendToUser returns Promise<string>; dropping async would need the return wrapped instead
-  async sendToUser(message: string): Promise<string> {
+  async sendToUser(message: string, attachments?: string[]): Promise<string> {
     emit({
       verb: "frames",
       machineId: "",
       instanceId,
-      payload: { kind: "user_message", instanceId, text: message },
+      payload: {
+        kind: "user_message",
+        instanceId,
+        text: message,
+        ...(attachments?.length ? { attachments } : {}),
+      },
     });
     return "Sent to the user — it lands in their Telegram when the hub has a bridge, and is dropped otherwise.";
   },

@@ -314,14 +314,22 @@ export const ASK_USER_QUESTION = "AskUserQuestion";
 /**
  * `fs`: the machine's files, for the cwd picker and light markdown editing
  * (NEW.md §6) — not a file transfer. `list` answers with {@link FsEntry}[],
- * `read` with the file's text, `write` with the byte count it wrote.
+ * `read` with the file's text, `write` with the byte count it wrote, `image`
+ * with an {@link FsImage} — the one binary the tunnel carries, so a picture an
+ * agent pointed at can be looked at without the agent spending tokens on it.
  */
 export interface FsPayload {
   /** `write` only: the text the file is replaced with. */
   content?: string;
-  op: "list" | "read" | "write";
+  op: "list" | "read" | "write" | "image";
   path: string;
   requestId: string;
+}
+
+/** What an `fs image` answers with: the file's bytes, base64, and what they are. */
+export interface FsImage {
+  base64: string;
+  mediaType: string;
 }
 
 /** One dirent of an `fs list`. `size` is 0 for a directory. */
@@ -659,6 +667,8 @@ export type FramePayload =
       kind: "user_message";
       instanceId: string;
       text: string;
+      /** Absolute paths of images on the session's machine to send alongside. */
+      attachments?: string[];
     }
   | {
       /**

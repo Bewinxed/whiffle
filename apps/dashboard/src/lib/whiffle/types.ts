@@ -143,6 +143,8 @@ export interface MessageMetadata {
   reportKind?: "report" | "failed";
   result?: string;
   resultErrors?: string[];
+  /** Images returned by the tool, preserved as display data URIs. */
+  resultImages?: Array<{ mediaType: string; dataUri: string }>;
   // Result errors
   resultSubtype?: string;
   /**

@@ -30,6 +30,7 @@ import {
   type Command,
   createOpencodeClient,
   type Event,
+  type FilePart,
   type McpStatus,
   type Message,
   type OpencodeClient,
@@ -52,6 +53,7 @@ import type {
   McpServerStatus,
   ModelInfo,
   NeutralAssistantBlock,
+  NeutralContentBlock,
   NeutralSessionInfo,
   NeutralUserMessage,
   PermissionResult,
@@ -91,6 +93,25 @@ import {
   syncSkillFiles,
   writeJson,
 } from "./fleet-common";
+
+function withImageAttachments(
+  output: string,
+  attachments: FilePart[] = []
+): string | NeutralContentBlock[] {
+  const images: NeutralContentBlock[] = attachments
+    .filter(
+      (part) => part.mime.startsWith("image/") && part.url.startsWith("data:")
+    )
+    .map((part) => ({
+      type: "image",
+      source: {
+        type: "base64",
+        media_type: part.mime,
+        data: part.url.slice(part.url.indexOf(",") + 1),
+      },
+    }));
+  return images.length ? [{ type: "text", text: output }, ...images] : output;
+}
 
 /** opencode's own config files — the machine profile the fleet sync converges. */
 const OPENCODE_DIR = join(homedir(), ".config", "opencode");
@@ -1078,7 +1099,10 @@ export class OpencodeSession implements HarnessSession {
                 {
                   type: "tool_result",
                   tool_use_id: part.callID,
-                  content: output,
+                  content:
+                    part.state.status === "completed"
+                      ? withImageAttachments(output, part.state.attachments)
+                      : output,
                   is_error: status === "error",
                   ...(structuredContent ? { structuredContent } : {}),
                   ...(questionResult ? { questionResult } : {}),
@@ -2773,12 +2797,16 @@ export function toTranscript(
         .filter((part): part is TextPart => part.type === "text")
         .map((part) => part.text)
         .join("\n");
-      if (text) {
+      const content = withImageAttachments(
+        text,
+        parts.filter((part): part is FilePart => part.type === "file")
+      );
+      if (content) {
         entries.push({
           type: "user",
           uuid: info.id,
           session_id: sessionKey,
-          message: { role: "user", content: text },
+          message: { role: "user", content },
           parent_tool_use_id: null,
           parent_agent_id: null,
         });
@@ -2842,7 +2870,10 @@ export function toTranscript(
               {
                 type: "tool_result",
                 tool_use_id: part.callID,
-                content: output,
+                content:
+                  part.state.status === "completed"
+                    ? withImageAttachments(output, part.state.attachments)
+                    : output,
                 is_error: part.state.status === "error",
                 ...(structuredContent ? { structuredContent } : {}),
                 // Replay says what the live stream said: opencode keeps the

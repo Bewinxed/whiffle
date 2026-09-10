@@ -286,7 +286,11 @@ export function familyId(toolName: string | undefined): FamilyId {
   if (name === "sendmessage") {
     return "message";
   }
-  if (name === "computer") {
+  if (
+    name === "computer" ||
+    name === "show_image" ||
+    name === "whiffle_show_image"
+  ) {
     return "screen";
   }
   if (name === "navigate") {
@@ -706,6 +710,19 @@ function sentence(
     }
 
     case "screen": {
+      const normalized = MCP_NAME.exec(name)?.[2] ?? name;
+      if (normalized === "show_image" || normalized === "whiffle_show_image") {
+        // Live rows describe the call before its arguments have streamed in.
+        const path = str(input?.path);
+        return {
+          ...base,
+          label: "Show",
+          object: path ? pathLeaf(path) : undefined,
+          detail: path ? pathDir(path) : undefined,
+          detailIsMono: true,
+          expanded: "params",
+        };
+      }
       const action = str(input?.action);
       const at = Array.isArray(input?.coordinate)
         ? `(${(input.coordinate as unknown[]).join(", ")})`

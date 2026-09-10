@@ -60,8 +60,27 @@ export interface TelegramBridge {
   readonly setHumanSendObserver: (
     observe: (instanceId: string) => void
   ) => void;
+  /**
+   * The server's machine-image reader, registered after construction like
+   * {@link setAnswerRecorder}: a `send_to_user` attachment is a path on the
+   * session's machine, and only the server holds the tunnel that reads it.
+   */
+  readonly setImageReader: (read: ImageReader) => void;
   readonly start: () => void;
 }
+
+export type ImageReader = (
+  machineId: string,
+  path: string
+) => Promise<
+  | { bytes: Uint8Array<ArrayBuffer>; mediaType: string }
+  | "offline"
+  | "timeout"
+  | "missing"
+>;
+
+/** Bot API `sendPhoto` stops here; a bigger picture goes as a document. */
+const PHOTO_LIMIT_BYTES = 10 * 1024 * 1024;
 
 export interface TelegramServices {
   readonly db: DbShape;
@@ -302,6 +321,91 @@ export const createTelegramBridge = ({
     call,
     filesBase: `${API_BASE}/file/bot${token}`,
   });
+
+  /** `call`, for a method that carries bytes: multipart, not JSON. */
+  const upload = async (
+    method: string,
+    form: FormData
+  ): Promise<TelegramMessage | undefined> => {
+    const response = await fetch(`${API_BASE}/bot${token}/${method}`, {
+      method: "POST",
+      body: form,
+      signal: AbortSignal.timeout(POLL_TIMEOUT_MS * 3),
+    });
+    const answer = (await response.json()) as {
+      ok?: boolean;
+      result?: TelegramMessage;
+      description?: string;
+    };
+    if (!answer.ok) {
+      console.warn(
+        `[telegram] ${method} refused: ${answer.description ?? response.status}`
+      );
+      return undefined;
+    }
+    return answer.result;
+  };
+
+  let readImage: ImageReader | undefined;
+
+  /**
+   * One attached image, read off its machine now and pushed as a photo — or as
+   * a document when Telegram's photo limits will not have it (size, a refused
+   * aspect ratio). A path that is no longer there is said so in words.
+   */
+  const sendAttachment = async (
+    machineId: string,
+    path: string
+  ): Promise<TelegramMessage | undefined> => {
+    if (chatId === undefined || !readImage) {
+      return undefined;
+    }
+    const answer = await readImage(machineId, path);
+    if (typeof answer === "string") {
+      const why =
+        answer === "missing"
+          ? "is not there any more"
+          : `could not be read (machine ${answer})`;
+      return send(`<code>${esc(clip(path, 512))}</code> ${why}`);
+    }
+    const name = path.split("/").pop() ?? "image";
+    const form = (field: string): FormData => {
+      const body = new FormData();
+      body.set("chat_id", String(chatId));
+      body.set(
+        field,
+        new Blob([answer.bytes], { type: answer.mediaType }),
+        name
+      );
+      body.set("caption", clip(path, 1024));
+      return body;
+    };
+    const asPhoto = answer.bytes.byteLength <= PHOTO_LIMIT_BYTES;
+    const sent = asPhoto ? await upload("sendPhoto", form("photo")) : undefined;
+    return sent ?? (await upload("sendDocument", form("document")));
+  };
+
+  /**
+   * Sends and tracks one attachment, so a reply to the picture reaches the
+   * session that sent it. A failed upload is logged and skipped rather than
+   * ending the run: the ones after it are still owed.
+   */
+  const deliverAttachment = async (
+    machineId: string,
+    instanceId: string,
+    path: string
+  ): Promise<void> => {
+    try {
+      const sent = await sendAttachment(machineId, path);
+      if (sent) {
+        track(sent.message_id, { instanceId, machineId, text: path });
+      }
+    } catch (error) {
+      console.warn(
+        `[telegram] attachment ${path} not sent: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  };
 
   // biome-ignore lint/suspicious/useAwait: the declared Promise return type is what callers await; the body is a tail call into `call`, nothing here needs its own await
   const send = async (
@@ -598,18 +702,33 @@ export const createTelegramBridge = ({
     if (chatId === undefined) {
       return;
     }
-    const { instanceId, text: raw } = envelope.payload as UserMessage;
+    const {
+      instanceId,
+      text: raw,
+      attachments,
+    } = envelope.payload as UserMessage;
     const text = esc(clip(raw, MESSAGE_LIMIT));
     // biome-ignore lint/complexity/noVoid: fire-and-forget; onUserMessage has nothing to return to and a failed send is not this handler's business
-    void send(text).then((sent) => {
-      if (sent) {
-        track(sent.message_id, {
-          instanceId,
-          machineId: envelope.machineId,
-          text,
-        });
-      }
-    });
+    void send(text)
+      .then((sent) => {
+        if (sent) {
+          track(sent.message_id, {
+            instanceId,
+            machineId: envelope.machineId,
+            text,
+          });
+        }
+      })
+      .then(() =>
+        // After the words, in order: each attachment is its own message.
+        (attachments ?? []).reduce<Promise<unknown>>(
+          (chain, path) =>
+            chain.then(() =>
+              deliverAttachment(envelope.machineId, instanceId, path)
+            ),
+          Promise.resolve()
+        )
+      );
   };
 
   const onCallback = async (
@@ -822,6 +941,9 @@ export const createTelegramBridge = ({
     start,
     setAnswerRecorder(record) {
       recordAnswer = record;
+    },
+    setImageReader(read) {
+      readImage = read;
     },
     setHumanSendObserver(observe) {
       humanSendObserver = observe;

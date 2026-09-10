@@ -50,6 +50,11 @@ async function proxyToHub(request: Request, path: string): Promise<Response> {
       headers: {
         "Content-Type":
           response.headers.get("Content-Type") || "application/json",
+        // A machine image is read from disk on every look; the hub's no-store
+        // has to survive the hop or the browser keeps a picture that moved.
+        ...(response.headers.has("Cache-Control") && {
+          "Cache-Control": response.headers.get("Cache-Control") as string,
+        }),
       },
     });
   } catch (error) {

@@ -1,6 +1,8 @@
 <script lang="ts">
+  import { getContext } from "svelte";
   import {
     describeTool,
+    pathLeaf,
     type ToolDescriptor,
     type ToolStatus,
   } from "$lib/components/features/tool-cards/descriptors";
@@ -8,6 +10,7 @@
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte convention for a component group.
   import * as Collapsible from "$lib/components/ui/collapsible";
   import { IconChevronRight } from "$lib/icons";
+  import { SHOW_IMAGE_TOOLS } from "$lib/whiffle/frames";
   import Arrival from "$lib/whiffle/motion/Arrival.svelte";
   import { ARRIVAL } from "$lib/whiffle/motion/arrival";
   import Reveal from "$lib/whiffle/motion/Reveal.svelte";
@@ -25,6 +28,9 @@
    * as one idea.
    */
   import type { Message } from "../types";
+  import Shot from "./Shot.svelte";
+
+  const machine = getContext<(() => string) | undefined>("whiffle:machine");
 
   let {
     messages,
@@ -221,12 +227,47 @@
         {:else}
           <div class="trow flat">{@render line()}</div>
         {/if}
+        {#if SHOW_IMAGE_TOOLS.has(m.metadata?.toolName ?? '') && machine}
+          {@const input = m.metadata?.toolInput as { path: string; caption?: string }}
+          <div class="shots">
+            <Shot
+              alt={input.caption ?? pathLeaf(input.path)}
+              caption={input.caption}
+              path={input.path}
+              size="card"
+              src={`/api/agents/${encodeURIComponent(machine())}/image?path=${encodeURIComponent(input.path)}`}
+            />
+          </div>
+        {/if}
+        {#if m.metadata?.resultImages?.length}
+          <div class="shots">
+            {#each m.metadata.resultImages as image, i (i)}
+              <Shot
+                alt="Image {i + 1} from {m.metadata.toolName}"
+                size="card"
+                src={image.dataUri}
+              />
+            {/each}
+          </div>
+        {/if}
       </div>
     </Arrival>
   {/each}
 </div>
 
 <style>
+  .shots {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-left: calc(15px + var(--space-2));
+    margin-top: var(--space-2);
+  }
+  .shots > :global(*) {
+    flex: 1 1 240px;
+    min-width: 0;
+    max-width: 100%;
+  }
   .tools {
     margin: var(--rail-gap, var(--space-4)) 0 0 var(--space-2);
     padding-left: var(--space-3);

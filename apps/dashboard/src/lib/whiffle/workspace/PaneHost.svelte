@@ -12,6 +12,7 @@
   import { untrack } from "svelte";
   import type { HistorySource } from "../client.svelte";
   import SessionPane from "../SessionPane.svelte";
+  import Lightbox from "../transcript/Lightbox.svelte";
   import { dock, paneViews, slots } from "./dock.svelte";
   import { contextOf, workspace } from "./workspace.svelte";
 
@@ -72,6 +73,8 @@
     </div>
   {/each}
 </div>
+
+<Lightbox />
 
 <style>
   .pen {
