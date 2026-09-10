@@ -259,32 +259,27 @@
     }
   }
 
-  /* Compact the segmented control for a scrolling tab strip. The
-     muted well stays — it is what makes the segment overlay readable
-     in both themes — but at a tighter density than the generic
-     control's default. */
+  /* The component's defaults (28px items, 4px pad, 12px horizontal
+     padding) are fine — the only overrides are: smaller text for a
+     dense tab strip, a less pill-shaped radius, and capping the
+     coarse-pointer item height at 28px instead of the component's
+     32px (which was the original "too tall on mobile" complaint). */
   :global(.tabs .ff-tabs-list) {
-    --pad: 3px;
-    --item: 24px;
-    --gap: 2px;
-    --px: 8px;
+    --px: 10px;
     --text: var(--text-sm);
     --radius: var(--radius-tile);
   }
-  /* Coarse pointer: the generic component jumps to 32px; a tab strip
-     stays compact — the well's own height is the touch target. */
   @media (pointer: coarse) {
     :global(.tabs .ff-tabs-list) {
-      --item: 26px;
+      --item: 28px;
     }
   }
 
-  /* The active segment: raised surface with a hairline ring instead
-     of the full tile shadow — present but not heavy. */
+  /* A lighter shadow than the full shadow-tile — present but not
+     heavy in a scrolling strip with many segments. */
   :global(.tabs .segment) {
     box-shadow: 0 0 0 0.5px var(--shadow-tint), 0 1px 2px var(--shadow-tint);
   }
-  /* The hover field stays at the component's default opacity. */
 
   .tab {
     position: relative;
@@ -332,15 +327,15 @@
   .tm {
     display: grid;
     place-items: center;
-    width: 13px;
-    height: 13px;
+    width: 14px;
+    height: 14px;
     border-radius: var(--radius-mark);
     background-image: var(--mark-overlay);
     background-color: var(--mark-1);
   }
   .tm :global(svg) {
-    width: 9px;
-    height: 9px;
+    width: 10px;
+    height: 10px;
     display: block;
     color: var(--mark-glyph);
   }
@@ -352,25 +347,25 @@
   .tm.m7 { background-color: var(--mark-7); }
   .tm.m8 { background-color: var(--mark-8); }
 
-  /* On the mark's corner, ringed in the strip's surface. */
+  /* On the mark's corner, ringed in the well's surface. */
   .badge {
     position: absolute;
-    right: -3px;
-    bottom: -3px;
+    right: -4px;
+    bottom: -4px;
     display: grid;
     place-items: center;
-    width: 8px;
-    height: 8px;
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
-    background: var(--surface-raised);
+    background: var(--muted);
   }
 
   .tclose {
     display: grid;
     place-items: center;
     flex: 0 0 auto;
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
     margin-left: 2px;
     border: 0;
     padding: 0;
@@ -384,8 +379,8 @@
       transform var(--c-100) var(--e-in);
   }
   .tclose :global(svg) {
-    width: 10px;
-    height: 10px;
+    width: 11px;
+    height: 11px;
     display: block;
   }
   @media (hover: hover) and (pointer: fine) {
@@ -401,12 +396,10 @@
     outline: 2px solid var(--focus-ring);
     outline-offset: 1px;
   }
-  /* Touch: generous hit area via padding, not inflated visible size. */
   @media (pointer: coarse) {
     .tclose {
-      width: 22px;
-      height: 22px;
-      padding: 2px;
+      width: 24px;
+      height: 24px;
     }
   }
   @media (prefers-reduced-motion: reduce) {
