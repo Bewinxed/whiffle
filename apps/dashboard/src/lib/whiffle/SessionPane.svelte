@@ -25,6 +25,7 @@
     commandRecord,
     ensureAlive,
     type HistorySource,
+    hidePreview,
     interrupt,
     latestCommandFor,
     loadCommands,
@@ -106,8 +107,7 @@
     onview?: (v: "chat" | "flow") => void;
   } = $props();
 
-  const previewTab = $derived(whiffle.previewVisible[viewId]);
-  const previewVisible = $derived(Boolean(previewTab));
+  const previewVisible = $derived(whiffle.previewVisible[viewId] === true);
   $effect(() => {
     const id = viewId;
     const connected = whiffle.status === "connected";
@@ -637,6 +637,15 @@
     reviving || latestCommandFor(viewId, "send")?.stage === "submitted"
   );
 
+  /** Show the preview, or put the transcript back. */
+  function onpreview(): void {
+    if (previewVisible) {
+      hidePreview(viewId);
+    } else {
+      revealPreview(viewId);
+    }
+  }
+
   function onsubmit(text: string, extras: SendExtras = {}): void {
     if (!machineId) {
       // A tripwire, not a guard anybody should hit: a pane with no machine
@@ -781,8 +790,10 @@
         {oneffort}
         {onmodel}
         {onpermission}
+        {onpreview}
         {onview}
         permissionMode={session.permissionMode}
+        previewOpen={previewVisible}
         seed={session.cwd || browsingCwd || viewId}
         {showEffort}
         streaming={streamCapable()}
@@ -794,30 +805,7 @@
       />
     {/if}
 
-    <div class="preview-actions">
-      <button
-        aria-pressed={previewVisible && previewTab === 'preview'}
-        onclick={() => revealPreview(viewId)}
-        type="button"
-      >
-        Preview
-      </button>
-      {#if previewVisible}
-        <button
-          aria-pressed={previewTab === 'transcript'}
-          class="transcript-toggle"
-          onclick={() => { whiffle.previewVisible[viewId] = 'transcript'; }}
-          type="button"
-        >
-          Transcript
-        </button>
-      {/if}
-    </div>
-    <div
-      class="session-content"
-      class:preview-tab={previewTab === 'preview'}
-      class:with-preview={previewVisible}
-    >
+    <div class="session-content" class:with-preview={previewVisible}>
       <div
         class="body"
         style="--composer-clearance: calc({composerHeight}px + var(--space-4) + var(--space-4))"
@@ -921,30 +909,6 @@
 </div>
 
 <style>
-  .preview-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--space-2);
-    padding: var(--space-1) var(--space-3);
-    border-bottom: 1px solid var(--border-subtle);
-  }
-  .preview-actions button {
-    min-height: 34px;
-    padding: var(--space-1) var(--space-3);
-    border: 1px solid var(--border-control);
-    border-radius: var(--radius-control);
-    background: var(--surface-raised);
-    color: var(--ink-body);
-    font-size: var(--text-xs);
-    cursor: pointer;
-  }
-  .preview-actions button:focus-visible {
-    outline: 2px solid var(--focus-ring);
-    outline-offset: 2px;
-  }
-  .preview-actions .transcript-toggle {
-    display: none;
-  }
   .session-content {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -963,27 +927,18 @@
   .body {
     min-width: 0;
   }
+  /* Too narrow to stand side by side: the preview stands in for the transcript
+     while it is open, and the header's toggle is how the operator gets back. */
   @container (max-width: 899px) {
     .session-content.with-preview {
       grid-template-columns: minmax(0, 1fr);
     }
-    .preview-actions .transcript-toggle {
-      display: inline-block;
-    }
-    .with-preview.preview-tab > .body {
-      display: none;
-    }
-    .with-preview:not(.preview-tab) > .preview-column {
+    .with-preview > .body {
       display: none;
     }
     .preview-column {
       grid-row: 1;
       border-left: 0;
-    }
-  }
-  @media (pointer: coarse) {
-    .preview-actions button {
-      min-height: 44px;
     }
   }
   /* Announced, never drawn: the live region carries the failure to a screen

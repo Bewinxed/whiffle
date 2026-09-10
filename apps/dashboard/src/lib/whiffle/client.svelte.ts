@@ -395,7 +395,7 @@ export interface SessionState {
 
 const state = $state({
   previews: {} as Record<string, Extract<FramePayload, { kind: "preview" }>>,
-  previewVisible: {} as Record<string, "preview" | "transcript" | false>,
+  previewVisible: {} as Record<string, boolean>,
   status: "disconnected" as ConnectionStatus,
   /**
    * Whether a socket has ever been opened for this document. A dashboard that
@@ -1094,7 +1094,7 @@ function handleFrame(frame: FramePayload): void {
   if (frame.kind === "preview") {
     state.previews[frame.instanceId] = frame;
     if (frame.state === "open") {
-      state.previewVisible[frame.instanceId] = "preview";
+      state.previewVisible[frame.instanceId] = true;
     }
     return;
   }
@@ -3335,12 +3335,13 @@ function control(
 }
 
 /**
- * A control call about the machine rather than a session — the SDK's module-level
- * session functions. The reply is correlated by `requestId`, which the hub routes
- * back to this socket alone.
+ * Whether the pane shows the preview — a view state, not the preview itself:
+ * hiding leaves the forwarder running, and only the pane's Close stops it.
+ * On a narrow pane the preview stands in for the transcript, so the same
+ * toggle is how the operator gets back.
  */
 export function revealPreview(instanceId: string): void {
-  state.previewVisible[instanceId] = "preview";
+  state.previewVisible[instanceId] = true;
 }
 
 export function hidePreview(instanceId: string): void {
@@ -3400,6 +3401,11 @@ export async function closePreview(instanceId: string): Promise<void> {
   }
 }
 
+/**
+ * A control call about the machine rather than a session — the SDK's module-level
+ * session functions. The reply is correlated by `requestId`, which the hub routes
+ * back to this socket alone.
+ */
 export async function machineControl<T>(
   machineId: string,
   method: string,

@@ -23,7 +23,9 @@
   import {
     commandRecord,
     type HistorySource,
+    hidePreview,
     relaunchSession,
+    revealPreview,
     streamCapable,
     submitCommand,
     whiffle,
@@ -260,10 +262,18 @@
       {oneffort}
       {onmodel}
       {onpermission}
+      onpreview={() => {
+        if (whiffle.previewVisible[headerId]) {
+          hidePreview(headerId);
+        } else {
+          revealPreview(headerId);
+        }
+      }}
       onview={(v) => {
         paneViews[headerId] = v;
       }}
       permissionMode={session?.permissionMode ?? null}
+      previewOpen={whiffle.previewVisible[headerId] === true}
       seed={session?.cwd || headerCtx?.cwd || headerId}
       {showEffort}
       streaming={streamCapable()}

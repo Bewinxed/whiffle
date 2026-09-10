@@ -41,7 +41,13 @@
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte convention for a component group.
   import * as ToggleGroup from "$lib/components/ui/toggle-group";
   import { IsMobile } from "$lib/hooks/is-mobile.svelte";
-  import { IconChat, IconFlow, IconSettings, IconUnfold } from "$lib/icons";
+  import {
+    IconChat,
+    IconFlow,
+    IconSettings,
+    IconUnfold,
+    IconWindow,
+  } from "$lib/icons";
   import type { Activity } from "../activity";
   import type { CommandRecord, CommandStage } from "../client.svelte";
   import EffortSlider from "../EffortSlider.svelte";
@@ -73,6 +79,8 @@
     cost,
     view,
     onview,
+    previewOpen,
+    onpreview,
     offeredModes,
     effortStops,
     showEffort,
@@ -101,6 +109,9 @@
     cost: number | null;
     view: "chat" | "flow";
     onview: (v: "chat" | "flow") => void;
+    /** Whether the pane beside the transcript is showing the preview. */
+    previewOpen: boolean;
+    onpreview: () => void;
     /** Permission modes this session's harness can honour. */
     offeredModes: PermissionModeOption[];
     /** Every effort stop, each carrying whether this model reaches it. */
@@ -568,6 +579,17 @@
       </ToggleGroup.Item>
     </ToggleGroup.Root>
 
+    <button
+      aria-pressed={previewOpen}
+      class="preview-toggle"
+      onclick={onpreview}
+      title="Preview"
+      type="button"
+    >
+      <IconWindow />
+      <span>Preview</span>
+    </button>
+
     {#if narrow.current}
       <Drawer.Root bind:open>
         <Drawer.Trigger>
@@ -673,8 +695,11 @@
   }
   @container leaf (max-width: 470px) {
     /* The view switch falls back to its glyphs. Chat and Flow are two
-       icons the reader already knows by this point. */
+       icons the reader already knows by this point, and so is the frame. */
     .shead :global(.view-item span) {
+      display: none;
+    }
+    .preview-toggle span {
       display: none;
     }
     .shead :global(.meta) {
@@ -835,6 +860,45 @@
   :global(.compact-toggle .view-item) {
     flex: 1 1 0;
     justify-content: center;
+  }
+
+  /* Shares the bar with the switch and the disclosure rather than taking a
+     row of its own: one button is never worth a row's height. Same quiet
+     register as the settings trigger beside it, and it fills in while the
+     preview is the thing being looked at. */
+  .preview-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    height: var(--shead-ctl);
+    padding: 0 var(--space-2);
+    border: 0;
+    border-radius: var(--radius-control);
+    background: transparent;
+    color: var(--ink-muted);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    cursor: pointer;
+    transition:
+      background-color var(--c-100) var(--e-in),
+      color var(--c-100) var(--e-in);
+  }
+  .preview-toggle[aria-pressed="true"] {
+    background: var(--surface-raised);
+    color: var(--ink-body);
+  }
+  @media (hover: hover) {
+    .preview-toggle:hover {
+      background: var(--surface-hover);
+      color: var(--ink-body);
+    }
+  }
+  .preview-toggle:active {
+    transform: scale(0.96);
+  }
+  .preview-toggle:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
   }
 
   /* Quiet inline meta, not a plastered-on outline button: muted ink, no border
@@ -1039,10 +1103,12 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
+    .preview-toggle,
     .mid :global(.settings-trigger),
     :global(.view-toggle .view-item) {
       transition: none;
     }
+    .preview-toggle:active,
     .mid :global(.settings-trigger:active),
     :global(.view-toggle .view-item:active) {
       transform: none;
