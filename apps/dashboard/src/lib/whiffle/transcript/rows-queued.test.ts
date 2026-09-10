@@ -63,7 +63,7 @@ test("queued rows sit after the conversation AND after the live tail", () => {
   );
   expect(rows.map((row) => row.kind)).toEqual([
     "single",
-    "stream",
+    "live",
     "queued",
     "queued",
   ]);

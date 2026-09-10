@@ -34,6 +34,7 @@ export type Row =
       key: string;
       thinking: string | null;
       thinkingLive: boolean;
+      indicating: boolean;
       text: string;
     }
   | { kind: "livetool"; key: string; glance: ToolGlance }
@@ -482,12 +483,22 @@ function liveTail(session: SessionState): Row[] {
   // with no indicator". The row itself is the indicator; the text fills in if
   // and when it arrives.
   const reasoning = session.openBlock === "thinking";
-  if (reasoning || session.streaming) {
+  const indicating =
+    session.busy &&
+    session.pending.length === 0 &&
+    session.sdkStatus !== "compacting" &&
+    !session.messages.at(-1)?.metadata?.sendFailed &&
+    !session.streaming &&
+    !session.currentTool &&
+    session.openBlock !== "tool" &&
+    !session.thinkingClosing;
+  if (reasoning || session.streaming || indicating) {
     rows.push({
       kind: "live",
       key: "stream:live",
       thinking: reasoning ? session.thinkingStream : null,
       thinkingLive: !session.thinkingClosing,
+      indicating,
       text: session.streaming,
     });
   }

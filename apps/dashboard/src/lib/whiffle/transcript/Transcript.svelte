@@ -10,6 +10,7 @@
   import { Virtualizer } from "virtua/svelte";
   import { browser } from "$app/environment";
   import { describeTool } from "$lib/components/features/tool-cards/descriptors";
+  import { ThinkingIndicator } from "$lib/components/ui/thinking-indicator";
   import Arrival from "$lib/whiffle/motion/Arrival.svelte";
   import { ARRIVAL, arrivalVars } from "$lib/whiffle/motion/arrival";
   import Reveal from "$lib/whiffle/motion/Reveal.svelte";
@@ -162,7 +163,8 @@
   const printOf = (): string =>
     `${session.messages.length}:${session.streaming.length}:` +
     `${session.thinkingStream.length}:${session.busy ? 1 : 0}:${session.pending.length}:` +
-    `${session.openBlock ? 1 : 0}`;
+    `${session.openBlock}:${session.thinkingClosing}:${session.currentTool?.toolId ?? ""}:${session.sdkStatus}:` +
+    `${session.messages.at(-1)?.metadata?.sendFailed ?? ""}`;
   /** Dev-only: the gate that catches an accidentally tracked session read. */
   const countBuild = (): void => {
     if (!import.meta.env.DEV || typeof window === "undefined") {
@@ -296,9 +298,7 @@
     }
     return rebuildScheduler.join(
       session.instanceId,
-      () =>
-        `${session.messages.length}:${session.streaming.length}:` +
-        `${session.thinkingStream.length}:${session.busy ? 1 : 0}:${session.pending.length}`,
+      printOf,
       () => {
         rebuildTick += 1;
       },
@@ -1240,13 +1240,6 @@
     }
     return "";
   });
-
-  // No separate "working"/status row: the live state is the streaming content
-  // itself — the in-flight tool row (livetool), the thinking block, the streaming
-  // turn, and the subagent branch each show their own progress inline. A second
-  // row narrating "Thinking…/Running…" under the row already showing it is the
-  // duplication no chat app ships. The send→stop button flip carries the bare
-  // "heard you" gap before the first frame.
 </script>
 
 <!-- Off-screen, and the only thing on this surface that speaks. Two channels:
@@ -1327,17 +1320,23 @@
         {:else if row.kind === 'thinking'}
           <Thinking live={row.live} text={row.text} />
         {:else if row.kind === 'live'}
+          {#if row.indicating}
+            <ThinkingIndicator
+              aria-live={active ? 'polite' : 'off'}
+              class="mt-[var(--space-4)] px-0"
+            />
+          {/if}
           <!-- One container for the whole live tail. The reasoning unreveals
                in place, the answer reveals into the same box, and the box
                tweens from one height to the other — the space is never
                surrendered between them. -->
           <Swap phase={row.thinking === null ? 'answer' : 'reasoning'}>
-            {#if row.thinking === null}
+            {#if row.thinking === null && row.text}
               <section class="turn">
                 <Who name={agentName} />
                 <MessageBody source={row.text} streaming />
               </section>
-            {:else}
+            {:else if row.thinking}
               <Thinking live={row.thinkingLive} text={row.thinking} />
             {/if}
           </Swap>
