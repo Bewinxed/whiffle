@@ -230,15 +230,22 @@
 </Tabs>
 
 <style>
-  /* A row of its own in a group: the control at rest on the group's field,
-     with the identity bar's inset so the first mark and the bar's mark sit
-     on one line. Hosted, the bar is the row. */
+  /* ── Strip overrides ─────────────────────────────────────────────
+     The FF tabs component is a segmented control: a muted-background
+     pill with a raised, shadowed active segment. Session tabs are
+     navigation — a flat strip flush with its surface, compact, the
+     active tab distinguished by a subtle fill rather than a lifted
+     card. Everything below overrides the component's defaults for
+     this use case. */
+
+  /* The wrapper row. Non-hosted: its own row with a hairline.
+     Hosted: fills the top bar inline. */
   :global(.tabs) {
     display: flex;
     align-items: center;
     flex: 0 0 auto;
     min-width: 0;
-    padding: 5px var(--space-4) 5px var(--space-7);
+    padding: 2px var(--space-4) 2px var(--space-7);
     border-bottom: 1px solid var(--border-hairline);
   }
   :global(.tabs.hosted) {
@@ -252,12 +259,51 @@
     }
   }
 
+  /* Strip the segmented control chrome. No pill background, tighter
+     dimensions, smaller text. The overlays remain — the sliding
+     segment and hover field — but against a transparent background
+     they read as inline highlights, not floating cards. */
+  :global(.tabs .ff-tabs-list) {
+    --pad: 2px;
+    --item: 26px;
+    --gap: 1px;
+    --px: 8px;
+    --text: var(--text-sm);
+    --radius: var(--radius-tile);
+    background: transparent;
+  }
+  /* Coarse pointer bumps to 32px in the generic component — session
+     tabs stay compact; the row's own padding handles the touch
+     target, not inflated items. */
+  @media (pointer: coarse) {
+    :global(.tabs .ff-tabs-list) {
+      --item: 28px;
+    }
+  }
+
+  /* The active segment: a gentle surface, no shadow. The raised-card
+     look is for toggles with 3–4 items; a scrolling strip with many
+     tabs needs something quieter. */
+  :global(.tabs .segment) {
+    background: var(--surface-hover);
+    box-shadow: none;
+  }
+  /* No dimming when hovering another tab — the subtle segment
+     doesn't need to recede further. */
+  :global(.tabs .segment.dim) {
+    opacity: 1;
+  }
+  /* The hover field is softer. */
+  :global(.tabs .field.shown) {
+    opacity: 0.3;
+  }
+
   .tab {
     position: relative;
     display: flex;
     flex: 0 0 auto;
     min-width: 0;
-    max-width: 220px;
+    max-width: 200px;
   }
   /* Parked on you: the label carries the strong ink whether or not it is
      chosen, so the ask is legible from across the strip. */
@@ -265,8 +311,7 @@
     color: var(--ink-strong);
   }
 
-  /* Where it would land. A 2px rule against the gap between tabs, so the
-     answer is unambiguous about WHICH side without moving anything. */
+  /* Where it would land. A 2px rule against the gap between tabs. */
   .tab.drop-before::before,
   .tab.drop-after::after {
     content: "";
@@ -296,63 +341,48 @@
     place-items: center;
     flex: 0 0 auto;
   }
-  /* The 17px item mark at 14px, the same recipe the sidebar rows carry. */
   .tm {
     display: grid;
     place-items: center;
-    width: 14px;
-    height: 14px;
+    width: 13px;
+    height: 13px;
     border-radius: var(--radius-mark);
     background-image: var(--mark-overlay);
     background-color: var(--mark-1);
   }
   .tm :global(svg) {
-    width: 10px;
-    height: 10px;
+    width: 9px;
+    height: 9px;
     display: block;
     color: var(--mark-glyph);
   }
-  .tm.m2 {
-    background-color: var(--mark-2);
-  }
-  .tm.m3 {
-    background-color: var(--mark-3);
-  }
-  .tm.m4 {
-    background-color: var(--mark-4);
-  }
-  .tm.m5 {
-    background-color: var(--mark-5);
-  }
-  .tm.m6 {
-    background-color: var(--mark-6);
-  }
-  .tm.m7 {
-    background-color: var(--mark-7);
-  }
-  .tm.m8 {
-    background-color: var(--mark-8);
-  }
-  /* On the mark's corner, ringed in the control's surface so it reads as
-     sitting on the mark rather than beside it. */
+  .tm.m2 { background-color: var(--mark-2); }
+  .tm.m3 { background-color: var(--mark-3); }
+  .tm.m4 { background-color: var(--mark-4); }
+  .tm.m5 { background-color: var(--mark-5); }
+  .tm.m6 { background-color: var(--mark-6); }
+  .tm.m7 { background-color: var(--mark-7); }
+  .tm.m8 { background-color: var(--mark-8); }
+
+  /* On the mark's corner, ringed in the strip's surface. */
   .badge {
     position: absolute;
-    right: -4px;
-    bottom: -4px;
+    right: -3px;
+    bottom: -3px;
     display: grid;
     place-items: center;
-    width: 10px;
-    height: 10px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
-    background: var(--muted);
+    background: var(--surface-raised);
   }
 
   .tclose {
     display: grid;
     place-items: center;
     flex: 0 0 auto;
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
     margin-left: 2px;
     border: 0;
     padding: 0;
@@ -366,8 +396,8 @@
       transform var(--c-100) var(--e-in);
   }
   .tclose :global(svg) {
-    width: 11px;
-    height: 11px;
+    width: 10px;
+    height: 10px;
     display: block;
   }
   @media (hover: hover) and (pointer: fine) {
@@ -383,10 +413,12 @@
     outline: 2px solid var(--focus-ring);
     outline-offset: 1px;
   }
+  /* Touch: generous hit area via padding, not inflated visible size. */
   @media (pointer: coarse) {
     .tclose {
-      width: 28px;
-      height: 28px;
+      width: 22px;
+      height: 22px;
+      padding: 2px;
     }
   }
   @media (prefers-reduced-motion: reduce) {
