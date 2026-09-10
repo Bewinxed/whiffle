@@ -1,4 +1,9 @@
 <script lang="ts">
+  /**
+   * The New Session modal. This file owns the logic — open-reset boundary,
+   * submission generation guard, draft snapshot, dual location verification,
+   * the exact `spawnSession` payload — and composes the designed sections.
+   */
   import {
     type EffortLevel,
     HARNESSES,
@@ -7,12 +12,6 @@
     repoPath,
   } from "@whiffle/core";
   import { Dialog as DialogPrimitive } from "bits-ui";
-  import type { TransitionConfig } from "dialkit";
-  import {
-    computeClipState,
-    computeStaticTimeline,
-    parseTimelineConfig,
-  } from "dialkit/timeline";
   import { tick, untrack } from "svelte";
   import { prefersReducedMotion } from "svelte/motion";
   import { MediaQuery } from "svelte/reactivity";
@@ -23,6 +22,18 @@
     DialogPortal,
     DialogTitle,
   } from "$lib/components/ui/dialog";
+  import { IconClose as X } from "$lib/icons";
+  import Bolt from "~icons/solar/bolt-bold-duotone";
+  import Book from "~icons/solar/book-2-bold-duotone";
+  import Chat from "~icons/solar/chat-round-line-bold-duotone";
+  import Cpu from "~icons/solar/cpu-bold-duotone";
+  import Files from "~icons/solar/folder-with-files-bold-duotone";
+  import Laptop from "~icons/solar/laptop-bold-duotone";
+  import Monitor from "~icons/solar/monitor-bold-duotone";
+  import Server from "~icons/solar/server-square-bold-duotone";
+  import Shield from "~icons/solar/shield-keyhole-bold-duotone";
+  import Stars from "~icons/solar/stars-bold-duotone";
+  import Tuning from "~icons/solar/tuning-2-bold-duotone";
   import {
     createProject,
     machineFs,
@@ -30,59 +41,37 @@
     whiffle,
   } from "../client.svelte";
   import { EFFORT_LEVELS } from "../effort-levels";
-  import { inspectMachine } from "../fleet";
+  import { type FleetSnapshot, inspectMachine } from "../fleet";
   import { models } from "../models.svelte";
   import { PERMISSION_MODES } from "../permission-modes";
   import { rememberSpawn, spawnPrefs } from "../spawnPrefs.svelte";
-  import ComposerBar from "./ComposerBar.svelte";
+  import EffortPips from "./EffortPips.svelte";
+  import LocationSection from "./LocationSection.svelte";
+  import MachinesChip from "./MachinesChip.svelte";
+  import ModelSection from "./ModelSection.svelte";
   import { deriveModelEntries } from "./model-entries";
   import { lastSpawnAt, lastUsedAt, recordModelUse } from "./modelUse.svelte";
-  import PromptWell from "./PromptWell.svelte";
+  import type { MachineItem, MenuItem, ProjectItem } from "./ns-types";
+  import PermissionSection from "./PermissionSection.svelte";
+  import ProjectChip from "./ProjectChip.svelte";
+  import PromptEditor from "./PromptEditor.svelte";
+  import SectionHeader from "./SectionHeader.svelte";
+  import SessionFooter from "./SessionFooter.svelte";
+  import "./ns-theme.css";
 
-  interface Clip {
-    at: number;
-    current: { opacity: number; y?: number };
-    duration: number;
-    from: { opacity: number; y: number };
-    to: { opacity: number; y: number };
-    transition: TransitionConfig;
-  }
-  interface Timeline {
-    card: { current: { opacity: number; scale: number; y: number } };
-    duration: number;
-    focus: { started: boolean };
-    interactive: { started: boolean };
-    rows: Clip;
-    scrim: { current: { opacity: number } };
-    time: number;
-  }
-  interface SpringParams {
-    bounce: number;
-    visualDuration: number;
-  }
-  interface Params {
-    list: { highlight: SpringParams };
-    open: { rowStagger: number };
-    pop: { open: SpringParams; rowStagger: number };
-    slider: { thumb: SpringParams };
-    swap: { spring: SpringParams; stagger: number };
-    toggle: { thumb: SpringParams };
-  }
   let {
     open,
     prefill,
     onclose,
-    timeline,
-    params,
   }: {
     open: boolean;
     prefill?: { machineId?: string; cwd?: string; projectId?: string };
     onclose: () => void;
-    timeline: Timeline;
-    params: Params;
   } = $props();
+  const REPO = /^[\w.-]+\/[\w.-]+$/;
   let card = $state<HTMLElement | null>(null);
-  const mobile = new MediaQuery("(max-width: 600px)");
+  let editor = $state<HTMLDivElement>();
+  const mobile = new MediaQuery("(max-width: 640px)");
   $effect(() => {
     if (!(open && mobile.current)) {
       return;
@@ -108,12 +97,12 @@
       root.removeProperty("--ns-viewport-top");
     };
   });
-  let modelAnchor = $state<HTMLButtonElement | null>(null);
-  let locationAnchor = $state<HTMLButtonElement | null>(null);
   let opener: HTMLElement | null = null;
   let submission = 0;
   let prompt = $state("");
-  let machineId = $state("");
+  let machineIds = $state<string[]>([]);
+  /** Set once the operator picks machines themselves; stops the late-arrival adoption below. */
+  let machinesTouched = $state(false);
   let cwd = $state("");
   let repo = $state<string>();
   let harness = $state<HarnessKind>(spawnPrefs.harness);
@@ -123,17 +112,19 @@
   let projectId = $state<string>();
   let editing = $state(false);
   let sideQuest = $state(false);
-  let worktree = $state(false);
-  let saveAsProject = $state(false);
   let busy = $state(false);
   let error = $state("");
   let unreadable = $state(false);
   let verifiedLocation = $state("");
-  const locationKey = $derived(JSON.stringify([machineId, cwd.trim()]));
+  let popover = $state<"machines" | "project" | null>(null);
+  let menuOpen = $state(false);
+  let skills = $state<string[]>([]);
+  let plugins = $state<string[]>([]);
+  const machineId = $derived(machineIds[0] ?? "");
+  const locationKey = $derived(JSON.stringify([machineIds, cwd.trim()]));
   const locationUnverified = $derived(
-    Boolean(machineId && cwd.trim()) && verifiedLocation !== locationKey
+    Boolean(machineIds.length && cwd.trim()) && verifiedLocation !== locationKey
   );
-  let popover = $state<"model" | "location" | "mode" | "options" | null>(null);
   const machine = $derived(
     whiffle.machines.find((row) => row.machineId === machineId)
   );
@@ -171,14 +162,22 @@
         (selected?.effort.includes(stop.value) ?? false),
     }))
   );
-  const scale = $derived(stops.some((stop) => stop.reachable));
+  const efforts = $derived(
+    stops.filter((stop) => stop.reachable).map((stop) => stop.value)
+  );
+  /** What the slider shows while `effort` is untouched (`null`, omitted from the payload). */
+  const effortShown = $derived.by((): EffortLevel | null => {
+    if (effort) {
+      return effort;
+    }
+    if (harness === "claude" && efforts.includes("xhigh")) {
+      return "xhigh";
+    }
+    return efforts.includes("high") ? "high" : (efforts[0] ?? null);
+  });
   const modes = $derived(
     PERMISSION_MODES.map((mode) => ({
-      ...mode,
-      label:
-        ({ default: "Ask", plan: "Plan" } as Record<string, string>)[
-          mode.value
-        ] ?? mode.label,
+      value: mode.value,
       disabled: report
         ? !report.capabilities.permissionModes.includes(mode.value)
         : false,
@@ -186,10 +185,6 @@
         report && !report.capabilities.permissionModes.includes(mode.value)
           ? "This agent cannot honor this permission mode."
           : undefined,
-      tone:
-        mode.value === "bypassPermissions"
-          ? ("attn" as const)
-          : ("neutral" as const),
     }))
   );
   const workdir = $derived(
@@ -206,10 +201,61 @@
   );
   const locked = $derived(
     Boolean(
-      (prefill?.machineId || prefill?.cwd || prefill?.projectId) && !editing
-    )
+      (prefill?.machineId || prefill?.cwd || prefill?.projectId || projectId) &&
+        !editing
+    ) && repo === undefined
   );
-  const homePrefix = /^\/home\/[^/]+/;
+  const HUES = [
+    "var(--fai-violet-400)",
+    "var(--fai-green-500)",
+    "var(--fai-cyan-400)",
+    "var(--fai-blue-500)",
+    "var(--fai-orange-500)",
+  ];
+  const machineIcon = (os: string) => {
+    const platform = os.trim().toLowerCase();
+    if (platform.startsWith("darwin") || platform.startsWith("mac")) {
+      return Laptop;
+    }
+    if (platform.startsWith("win")) {
+      return Monitor;
+    }
+    return platform.startsWith("linux") ? Server : Cpu;
+  };
+  const loadLabel = (online: boolean, running: number) => {
+    if (!online) {
+      return "Offline";
+    }
+    return running === 0
+      ? "Idle"
+      : `${running} session${running === 1 ? "" : "s"}`;
+  };
+  const machineItems = $derived<MachineItem[]>(
+    whiffle.machines.map((row, i) => {
+      const online = row.status === "online";
+      const running = whiffle.liveOn(row.machineId).length;
+      return {
+        id: row.machineId,
+        name: row.hostname,
+        os: row.os,
+        icon: machineIcon(row.os),
+        online,
+        load: loadLabel(online, running),
+        hue: online ? HUES[i % 3] : "var(--fai-grey-500)",
+      };
+    })
+  );
+  const projectItems = $derived<ProjectItem[]>(
+    whiffle.projects
+      .filter((row) => machineIds.includes(row.machineId))
+      .map((row, i) => ({
+        id: row.id,
+        machineId: row.machineId,
+        name: row.name,
+        path: row.cwd,
+        hue: HUES[(i + 3) % 5],
+      }))
+  );
   const locationReading = $derived.by(() => {
     if (unreadable) {
       return `That directory can't be read on ${machine?.hostname ?? machineId}. Check the path and try again.`;
@@ -218,45 +264,24 @@
       ? `${machine.hostname} is offline. Pick another machine, or start when it returns.`
       : "";
   });
-  const locationLabel = $derived.by(() => {
-    if (locked) {
-      return `From project ${project?.name ?? cwd.split("/").pop() ?? ""}`;
-    }
-    return machineId && cwd
-      ? `${machine?.hostname ?? machineId} · ${cwd.replace(homePrefix, "~")}`
-      : "Choose a machine and directory";
-  });
   const reading = $derived(
     whiffle.hub === "connected"
       ? error || locationReading || (locationUnverified ? "Reading…" : "")
       : "No spawn while the hub is unreachable. Reconnect to continue."
   );
-  const rowClip = $derived(
-    computeStaticTimeline(
-      parseTimelineConfig({
-        rows: {
-          at: timeline.rows.at,
-          duration: timeline.rows.duration,
-          from: { ...timeline.rows.from },
-          to: { ...timeline.rows.to },
-          transition: timeline.rows.transition,
-        },
-      }),
-      {}
-    ).clips[0]
+  const cantStart = $derived(
+    busy ||
+      whiffle.hub !== "connected" ||
+      machineIds.length === 0 ||
+      unreadable ||
+      locationUnverified ||
+      (repo !== undefined && !REPO.test(repo.trim()))
   );
-  function rowStyle(index: number) {
-    const current =
-      index === 0
-        ? timeline.rows.current
-        : (computeClipState(
-            rowClip,
-            timeline.time - index * params.open.rowStagger
-          ).current as { opacity: number; y: number });
-    return prefersReducedMotion.current
-      ? "opacity:1;transform:none"
-      : `opacity:${current.opacity};transform:translateY(${current.y ?? 0}px)`;
-  }
+  const startLabel = $derived(
+    machineIds.length > 1
+      ? `Start ${machineIds.length} sessions`
+      : "Start session"
+  );
   function chooseHarness(value: HarnessKind) {
     harness = value;
     model = "";
@@ -303,11 +328,13 @@
         ? whiffle.project(prefill.projectId)
         : undefined;
       projectId = seeded?.id;
-      machineId =
+      const first =
         prefill?.machineId ||
         seeded?.machineId ||
         whiffle.onlineMachines[0]?.machineId ||
         "";
+      machineIds = first ? [first] : [];
+      machinesTouched = false;
       cwd = prefill?.cwd || seeded?.cwd || "";
       ({ harness, permissionMode } = spawnPrefs);
       model = "";
@@ -316,11 +343,10 @@
       repo = undefined;
       editing = false;
       sideQuest = false;
-      worktree = false;
-      saveAsProject = false;
       busy = false;
       error = "";
       popover = null;
+      menuOpen = false;
       verifiedLocation = "";
       if (
         !(prefill?.machineId || prefill?.cwd || prefill?.projectId) &&
@@ -330,15 +356,42 @@
         restoreLocation(
           { machineId: spawnPrefs.machineId, cwd: spawnPrefs.cwd },
           submission,
-          machineId
+          first
         );
       }
+      loadFleetMenu(submission);
     });
     return () => {
       submission += 1;
       opener?.focus();
     };
   });
+  // The fleet arrives over the websocket, so the dialog can open before any
+  // machine is known. Adopt the first one that shows up until the operator picks.
+  $effect(() => {
+    const fallback = whiffle.onlineMachines[0]?.machineId;
+    if (open && !machinesTouched && !machineIds.length && fallback) {
+      untrack(() => {
+        machineIds = [fallback];
+      });
+    }
+  });
+  async function loadFleetMenu(request: number) {
+    try {
+      const response = await fetch("/api/fleet");
+      if (!response.ok) {
+        return;
+      }
+      const snapshot = (await response.json()) as FleetSnapshot;
+      if (request !== submission) {
+        return;
+      }
+      skills = snapshot.skills.map((row) => row.name);
+      plugins = snapshot.config.plugins.map((row) => row.id);
+    } catch {
+      // A hub without a fleet catalog leaves the `/` menu with nothing to offer.
+    }
+  }
   async function restoreLocation(
     saved: { machineId: string; cwd: string },
     request: number,
@@ -353,43 +406,41 @@
         !open ||
         request !== submission ||
         machineId !== initialMachine ||
+        machineIds.length > 1 ||
         cwd ||
         popover
       ) {
         return;
       }
-      ({ machineId, cwd } = saved);
-      verifiedLocation = JSON.stringify([machineId, cwd.trim()]);
+      machineIds = [saved.machineId];
+      ({ cwd } = saved);
+      verifiedLocation = JSON.stringify([machineIds, cwd.trim()]);
       projectId = whiffle.projects.find(
         (row) => row.machineId === machineId && row.cwd === cwd
       )?.id;
       error = "";
     } catch {
-      // A stale saved directory leaves the location picker available for a fresh choice.
+      // A stale saved directory leaves the location free for a fresh choice.
     }
   }
   let focused = false;
   $effect(() => {
-    if (!(open && timeline.focus.started)) {
+    if (!open) {
       focused = false;
+      return;
     }
-    if (
-      open &&
-      timeline.focus.started &&
-      timeline.interactive.started &&
-      !focused
-    ) {
+    if (!focused) {
       focused = true;
-      untrack(() => card?.querySelector("textarea")?.focus());
+      tick().then(() => untrack(() => editor?.focus()));
     }
   });
   $effect(() => {
-    const id = machineId;
+    const ids = machineIds;
     const path = cwd;
     const key = locationKey;
     unreadable = false;
     if (
-      !(open && id && path) ||
+      !(open && ids.length && path) ||
       machine?.status !== "online" ||
       verifiedLocation === key
     ) {
@@ -397,7 +448,12 @@
     }
     let stale = false;
     const timer = setTimeout(() => {
-      Promise.all([inspectMachine(id, path), machineFs(id, "list", path)])
+      Promise.all(
+        ids.flatMap((id) => [
+          inspectMachine(id, path),
+          machineFs(id, "list", path),
+        ])
+      )
         .then(() => {
           if (!stale) {
             verifiedLocation = key;
@@ -414,21 +470,12 @@
       clearTimeout(timer);
     };
   });
-  function closePopover() {
-    const anchor = document.getElementById(`session-${popover}`);
-    popover = null;
-    anchor?.focus();
-  }
   function validate() {
-    if (popover === "location") {
-      closePopover();
-      return "Finish choosing a location before starting.";
-    }
-    if (!machineId) {
+    if (!machineIds.length) {
       return "Choose a machine to run this session on.";
     }
-    if (repo !== undefined && !repo.trim()) {
-      return "Choose a repository, or paste the URL of one.";
+    if (repo !== undefined && !REPO.test(repo.trim())) {
+      return "Enter a repository as owner/repository.";
     }
     if (!cwd.trim()) {
       return "Enter the directory this session should work in.";
@@ -442,22 +489,102 @@
     submission += 1;
     onclose();
   }
-  function chooseLocation(value: {
-    machineId: string;
-    cwd: string;
-    repo?: string;
-  }) {
-    ({ machineId, cwd, repo } = value);
+  function toggleMachine(id: string) {
+    machinesTouched = true;
+    machineIds = machineIds.includes(id)
+      ? machineIds.filter((row) => row !== id)
+      : [...machineIds, id];
+    if (project && !machineIds.includes(project.machineId)) {
+      projectId = undefined;
+    }
     editing = true;
-    verifiedLocation =
-      repo === undefined ? JSON.stringify([machineId, cwd.trim()]) : "";
-    projectId =
-      repo === undefined
-        ? whiffle.projects.find(
-            (row) => row.machineId === machineId && row.cwd === cwd
-          )?.id
-        : undefined;
-    closePopover();
+  }
+  function pickProject(row: ProjectItem) {
+    projectId = row.id;
+    if (!machineIds.includes(row.machineId)) {
+      machineIds = [row.machineId, ...machineIds];
+    }
+    cwd = row.path;
+    repo = undefined;
+    editing = false;
+    popover = null;
+  }
+  function clearProject() {
+    projectId = undefined;
+    editing = true;
+    popover = null;
+  }
+  async function createFromChip(draft: { name: string; path: string }) {
+    const created = await createProject({
+      machineId,
+      cwd: draft.path,
+      name: draft.name,
+    });
+    pickProject({
+      id: created.id,
+      machineId: created.machineId,
+      name: created.name,
+      path: created.cwd,
+      hue: HUES[0],
+    });
+  }
+  function menuItems(type: "@" | "/", query: string): MenuItem[] {
+    const q = query.toLowerCase();
+    const hit = (text: string) => !q || text.toLowerCase().includes(q);
+    if (type === "@") {
+      return [
+        ...machineItems
+          .filter((row) => row.online && hit(row.name))
+          .map((row) => ({
+            key: `machine:${row.id}`,
+            label: row.name,
+            kind: "Machine" as const,
+            icon: row.icon,
+            hue: row.hue,
+            serial: `@${row.name}`,
+            apply: () => {
+              if (!machineIds.includes(row.id)) {
+                machineIds = [...machineIds, row.id];
+              }
+            },
+          })),
+        ...projectItems
+          .filter((row) => hit(row.name))
+          .map((row) => ({
+            key: `project:${row.id}`,
+            label: row.name,
+            kind: "Project" as const,
+            icon: Files,
+            hue: row.hue,
+            serial: `@${row.name}`,
+            apply: () => pickProject(row),
+          })),
+      ];
+    }
+    return [
+      ...skills.filter(hit).map((name, i) => ({
+        key: `skill:${name}`,
+        label: `/${name}`,
+        kind: "Skill" as const,
+        icon: Stars,
+        hue: HUES[i % 5],
+        serial: `/${name}`,
+        apply: () => {
+          // A skill chip only changes the prompt text.
+        },
+      })),
+      ...plugins.filter(hit).map((id, i) => ({
+        key: `plugin:${id}`,
+        label: id,
+        kind: "Plugin" as const,
+        icon: Book,
+        hue: HUES[(i + 2) % 5],
+        serial: `/${id}`,
+        apply: () => {
+          // A plugin chip only changes the prompt text.
+        },
+      })),
+    ];
   }
   async function verifyBeforeSpawn(
     id: string,
@@ -480,24 +607,60 @@
       if (!current()) {
         return false;
       }
-      locationAnchor?.focus();
+      document.getElementById("session-dir")?.focus();
       return false;
     }
   }
+  interface Draft {
+    baseCwd: string;
+    cwd: string;
+    effort: EffortLevel | null;
+    harness: HarnessKind;
+    machineIds: string[];
+    model: string;
+    permissionMode: PermissionMode;
+    projectId: string | undefined;
+    prompt: string;
+    repo: string | undefined;
+    scratch: { baseCwd: string; worktree: boolean } | undefined;
+    usedModel: string;
+  }
+
+  function spawnOne(target: string, draft: Draft): string {
+    const toAttach =
+      draft.projectId && whiffle.project(draft.projectId)?.machineId === target
+        ? draft.projectId
+        : undefined;
+    return spawnSession({
+      machineId: target,
+      cwd: draft.cwd,
+      prompt: draft.prompt,
+      harness: draft.harness,
+      permissionMode: draft.permissionMode,
+      ...(draft.model ? { model: draft.model } : {}),
+      ...(draft.effort ? { effort: draft.effort } : {}),
+      scratch: draft.scratch,
+      bootstrap:
+        draft.repo === undefined
+          ? undefined
+          : { repo: draft.repo, baseDir: draft.baseCwd },
+      projectId: toAttach,
+    });
+  }
   async function start() {
-    if (busy || popover || whiffle.hub !== "connected") {
+    if (busy || whiffle.hub !== "connected") {
       return;
     }
     error = validate();
     if (error) {
-      locationAnchor?.focus();
+      document.getElementById("session-dir")?.focus();
       return;
     }
     submission += 1;
     const id = submission;
     const current = () => open && id === submission;
-    const draft = {
-      machineId,
+    const draft: Draft = {
+      machineIds: [...machineIds],
       baseCwd: cwd.trim(),
       cwd: workdir,
       prompt,
@@ -505,61 +668,33 @@
       permissionMode,
       model,
       effort,
-      scratch: sideQuest ? { worktree, baseCwd: workdir } : undefined,
+      scratch: sideQuest ? { worktree: false, baseCwd: workdir } : undefined,
       repo: repo?.trim(),
       projectId,
-      saveAsProject,
       usedModel: selected?.id ?? model,
     };
     busy = true;
     popover = null;
-    if (
-      !(
-        (await verifyBeforeSpawn(draft.machineId, draft.baseCwd, current)) &&
-        current()
-      )
-    ) {
-      return;
-    }
+    let first = "";
     try {
-      let toAttach = draft.projectId;
-      if (draft.saveAsProject && !toAttach) {
-        toAttach = (
-          await createProject({
-            machineId: draft.machineId,
-            cwd: draft.cwd,
-            name: draft.cwd.split("/").filter(Boolean).pop() ?? draft.cwd,
-          })
-        ).id;
-        if (!current()) {
+      for (const target of draft.machineIds) {
+        // biome-ignore lint/performance/noAwaitInLoops: each machine is verified, then spawned, in order — one failure must stop the batch before the next spawn.
+        const ok = await verifyBeforeSpawn(target, draft.baseCwd, current);
+        if (!(ok && current())) {
           return;
         }
+        first ||= spawnOne(target, draft);
       }
-      const instanceId = spawnSession({
-        machineId: draft.machineId,
-        cwd: draft.cwd,
-        prompt: draft.prompt,
-        harness: draft.harness,
-        permissionMode: draft.permissionMode,
-        ...(draft.model ? { model: draft.model } : {}),
-        ...(draft.effort ? { effort: draft.effort } : {}),
-        scratch: draft.scratch,
-        bootstrap:
-          draft.repo === undefined
-            ? undefined
-            : { repo: draft.repo, baseDir: draft.baseCwd },
-        projectId: toAttach,
-      });
       recordModelUse(draft.harness, draft.usedModel);
       rememberSpawn({
-        machineId: draft.machineId,
+        machineId: draft.machineIds[0],
         cwd: draft.cwd,
         harness: draft.harness,
         model: draft.model,
         permissionMode: draft.permissionMode,
         effort: draft.effort,
       });
-      await exitTo(instanceId, current);
+      await exitTo(first, current);
     } catch (cause) {
       if (!current()) {
         return;
@@ -570,26 +705,20 @@
   }
   async function exitTo(instanceId: string, current: () => boolean) {
     if (card) {
-      const css = getComputedStyle(card);
       await card.animate(
         [
           { opacity: 1, transform: "scale(1)" },
           { opacity: 0, transform: "scale(.98)" },
         ],
         {
-          duration: prefersReducedMotion.current
-            ? 1
-            : Number.parseFloat(css.getPropertyValue("--c-300")),
-          easing: css.getPropertyValue("--e-out").trim(),
+          duration: prefersReducedMotion.current ? 1 : 200,
+          easing: "cubic-bezier(0.23, 1, 0.32, 1)",
           fill: "forwards",
         }
       ).finished;
       if (!current()) {
         return;
       }
-    }
-    if (!current()) {
-      return;
     }
     close();
     await goto(`/session/${instanceId}`);
@@ -603,73 +732,152 @@
       start();
     }
   }
+  function bodyScroll() {
+    if (popover) {
+      popover = null;
+    }
+  }
 </script>
 
 <svelte:window onkeydown={keydown} />
 <Dialog onOpenChange={(value) => { if (!value) { close(); } }} {open}>
   <DialogPortal>
-    <DialogOverlay
-      class="session-scrim"
-      style={`opacity:${prefersReducedMotion.current ? 1 : timeline.scrim.current.opacity}`}
-    />
+    <DialogOverlay class="session-scrim ns-theme" />
     <DialogPrimitive.Content
-      class="session-card"
-      inert={busy || !(timeline.interactive.started || prefersReducedMotion.current)}
-      onOpenAutoFocus={(event) => { event.preventDefault(); card?.querySelector('textarea')?.focus(); }}
-      style={`opacity:${prefersReducedMotion.current ? 1 : timeline.card.current.opacity};scale:${prefersReducedMotion.current || mobile.current ? 1 : timeline.card.current.scale};--sheet-enter:${prefersReducedMotion.current ? 0 : (1 - timeline.card.current.opacity) * 48}px`}
+      aria-label="New Session"
+      class="session-card ns-theme"
+      data-ns-dialog
+      inert={busy}
+      onOpenAutoFocus={(event) => { event.preventDefault(); editor?.focus(); }}
       bind:ref={card}
     >
       <DialogTitle class="sr-only">New session</DialogTitle>
-      <div class="prompt-region" style={rowStyle(0)}>
-        <PromptWell
-          maxRows={10}
-          minRows={mobile.current ? 6 : 8}
-          onsubmit={start}
-          placeholder="What should the agent do?"
-          bind:value={prompt}
-        />
+      <div class="head">
+        <div class="head-left">
+          <span class="bolt"><Bolt /></span>
+          <span class="title">Sessions · New</span>
+        </div>
+        <button
+          aria-label="Close"
+          class="close"
+          onclick={close}
+          title="Close"
+          type="button"
+        >
+          <X />
+        </button>
       </div>
-      <div class="bar-region">
-        <p aria-live="polite" class="reading" title={reading}>
-          {reading || "\u00a0"}
-        </p>
-        <ComposerBar
-          {busy}
-          {cwd}
-          disabled={whiffle.hub !== "connected" || unreadable || locationUnverified}
-          {effort}
-          {harness}
-          {installedHarnesses}
-          {locationLabel}
-          {locked}
-          {machineId}
-          machineName={machine?.hostname ?? machineId}
-          {model}
-          modelName={selected?.name ?? (model || "Choose model")}
-          {modes}
-          onbootstrap={(value) => { repo = value ? "" : undefined; projectId = undefined; editing = true; if (value) { cwd ||= "~"; popover = "location"; } }}
-          oneffort={(value) => { effort = value; }}
-          onharness={chooseHarness}
-          online={machine?.status === "online"}
-          onlocation={chooseLocation}
-          onlocationmode={(mode) => { repo = mode === "repository" ? repo ?? "" : undefined; projectId = undefined; editing = true; }}
-          onmode={(value) => { permissionMode = value; }}
-          onmodel={(id) => { model = id; closePopover(); }}
-          onscratch={(value) => { sideQuest = value; if (!value) { worktree = false; } }}
-          onstart={start}
-          {params}
-          {permissionMode}
-          projectName={project?.name ?? cwd.split('/').pop() ?? ''}
-          {repo}
-          {rowStyle}
-          {scale}
-          {sideQuest}
-          {stops}
-          bind:locationAnchor
-          bind:modelAnchor
-          bind:popover
-        />
+      <div class="body fai-scroll" onscroll={bodyScroll}>
+        <h2>New Session</h2>
+        <section class="sec prompt-sec" style="--delay:0ms">
+          <SectionHeader
+            hue="var(--fai-blue-500)"
+            icon={Chat}
+            label="First prompt"
+          />
+          <div class="fai-comb"></div>
+          <div
+            class="composer"
+            class:focus={editor === document.activeElement || menuOpen}
+          >
+            <PromptEditor
+              {menuItems}
+              onmenu={(value) => { menuOpen = value; }}
+              onsubmit={start}
+              bind:element={editor}
+              bind:value={prompt}
+            />
+            <div class="chips">
+              <MachinesChip
+                machines={machineItems}
+                onchange={(value) => { popover = value ? "machines" : null; }}
+                ontoggle={toggleMachine}
+                open={popover === "machines"}
+                selected={machineIds}
+              />
+              <ProjectChip
+                onchange={(value) => { popover = value ? "project" : null; }}
+                onclear={clearProject}
+                oncreate={createFromChip}
+                onpick={pickProject}
+                open={popover === "project"}
+                {projectId}
+                projects={projectItems}
+              />
+            </div>
+          </div>
+        </section>
+        <div class="fai-comb comb-gap"></div>
+        <div class="stack">
+          <div class="sec" style="--delay:60ms">
+            <LocationSection
+              dir={cwd}
+              {locked}
+              {machineId}
+              machineName={machine?.hostname ?? ""}
+              mode={repo === undefined ? "dir" : "repo"}
+              ondir={(value) => { cwd = value; editing = true; projectId = undefined; }}
+              onmode={(value) => { repo = value === "repo" ? (repo ?? "") : undefined; if (value === "repo") { projectId = undefined; editing = true; cwd ||= "~"; } }}
+              onoverride={() => { editing = true; }}
+              onrepo={(value) => { repo = value; }}
+              {reading}
+              repo={repo ?? ""}
+            />
+          </div>
+          <div class="fai-comb"></div>
+          <div class="sec" style="--delay:140ms">
+            <div class="columns">
+              <div class="col">
+                <div class="sec" style="--delay:40ms">
+                  <ModelSection
+                    {harness}
+                    installed={installedHarnesses}
+                    machineName={machine?.hostname ?? machineId}
+                    {model}
+                    onharness={chooseHarness}
+                    onmodel={(id) => { model = id; effort = null; }}
+                  />
+                </div>
+              </div>
+              <div class="col">
+                <section class="sec" style="--delay:80ms">
+                  <SectionHeader
+                    hue="var(--fai-orange-500)"
+                    icon={Tuning}
+                    label="Effort"
+                  />
+                  <EffortPips
+                    {efforts}
+                    onchange={(level) => { effort = level; }}
+                    value={effortShown}
+                  />
+                </section>
+                <section class="sec" style="--delay:120ms">
+                  <SectionHeader
+                    hue="var(--fai-green-600)"
+                    icon={Shield}
+                    label="Permission mode"
+                  />
+                  <PermissionSection
+                    {modes}
+                    onchange={(value) => { permissionMode = value; }}
+                    value={permissionMode}
+                  />
+                </section>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
+      <SessionFooter
+        {busy}
+        disabled={cantStart}
+        ephemeral={sideQuest}
+        oncancel={close}
+        onlifetime={(value) => { sideQuest = value; }}
+        onstart={start}
+        {startLabel}
+      />
     </DialogPrimitive.Content>
   </DialogPortal>
 </Dialog>
@@ -679,82 +887,193 @@
     position: fixed;
     inset: 0;
     z-index: 80;
-    background: var(--scrim);
+    background: var(--fai-scrim);
+    backdrop-filter: blur(var(--fai-scrim-blur));
+    -webkit-backdrop-filter: blur(var(--fai-scrim-blur));
     animation: none !important;
+    transition: opacity 200ms var(--ns-ease-out);
+  }
+  @starting-style {
+    :global(.session-scrim) {
+      opacity: 0;
+    }
   }
   :global(.session-card) {
     position: fixed;
+    inset: 0;
     z-index: 81;
-    top: 50%;
-    left: 50%;
-    translate: -50% -50%;
-    width: 640px;
-    max-width: calc(100vw - var(--space-4));
-    max-height: calc(100dvh - var(--space-4));
-    overflow-y: auto;
-    padding: var(--space-2);
-    border-radius: var(--radius-modal);
-    background: var(--surface-raised);
-    box-shadow: var(--shadow-modal);
+    margin: auto;
+    width: min(980px, 100vw - 48px);
+    height: fit-content;
+    max-height: calc(100dvh - 48px);
+    display: flex;
+    flex-direction: column;
+    background: var(--fai-grey-100);
+    border-radius: var(--fai-radius-modal);
+    padding: 7px;
+    box-shadow: var(--fai-shadow-modal);
     outline: none;
     transform-origin: center;
+    animation: ns-panel 260ms var(--ns-ease-out) both;
   }
-  .bar-region {
-    padding: var(--space-2) var(--space-1) var(--space-1);
+  .head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 3px 4px 8px;
+    flex: none;
   }
-  .reading {
+  .head-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+  .bolt {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: var(--fai-radius-xs);
+    background: var(--fai-grey-900);
+    color: var(--fai-text-inverse);
+    flex: none;
+  }
+  .bolt :global(svg) {
+    width: 13px;
+    height: 13px;
+  }
+  .title {
+    font: 500 13px / 1 var(--fai-font-sans);
+    color: var(--fai-text-muted);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    font-size: var(--text-sm);
-    color: var(--ink-muted);
-    line-height: var(--leading-ui);
-    margin: 0;
-    height: var(--space-5);
   }
-  @media (max-width: 600px) {
+  .close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid transparent;
+    border-radius: var(--fai-radius-sm);
+    background: transparent;
+    color: var(--fai-text-muted);
+    cursor: pointer;
+  }
+  .close :global(svg) {
+    width: 14px;
+    height: 14px;
+  }
+  @media (hover: hover) {
+    .close:hover {
+      background: var(--fai-grey-100);
+      color: var(--fai-text);
+    }
+  }
+  .body {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    background: var(--fai-surface);
+    border-radius: var(--fai-radius-lg);
+    padding: 18px 18px 20px;
+  }
+  h2 {
+    margin: 0;
+    font: 500 20px / 1.25 var(--fai-font-sans);
+    letter-spacing: -0.01em;
+    color: var(--fai-text);
+  }
+  .sec {
+    display: grid;
+    gap: 8px;
+    animation: ns-in 260ms var(--ns-ease-out) both;
+    animation-delay: var(--delay, 0ms);
+  }
+  .prompt-sec {
+    margin-top: 16px;
+    position: relative;
+    z-index: 30;
+  }
+  .comb-gap {
+    margin-top: 18px;
+  }
+  .stack {
+    display: grid;
+    gap: 18px;
+    margin-top: 18px;
+  }
+  .columns {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+    gap: 16px 20px;
+  }
+  .col {
+    display: grid;
+    gap: 16px;
+    align-content: start;
+    min-width: 0;
+  }
+  .composer {
+    position: relative;
+    display: grid;
+    background: var(--fai-surface);
+    border: 1px solid var(--fai-border);
+    border-radius: var(--fai-radius-lg);
+    box-shadow: var(--fai-shadow-xs);
+    transition:
+      var(--fai-transition-control),
+      box-shadow 120ms ease;
+  }
+  .composer:focus-within,
+  .composer.focus {
+    border-color: var(--fai-grey-400);
+    box-shadow: 0 0 0 3px var(--fai-focus-ring);
+  }
+  .chips {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding: 8px 10px 10px;
+  }
+  @media (max-width: 640px) {
     :global(.session-card) {
-      top: auto;
-      bottom: calc(
-        100% -
-        var(--ns-viewport-height, 100dvh) -
-        var(--ns-viewport-top, 0px)
-      );
-      left: 0;
-      translate: 0 var(--sheet-enter);
+      inset: auto 0 0 0;
+      top: var(--ns-viewport-top, 0px);
       width: 100%;
-      max-width: 100%;
+      height: var(--ns-viewport-height, 100dvh);
       max-height: var(--ns-viewport-height, 100dvh);
-      display: flex;
-      flex-direction: column;
-      overflow-x: hidden;
-      padding: var(--space-2) 0
-        calc(var(--space-2) + env(safe-area-inset-bottom));
-      border-radius: var(--radius-modal) var(--radius-modal) 0 0;
+      border-radius: 0;
+      padding: max(env(safe-area-inset-top), 7px) 7px
+        max(env(safe-area-inset-bottom), 7px);
+      animation-name: ns-sheet;
+      animation-timing-function: var(--ns-ease-drawer);
+      animation-duration: 300ms;
     }
-    .prompt-region {
-      margin-inline: var(--space-2);
-      min-height: 0;
-      overflow: auto;
+    .body {
+      padding: 14px 12px 16px;
     }
-    .prompt-region :global(textarea) {
-      max-height: max(
-        44px,
-        calc(
-          var(--ns-viewport-height, 100dvh) -
-          160px -
-          env(safe-area-inset-bottom)
-        )
-      );
-      font-size: 16px;
+  }
+  @keyframes ns-sheet {
+    from {
+      transform: translateY(24px);
+      opacity: 0;
     }
-    .bar-region {
-      padding: var(--space-2) 0 0;
-      flex: none;
-      min-width: 0;
+    to {
+      transform: none;
+      opacity: 1;
     }
-    .reading {
-      margin-inline: 16px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :global(.session-card),
+    :global(.session-scrim) {
+      animation: none !important;
+      transition: none !important;
     }
   }
 </style>

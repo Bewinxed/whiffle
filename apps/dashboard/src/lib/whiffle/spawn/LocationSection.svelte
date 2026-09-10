@@ -1,0 +1,563 @@
+<script lang="ts">
+  /**
+   * Location (§1.5, §2.8): Existing files | Clone from GitHub. The directory
+   * browser lists the selected machine's real filesystem through `machineFs`.
+   * No branch API exists, so the design's branch panel is not rendered.
+   */
+  import type { FsEntry } from "@whiffle/core";
+  import GitHub from "~icons/logos/github-icon";
+  import Up from "~icons/solar/alt-arrow-up-linear";
+  import Left from "~icons/solar/arrow-left-linear";
+  import Right from "~icons/solar/arrow-right-linear";
+  import Folder from "~icons/solar/folder-bold-duotone";
+  import FolderOpen from "~icons/solar/folder-open-bold-duotone";
+  import Search from "~icons/solar/magnifer-linear";
+  import Refresh from "~icons/solar/refresh-bold-duotone";
+  import { machineFs } from "../client.svelte";
+  import SectionHeader from "./SectionHeader.svelte";
+  import Segmented from "./Segmented.svelte";
+
+  let {
+    mode,
+    onmode,
+    dir,
+    ondir,
+    locked,
+    onoverride,
+    repo,
+    onrepo,
+    machineId,
+    machineName,
+    reading,
+  }: {
+    mode: "dir" | "repo";
+    onmode: (mode: "dir" | "repo") => void;
+    dir: string;
+    ondir: (dir: string) => void;
+    locked: boolean;
+    onoverride: () => void;
+    repo: string;
+    onrepo: (repo: string) => void;
+    machineId: string;
+    machineName: string;
+    /** Validation line under the field; empty when nothing to say. */
+    reading: string;
+  } = $props();
+  let browsing = $state(false);
+  let path = $state("~");
+  let folders = $state<FsEntry[]>([]);
+  let listing = $state(false);
+  let listError = $state("");
+  let request = 0;
+  const trailing = /\/+$/;
+  const rootPrefix = /^~\/?|^\//;
+  const crumbs = $derived.by(() => {
+    const root = path.startsWith("/") ? "/" : "~";
+    const rest = path.replace(rootPrefix, "").split("/").filter(Boolean);
+    return [
+      { label: root, to: root },
+      ...rest.map((label, i) => ({
+        label,
+        to: `${root === "/" ? "" : root}/${rest.slice(0, i + 1).join("/")}`,
+      })),
+    ];
+  });
+  const canGoUp = $derived(crumbs.length > 1);
+  async function list(next: string) {
+    request += 1;
+    const id = request;
+    listing = true;
+    listError = "";
+    try {
+      const rows = await machineFs<FsEntry[]>(machineId, "list", next);
+      if (id !== request) {
+        return;
+      }
+      path = next;
+      folders = rows
+        .filter((row) => row.kind === "dir")
+        .sort((a, b) => a.name.localeCompare(b.name));
+    } catch (cause) {
+      if (id !== request) {
+        return;
+      }
+      listError = cause instanceof Error ? cause.message : String(cause);
+    } finally {
+      if (id === request) {
+        listing = false;
+      }
+    }
+  }
+  function toggleBrowse() {
+    browsing = !browsing;
+    if (browsing) {
+      const start = dir.trim().replace(trailing, "");
+      list(start.startsWith("/") || start.startsWith("~") ? start : "~");
+    }
+  }
+  function enter(name: string) {
+    list(`${path === "/" ? "" : path.replace(trailing, "")}/${name}`);
+  }
+  function goUp() {
+    const up = crumbs.at(-2);
+    if (up) {
+      list(up.to);
+    }
+  }
+  function useFolder() {
+    ondir(path);
+    browsing = false;
+  }
+  $effect(() => {
+    if (mode === "repo") {
+      browsing = false;
+    }
+  });
+</script>
+
+<section class="loc">
+  <SectionHeader hue="var(--fai-amber-500)" icon={Folder} label="Location" wrap>
+    {#snippet right()}
+      <Segmented
+        items={[{ value: "dir", label: "Existing files" }, { value: "repo", label: "Clone from GitHub" }]}
+        label="Location source"
+        onchange={onmode}
+        value={mode}
+      >
+        {#snippet icon(value, on)}
+          {#if value === "dir"}
+            <Folder style="color:var(--fai-amber-500)" />
+          {:else}
+            <GitHub style={`opacity:${on ? 1 : 0.6}`} />
+          {/if}
+        {/snippet}
+      </Segmented>
+    {/snippet}
+  </SectionHeader>
+
+  <div class="field" class:locked={locked}>
+    <div class="row">
+      <FolderOpen class="lead" />
+      <input
+        aria-invalid={reading ? true : undefined}
+        aria-label="Directory"
+        autocapitalize="off"
+        id="session-dir"
+        oninput={(event) => ondir(event.currentTarget.value)}
+        placeholder="~/code/project"
+        readonly={locked}
+        spellcheck="false"
+        value={dir}
+      >
+      {#if locked}
+        <span class="badge ns-in">From project</span>
+        <button
+          class="override ns-in"
+          onclick={onoverride}
+          style="--delay:40ms"
+          type="button"
+        >
+          Override
+        </button>
+      {:else}
+        <button
+          class="browse ns-in"
+          disabled={!machineId}
+          id="session-browse"
+          onclick={toggleBrowse}
+          style={`opacity:${machineId ? 1 : 0.5}`}
+          type="button"
+        >
+          {#if browsing}
+            <Up />Close
+          {:else}
+            <Search />
+            Browse
+          {/if}
+        </button>
+      {/if}
+    </div>
+    <div class="panel" style={`grid-template-rows:${browsing ? "1fr" : "0fr"}`}>
+      <div class="clip">
+        <div class="browser">
+          <div class="crumbs">
+            <span class="machine"><span class="dot"></span>{machineName}</span>
+            <div class="trail fai-scroll">
+              {#each crumbs as crumb, i (crumb.to)}
+                <button
+                  class="crumb"
+                  onclick={() => list(crumb.to)}
+                  style={i === crumbs.length - 1 ? "color:var(--fai-grey-900)" : ""}
+                  type="button"
+                >
+                  {crumb.label}
+                </button>
+                {#if i < crumbs.length - 1}
+                  <span class="sep">/</span>
+                {/if}
+              {/each}
+            </div>
+          </div>
+          <div class="folders fai-scroll">
+            {#if canGoUp}
+              <button class="folder up" onclick={goUp} type="button">
+                <Left />..
+              </button>
+            {/if}
+            {#each folders as folder, i (`${path}/${folder.name}`)}
+              <button
+                class="folder ns-in"
+                onclick={() => enter(folder.name)}
+                style={`--delay:${i * 22}ms`}
+                type="button"
+              >
+                <Folder
+                  style={`color:${folder.name.startsWith('.') ? 'var(--fai-grey-400)' : 'var(--fai-amber-500)'}`}
+                />
+                <span class="name">{folder.name}</span>
+                <Right class="go" />
+              </button>
+            {/each}
+            {#if listError}
+              <div class="empty ns-in" role="alert">{listError}</div>
+            {:else if !(listing || folders.length)}
+              <div class="empty ns-in">No subfolders</div>
+            {/if}
+          </div>
+          <div class="use">
+            <span class="path">{path}</span>
+            <button class="ns-btn sm primary" onclick={useFolder} type="button">
+              Use this folder
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div
+    class="panel"
+    style={`grid-template-rows:${mode === "repo" ? "1fr" : "0fr"}`}
+  >
+    <div class="clip">
+      <div
+        class="repo"
+        style={`transform:translateY(${mode === "repo" ? 0 : -12}px);opacity:${mode === "repo" ? 1 : 0};pointer-events:${mode === "repo" ? "auto" : "none"}`}
+      >
+        <div class="field">
+          <div class="row repo-row">
+            <GitHub class="lead gh" />
+            <input
+              aria-label="Repository"
+              autocapitalize="off"
+              id="session-repo"
+              oninput={(event) => onrepo(event.currentTarget.value)}
+              placeholder="owner/repository"
+              spellcheck="false"
+              tabindex={mode === "repo" ? 0 : -1}
+              value={repo}
+            >
+          </div>
+        </div>
+        <div class="note">
+          <Refresh />
+          <span
+            >Cloned into <span class="mono">{dir.trim() || "~"}</span> on each
+            machine, pulled fresh before the agent starts.</span
+          >
+        </div>
+      </div>
+    </div>
+  </div>
+  <p aria-live="polite" class="reading" title={reading}>{reading || " "}</p>
+</section>
+
+<style>
+  .loc {
+    display: grid;
+    gap: 8px;
+  }
+  .field {
+    background: var(--fai-surface);
+    border: 1px solid var(--fai-border);
+    border-radius: var(--fai-radius-md);
+    box-shadow: var(--fai-shadow-xs);
+    overflow: hidden;
+    transition: var(--fai-transition-control);
+  }
+  .field.locked {
+    background: var(--fai-grey-50);
+  }
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 42px;
+    padding: 0 6px 0 12px;
+  }
+  .repo-row {
+    padding-right: 12px;
+  }
+  .row :global(svg.lead) {
+    width: 16px;
+    height: 16px;
+    flex: none;
+    color: var(--fai-amber-500);
+  }
+  .row :global(svg.gh) {
+    opacity: 0.8;
+    color: var(--fai-text);
+  }
+  input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: none;
+    background: transparent;
+    font: 400 13px / 1.4 var(--fai-font-mono);
+    color: var(--fai-text);
+    padding: 0;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 24px;
+    padding: 0 8px;
+    border-radius: var(--fai-radius-sm);
+    background: var(--fai-status-info-bg);
+    color: var(--fai-status-info-fg);
+    font: 500 11px / 1 var(--fai-font-sans);
+    white-space: nowrap;
+  }
+  .override {
+    height: 30px;
+    padding: 0 10px;
+    border: 0;
+    background: transparent;
+    border-radius: var(--fai-radius-sm);
+    font: 500 13px / 1 var(--fai-font-sans);
+    color: var(--fai-text-muted);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .browse {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 10px;
+    border: 1px solid var(--fai-border);
+    background: var(--fai-surface);
+    border-radius: var(--fai-radius-sm);
+    font: 500 13px / 1 var(--fai-font-sans);
+    color: var(--fai-text);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .browse:disabled {
+    cursor: not-allowed;
+  }
+  .browse :global(svg) {
+    width: 14px;
+    height: 14px;
+    color: var(--fai-text-muted);
+  }
+  @media (hover: hover) {
+    .override:hover {
+      background: var(--fai-grey-100);
+      color: var(--fai-text);
+    }
+    .browse:not(:disabled):hover,
+    .crumb:hover {
+      background: var(--fai-grey-50);
+    }
+    .folder:hover {
+      background: var(--fai-surface);
+    }
+  }
+  .panel {
+    display: grid;
+    transition: grid-template-rows 280ms var(--ns-ease-in-out);
+  }
+  .clip {
+    min-height: 0;
+    overflow: hidden;
+  }
+  .browser {
+    border-top: 1px solid var(--fai-border-subtle);
+    background: var(--fai-surface-subtle);
+  }
+  .crumbs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 8px 8px 10px;
+    border-bottom: 1px solid var(--fai-border-subtle);
+    background: var(--fai-surface-subtle);
+  }
+  .machine {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 24px;
+    padding: 0 8px;
+    border-radius: var(--fai-radius-sm);
+    background: var(--fai-grey-100);
+    font: 500 12px / 1 var(--fai-font-sans);
+    color: var(--fai-text);
+    white-space: nowrap;
+    flex: none;
+  }
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: var(--fai-radius-pill);
+    background: var(--fai-presence-online);
+  }
+  .trail {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    overflow-x: auto;
+    font: 400 13px / 1 var(--fai-font-mono);
+    color: var(--fai-text-muted);
+    white-space: nowrap;
+  }
+  .crumb {
+    height: 24px;
+    padding: 0 6px;
+    border: 0;
+    background: transparent;
+    border-radius: var(--fai-radius-xs);
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+  }
+  .sep {
+    color: var(--fai-grey-400);
+  }
+  .folders {
+    max-height: 196px;
+    overflow: auto;
+    padding: 6px;
+    display: grid;
+    gap: 1px;
+  }
+  .folder {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 34px;
+    padding: 0 8px;
+    border: 0;
+    background: transparent;
+    border-radius: var(--fai-radius-sm);
+    font: 400 13px / 1 var(--fai-font-mono);
+    color: var(--fai-text);
+    cursor: pointer;
+    text-align: left;
+  }
+  .folder.up {
+    color: var(--fai-text-muted);
+  }
+  .folder :global(svg) {
+    width: 16px;
+    height: 16px;
+    flex: none;
+  }
+  .folder :global(svg.go) {
+    width: 14px;
+    height: 14px;
+    color: var(--fai-grey-400);
+  }
+  .folder .name {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .empty {
+    padding: 14px 8px;
+    font: var(--fai-type-meta);
+    color: var(--fai-text-subtle);
+    text-align: center;
+  }
+  .use {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px;
+    border-top: 1px solid var(--fai-border-subtle);
+    background: var(--fai-surface);
+  }
+  .path {
+    font: 400 12px / 1.3 var(--fai-font-mono);
+    color: var(--fai-text-muted);
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .repo {
+    display: grid;
+    gap: 8px;
+    transition:
+      transform 280ms var(--ns-ease-in-out),
+      opacity 280ms ease;
+  }
+  .note {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 9px 10px;
+    background: var(--fai-surface-subtle);
+    border: 1px solid var(--fai-border-subtle);
+    border-radius: var(--fai-radius-md);
+  }
+  .note :global(svg) {
+    width: 15px;
+    height: 15px;
+    flex: none;
+    margin-top: 1px;
+    color: var(--fai-blue-500);
+  }
+  .note span {
+    font: var(--fai-type-meta);
+    color: var(--fai-text-muted);
+    text-wrap: pretty;
+    min-width: 0;
+  }
+  .note .mono {
+    font-family: var(--fai-font-mono);
+    color: var(--fai-text);
+  }
+  .reading {
+    margin: 0;
+    font: var(--fai-type-meta);
+    color: var(--fai-status-expired-fg);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-height: 16px;
+  }
+  @media (max-width: 640px) {
+    .row {
+      height: 46px;
+    }
+    input {
+      font-size: 16px;
+    }
+    .browse,
+    .override {
+      height: 36px;
+    }
+    .folder {
+      height: 44px;
+    }
+  }
+</style>

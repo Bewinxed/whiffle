@@ -40,8 +40,8 @@
   import AttentionQueue from "$lib/whiffle/AttentionQueue.svelte";
   import LiveSessionRow from "$lib/whiffle/LiveSessionRow.svelte";
   import MachineCard from "$lib/whiffle/MachineCard.svelte";
-  import SpawnPanel from "$lib/whiffle/SpawnPanel.svelte";
   import StatTile from "$lib/whiffle/StatTile.svelte";
+  import NewSessionDialog from "$lib/whiffle/spawn/NewSessionDialog.svelte";
   import {
     type InstanceRow,
     isFailed,
@@ -723,7 +723,7 @@
   </div>
 </div>
 
-<SpawnPanel
+<NewSessionDialog
   onclose={() => {
     spawnOpen = false;
   }}

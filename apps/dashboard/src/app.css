@@ -448,6 +448,22 @@
   );
   --scrim: oklch(from var(--neutral-12) l c h / 0.32);
   --scrim-soft: oklch(from var(--neutral-12) l c h / 0.06);
+  --scrim-blur: 2px;
+
+  /* Identity hues for duotone icon tiles (new-session modal). Light: the
+     design's own strengths. */
+  --hue-violet-400: #818cf8;
+  --hue-violet-500: #6366f1;
+  --hue-cyan-400: #38bdf8;
+  --hue-cyan-500: #14b0e0;
+  --hue-amber-500: #f0ad1f;
+  --hue-orange-500: #f97316;
+  --hue-green-500: #22c55e;
+  --hue-green-600: #16a34a;
+  --hue-blue-500: #3b7bff;
+  --hue-blue-600: #2f5ce6;
+  --hue-red-500: #ef4444;
+  --hue-red-600: #dc2626;
   /* The rail's head fades to the body's own weight, not to nothing: a run of
      rail rows is several elements each painting this, so a gradient that ran
      to 0.06 left every block invisible at its foot and the next one starting
@@ -619,6 +635,21 @@
   --shadow-tint-3: oklch(from var(--neutral-1) l c h / 0.76);
   --scrim: oklch(from var(--neutral-1) l c h / 0.6);
   --scrim-soft: oklch(from var(--neutral-1) l c h / 0.3);
+  --scrim-blur: 2px;
+
+  /* Dark: same chroma, lightness raised so the tiles read on the dark surface. */
+  --hue-violet-400: oklch(from #818cf8 0.78 c h);
+  --hue-violet-500: oklch(from #6366f1 0.74 c h);
+  --hue-cyan-400: oklch(from #38bdf8 0.8 c h);
+  --hue-cyan-500: oklch(from #14b0e0 0.78 c h);
+  --hue-amber-500: oklch(from #f0ad1f 0.82 c h);
+  --hue-orange-500: oklch(from #f97316 0.76 c h);
+  --hue-green-500: oklch(from #22c55e 0.76 c h);
+  --hue-green-600: oklch(from #16a34a 0.74 c h);
+  --hue-blue-500: oklch(from #3b7bff 0.74 c h);
+  --hue-blue-600: oklch(from #2f5ce6 0.72 c h);
+  --hue-red-500: oklch(from #ef4444 0.72 c h);
+  --hue-red-600: oklch(from #dc2626 0.7 c h);
   --rail: linear-gradient(
     oklch(from var(--neutral-11) l c h / 0.55),
     oklch(from var(--neutral-11) l c h / 0.3)

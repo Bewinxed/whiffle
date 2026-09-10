@@ -1,0 +1,30 @@
+/* FlowAI — spacing. 2px base with dense 6/10/14 steps as measured in the source screens. */
+:root{
+--fai-space-0:0px;
+--fai-space-1:2px;
+--fai-space-2:4px;
+--fai-space-3:6px;
+--fai-space-4:8px;
+--fai-space-5:10px;
+--fai-space-6:12px;
+--fai-space-7:14px;
+--fai-space-8:16px;
+--fai-space-9:20px;
+--fai-space-10:24px;
+--fai-space-11:28px;
+--fai-space-12:32px;
+--fai-space-14:40px;
+--fai-space-16:48px;
+
+/* layout constants */
+--fai-sidebar-w:260px;
+--fai-topbar-h:44px;
+--fai-page-pad-x:24px;
+--fai-page-pad-y:20px;
+--fai-card-pad:16px;
+--fai-row-h:44px;
+--fai-control-h:36px;
+--fai-control-h-sm:30px;
+--fai-control-h-lg:44px;
+--fai-gap-card:14px;
+}

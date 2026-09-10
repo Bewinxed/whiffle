@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/flowai/tokens/fonts.css">
+  <link rel="stylesheet" href="_ds/flowai/tokens/colors.css">
+  <link rel="stylesheet" href="_ds/flowai/tokens/typography.css">
+  <link rel="stylesheet" href="_ds/flowai/tokens/spacing.css">
+  <link rel="stylesheet" href="_ds/flowai/tokens/radius.css">
+  <link rel="stylesheet" href="_ds/flowai/tokens/elevation.css">
+  <link rel="stylesheet" href="_ds/flowai/tokens/motion.css">
+  <link rel="stylesheet" href="_ds/flowai/tokens/base.css">
+  <link rel="stylesheet" href="_ds/flowai/styles.css">
+  <script src="_ds/flowai/_ds_bundle.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <style>
+    html,body{height:100%;background:var(--fai-desk)}
+    body{margin:0;-webkit-text-size-adjust:100%}
+    a{color:var(--fai-text-link)}a:hover{color:var(--fai-blue-500)}
+    textarea,input{font-family:var(--fai-font-sans)}
+    textarea::placeholder,input::placeholder{color:var(--fai-text-subtle)}
+    @keyframes nsIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+    @keyframes nsOut{to{opacity:0;transform:translateY(-6px)}}
+    @keyframes nsPop{from{opacity:0;transform:translateY(-4px) scale(.98)}to{opacity:1;transform:none}}
+    @keyframes nsInB{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+    @keyframes nsCheck{from{opacity:0;transform:scale(.5)}to{opacity:1;transform:none}}
+    @keyframes nsInR{from{opacity:0;transform:translateX(18px)}to{opacity:1;transform:none}}
+    @keyframes nsInL{from{opacity:0;transform:translateX(-18px)}to{opacity:1;transform:none}}
+    @keyframes nsOutL{to{opacity:0;transform:translateX(-18px)}}
+    @keyframes nsOutR{to{opacity:0;transform:translateX(18px)}}
+    @keyframes nsSpin{to{transform:rotate(360deg)}}
+    @keyframes nsPanel{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+    @media (max-width:640px){
+      [data-ns-scrim]{padding:0 !important}
+      [data-ns-dialog]{border-radius:0 !important;height:100% !important;max-height:100% !important;padding:max(env(safe-area-inset-top),7px) 7px max(env(safe-area-inset-bottom),7px) !important}
+      [data-ns-footer]{flex-wrap:wrap}
+      [data-ns-summary]{width:100%;order:-1;margin-right:0}
+    }
+  </style>
+</helmet>
+
+<div data-ns-scrim="" style="position:fixed;inset:0;height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:auto;padding:24px;background:var(--fai-scrim);backdrop-filter:blur(var(--fai-scrim-blur));-webkit-backdrop-filter:blur(2px);font:var(--fai-type-body);color:var(--fai-text)">
+  <div data-ns-dialog="" role="dialog" aria-modal="true" aria-label="New Session" style="width:100%;max-width:980px;max-height:100%;display:flex;flex-direction:column;flex:none;animation:nsPanel 260ms var(--fai-ease-out) both;background:var(--fai-grey-100);border-radius:var(--fai-radius-modal);padding:7px;box-shadow:var(--fai-shadow-modal)">
+
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:3px 4px 8px;flex:none">
+      <div style="display:flex;align-items:center;gap:10px;min-width:0">
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:var(--fai-radius-xs);background:var(--fai-grey-900);color:#fff;flex:none"><span style="display:inline-block;width:13px;height:13px;background:currentColor;-webkit-mask:url(https://api.iconify.design/solar:bolt-bold-duotone.svg) center/contain no-repeat;mask:url(https://api.iconify.design/solar:bolt-bold-duotone.svg) center/contain no-repeat"></span></span>
+        <span style="font:var(--fai-weight-medium) var(--fai-text-sm)/1 var(--fai-font-sans);color:var(--fai-text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Sessions · New</span>
+      </div>
+      <x-import component-from-global-scope="FlowAIDesignSystem_94b032.IconButton" icon="x" size="sm" variant="ghost" label="Close" hint-size="28px,28px"></x-import>
+    </div>
+
+    <div class="fai-scroll" onScroll="{{ onBodyScroll }}" style="flex:1;min-height:0;overflow:auto;background:var(--fai-surface);border-radius:var(--fai-radius-lg);padding:18px 18px 20px">
+      <h2 style="font:var(--fai-weight-medium) var(--fai-text-xl)/1.25 var(--fai-font-sans);letter-spacing:var(--fai-tracking-snug)">New Session</h2>
+      <section style="animation:nsIn 260ms var(--fai-ease-out) both 0ms;display:grid;gap:8px;margin-top:16px;position:relative;z-index:30">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="display:inline-block;width:16px;height:16px;background:currentColor;color:var(--fai-blue-500);-webkit-mask:url(https://api.iconify.design/solar:chat-round-line-bold-duotone.svg) center/contain no-repeat;mask:url(https://api.iconify.design/solar:chat-round-line-bold-duotone.svg) center/contain no-repeat"></span>
+            <span style="font:var(--fai-type-label)">First prompt</span>
+          </div>
+          
+        </div>
+        <div class="fai-comb"></div>
+        <div style="position:relative;display:grid;background:var(--fai-surface);border:1px solid {{ composerBorder }};border-radius:var(--fai-radius-lg);box-shadow:{{ composerShadow }};transition:var(--fai-transition-control),box-shadow var(--fai-duration-fast) var(--fai-ease-standard)">
+          <div style="position:relative">
+            <div ref="{{ editorRef }}" contentEditable="true" suppressContentEditableWarning="{{ true }}" role="textbox" aria-multiline="true" aria-label="First prompt" onInput="{{ onEditorInput }}" onKeyDown="{{ onEditorKey }}" onKeyUp="{{ onEditorCaret }}" onClick="{{ onEditorCaret }}" onFocus="{{ onPromptFocus }}" onBlur="{{ onPromptBlur }}" style="width:100%;height:{{ promptH }};padding:12px 16px 6px;overflow:auto;outline:none;background:transparent;border-radius:var(--fai-radius-lg) var(--fai-radius-lg) 0 0;font:var(--fai-weight-regular) var(--fai-text-base)/1.55 var(--fai-font-sans);color:var(--fai-text);white-space:pre-wrap;word-break:break-word;transition:height var(--fai-duration-slow) var(--fai-ease-out)"></div>
+            <sc-if value="{{ promptEmpty }}" hint-placeholder-val="{{ true }}"><span style="position:absolute;left:16px;top:12px;right:16px;font:var(--fai-weight-regular) var(--fai-text-base)/1.55 var(--fai-font-sans);color:var(--fai-text-subtle);pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">What should the agent do first? <span style="color:var(--fai-grey-400)">@ machine or project · / skills and plugins</span></span></sc-if>
+            <sc-if value="{{ menuOpen }}" hint-placeholder-val="{{ false }}">
+              <div data-ns-pop="" onMouseMove="{{ fhMenuMove }}" onMouseLeave="{{ fhMenuLeave }}" style="position:fixed;left:{{ menuX }}px;top:{{ menuY }}px;z-index:50;width:300px;background:var(--fai-surface);border:1px solid var(--fai-border);border-radius:var(--fai-radius-lg);box-shadow:var(--fai-shadow-shell);padding:4px;display:grid;gap:2px;animation:nsPop 140ms var(--fai-ease-out) both">
+                <span style="position:absolute;left:0;top:0;width:{{ fhMenu.w }}px;height:{{ fhMenu.h }}px;transform:translate({{ fhMenu.x }}px,{{ fhMenu.y }}px);opacity:{{ fhMenu.o }};background:var(--fai-grey-50);border-radius:var(--fai-radius-chip);transition:transform var(--fai-duration-instant) var(--fai-ease-standard),height var(--fai-duration-instant) var(--fai-ease-standard),opacity var(--fai-duration-fast) var(--fai-ease-standard);pointer-events:none"></span>
+                <span style="position:absolute;left:4px;right:4px;top:4px;height:36px;transform:translateY(calc({{ menuIdx }} * 38px));opacity:{{ menuHiOpacity }};background:var(--fai-grey-100);border-radius:var(--fai-radius-chip);transition:transform var(--fai-duration-fast) var(--fai-ease-out);pointer-events:none"></span>
+                <sc-for list="{{ menuItems }}" as="mi" hint-placeholder-count="4">
+                  <button type="button" data-fh="1" onMouseDown="{{ mi.pick }}" style="position:relative;display:flex;align-items:center;gap:9px;width:100%;height:36px;padding:0 8px;background:transparent;border:none;border-radius:var(--fai-radius-chip);cursor:pointer;text-align:left;color:var(--fai-text)">
+                    <span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:var(--fai-radius-xs);background:var(--fai-surface);color:{{ mi.hue }};box-shadow:0 1px 2px rgba(16,18,20,.07),0 0 0 1px rgba(16,18,20,.035);flex:none"><span style="display:inline-block;width:13px;height:13px;background:currentColor;-webkit-mask:url({{ mi.icon }}) center/contain no-repeat;mask:url({{ mi.icon }}) center/contain no-repeat"></span></span>
+                    <span style="flex:1;min-width:0;font:var(--fai-weight-medium) var(--fai-text-sm)/1.2 var(--fai-font-sans);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ mi.label }}</span>
+                    <span style="font:var(--fai-type-meta);color:var(--fai-text-subtle);white-space:nowrap">{{ mi.kind }}</span>
+                  </button>
+                </sc-for>
+                <sc-if value="{{ noMenuItems }}" hint-placeholder-val="{{ false }}"><div style="padding:10px 8px;font:var(--fai-type-meta);color:var(--fai-text-subtle)">No matches</div></sc-if>
+              </div>
+            </sc-if>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 10px 10px">
+            <div data-ns-pop="" style="position:relative">
+              <button type="button" onClick="{{ toggleMachinesPop }}" aria-expanded="{{ machinesPopOpen }}" style="display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 8px 0 8px;background:var(--fai-surface);border:1px solid var(--fai-border);border-radius:var(--fai-radius-chip);font:var(--fai-weight-medium) var(--fai-text-sm)/1 var(--fai-font-sans);color:var(--fai-text);cursor:pointer;white-space:nowrap;max-width:100%;transition:var(--fai-transition-control);color:{{ machineChipColor }};border-color:{{ machineChipBorder }}" style-hover="background:var(--fai-grey-50)">
+                <span style="display:inline-block;width:15px;height:15px;background:currentColor;flex:none;color:var(--fai-cyan-500);-webkit-mask:url(https://api.iconify.design/solar:server-square-bold-duotone.svg) center/contain no-repeat;mask:url(https://api.iconify.design/solar:server-square-bold-duotone.svg) center/contain no-repeat"></span>
+                <span style="min-width:0;overflow:hidden;text-overflow:ellipsis">{{ machineChipLabel }}</span>
+                <span style="display:inline-block;width:13px;height:13px;background:currentColor;flex:none;color:var(--fai-text-subtle);-webkit-mask:url(https://api.iconify.design/solar:alt-arrow-down-linear.svg) center/contain no-repeat;mask:url(https://api.iconify.design/solar:alt-arrow-down-linear.svg) center/contain no-repeat"></span>
+              </button>
+              <sc-if value="{{ machinesPopOpen }}" hint-placeholder-val="{{ false }}">
+                <div style="position:fixed;left:{{ popX }}px;top:{{ popY }}px;z-index:50;transform:{{ popTransform }}"><div onMouseMove="{{ fhMachinesMove }}" onMouseLeave="{{ fhMachinesLeave }}" style="position:relative;width:min(320px,calc(100vw - 32px));background:var(--fai-surface);border:1px solid var(--fai-border);border-radius:var(--fai-radius-lg);box-shadow:var(--fai-shadow-shell);padding:6px;display:grid;gap:0;animation:nsPop 160ms var(--fai-ease-out) both">
+                  <span style="position:absolute;left:0;top:0;width:{{ fhMachines.w }}px;height:{{ fhMachines.h }}px;transform:translate({{ fhMachines.x }}px,{{ fhMachines.y }}px);opacity:{{ fhMachines.o }};background:var(--fai-grey-50);border-radius:var(--fai-radius-chip);transition:transform var(--fai-duration-instant) var(--fai-ease-standard),width var(--fai-duration-instant) var(--fai-ease-standard),height var(--fai-duration-instant) var(--fai-ease-standard),opacity var(--fai-duration-fast) var(--fai-ease-standard);pointer-events:none"></span>
+                  <sc-if value="{{ notPairing }}" hint-placeholder-val="{{ true }}">
+                    <sc-for list="{{ machines }}" as="m" hint-placeholder-count="4">
+                    <button type="button" data-fh="1" onClick="{{ m.toggle }}" disabled="{{ m.offline }}" aria-pressed="{{ m.on }}" style="animation:nsIn 200ms var(--fai-ease-out) both {{ m.delay }};position:relative;display:flex;align-items:center;gap:10px;width:100%;height:44px;padding:6px 8px;background:{{ m.bg }};border:none;border-radius:{{ m.radius }};cursor:{{ m.cursor }};opacity:{{ m.opacity }};text-align:left;color:var(--fai-text);transition:background-color var(--fai-duration-base) var(--fai-ease-standard),border-radius var(--fai-duration-base) var(--fai-ease-standard)">
+                      <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:var(--fai-radius-chip);background:{{ m.tileBg }};color:{{ m.tileFg }};box-shadow:{{ m.tileShadow }};flex:none;transition:background-color var(--fai-duration-slow) var(--fai-ease-out),color var(--fai-duration-slow) var(--fai-ease-out)"><span style="display:inline-block;width:15px;height:15px;background:currentColor;-webkit-mask:url({{ m.icon }}) center/contain no-repeat;mask:url({{ m.icon }}) center/contain no-repeat"></span></span>
+                      <span style="flex:1;min-width:0">
+                        <span style="display:block;font:var(--fai-weight-medium) var(--fai-text-sm)/1.3 var(--fai-font-sans)">{{ m.name }}</span>
+                        <span style="display:flex;align-items:center;gap:6px;font:var(--fai-type-meta);color:var(--fai-text-subtle);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="width:6px;height:6px;border-radius:999px;background:{{ m.dot }};flex:none"></span>{{ m.os }} · {{ m.load }}</span>
+                      </span>
+                      <span style="display:inline-block;width:16px;height:16px;flex:none;background:var(--fai-grey-900);opacity:{{ m.ring }};transform:scale({{ m.scale }});transition:opacity var(--fai-duration-base) var(--fai-ease-out),transform var(--fai-duration-base) var(--fai-ease-out);-webkit-mask:url(https://api.iconify.design/solar:check-circle-bold.svg) center/contain no-repeat;mask:url(https://api.iconify.design/solar:check-circle-bold.svg) center/contain no-repeat"></span>
+                    </button>
+                  </sc-for>
+                    <div style="height:1px;background:var(--fai-border-subtle);margin:4px 2px"></div>
+                    <button type="button" data-fh="1" onClick="{{ startPairing }}" style="animation:nsIn 200ms var(--fai-ease-out) both 140ms;position:relative;display:flex;align-items:center;gap:10px;width:100%;height:40px;padding:6px 8px;background:transparent;border:none;border-radius:var(--fai-radius-chip);cursor:pointer;text-align:left;color:var(--fai-text-muted)" style-hover="color:var(--fai-text)">
+                      <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:var(--fai-radius-chip);border:1px dashed var(--fai-grey-400);flex:none"><span style="display:inline-block;width:14px;height:14px;background:currentColor;flex:none;-webkit-mask:url(https://api.iconify.design/solar:add-circle-linear.svg) center/contain no-repeat;mask:url(https://api.iconify.design/solar:add-circle-linear.svg) center/contain no-repeat"></span></span>
+                      <span style="font:var(--fai-weight-medium) var(--fai-text-sm)/1.3 var(--fai-font-sans)">Connect a machine…</span>
+                    </button>
+                  </sc-if>
+                  <sc-if value="{{ isPairing }}" hint-placeholder-val="{{ false }}">
+                    <div style="display:grid;gap:10px;padding:4px;animation:nsPanel 200ms var(--fai-ease-out) both">
+                      <p style="font:var(--fai-type-meta);color:var(--fai-text-muted);text-wrap:pretty">Run this on the machine. It appears here as soon as the agent checks in.</p>
+                      <div style="display:flex;align-items:center;gap:8px;height:36px;padding:0 6px 0 10px;background:var(--fai-grey-50);border:1px solid var(--fai-border);border-radius:var(--fai-radius-control)">
+                        <code style="flex:1;min-width:0;font:var(--fai-weight-regular) var(--fai-text-xs)/1.4 var(--fai-font-mono);color:var(--fai-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ pairCmd }}</code>
+                        <button type="button" onClick="{{ copyPair }}" style="display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 8px;border:1px solid var(--fai-border);background:var(--fai-surface);border-radius:var(--fai-radius-sm);font:var(--fai-weight-medium) var(--fai-text-xs)/1 var(--fai-font-sans);color:var(--fai-text);cursor:pointer;white-space:nowrap" style-hover="background:var(--fai-grey-50)"><span style="display:inline-block;width:13px;height:13px;background:currentColor;flex:none;color:var(--fai-text-muted);-webkit-mask:url(https://api.iconify.design/solar:documents-bold-duotone.svg) center/contain no-repeat;mask:url(https://api.iconify.design/solar:documents-bold-duotone.svg) center/contain no-repeat"></span>{{ copyLabel }}</button>
+                      </div>
+                      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+                        <span style="display:flex;align-items:center;gap:8px;font:var(--fai-type-meta);color:var(--fai-text-muted)"><span style="width:6px;height:6px;border-radius:999px;background:var(--fai-presence-away)"></span>Waiting for check-in…</span>
+                        <x-import component-from-global-scope="FlowAIDesignSystem_94b032.Button" variant="secondary" size="sm" on-click="{{ cancelPairing }}" hint-size="auto,30px">Back</x-import>
+                      </div>
+                    </div>
+                  </sc-if>
+                </div></div>
+              </sc-if>
+            </div>
+            <div data-ns-pop="" style="position:relative">
+              <button type="button" onClick="{{ toggleProjectsPop }}" aria-expanded="{{ projectsPopOpen }}" style="display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 8px 0 8px;background:var(--fai-surface);border:1px solid var(--fai-border);border-radius:var(--fai-radius-chip);font:var(--fai-weight-medium) var(--fai-text-sm)/1 var(--fai-font-sans);color:var(--fai-text);cursor:pointer;white-space:nowrap;max-width:100%;transition:var(--fai-transition-control);color:{{ projectNameColor }}" style-hover="background:var(--fai-grey-50)">
+                <span style="display:inline-block;width:15px;height:15px;background:currentColor;flex:none;color:var(--fai-amber-500);-webkit-mask:url(https://api.iconify.design/solar:folder-with-files-bold-duotone.svg) center/contain no-repeat;mask:url(https://api.iconify.design/solar:folder-with-files-bold-duotone.svg) center/contain no-repeat"></span>
+                <span style="min-width:0;overflow:hidden;text-overflow:ellipsis">{{ projectName }}</span>
+                <sc-if value="{{ hasProject }}" hint-placeholder-val="{{ false }}"><span role="button" onClick="{{ clearProject }}" title="Clear project" style="animation:nsCheck 200ms var(--fai-ease-out) both;display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;margin-right:-2px;border-radius:var(--fai-radius-xs);color:var(--fai-text-subtle)" style-hover="background:var(--fai-grey-100);color:var(--fai-text)"><span style="display:inline-block;width:13px;height:13px;background:currentColor;flex:none;-webkit-mask:url(https://api.iconify.design/solar:close-square-linear.svg) center/contain no-repeat;mask:url(https://api.iconify.design/solar:close-square-linear.svg) center/contain no-repeat"></span></span></sc-if>
+                <sc-if value="{{ noProject }}" hint-placeholder-val="{{ true }}"><span style="display:inline-block;width:13px;height:13px;background:currentColor;flex:none;color:var(--fai-text-subtle);-webkit-mask:url(https://api.iconify.design/solar:alt-arrow-down-linear.svg) center/contain no-repeat;mask:url(https://api.iconify.design/solar:alt-arrow-down-linear.svg) center/contain no-repeat"></span></sc-if>
+              </button>
+              <sc-if value="{{ projectsPopOpen }}" hint-placeholder-val="{{ false }}">
+                <div style="position:fixed;left:{{ popX }}px;top:{{ popY }}px;z-index:50;transform:{{ popTransform }}"><div onMouseMove="{{ fhProjectsMove }}" onMouseLeave="{{ fhProjectsLeave }}" style="position:relative;width:min(320px,calc(100vw - 32px));background:var(--fai-surface);border:1px solid var(--fai-border);border-radius:var(--fai-radius-lg);box-shadow:var(--fai-shadow-shell);padding:6px;display:grid;gap:2px;animation:nsPop 160ms var(--fai-ease-out) both">
+                  <span style="position:absolute;left:0;top:0;width:{{ fhProjects.w }}px;height:{{ fhProjects.h }}px;transform:translate({{ fhProjects.x }}px,{{ fhProjects.y }}px);opacity:{{ fhProjects.o }};background:var(--fai-grey-50);border-radius:var(--fai-radius-chip);transition:transform var(--fai-duration-instant) var(--fai-ease-standard),width var(--fai-duration-instant) var(--fai-ease-standard),height var(--fai-duration-instant) var(--fai-ease-standard),opacity var(--fai-duration-fast) var(--fai-ease-standard);pointer-events:none"></span>
+                  <sc-if value="{{ notNewProj }}" hint-placeholder-val="{{ true }}">
+                    <sc-for list="{{ projects }}" as="p" hint-placeholder-count="3">
+                    <button type="button" data-fh="1" onClick="{{ p.pick }}" style="animation:nsIn 200ms var(--fai-ease-out) both {{ p.delay }};position:relative;display:flex;align-items:center;gap:10px;width:100%;height:44px;padding:6px 8px;background:{{ p.bg }};border:none;border-radius:var(--fai-radius-chip);cursor:pointer;text-align:left;color:var(--fai-text);transition:background-color var(--fai-duration-base) var(--fai-ease-standard)">
+                      <span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:var(--fai-radius-chip);background:var(--fai-surface);color:{{ p.hue }};box-shadow:0 1px 2px rgba(16,18,20,.07),0 0 0 1px rgba(16,18,20,.035);flex:none"><span style="display:inline-block;width:14px;height:14px;background:currentColor;-webkit-mask:url(https://api.iconify.design/solar:folder-with-files-bold-duotone.svg) center/contain no-repeat;mask:url(https://api.iconify.design/solar:folder-with-files-bold-duotone.svg) center/contain no-repeat"></span></span>
+                      <span style="flex:1;min-width:0">
+                        <span style="display:block;font:var(--fai-weight-medium) var(--fai-text-sm)/1.3 var(--fai-font-sans)">{{ p.name }}</span>
+                        <span style="display:block;font:var(--fai-type-meta);color:var(--fai-text-subtle);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.meta }}</span>
+                      </span>
+                      <sc-if value="{{ p.on }}" hint-placeholder-val="{{ false }}"><span style="display:inline-block;width:16px;height:16px;background:var(--fai-grey-900);animation:nsCheck 200ms var(--fai-ease-out) both;-webkit-mask:url(https://api.iconify.design/solar:check-circle-bold.svg) center/contain no-repeat;mask:url(https://api.iconify.design/solar:check-circle-bold.svg) center/contain no-repeat"></span></sc-if>
+                    </button>
+                  </sc-for>
+                    <div style="height:1px;background:var(--fai-border-subtle);margin:4px 2px"></div>
+                    <button type="button" data-fh="1" onClick="{{ startNewProj }}" style="animation:nsIn 200ms var(--fai-ease-out) both 110ms;position:relative;display:flex;align-items:center;gap:10px;width:100%;height:40px;padding:6px 8px;background:transparent;border:none;border-radius:var(--fai-radius-chip);cursor:pointer;text-align:left;color:var(--fai-text-muted)" style-hover="color:var(--fai-text)">
+                      <span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:var(--fai-radius-chip);border:1px dashed var(--fai-grey-400);flex:none"><span style="display:inline-block;width:14px;height:14px;background:currentColor;flex:none;-webkit-mask:url(https://api.iconify.design/solar:add-circle-linear.svg) center/contain no-repeat;mask:url(https://api.iconify.design/solar:add-circle-linear.svg) center/contain no-repeat"></span></span>
+                      <span style="font:var(--fai-weight-medium) var(--fai-text-sm)/1.3 var(--fai-font-sans)">New project…</span>
+                    </button>
+                  </sc-if>
+                  <sc-if value="{{ isNewProj }}" hint-placeholder-val="{{ false }}">
+                    <div style="display:grid;gap:8px;padding:4px;animation:nsPanel 200ms var(--fai-ease-out) both">
+                      <div style="display:flex;align-items:center;gap:8px;height:36px;padding:0 10px;background:var(--fai-surface);border:1px solid var(--fai-border);border-radius:var(--fai-radius-control);box-shadow:var(--fai-shadow-xs)"><span style="display:inline-block;width:14px;height:14px;background:currentColor;flex:none;color:var(--fai-text-subtle);-webkit-mask:url(https://api.iconify.design/solar:folder-with-files-bold-duotone.svg) center/contain no-repeat;mask:url(https://api.iconify.design/solar:folder-with-files-bold-duotone.svg) center/contain no-repeat"></span><input value="{{ npName }}" onChange="{{ onNpName }}" spellCheck="false" autoCapitalize="off" placeholder="Project name" style="flex:1;min-width:0;border:none;outline:none;background:transparent;font:var(--fai-weight-regular) var(--fai-text-sm)/1.4 var(--fai-font-sans);color:var(--fai-text);padding:0"></div>
+                      <div style="display:flex;align-items:center;gap:8px;height:36px;padding:0 10px;background:var(--fai-surface);border:1px solid var(--fai-border);border-radius:var(--fai-radius-control);box-shadow:var(--fai-shadow-xs)"><span style="display:inline-block;width:14px;height:14px;background:currentColor;flex:none;color:var(--fai-text-subtle);-webkit-mask:url(https://api.iconify.design/solar:folder-bold-duotone.svg) center/contain no-repeat;mask:url(https://api.iconify.design/solar:folder-bold-duotone.svg) center/contain no-repeat"></span><input value="{{ npPath }}" onChange="{{ onNpPath }}" spellCheck="false" autoCapitalize="off" placeholder="~/code/project" style="flex:1;min-width:0;border:none;outline:none;background:transparent;font:var(--fai-weight-regular) var(--fai-text-sm)/1.4 var(--fai-font-mono);color:var(--fai-text);padding:0"></div>
+                      <div style="display:flex;align-items:center;gap:8px;height:36px;padding:0 10px;background:var(--fai-surface);border:1px solid var(--fai-border);border-radius:var(--fai-radius-control);box-shadow:var(--fai-shadow-xs)"><span style="display:inline-block;width:14px;height:14px;background:currentColor;flex:none;color:var(--fai-text-subtle);-webkit-mask:url(https://api.iconify.design/solar:link-round-angle-bold-duotone.svg) center/contain no-repeat;mask:url(https://api.iconify.design/solar:link-round-angle-bold-duotone.svg) center/contain no-repeat"></span><input value="{{ npRepo }}" onChange="{{ onNpRepo }}" spellCheck="false" autoCapitalize="off" placeholder="owner/repository (optional)" style="flex:1;min-width:0;border:none;outline:none;background:transparent;font:var(--fai-weight-regular) var(--fai-text-sm)/1.4 var(--fai-font-mono);color:var(--fai-text);padding:0"></div>
+                      <div style="display:flex;justify-content:flex-end;gap:6px;margin-top:2px">
+                        <x-import component-from-global-scope="FlowAIDesignSystem_94b032.Button" variant="secondary" size="sm" on-click="{{ cancelNewProj }}" hint-size="auto,30px">Back</x-import>
+                        <x-import component-from-global-scope="FlowAIDesignSystem_94b032.Button" variant="primary" size="sm" disabled="{{ npInvalid }}" on-click="{{ createProj }}" hint-size="auto,30px">Create</x-import>
+                      </div>
+                    </div>
+                  </sc-if>
+                </div></div>
+              </sc-if>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="fai-comb" style="margin-top:18px"></div>
+      <div style="display:grid;gap:18px;margin-top:18px">
+      <div style="animation:nsIn 260ms var(--fai-ease-out) both 60ms;display:grid;gap:16px">
+        <section style="animation:nsIn 260ms var(--fai-ease-out) both 0ms;display:grid;gap:8px">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="display:inline-block;width:16px;height:16px;background:currentColor;color:var(--fai-amber-500);-webkit-mask:url(https://api.iconify.design/solar:folder-bold-duotone.svg) center/contain no-repeat;mask:url(https://api.iconify.design/solar:folder-bold-duotone.svg) center/contain no-repeat"></span>
+                <span style="font:var(--fai-type-label)">Location</span>
+              </div>
+              <div role="tablist" style="position:relative;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px;padding:3px;background:var(--fai-grey-200);border-radius:var(--fai-radius-md)">
+                <span style="position:absolute;top:3px;bottom:3px;left:3px;width:calc((100% - 8px) / 2);transform:translateX(calc({{ tabIdx }} * (100% + 2px)));background:var(--fai-surface);border-radius:var(--fai-radius-sm);box-shadow:var(--fai-shadow-raised);transition:transform var(--fai-duration-slow) var(--fai-ease-out);pointer-events:none"></span>
+                <button type="button" role="tab" onClick="{{ setDirMode }}" aria-selected="{{ isDirMode }}" style="height:26px;padding:0 10px;border:none;cursor:pointer;border-radius:var(--fai-radius-sm);font:var(--fai-weight-medium) var(--fai-text-xs)/1 var(--fai-font-sans);color:{{ dirTabColor }};background:transparent;position:relative;white-space:nowrap;transition:var(--fai-transition-control);display:inline-flex;align-items:center;justify-content:center;gap:6px"><span style="display:inline-block;width:14px;height:14px;background:currentColor;flex:none;color:var(--fai-amber-500);-webkit-mask:url(https://api.iconify.design/solar:folder-bold-duotone.svg) center/contain no-repeat;mask:url(https://api.iconify.design/solar:folder-bold-duotone.svg) center/contain no-repeat"></span>Existing files</button>
+                <button type="button" role="tab" onClick="{{ setRepoMode }}" aria-selected="{{ isRepoMode }}" style="height:26px;padding:0 10px;border:none;cursor:pointer;border-radius:var(--fai-radius-sm);font:var(--fai-weight-medium) var(--fai-text-xs)/1 var(--fai-font-sans);color:{{ repoTabColor }};background:transparent;position:relative;white-space:nowrap;transition:var(--fai-transition-control);display:inline-flex;align-items:center;justify-content:center;gap:6px"><img src="https://unpkg.com/@lobehub/icons-static-svg@latest/icons/github.svg" alt="" width="14" height="14" style="flex:none;opacity:{{ repoTabIconO }}">Clone from GitHub</button>
+              </div>
+            </div>
+
+            <div style="background:{{ dirBg }};border:1px solid var(--fai-border);border-radius:var(--fai-radius-control);box-shadow:var(--fai-shadow-xs);overflow:hidden;transition:var(--fai-transition-control)">
+              <div style="display:flex;align-items:center;gap:8px;height:42px;padding:0 6px 0 12px">
+                    <span style="display:inline-block;width:16px;height:16px;background:currentColor;color:var(--fai-amber-500);flex:none;-webkit-mask:url(https://api.iconify.design/solar:folder-open-bold-duotone.svg) center/contain no-repeat;mask:url(https://api.iconify.design/solar:folder-open-bold-duotone.svg) center/contain no-repeat"></span>
+                    <input value="{{ dir }}" onChange="{{ onDirInput }}" readOnly="{{ dirLocked }}" spellCheck="false" autoCapitalize="off" placeholder="~/code/project" style="flex:1;min-width:0;border:none;outline:none;background:transparent;font:var(--fai-weight-regular) var(--fai-text-sm)/1.4 var(--fai-font-mono);color:var(--fai-text);padding:0">
+                    <sc-if value="{{ dirLocked }}" hint-placeholder-val="{{ false }}">
+                      <span style="animation:nsIn 200ms var(--fai-ease-out) both;display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border-radius:var(--fai-radius-badge);background:var(--fai-status-info-bg);color:var(--fai-status-info-fg);font:var(--fai-weight-medium) var(--fai-text-micro)/1 var(--fai-font-sans);white-space:nowrap">From project</span>
+                      <button type="button" onClick="{{ overrideDir }}" style="animation:nsIn 200ms var(--fai-ease-out) both 40ms;height:30px;padding:0 10px;border:none;background:transparent;border-radius:var(--fai-radius-sm);font:var(--fai-weight-medium) var(--fai-text-sm)/1 var(--fai-font-sans);color:var(--fai-text-muted);cursor:pointer;white-space:nowrap" style-hover="background:var(--fai-grey-100);color:var(--fai-text)">Override</button>
+                    </sc-if>
+                    <sc-if value="{{ dirUnlocked }}" hint-placeholder-val="{{ true }}">
+                      <button type="button" onClick="{{ openBrowse }}" disabled="{{ noMachine }}" style="animation:nsIn 200ms var(--fai-ease-out) both;display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border:1px solid var(--fai-border);background:var(--fai-surface);border-radius:var(--fai-radius-sm);font:var(--fai-weight-medium) var(--fai-text-sm)/1 var(--fai-font-sans);color:var(--fai-text);cursor:pointer;white-space:nowrap;opacity:{{ browseOpacity }}" style-hover="background:var(--fai-grey-50)"><span style="display:inline-block;width:14px;height:14px;background:currentColor;color:var(--fai-text-muted);-webkit-mask:url({{ browseIcon }}) center/contain no-repeat;mask:url({{ browseIcon }}) center/contain no-repeat"></span>{{ browseLabel }}</button>
+                    </sc-if>
+                  </div>
+              <div style="display:grid;grid-template-rows:{{ browseRows }};transition:grid-template-rows var(--fai-duration-panel) var(--fai-ease-out)">
+                <div style="min-height:0;overflow:hidden">
+                  <div style="border-top:1px solid var(--fai-border-subtle);background:var(--fai-surface-subtle)">
+                  <div style="display:flex;align-items:center;gap:8px;padding:8px 8px 8px 10px;border-bottom:1px solid var(--fai-border-subtle);background:var(--fai-surface-subtle)">
+                    <span style="display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px;border-radius:var(--fai-radius-badge);background:var(--fai-grey-100);font:var(--fai-weight-medium) var(--fai-text-xs)/1 var(--fai-font-sans);color:var(--fai-text);white-space:nowrap;flex:none"><span style="width:6px;height:6px;border-radius:999px;background:var(--fai-presence-online)"></span>{{ browseMachine }}</span>
+                    <div class="fai-scroll" style="flex:1;min-width:0;display:flex;align-items:center;gap:2px;overflow-x:auto;font:var(--fai-weight-regular) var(--fai-text-sm)/1 var(--fai-font-mono);color:var(--fai-text-muted);white-space:nowrap">
+                      <sc-for list="{{ crumbs }}" as="c" hint-placeholder-count="2">
+                        <button type="button" onClick="{{ c.go }}" style="height:24px;padding:0 6px;border:none;background:transparent;border-radius:var(--fai-radius-xs);font:inherit;color:{{ c.color }};cursor:pointer" style-hover="background:var(--fai-grey-100)">{{ c.label }}</button>
+                        <sc-if value="{{ c.sep }}" hint-placeholder-val="{{ true }}"><span style="color:var(--fai-grey-400)">/</span></sc-if>
+                      </sc-for>
+                    </div>
+                  </div>
+                  <div class="fai-scroll" style="max-height:196px;overflow:auto;padding:6px;display:grid;gap:1px">
+                    <sc-if value="{{ canGoUp }}" hint-placeholder-val="{{ true }}">
+                      <button type="button" onClick="{{ goUp }}" style="display:flex;align-items:center;gap:10px;height:34px;padding:0 8px;border:none;background:transparent;border-radius:var(--fai-radius-chip);font:var(--fai-weight-regular) var(--fai-text-sm)/1 var(--fai-font-mono);color:var(--fai-text-muted);cursor:pointer;text-align:left" style-hover="background:var(--fai-surface)"><span style="display:inline-block;width:16px;height:16px;background:currentColor;-webkit-mask:url(https://api.iconify.design/solar:arrow-left-linear.svg) center/contain no-repeat;mask:url(https://api.iconify.design/solar:arrow-left-linear.svg) center/contain no-repeat"></span>..</button>
+                    </sc-if>
+                    <sc-for list="{{ folders }}" as="f" hint-placeholder-count="5">
+                      <button type="button" onClick="{{ f.enter }}" style="display:flex;align-items:center;gap:10px;height:34px;padding:0 8px;border:none;background:transparent;border-radius:var(--fai-radius-chip);font:var(--fai-weight-regular) var(--fai-text-sm)/1 var(--fai-font-mono);color:var(--fai-text);cursor:pointer;text-align:left;animation:nsIn 220ms var(--fai-ease-out) both {{ f.delay }}" style-hover="background:var(--fai-surface)">
+                        <span style="display:inline-block;width:16px;height:16px;background:currentColor;color:{{ f.color }};flex:none;-webkit-mask:url({{ f.icon }}) center/contain no-repeat;mask:url({{ f.icon }}) center/contain no-repeat"></span>
+                        <span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ f.name }}</span>
+                        <span style="font:var(--fai-type-meta);color:var(--fai-text-subtle);font-family:var(--fai-font-sans)">{{ f.meta }}</span>
+                        <span style="display:inline-block;width:14px;height:14px;background:currentColor;color:var(--fai-grey-400);-webkit-mask:url(https://api.iconify.design/solar:arrow-right-linear.svg) center/contain no-repeat;mask:url(https://api.iconify.design/solar:arrow-right-linear.svg) center/contain no-repeat"></span>
+                      </button>
+                    </sc-for>
+                    <sc-if value="{{ noFolders }}" hint-placeholder-val="{{ false }}"><div style="animation:nsIn 200ms var(--fai-ease-out) both;padding:14px 8px;font:var(--fai-type-meta);color:var(--fai-text-subtle);text-align:center">No subfolders</div></sc-if>
+                  </div>
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px;border-top:1px solid var(--fai-border-subtle);background:var(--fai-surface)">
+                    <span style="font:var(--fai-weight-regular) var(--fai-text-xs)/1.3 var(--fai-font-mono);color:var(--fai-text-muted);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ browsePathLabel }}</span>
+                    <x-import component-from-global-scope="FlowAIDesignSystem_94b032.Button" variant="primary" size="sm" on-click="{{ useFolder }}" hint-size="auto,30px">Use this folder</x-import>
+                  </div>
+                </div>
+                </div>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-rows:{{ repoRows }};transition:grid-template-rows var(--fai-duration-panel) var(--fai-ease-out)">
+              <div style="min-height:0;overflow:hidden">
+                <div style="transform:translateY({{ repoShift }});opacity:{{ repoOpacity }};pointer-events:{{ repoEvents }};transition:transform var(--fai-duration-panel) var(--fai-ease-out),opacity var(--fai-duration-panel) var(--fai-ease-standard)">
+                  <div style="display:grid;gap:8px">
+                <div style="display:grid;grid-template-columns:minmax(0,1fr) 168px;gap:8px">
+                  <div style="display:flex;align-items:center;gap:8px;height:42px;padding:0 12px;background:var(--fai-surface);border:1px solid var(--fai-border);border-radius:var(--fai-radius-control);box-shadow:var(--fai-shadow-xs)">
+                    <img src="https://unpkg.com/@lobehub/icons-static-svg@latest/icons/github.svg" alt="" width="16" height="16" style="flex:none;opacity:.8">
+                    <input value="{{ repo }}" onChange="{{ onRepoInput }}" spellCheck="false" autoCapitalize="off" placeholder="owner/repository" style="flex:1;min-width:0;border:none;outline:none;background:transparent;font:var(--fai-weight-regular) var(--fai-text-sm)/1.4 var(--fai-font-mono);color:var(--fai-text);padding:0">
+                  </div>
+                  <div data-ns-pop="" style="position:relative">
+                    <button type="button" onClick="{{ toggleBranchesPop }}" disabled="{{ branchDisabled }}" aria-expanded="{{ branchesPopOpen }}" style="width:100%;display:grid;height:42px;padding:0 10px 0 12px;background:{{ branchBg }};border:1px solid var(--fai-border);border-radius:var(--fai-radius-control);box-shadow:var(--fai-shadow-xs);text-align:left;cursor:{{ branchCursor }};color:var(--fai-text);transition:var(--fai-transition-control)">
+                      <span style="grid-area:1/1;display:flex;align-items:center;gap:8px;min-width:0;opacity:{{ brEmptyO }};transform:translateY({{ brEmptyS }});transition:opacity var(--fai-duration-base) var(--fai-ease-standard),transform var(--fai-duration-slow) var(--fai-ease-out);pointer-events:none"><span style="display:inline-block;width:15px;height:15px;background:currentColor;flex:none;color:var(--fai-grey-400);-webkit-mask:url(https://api.iconify.design/solar:branching-paths-down-bold-duotone.svg) center/contain no-repeat;mask:url(https://api.iconify.design/solar:branching-paths-down-bold-duotone.svg) center/contain no-repeat"></span><span style="font:var(--fai-weight-regular) var(--fai-text-sm)/1 var(--fai-font-mono);color:var(--fai-text-subtle)">—</span></span>
+                      <span style="grid-area:1/1;display:flex;align-items:center;gap:8px;min-width:0;opacity:{{ brLoadO }};transform:translateY({{ brLoadS }});transition:opacity var(--fai-duration-base) var(--fai-ease-standard),transform var(--fai-duration-slow) var(--fai-ease-out);pointer-events:none"><span style="width:14px;height:14px;flex:none;border-radius:999px;border:2px solid var(--fai-grey-300);border-top-color:var(--fai-grey-900);animation:nsSpin 700ms linear infinite"></span><span style="font:var(--fai-type-meta);color:var(--fai-text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Fetching branches…</span></span>
+                      <span style="grid-area:1/1;display:flex;align-items:center;gap:8px;min-width:0;opacity:{{ brReadyO }};transform:translateY({{ brReadyS }});transition:opacity var(--fai-duration-base) var(--fai-ease-standard),transform var(--fai-duration-slow) var(--fai-ease-out);pointer-events:none"><span style="display:inline-block;width:15px;height:15px;background:currentColor;flex:none;color:var(--fai-text-subtle);-webkit-mask:url(https://api.iconify.design/solar:branching-paths-down-bold-duotone.svg) center/contain no-repeat;mask:url(https://api.iconify.design/solar:branching-paths-down-bold-duotone.svg) center/contain no-repeat"></span><span style="flex:1;min-width:0;font:var(--fai-weight-regular) var(--fai-text-sm)/1 var(--fai-font-mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ branch }}</span><span style="display:inline-block;width:14px;height:14px;background:currentColor;flex:none;color:var(--fai-text-subtle);-webkit-mask:url(https://api.iconify.design/solar:alt-arrow-down-linear.svg) center/contain no-repeat;mask:url(https://api.iconify.design/solar:alt-arrow-down-linear.svg) center/contain no-repeat"></span></span>
+                    </button>
+                    <sc-if value="{{ branchesPopOpen }}" hint-placeholder-val="{{ false }}">
+                      <div style="position:fixed;left:{{ popX }}px;top:{{ popY }}px;z-index:50;transform:{{ popTransform }}"><div onMouseMove="{{ fhBranchesMove }}" onMouseLeave="{{ fhBranchesLeave }}" style="position:relative;width:240px;background:var(--fai-surface);border:1px solid var(--fai-border);border-radius:var(--fai-radius-lg);box-shadow:var(--fai-shadow-shell);padding:4px;display:grid;gap:2px;animation:nsPop 160ms var(--fai-ease-out) both">
+                        <span style="position:absolute;left:0;top:0;width:{{ fhBranches.w }}px;height:{{ fhBranches.h }}px;transform:translate({{ fhBranches.x }}px,{{ fhBranches.y }}px);opacity:{{ fhBranches.o }};background:var(--fai-grey-50);border-radius:var(--fai-radius-chip);transition:transform var(--fai-duration-instant) var(--fai-ease-standard),opacity var(--fai-duration-fast) var(--fai-ease-standard);pointer-events:none"></span>
+                        <span style="position:absolute;left:4px;right:4px;top:4px;height:36px;transform:translateY(calc({{ branchIdx }} * 38px));background:var(--fai-grey-100);border-radius:var(--fai-radius-chip);transition:transform var(--fai-duration-base) var(--fai-ease-out);pointer-events:none"></span>
+                        <sc-for list="{{ branchItems }}" as="b" hint-placeholder-count="4">
+                          <button type="button" data-fh="1" onClick="{{ b.pick }}" style="animation:nsIn 200ms var(--fai-ease-out) both {{ b.delay }};position:relative;display:flex;align-items:center;gap:9px;width:100%;height:36px;padding:0 8px;background:transparent;border:none;border-radius:var(--fai-radius-chip);cursor:pointer;text-align:left;color:var(--fai-text)">
+                            <span style="display:inline-block;width:14px;height:14px;background:currentColor;flex:none;color:{{ b.color }};-webkit-mask:url(https://api.iconify.design/solar:branching-paths-down-bold-duotone.svg) center/contain no-repeat;mask:url(https://api.iconify.design/solar:branching-paths-down-bold-duotone.svg) center/contain no-repeat"></span>
+                            <span style="flex:1;min-width:0;font:var(--fai-weight-regular) var(--fai-text-sm)/1.2 var(--fai-font-mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ b.name }}</span>
+                            <span style="font:var(--fai-type-meta);color:var(--fai-text-subtle);white-space:nowrap">{{ b.meta }}</span>
+                          </button>
+                        </sc-for>
+                      </div></div>
+                    </sc-if>
+                  </div>
+                </div>
+                <div style="display:flex;align-items:flex-start;gap:8px;padding:9px 10px;background:var(--fai-surface-subtle);border:1px solid var(--fai-border-subtle);border-radius:var(--fai-radius-md)">
+                  <span style="display:inline-block;width:15px;height:15px;background:currentColor;color:var(--fai-blue-500);flex:none;margin-top:1px;-webkit-mask:url(https://api.iconify.design/solar:refresh-bold-duotone.svg) center/contain no-repeat;mask:url(https://api.iconify.design/solar:refresh-bold-duotone.svg) center/contain no-repeat"></span>
+                  <span style="font:var(--fai-type-meta);color:var(--fai-text-muted);text-wrap:pretty;min-width:0">Cloned into <span style="font-family:var(--fai-font-mono);color:var(--fai-text)">{{ cloneTarget }}</span> on each machine, pulled fresh before the agent starts.</span>
+                </div>
+              </div>
+            </div>
+          </section>
+      </div>
+      <div class="fai-comb"></div>
+      <div style="animation:nsIn 260ms var(--fai-ease-out) both 140ms;display:grid;gap:16px">
+        
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:16px 20px">
+          <div style="display:grid;gap:16px;align-content:start;min-width:0"><section style="animation:nsIn 260ms var(--fai-ease-out) both 40ms;display:grid;gap:8px">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="display:inline-block;width:16px;height:16px;background:currentColor;color:var(--fai-violet-500);-webkit-mask:url(https://api.iconify.design/solar:cpu-bolt-bold-duotone.svg) center/contain no-repeat;mask:url(https://api.iconify.design/solar:cpu-bolt-bold-duotone.svg) center/contain no-repeat"></span>
+                <span style="font:var(--fai-type-label)">Model</span>
+              </div>
+              
+            </div>
+            <div role="radiogroup" aria-label="Harness" onMouseMove="{{ fhHarnessMove }}" onMouseLeave="{{ fhHarnessLeave }}" style="position:relative;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2px;padding:3px;background:var(--fai-grey-100);border-radius:var(--fai-radius-md)">
+              <span style="position:absolute;left:0;top:0;width:{{ fhHarness.w }}px;height:{{ fhHarness.h }}px;transform:translate({{ fhHarness.x }}px,{{ fhHarness.y }}px);opacity:{{ fhHarness.o }};background:var(--fai-grey-200);border-radius:var(--fai-radius-sm);transition:transform var(--fai-duration-instant) var(--fai-ease-standard),width var(--fai-duration-instant) var(--fai-ease-standard),height var(--fai-duration-instant) var(--fai-ease-standard),opacity var(--fai-duration-fast) var(--fai-ease-standard);pointer-events:none"></span>
+              <span style="position:absolute;top:3px;bottom:3px;left:3px;width:calc((100% - 12px) / 4);transform:translateX(calc({{ harnessIdx }} * (100% + 2px)));background:var(--fai-surface);border-radius:var(--fai-radius-sm);box-shadow:var(--fai-shadow-raised);transition:transform var(--fai-duration-base) var(--fai-ease-out);pointer-events:none"></span>
+              <sc-for list="{{ harnesses }}" as="h" hint-placeholder-count="4">
+                <button type="button" role="radio" data-fh="1" onClick="{{ h.pick }}" aria-checked="{{ h.on }}" title="{{ h.name }}" style="animation:nsIn 220ms var(--fai-ease-out) both {{ h.delay }};position:relative;display:flex;align-items:center;justify-content:center;gap:6px;height:32px;padding:0 6px;min-width:0;background:transparent;border:none;border-radius:var(--fai-radius-sm);cursor:pointer;color:{{ h.color }};transition:color var(--fai-duration-fast) var(--fai-ease-standard)">
+                  <span style="display:inline-block;width:16px;height:16px;flex:none;background:url({{ h.img }}) center/contain no-repeat"></span>
+                  <span style="font:var(--fai-weight-medium) var(--fai-text-xs)/1 var(--fai-font-sans);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">{{ h.name }}</span>
+                </button>
+              </sc-for>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;height:38px;padding:0 10px;background:var(--fai-surface);border:1px solid {{ searchBorder }};border-radius:var(--fai-radius-control);box-shadow:var(--fai-shadow-xs);transition:var(--fai-transition-control)">
+              <span style="display:inline-block;width:15px;height:15px;background:currentColor;color:var(--fai-text-subtle);flex:none;-webkit-mask:url(https://api.iconify.design/solar:magnifer-linear.svg) center/contain no-repeat;mask:url(https://api.iconify.design/solar:magnifer-linear.svg) center/contain no-repeat"></span>
+              <input value="{{ query }}" onChange="{{ onQuery }}" onKeyDown="{{ onQueryKey }}" onFocus="{{ onSearchFocus }}" onBlur="{{ onSearchBlur }}" spellCheck="false" autoCapitalize="off" autoCorrect="off" placeholder="Search models or paste a custom model id..." style="flex:1;min-width:0;border:none;outline:none;background:transparent;font:var(--fai-weight-regular) var(--fai-text-sm)/1.4 var(--fai-font-sans);color:var(--fai-text);padding:0">
+              <sc-if value="{{ hasQuery }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ clearQuery }}" aria-label="Clear" style="display:inline-flex;width:22px;height:22px;align-items:center;justify-content:center;border:none;background:transparent;color:var(--fai-text-subtle);cursor:pointer;border-radius:var(--fai-radius-xs)" style-hover="color:var(--fai-text)"><span style="display:inline-block;width:14px;height:14px;background:currentColor;-webkit-mask:url(https://api.iconify.design/solar:close-square-linear.svg) center/contain no-repeat;mask:url(https://api.iconify.design/solar:close-square-linear.svg) center/contain no-repeat"></span></button></sc-if>
+            </div>
+            <div class="fai-scroll" onMouseMove="{{ fhModelsMove }}" onMouseLeave="{{ fhModelsLeave }}" style="position:relative;display:grid;gap:2px;align-content:start;height:220px;overflow:auto;padding:4px;background:var(--fai-surface);border:1px solid var(--fai-border);border-radius:var(--fai-radius-md);box-shadow:var(--fai-shadow-xs)">
+              <span style="position:absolute;left:0;top:0;width:{{ fhModels.w }}px;height:{{ fhModels.h }}px;transform:translate({{ fhModels.x }}px,{{ fhModels.y }}px);opacity:{{ fhModels.o }};background:var(--fai-grey-50);border-radius:var(--fai-radius-chip);transition:transform var(--fai-duration-instant) var(--fai-ease-standard),width var(--fai-duration-instant) var(--fai-ease-standard),height var(--fai-duration-instant) var(--fai-ease-standard),opacity var(--fai-duration-fast) var(--fai-ease-standard);pointer-events:none"></span>
+              <span style="position:absolute;left:4px;right:4px;top:4px;height:44px;transform:translateY(calc({{ modelIdx }} * 46px));opacity:{{ modelHiOpacity }};background:var(--fai-grey-100);border-radius:var(--fai-radius-chip);transition:transform var(--fai-duration-base) var(--fai-ease-out),opacity var(--fai-duration-fast) var(--fai-ease-standard);pointer-events:none"></span>
+              <sc-if value="{{ showCustomRow }}" hint-placeholder-val="{{ false }}">
+                <button type="button" data-fh="1" onClick="{{ pickCustom }}" style="position:relative;display:flex;align-items:center;gap:10px;width:100%;height:44px;padding:6px 8px;background:var(--fai-surface);border:1px dashed {{ customBorder }};border-radius:var(--fai-radius-chip);cursor:pointer;text-align:left;color:var(--fai-text);animation:nsIn 220ms var(--fai-ease-out) both" style-hover="background:var(--fai-grey-50)">
+                  <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:var(--fai-radius-chip);background:var(--fai-grey-900);color:#fff;flex:none"><span style="display:inline-block;width:14px;height:14px;background:currentColor;-webkit-mask:url(https://api.iconify.design/solar:code-square-bold-duotone.svg) center/contain no-repeat;mask:url(https://api.iconify.design/solar:code-square-bold-duotone.svg) center/contain no-repeat"></span></span>
+                  <span style="flex:1;min-width:0">
+                    <span style="display:block;font:var(--fai-weight-medium) var(--fai-text-sm)/1.3 var(--fai-font-sans)">Use custom model id</span>
+                    <span style="display:block;font:var(--fai-type-meta);color:var(--fai-text-muted);font-family:var(--fai-font-mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ query }}</span>
+                  </span>
+                  <span style="font:var(--fai-type-meta);color:var(--fai-text-subtle);white-space:nowrap">↵ Enter</span>
+                </button>
+              </sc-if>
+              <sc-for list="{{ visibleModels }}" as="md" hint-placeholder-count="5">
+                <button type="button" data-fh="1" onClick="{{ md.pick }}" aria-pressed="{{ md.on }}" style="position:relative;display:flex;align-items:center;gap:10px;width:100%;height:44px;padding:6px 8px;background:transparent;border:1px solid transparent;border-radius:var(--fai-radius-chip);cursor:pointer;text-align:left;color:var(--fai-text);animation:{{ md.anim }}">
+                  <span style="position:relative;display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:var(--fai-radius-chip);background:var(--fai-surface);box-shadow:0 1px 2px rgba(16,18,20,.07),0 0 0 1px rgba(16,18,20,.035);flex:none;overflow:hidden">
+                    <span style="position:absolute;inset:0;background:url({{ md.img }}) center/16px 16px no-repeat"></span>
+                  </span>
+                  <span style="flex:1;min-width:0">
+                    <span style="display:block;font:var(--fai-weight-medium) var(--fai-text-sm)/1.3 var(--fai-font-sans);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ md.name }}</span>
+                    <span style="display:block;font:var(--fai-type-meta);color:var(--fai-text-subtle);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="font-family:var(--fai-font-mono)">{{ md.id }}</span> · {{ md.vendor }}</span>
+                  </span>
+                  <span style="font:var(--fai-weight-regular) var(--fai-text-xs)/1 var(--fai-font-mono);color:var(--fai-text-subtle);white-space:nowrap">{{ md.ctx }}</span>
+
+                </button>
+              </sc-for>
+              <sc-if value="{{ noResults }}" hint-placeholder-val="{{ false }}">
+                <div style="animation:nsIn 200ms var(--fai-ease-out) both;display:grid;place-items:center;gap:6px;padding:22px 12px;color:var(--fai-text-subtle);font:var(--fai-type-meta);text-align:center">No {{ harnessName }} models match "{{ query }}"</div>
+              </sc-if>
+            </div>
+          </section></div>
+          <div style="display:grid;gap:16px;align-content:start;min-width:0"><section style="animation:nsIn 260ms var(--fai-ease-out) both 80ms;display:grid;gap:8px">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="display:inline-block;width:16px;height:16px;background:currentColor;color:var(--fai-orange-500);-webkit-mask:url(https://api.iconify.design/solar:tuning-2-bold-duotone.svg) center/contain no-repeat;mask:url(https://api.iconify.design/solar:tuning-2-bold-duotone.svg) center/contain no-repeat"></span>
+                <span style="font:var(--fai-type-label)">Effort</span>
+              </div>
+              
+            </div>
+            <div style="position:relative;display:grid;height:56px;padding:10px 12px 10px;background:var(--fai-surface-subtle);border:1px solid var(--fai-border-subtle);border-radius:var(--fai-radius-md);overflow:hidden">
+              <div style="grid-area:1/1;display:grid;align-content:start;opacity:{{ sliderOpacity }};transform:translateY({{ sliderShift }});transition:opacity var(--fai-duration-slow) var(--fai-ease-standard),transform var(--fai-duration-slow) var(--fai-ease-out);pointer-events:{{ sliderEvents }}">
+                <div onPointerDown="{{ onEffortDown }}" onPointerMove="{{ onEffortMove }}" onPointerUp="{{ onEffortUp }}" onPointerCancel="{{ onEffortUp }}" onPointerLeave="{{ onEffortLeave }}" style="position:relative;height:34px;background:var(--fai-surface);border:1px solid {{ effortBoxBorder }};border-radius:var(--fai-radius-control);overflow:hidden;cursor:ew-resize;user-select:none;touch-action:none;transition:var(--fai-transition-control),box-shadow var(--fai-duration-fast) var(--fai-ease-standard);box-shadow:{{ effortBoxShadow }}">
+                  <div style="position:absolute;left:0;top:0;bottom:0;width:calc({{ effortP }} * 100% + {{ effortFillOff }}px);background:var(--fai-grey-100);transition:width var(--fai-duration-base) var(--fai-ease-out);pointer-events:none"></div>
+                  <div style="position:absolute;top:0;bottom:0;left:{{ effortHoverL }}px;width:{{ effortHoverW }}px;opacity:{{ effortHoverO }};background:rgba(59,123,255,.14);transition:opacity var(--fai-duration-fast) var(--fai-ease-standard);pointer-events:none"></div>
+                  <sc-for list="{{ effortStops }}" as="s" hint-placeholder-count="5">
+                    <span style="position:absolute;top:50%;left:calc(12px + (100% - 29px) * {{ s.frac }});width:5px;height:5px;margin-top:-2.5px;border-radius:999px;background:var(--fai-grey-900);opacity:{{ s.pipO }};transition:left var(--fai-duration-base) var(--fai-ease-out),opacity var(--fai-duration-fast) var(--fai-ease-standard);pointer-events:none"></span>
+                  </sc-for>
+                  <div style="position:absolute;top:{{ effortLineInset }}px;bottom:{{ effortLineInset }}px;left:calc({{ effortP }} * 100% + {{ effortLineOff }}px);width:2px;border-radius:1px;background:{{ effortLineColor }};transition:left var(--fai-duration-base) var(--fai-ease-out),top var(--fai-duration-fast) var(--fai-ease-standard),bottom var(--fai-duration-fast) var(--fai-ease-standard),background-color var(--fai-duration-fast) var(--fai-ease-standard);pointer-events:none"></div>
+                  <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;padding:0 10px;pointer-events:none">
+                    <span style="font:var(--fai-weight-medium) var(--fai-text-sm)/1 var(--fai-font-sans);color:{{ effortTextColor }};padding:0 4px;background:{{ effortTextBg }};border-radius:3px;transition:color var(--fai-duration-fast) var(--fai-ease-standard)">Effort</span>
+                    <span style="font:var(--fai-weight-medium) var(--fai-text-sm)/1 var(--fai-font-sans);color:{{ effortTextColor }};text-transform:capitalize;padding:0 4px;background:{{ effortTextBg }};border-radius:3px;font-variant-numeric:tabular-nums;transition:color var(--fai-duration-fast) var(--fai-ease-standard)">{{ effortLabel }}</span>
+                  </div>
+                  <input type="range" min="0" max="{{ effortMax }}" step="1" value="{{ effortIdx }}" onChange="{{ onEffort }}" onInput="{{ onEffort }}" onFocus="{{ onEffortFocus }}" onBlur="{{ onEffortBlur }}" aria-label="Effort" style="position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;pointer-events:none">
+                </div>
+
+              </div>
+              <div style="grid-area:1/1;display:flex;align-items:center;gap:10px;opacity:{{ lockOpacity }};transform:translateY({{ lockShift }});transition:opacity var(--fai-duration-slow) var(--fai-ease-standard),transform var(--fai-duration-slow) var(--fai-ease-out);pointer-events:none">
+                <span style="display:inline-block;width:16px;height:16px;background:currentColor;color:var(--fai-text-subtle);flex:none;-webkit-mask:url(https://api.iconify.design/solar:lock-bold-duotone.svg) center/contain no-repeat;mask:url(https://api.iconify.design/solar:lock-bold-duotone.svg) center/contain no-repeat"></span>
+                <span style="font:var(--fai-type-meta);color:var(--fai-text-muted);text-wrap:pretty">{{ noEffortText }}</span>
+              </div>
+            </div>
+          </section>
+<section style="animation:nsIn 260ms var(--fai-ease-out) both 120ms;display:grid;gap:8px">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="display:inline-block;width:16px;height:16px;background:currentColor;color:var(--fai-green-600);-webkit-mask:url(https://api.iconify.design/solar:shield-keyhole-bold-duotone.svg) center/contain no-repeat;mask:url(https://api.iconify.design/solar:shield-keyhole-bold-duotone.svg) center/contain no-repeat"></span>
+                <span style="font:var(--fai-type-label)">Permission mode</span>
+              </div>
+              
+            </div>
+            <div onMouseMove="{{ fhPermsMove }}" onMouseLeave="{{ fhPermsLeave }}" style="position:relative;display:grid;gap:2px;padding:4px;background:var(--fai-surface);border:1px solid var(--fai-border);border-radius:var(--fai-radius-md);box-shadow:var(--fai-shadow-xs)">
+              <span style="position:absolute;left:0;top:0;width:{{ fhPerms.w }}px;height:{{ fhPerms.h }}px;transform:translate({{ fhPerms.x }}px,{{ fhPerms.y }}px);opacity:{{ fhPerms.o }};background:var(--fai-grey-50);border-radius:var(--fai-radius-chip);transition:transform var(--fai-duration-instant) var(--fai-ease-standard),width var(--fai-duration-instant) var(--fai-ease-standard),height var(--fai-duration-instant) var(--fai-ease-standard),opacity var(--fai-duration-fast) var(--fai-ease-standard);pointer-events:none"></span>
+              <span style="position:absolute;left:4px;right:4px;top:4px;height:44px;transform:translateY(calc({{ permIdx }} * 46px));background:var(--fai-grey-100);border-radius:var(--fai-radius-chip);transition:transform var(--fai-duration-base) var(--fai-ease-out);pointer-events:none"></span>
+              <sc-for list="{{ perms }}" as="pm" hint-placeholder-count="3">
+                <button type="button" data-fh="1" onClick="{{ pm.pick }}" aria-pressed="{{ pm.on }}" style="animation:nsIn 220ms var(--fai-ease-out) both {{ pm.delay }};position:relative;display:flex;align-items:center;gap:10px;width:100%;height:44px;padding:6px 8px;background:transparent;border:1px solid transparent;border-radius:var(--fai-radius-chip);cursor:pointer;text-align:left;color:var(--fai-text)">
+                  <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:var(--fai-radius-chip);background:var(--fai-surface);color:{{ pm.hue }};box-shadow:0 1px 2px rgba(16,18,20,.07),0 0 0 1px rgba(16,18,20,.035);flex:none"><span style="display:inline-block;width:15px;height:15px;background:currentColor;-webkit-mask:url({{ pm.icon }}) center/contain no-repeat;mask:url({{ pm.icon }}) center/contain no-repeat"></span></span>
+                  <span style="flex:1;min-width:0">
+                    <span style="display:block;font:var(--fai-weight-medium) var(--fai-text-sm)/1.3 var(--fai-font-sans)">{{ pm.name }}</span>
+                    <span style="display:block;font:var(--fai-type-meta);color:var(--fai-text-subtle);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ pm.desc }}</span>
+                  </span>
+                  <sc-if value="{{ pm.on }}" hint-placeholder-val="{{ false }}"><span style="display:inline-block;width:16px;height:16px;background:var(--fai-grey-900);flex:none;animation:nsCheck 200ms var(--fai-ease-out) both;-webkit-mask:url(https://api.iconify.design/solar:check-circle-bold.svg) center/contain no-repeat;mask:url(https://api.iconify.design/solar:check-circle-bold.svg) center/contain no-repeat"></span></sc-if>
+                </button>
+              </sc-for>
+            </div>
+          </section></div>
+        </div>
+      </div>
+      
+      </div>
+    </div>
+
+    <div data-ns-footer="" style="flex:none;margin-top:6px;background:var(--fai-surface);border-radius:var(--fai-radius-lg);padding:10px 12px;display:flex;align-items:center;justify-content:flex-end;gap:8px">
+      <div data-ns-summary="" role="radiogroup" aria-label="Session lifetime" style="position:relative;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px;padding:3px;background:var(--fai-grey-200);border-radius:var(--fai-radius-md);margin-right:auto">
+        <span style="position:absolute;top:3px;bottom:3px;left:3px;width:calc((100% - 8px) / 2);transform:translateX(calc({{ lifeIdx }} * (100% + 2px)));background:var(--fai-surface);border-radius:var(--fai-radius-sm);box-shadow:var(--fai-shadow-raised);transition:transform var(--fai-duration-slow) var(--fai-ease-out);pointer-events:none"></span>
+        <button type="button" role="radio" onClick="{{ setEphemeral }}" aria-checked="{{ isEphemeral }}" title="Ephemeral" style="position:relative;display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border:none;background:transparent;border-radius:var(--fai-radius-sm);font:var(--fai-weight-medium) var(--fai-text-sm)/1 var(--fai-font-sans);color:{{ ephColor }};cursor:pointer;white-space:nowrap;transition:var(--fai-transition-control)"><span style="display:inline-block;width:15px;height:15px;background:currentColor;flex:none;color:var(--fai-orange-500);-webkit-mask:url(https://api.iconify.design/solar:fire-bold-duotone.svg) center/contain no-repeat;mask:url(https://api.iconify.design/solar:fire-bold-duotone.svg) center/contain no-repeat"></span><span>Ephemeral</span></button>
+        <button type="button" role="radio" onClick="{{ setPersistent }}" aria-checked="{{ isPersistent }}" title="Persistent" style="position:relative;display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border:none;background:transparent;border-radius:var(--fai-radius-sm);font:var(--fai-weight-medium) var(--fai-text-sm)/1 var(--fai-font-sans);color:{{ perColor }};cursor:pointer;white-space:nowrap;transition:var(--fai-transition-control)"><span style="display:inline-block;width:15px;height:15px;background:currentColor;flex:none;color:var(--fai-blue-500);-webkit-mask:url(https://api.iconify.design/solar:database-bold-duotone.svg) center/contain no-repeat;mask:url(https://api.iconify.design/solar:database-bold-duotone.svg) center/contain no-repeat"></span><span>Persistent</span></button>
+      </div>
+      <x-import component-from-global-scope="FlowAIDesignSystem_94b032.Button" variant="secondary" size="md" hint-size="auto,36px">Cancel</x-import>
+      <x-import component-from-global-scope="FlowAIDesignSystem_94b032.Button" variant="primary" size="md" disabled="{{ cantStart }}" on-click="{{ start }}" hint-size="auto,36px">{{ startLabel }}</x-import>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;harness&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;claude-code&quot;,&quot;options&quot;:[&quot;claude-code&quot;,&quot;codex&quot;,&quot;opencode&quot;,&quot;pi&quot;],&quot;tsType&quot;:&quot;'claude-code'|'codex'|'opencode'|'pi'&quot;,&quot;section&quot;:&quot;Defaults&quot;},&quot;permissionMode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;ask&quot;,&quot;options&quot;:[&quot;ask&quot;,&quot;auto-edit&quot;,&quot;full&quot;],&quot;tsType&quot;:&quot;'ask'|'auto-edit'|'full'&quot;,&quot;section&quot;:&quot;Defaults&quot;},&quot;sessionType&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;persistent&quot;,&quot;options&quot;:[&quot;ephemeral&quot;,&quot;persistent&quot;],&quot;tsType&quot;:&quot;'ephemeral'|'persistent'&quot;,&quot;section&quot;:&quot;Defaults&quot;}}">
+const SOLAR = n => 'https://api.iconify.design/solar:' + n + '-bold-duotone.svg';
+const LOBE = n => 'https://unpkg.com/@lobehub/icons-static-svg@latest/icons/' + n + '.svg';
+
+const MACHINES = [
+  { id: 'm1', name: 'studio-mac', os: 'macOS 15 · M3 Max', icon: 'laptop', status: 'online', load: '2 sessions', hue: 'var(--fai-violet-400)' },
+  { id: 'm2', name: 'gpu-box-01', os: 'Ubuntu 24.04 · RTX 6000', icon: 'server-square', status: 'online', load: 'Idle', hue: 'var(--fai-green-500)' },
+  { id: 'm3', name: 'edge-pi', os: 'Debian 12 · ARM64', icon: 'cpu', status: 'online', load: '1 session', hue: 'var(--fai-cyan-400)' },
+  { id: 'm4', name: 'win-dev', os: 'Windows 11 · i9', icon: 'monitor', status: 'offline', load: 'Offline', hue: 'var(--fai-grey-500)' }
+];
+const PROJECTS = [
+  { id: 'p1', name: 'orchestra', path: '~/code/orchestra', repo: 'acme/orchestra', hue: 'var(--fai-blue-500)' },
+  { id: 'p2', name: 'flowai-web', path: '~/code/flowai-web', repo: 'acme/flowai-web', hue: 'var(--fai-orange-500)' },
+  { id: 'p3', name: 'infra', path: '~/code/infra', repo: 'acme/infra', hue: 'var(--fai-green-500)' }
+];
+const FS = { code: { orchestra: { packages: { api: {}, web: {}, cli: {} }, docs: {} }, 'flowai-web': { src: {}, public: {} }, infra: { terraform: {}, ansible: {} } }, agents: {}, Documents: {}, Downloads: {}, '.config': {} };
+const VENDORS = {
+  anthropic: { name: 'Anthropic', img: 'claude-color' }, openai: { name: 'OpenAI', img: 'openai' }, google: { name: 'Google', img: 'gemini-color' },
+  deepseek: { name: 'DeepSeek', img: 'deepseek-color' }, moonshot: { name: 'Moonshot AI', img: 'kimi-color' }, qwen: { name: 'Qwen', img: 'qwen-color' },
+  xai: { name: 'xAI', img: 'xai' }, zhipu: { name: 'Z.ai', img: 'zhipu-color' }, minimax: { name: 'MiniMax', img: 'minimax-color' },
+  mistral: { name: 'Mistral', img: 'mistral-color' }, custom: { name: 'Custom', img: '' }
+};
+const M = (id, name, vendor, efforts, def, ctx) => ({ id, name, vendor, efforts: efforts || [], def: def || '', ctx: ctx || '' });
+const CLAUDE = [M('claude-opus-4-1', 'Claude Opus 4.1', 'anthropic', ['low', 'medium', 'high', 'max'], 'high', '200K'), M('claude-sonnet-4-5', 'Claude Sonnet 4.5', 'anthropic', ['low', 'medium', 'high'], 'medium', '1M'), M('claude-haiku-4-5', 'Claude Haiku 4.5', 'anthropic', [], '', '200K')];
+const GPT = [M('gpt-5.1-codex', 'GPT-5.1 Codex', 'openai', ['minimal', 'low', 'medium', 'high', 'xhigh'], 'medium', '400K'), M('gpt-5.1', 'GPT-5.1', 'openai', ['minimal', 'low', 'medium', 'high', 'xhigh'], 'medium', '400K'), M('gpt-5-codex-mini', 'GPT-5 Codex Mini', 'openai', ['low', 'medium', 'high'], 'medium', '400K')];
+const OPEN = [
+  M('gemini-2.5-pro', 'Gemini 2.5 Pro', 'google', ['low', 'high'], 'high', '1M'), M('deepseek-v3.2', 'DeepSeek V3.2', 'deepseek', [], '', '128K'), M('deepseek-r1', 'DeepSeek R1', 'deepseek', [], '', '128K'),
+  M('kimi-k2-thinking', 'Kimi K2 Thinking', 'moonshot', [], '', '256K'), M('qwen3-coder-480b', 'Qwen3 Coder 480B', 'qwen', [], '', '256K'), M('grok-code-fast-1', 'Grok Code Fast 1', 'xai', ['low', 'high'], 'low', '256K'),
+  M('glm-4.6', 'GLM-4.6', 'zhipu', [], '', '200K'), M('minimax-m2', 'MiniMax M2', 'minimax', [], '', '200K'), M('devstral-medium', 'Devstral Medium', 'mistral', [], '', '256K')
+];
+const HARNESSES = [
+  { id: 'claude-code', name: 'Claude Code', img: 'claude-color', letter: 'C', models: CLAUDE },
+  { id: 'codex', name: 'Codex', img: 'openai', letter: 'X', models: GPT },
+  { id: 'opencode', name: 'OpenCode', img: 'opencode', letter: 'O', models: [CLAUDE[1], GPT[1]].concat(OPEN) },
+  { id: 'pi', name: 'Pi', img: 'pi', letter: 'π', models: [CLAUDE[0], CLAUDE[1], GPT[0]].concat(OPEN.slice(0, 6)) }
+];
+const PERMS = [
+  { id: 'ask', name: 'Ask before edits', desc: 'Approve every file write and command.', icon: 'shield-check', hue: 'var(--fai-green-500)' },
+  { id: 'auto-edit', name: 'Auto-accept edits', desc: 'Edits run freely; shell commands still ask.', icon: 'pen-new-square', hue: 'var(--fai-blue-500)' },
+  { id: 'full', name: 'Full access', desc: 'No prompts. Use on disposable machines only.', icon: 'danger-triangle', hue: 'var(--fai-orange-500)' }
+];
+
+const SKILLS = [
+  { id: 'review', label: '/review', desc: 'Code review', icon: 'clipboard-check', hue: 'var(--fai-violet-400)' },
+  { id: 'test', label: '/test', desc: 'Write & run tests', icon: 'test-tube', hue: 'var(--fai-green-500)' },
+  { id: 'plan', label: '/plan', desc: 'Plan before editing', icon: 'notes', hue: 'var(--fai-blue-500)' },
+  { id: 'commit', label: '/commit', desc: 'Commit & open PR', icon: 'branching-paths-down', hue: 'var(--fai-orange-500)' }
+];
+const PLUGINS = [
+  { id: 'playwright', label: 'Playwright', icon: 'window-frame', hue: 'var(--fai-green-500)' },
+  { id: 'context7', label: 'Context7', icon: 'book-2', hue: 'var(--fai-cyan-400)' },
+  { id: 'linear', label: 'Linear', icon: 'checklist-minimalistic', hue: 'var(--fai-violet-400)' },
+  { id: 'sentry', label: 'Sentry', icon: 'shield-warning', hue: 'var(--fai-red-500)' }
+];
+const EFFORT_DESC = { minimal: 'Fastest. Almost no reasoning.', low: 'Quick turns, light reasoning.', medium: 'Balanced speed and depth.', high: 'Deeper reasoning, slower turns.', xhigh: 'Maximum reasoning budget.', max: 'Maximum reasoning budget.' };
+const INK = 'var(--fai-grey-900)', BORDER = 'var(--fai-border)', SURF = 'var(--fai-surface)', SEL = 'var(--fai-grey-100)';
+const FH0 = { x: 0, y: 0, w: 0, h: 0, o: 0, i: -1 };
+
+class Component extends DCLogic {
+  state = {
+    machines: ['m1', 'm2'], projects: PROJECTS, project: null, pop: null, popX: 0, popY: 0, popUp: false, np: null, pairing: false, copied: false, menu: null, menuIdx: 0, slideDir: 1, branches: null, effortHover: -1, effortW: 0, effortDrag: false, effortFocus: false, promptFocus: false, fh: {},
+    dirMode: 'dir', dir: '~/code', dirOverride: false, browsing: false, bpath: ['code'],
+    repo: '', branch: 'main',
+    harness: this.props.harness ?? 'claude-code', listHarness: this.props.harness ?? 'claude-code', phase: 'in', gen: 0, query: '', searchFocus: false,
+    model: 'claude-opus-4-1', custom: null, effort: 'high',
+    session: this.props.sessionType ?? 'persistent', perm: this.props.permissionMode ?? 'ask', prompt: ''
+  };
+  componentDidMount() { this._t = setTimeout(() => this.setState({ phase: 'idle' }), 700); this._out = e => { if (this.state.pop && !e.target.closest('[data-ns-pop]')) this.setState({ pop: null, np: null, pairing: false }); }; document.addEventListener('pointerdown', this._out); }
+  componentWillUnmount() { clearTimeout(this._t); clearTimeout(this._t2); clearTimeout(this._t3); clearTimeout(this._tb); clearTimeout(this._tb2); document.removeEventListener('pointerdown', this._out); }
+  componentDidUpdate(prev) {
+    if (prev.harness !== this.props.harness && this.props.harness && this.props.harness !== this.state.harness) this.switchHarness(this.props.harness);
+    if (prev.sessionType !== this.props.sessionType && this.props.sessionType) this.setState({ session: this.props.sessionType });
+    if (prev.permissionMode !== this.props.permissionMode && this.props.permissionMode) this.setState({ perm: this.props.permissionMode });
+  }
+  fixedOrigin(el) {
+    let p = el.parentElement;
+    while (p && p !== document.documentElement) {
+      const cs = getComputedStyle(p);
+      if (cs.transform !== 'none' || cs.filter !== 'none' || (cs.backdropFilter && cs.backdropFilter !== 'none') || (cs.webkitBackdropFilter && cs.webkitBackdropFilter !== 'none') || cs.perspective !== 'none' || /transform|filter/.test(cs.willChange) || /paint|layout|strict|content/.test(cs.contain)) {
+        const r = p.getBoundingClientRect();
+        return { x: r.left + p.clientLeft - p.scrollLeft, y: r.top + p.clientTop - p.scrollTop, w: p.clientWidth, h: p.clientHeight };
+      }
+      p = p.parentElement;
+    }
+    return { x: 0, y: 0, w: window.innerWidth, h: window.innerHeight };
+  }
+  openPop(name, e) {
+    if (this.state.pop === name) return this.setState({ pop: null, np: null, pairing: false });
+    const el = e.currentTarget, r = el.getBoundingClientRect(), o = this.fixedOrigin(el), need = 340;
+    const up = r.bottom + need > window.innerHeight && r.top > need;
+    this.setState({ pop: name, np: null, pairing: false, popX: Math.max(8, Math.min(r.left, window.innerWidth - 336)) - o.x, popY: (up ? r.top - 6 : r.bottom + 6) - o.y, popUp: up });
+  }
+  fetchBranches(repo) {
+    clearTimeout(this._tb); clearTimeout(this._tb2);
+    if (!/^[\w.-]+\/[\w.-]+$/.test(repo.trim())) return this.setState({ branches: null });
+    this._tb = setTimeout(() => {
+      this.setState({ branches: 'loading' });
+      this._tb2 = setTimeout(() => this.setState({ branches: [{ name: 'main', meta: 'default' }, { name: 'develop', meta: '2h ago' }, { name: 'feat/session-modal', meta: '1d ago' }, { name: 'fix/auth-fixation', meta: '3d ago' }, { name: 'release/1.4', meta: '2w ago' }], branch: 'main' }), 1100);
+    }, 450);
+  }
+  editorRef = React.createRef();
+  editorText() { const el = this.editorRef.current; return el ? el.innerText.replace(/\u00a0/g, ' ').trim() : ''; }
+  menuItemsFor(menu) {
+    const q = (menu.query || '').toLowerCase();
+    const s = this.state, hit = t => !q || t.toLowerCase().includes(q);
+    if (menu.type === '@') {
+      return MACHINES.filter(m => m.status === 'online' && hit(m.name)).map(m => ({ key: 'machine:' + m.id, label: m.name, kind: 'Machine', icon: SOLAR(m.icon), hue: m.hue, apply: () => { if (!s.machines.includes(m.id)) this.setState({ machines: s.machines.concat(m.id) }); } }))
+        .concat(s.projects.filter(p => hit(p.name)).map(p => ({ key: 'project:' + p.id, label: p.name, kind: 'Project', icon: SOLAR('folder-with-files'), hue: p.hue, apply: () => this.setState({ project: p.id, dir: p.path, dirOverride: false, repo: p.repo || s.repo, browsing: false }) })));
+    }
+    return SKILLS.filter(k => hit(k.label) || hit(k.desc)).map(k => ({ key: 'skill:' + k.id, label: k.label, kind: 'Skill', icon: SOLAR(k.icon), hue: k.hue, apply: () => {} }))
+      .concat(PLUGINS.filter(p => hit(p.label)).map(p => ({ key: 'plugin:' + p.id, label: p.label, kind: 'Plugin', icon: SOLAR(p.icon), hue: p.hue, apply: () => {} })));
+  }
+  detectTrigger() {
+    const el = this.editorRef.current, sel = window.getSelection();
+    if (!el || !sel || !sel.rangeCount || !el.contains(sel.anchorNode)) return this.state.menu && this.setState({ menu: null });
+    const node = sel.anchorNode, off = sel.anchorOffset;
+    if (node.nodeType !== 3) return this.state.menu && this.setState({ menu: null });
+    const before = node.textContent.slice(0, off);
+    const m = /(^|[\s\u00a0])([@\/])([\w./-]*)$/.exec(before);
+    if (!m) return this.state.menu && this.setState({ menu: null });
+    const r = document.createRange(); r.setStart(node, off); r.collapse(true);
+    const cr = r.getBoundingClientRect(), pr = el.parentElement.getBoundingClientRect();
+    const start = off - m[2].length - m[3].length;
+    const menu = { type: m[2], query: m[3], node, start, end: off, x: Math.max(8, Math.min(cr.left, window.innerWidth - 308)) - this.fixedOrigin(el).x, y: cr.bottom + 6 - this.fixedOrigin(el).y };
+    const items = this.menuItemsFor(menu);
+    this.setState({ menu, menuIdx: Math.min(this.state.menu ? this.state.menuIdx : 0, Math.max(0, items.length - 1)) });
+  }
+  insertChip(item) {
+    const s = this.state, menu = s.menu, el = this.editorRef.current; if (!menu || !el) return;
+    const chip = document.createElement('span');
+    chip.contentEditable = 'false'; chip.dataset.chip = item.key;
+    chip.style.cssText = 'display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 7px 0 5px;margin:0 1px;vertical-align:-5px;border-radius:var(--fai-radius-chip);background:var(--fai-grey-100);border:1px solid var(--fai-border);font:var(--fai-weight-medium) var(--fai-text-sm)/1 var(--fai-font-sans);color:var(--fai-text);white-space:nowrap;user-select:all';
+    chip.innerHTML = '<span style="display:inline-block;width:13px;height:13px;background:' + item.hue + ';-webkit-mask:url(' + item.icon + ') center/contain no-repeat;mask:url(' + item.icon + ') center/contain no-repeat"></span><span>' + item.label + '</span>';
+    const r = document.createRange(); r.setStart(menu.node, menu.start); r.setEnd(menu.node, menu.end); r.deleteContents();
+    const space = document.createTextNode('\u00a0');
+    r.insertNode(space); r.insertNode(chip);
+    const sel = window.getSelection(), after = document.createRange(); after.setStart(space, 1); after.collapse(true); sel.removeAllRanges(); sel.addRange(after);
+    item.apply();
+    this.setState({ menu: null, prompt: this.editorText() });
+  }
+  fh(name, axis) {
+    const move = e => {
+      const c = e.currentTarget, cr = c.getBoundingClientRect();
+      let best = null, bd = Infinity, bi = -1;
+      c.querySelectorAll('[data-fh]').forEach((el, i) => {
+        if (el.disabled) return;
+        const r = el.getBoundingClientRect();
+        const d = axis === 'x' ? Math.abs(e.clientX - (r.left + r.width / 2)) : Math.abs(e.clientY - (r.top + r.height / 2));
+        if (d < bd) { bd = d; best = r; bi = i; }
+      });
+      if (!best) return;
+      const cur = this.state.fh[name];
+      if (cur && cur.o && cur.i === bi) return;
+      this.setState(s => ({ fh: Object.assign({}, s.fh, { [name]: { x: best.left - cr.left + c.scrollLeft, y: best.top - cr.top + c.scrollTop, w: best.width, h: best.height, o: 1, i: bi } }) }));
+    };
+    const leave = () => this.setState(s => ({ fh: Object.assign({}, s.fh, { [name]: Object.assign({}, s.fh[name] || FH0, { o: 0, i: -1 }) }) }));
+    return { [name]: this.state.fh[name] || FH0, [name + 'Move']: move, [name + 'Leave']: leave };
+  }
+  harnessObj(id) { return HARNESSES.find(h => h.id === (id || this.state.listHarness)) || HARNESSES[0]; }
+  currentModel() {
+    const s = this.state;
+    if (s.custom && s.model === s.custom.id) return s.custom;
+    return this.harnessObj().models.find(m => m.id === s.model) || null;
+  }
+  switchHarness(id) {
+    if (id === this.state.harness || this.state.phase === 'out') return;
+    clearTimeout(this._t); clearTimeout(this._t2);
+    const dir = HARNESSES.findIndex(x => x.id === id) > HARNESSES.findIndex(x => x.id === this.state.harness) ? 1 : -1;
+    this.setState({ phase: 'out', harness: id, slideDir: dir });
+    this._t2 = setTimeout(() => {
+      const h = this.harnessObj(id);
+      const keep = h.models.find(m => m.id === this.state.model);
+      const next = keep || h.models[0];
+      this.setState({ listHarness: id, phase: 'in', gen: this.state.gen + 1, query: '', model: next.id, effort: next.def });
+      this._t = setTimeout(() => this.setState({ phase: 'idle' }), 700);
+    }, 200);
+  }
+  pickModel(m) { if (m.id !== this.state.model) this.setState({ model: m.id, effort: m.def || '' }); }
+  nodeAt(path) { return path.reduce((n, k) => (n && n[k]) || {}, FS); }
+  renderVals() {
+    const s = this.state, on = (a, b) => a === b;
+    const selMachines = MACHINES.filter(m => s.machines.includes(m.id));
+    const machines = MACHINES.map((m, i) => {
+      const isOn = s.machines.includes(m.id), off = m.status !== 'online';
+      const prevOn = i > 0 && s.machines.includes(MACHINES[i - 1].id), nextOn = i < MACHINES.length - 1 && s.machines.includes(MACHINES[i + 1].id);
+      const r = 'var(--fai-radius-chip)', radius = (isOn && prevOn ? '0 0' : r + ' ' + r) + ' ' + (isOn && nextOn ? '0 0' : r + ' ' + r);
+      return Object.assign({}, m, {
+        on: isOn, offline: off, icon: SOLAR(m.icon), delay: (80 + i * 45) + 'ms', cursor: off ? 'not-allowed' : 'pointer', opacity: off ? .55 : 1,
+        bg: isOn ? SEL : 'transparent', radius, ring: isOn ? 1 : 0, scale: isOn ? 1 : .94,
+        tileBg: isOn ? INK : SURF, tileFg: isOn ? '#fff' : m.hue, tileShadow: isOn ? 'none' : '0 1px 2px rgba(16,18,20,.07),0 0 0 1px rgba(16,18,20,.035)',
+        dot: off ? 'var(--fai-presence-offline)' : m.load === 'Idle' ? 'var(--fai-presence-online)' : 'var(--fai-presence-away)',
+        toggle: () => this.setState({ machines: isOn ? s.machines.filter(x => x !== m.id) : s.machines.concat(m.id) })
+      });
+    });
+    const proj = s.projects.find(p => p.id === s.project) || null;
+    const projects = s.projects.map((p, i) => Object.assign({}, p, { delay: (i * 35) + 'ms',
+      on: p.id === s.project, bg: p.id === s.project ? SEL : 'transparent', meta: p.repo ? p.path + ' · ' + p.repo : p.path,
+      pick: () => { this.setState({ project: p.id, pop: null, dir: p.path, dirOverride: false, repo: p.repo, browsing: false }); this.fetchBranches(p.repo); }
+    }));
+    const dirLocked = !!proj && !s.dirOverride && s.dirMode === 'dir';
+    const bnode = this.nodeAt(s.bpath), keys = Object.keys(bnode);
+    const folders = keys.map((k, i) => {
+      const n = Object.keys(bnode[k]).length;
+      return { name: k, meta: n ? n + ' folders' : '', icon: SOLAR(k.startsWith('.') ? 'folder' : 'folder'), color: k.startsWith('.') ? 'var(--fai-grey-400)' : 'var(--fai-amber-500)', delay: (i * 22) + 'ms', enter: () => this.setState({ bpath: s.bpath.concat(k) }) };
+    });
+    const crumbs = [{ label: '~', color: s.bpath.length ? 'inherit' : INK, sep: s.bpath.length > 0, go: () => this.setState({ bpath: [] }) }]
+      .concat(s.bpath.map((k, i) => ({ label: k, color: i === s.bpath.length - 1 ? INK : 'inherit', sep: i < s.bpath.length - 1, go: () => this.setState({ bpath: s.bpath.slice(0, i + 1) }) })));
+    const browsePath = '~' + (s.bpath.length ? '/' + s.bpath.join('/') : '');
+
+    const h = this.harnessObj();
+    const harnesses = HARNESSES.map((x, i) => ({ id: x.id, delay: (i * 30) + 'ms', name: x.name, letter: x.letter, img: LOBE(x.img), on: x.id === s.harness, color: x.id === s.harness ? INK : 'var(--fai-text-muted)', pick: () => this.switchHarness(x.id) }));
+    const q = s.query.trim().toLowerCase();
+    const filtered = h.models.filter(m => !q || (m.id + ' ' + m.name + ' ' + VENDORS[m.vendor].name).toLowerCase().includes(q));
+    const list = (s.custom && (!q || s.custom.id.toLowerCase().includes(q)) ? [s.custom] : []).concat(filtered);
+    const visibleModels = list.map((m, i) => {
+      const v = VENDORS[m.vendor] || VENDORS.custom, isOn = m.id === s.model;
+      const anim = s.phase === 'out' ? (s.slideDir > 0 ? 'nsOutL' : 'nsOutR') + ' 160ms var(--fai-ease-standard) both ' + (i * 14) + 'ms' : s.phase === 'in' ? (s.slideDir > 0 ? 'nsInR' : 'nsInL') + ' 260ms var(--fai-ease-out) both ' + (40 + i * 32) + 'ms' : 'none';
+      return { id: m.id, name: m.name, ctx: m.ctx, vendor: v.name, img: v.img ? LOBE(v.img) : 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22/%3E', letter: v.name[0], on: isOn, anim, pick: () => this.pickModel(m) };
+    });
+    const exact = h.models.some(m => m.id.toLowerCase() === q) || (s.custom && s.custom.id.toLowerCase() === q);
+    const showCustomRow = q.length > 2 && !exact;
+    const pickCustom = () => { const c = M(s.query.trim(), s.query.trim(), 'custom'); this.setState({ custom: c, model: c.id, effort: '', query: '' }); };
+
+    const cm = this.currentModel();
+    const efforts = cm ? cm.efforts : [];
+    const effortIdx = Math.max(0, efforts.indexOf(s.effort));
+    const n = efforts.length, frac = i => n > 1 ? i / (n - 1) : 0;
+        const effortStops = [0, 1, 2, 3, 4].map(i => {
+      const live = i < n, e = efforts[i], f = live ? frac(i) : 1;
+      return { label: e || '', frac: f, opacity: live ? 1 : 0, tab: live ? 0 : -1,  color: i === effortIdx ? INK : 'var(--fai-text-subtle)', cell: 'calc((100% - 29px) / ' + Math.max(1, n - 1) + ')', pipO: live && i > effortIdx ? .3 : 0, align: i === 0 ? 'left' : (live ? i === n - 1 : true) ? 'right' : 'center', tx: i === 0 ? '0' : (live ? i === n - 1 : true) ? '-100%' : '-50%', pick: () => live && this.setState({ effort: e }) };
+    });
+    const modelIdx = visibleModels.findIndex(m => m.on) + (showCustomRow ? 1 : 0);
+    const hoverGeom = (() => { const W = s.effortW || 0; if (s.effortHover < 0 || !n || !W) return { l: 0, w: 0 }; const p = frac(effortIdx); const hx = p * W + 20 - 20 * p - (effortIdx === 0 ? 20 : 0); let x = frac(s.effortHover) * W; if (s.effortHover === 0) x = 0; if (s.effortHover === n - 1) x = W; return { l: Math.min(hx, x), w: Math.abs(x - hx) }; })();
+    const vendorName = cm ? (VENDORS[cm.vendor] || VENDORS.custom).name : '';
+    const cantStart = !selMachines.length || !cm || (s.dirMode === 'repo' && !s.repo.trim());
+    const val = (fn) => e => fn(e.target.value);
+
+    const menuItems = (s.menu ? this.menuItemsFor(s.menu) : []).map(it => Object.assign({}, it, { pick: e => { e.preventDefault(); this.insertChip(it); } }));
+    return Object.assign(this.fh('fhMenu', 'y'), this.fh('fhBranches', 'y'), this.fh('fhModels', 'y'), this.fh('fhPerms', 'y'), this.fh('fhHarness', 'x'), this.fh('fhMachines', 'y'), this.fh('fhProjects', 'y'), {
+      machines, machineCountLabel: selMachines.length ? String(selMachines.length).padStart(2, '0') + ' selected' : 'Select at least one',
+      projects, hasProject: !!proj, noProject: !proj, projectName: proj ? proj.name : 'No project', projectRepo: proj ? proj.repo : '',
+      projectNameColor: proj ? INK : 'var(--fai-text-muted)',
+            machinesPopOpen: s.pop === 'machines', projectsPopOpen: s.pop === 'projects', toggleMachinesPop: e => this.openPop('machines', e), popX: s.popX, popY: s.popY, popTransform: s.popUp ? 'translateY(-100%)' : 'none', onBodyScroll: () => { if (s.pop || s.menu) this.setState({ pop: null, menu: null }); },
+      notPairing: !s.pairing, isPairing: s.pairing, startPairing: () => this.setState({ pairing: true, copied: false }), cancelPairing: () => this.setState({ pairing: false }),
+      pairCmd: 'curl -sL orch.sh/join | sh -s -- --token 7f3a-k2m9', copyLabel: s.copied ? 'Copied' : 'Copy',
+      copyPair: () => { try { navigator.clipboard.writeText('curl -sL orch.sh/join | sh -s -- --token 7f3a-k2m9'); } catch (e) {} this.setState({ copied: true }); clearTimeout(this._t3); this._t3 = setTimeout(() => this.setState({ copied: false }), 1600); }, toggleProjectsPop: e => this.openPop('projects', e),
+      notNewProj: !s.np, isNewProj: !!s.np, startNewProj: () => this.setState({ np: { name: '', path: '', repo: '' } }), cancelNewProj: () => this.setState({ np: null }),
+      npName: s.np ? s.np.name : '', npPath: s.np ? s.np.path : '', npRepo: s.np ? s.np.repo : '',
+      onNpName: val(v => this.setState({ np: Object.assign({}, s.np, { name: v, path: s.np.path === '' || s.np.path === '~/code/' + s.np.name.trim().toLowerCase().replace(/\s+/g, '-') ? '~/code/' + v.trim().toLowerCase().replace(/\s+/g, '-') : s.np.path }) })),
+      onNpPath: val(v => this.setState({ np: Object.assign({}, s.np, { path: v }) })), onNpRepo: val(v => this.setState({ np: Object.assign({}, s.np, { repo: v }) })),
+      npInvalid: !s.np || !s.np.name.trim() || !s.np.path.trim(),
+      createProj: () => { const hues = ['var(--fai-violet-400)', 'var(--fai-cyan-400)', 'var(--fai-amber-500)']; const p = { id: 'p' + Date.now(), name: s.np.name.trim(), path: s.np.path.trim(), repo: s.np.repo.trim(), hue: hues[s.projects.length % hues.length] }; this.setState({ projects: s.projects.concat(p), project: p.id, np: null, pop: null, dir: p.path, dirOverride: false, repo: p.repo || s.repo, browsing: false }); },
+      machineChipLabel: selMachines.length === 0 ? 'Select machine' : selMachines.length === 1 ? selMachines[0].name : selMachines.length + ' machines', machineChipColor: selMachines.length ? INK : 'var(--fai-status-expired-fg)', machineChipBorder: selMachines.length ? BORDER : 'var(--fai-status-expired-fg)',
+      promptH: s.promptFocus || s.prompt || s.menu ? '120px' : '44px', promptEmpty: !s.prompt && !s.promptFocus,
+      editorRef: this.editorRef, onEditorInput: () => { this.setState({ prompt: this.editorText() }); this.detectTrigger(); }, onEditorCaret: e => { if (!['ArrowUp', 'ArrowDown', 'Enter', 'Tab', 'Escape'].includes(e.key)) this.detectTrigger(); },
+      onEditorKey: e => {
+        const menu = s.menu; if (!menu) return;
+        const items = this.menuItemsFor(menu);
+        if (e.key === 'ArrowDown') { e.preventDefault(); this.setState({ menuIdx: (s.menuIdx + 1) % Math.max(1, items.length) }); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); this.setState({ menuIdx: (s.menuIdx - 1 + items.length) % Math.max(1, items.length) }); }
+        else if ((e.key === 'Enter' || e.key === 'Tab') && items.length) { e.preventDefault(); this.insertChip(items[s.menuIdx] || items[0]); }
+        else if (e.key === 'Escape') { e.preventDefault(); this.setState({ menu: null }); }
+      },
+      menuOpen: !!s.menu, menuX: s.menu ? s.menu.x : 0, menuY: s.menu ? s.menu.y : 0, menuIdx: s.menuIdx, menuHiOpacity: menuItems.length ? 1 : 0, menuItems, noMenuItems: !menuItems.length, composerBorder: s.promptFocus ? 'var(--fai-grey-400)' : BORDER, composerShadow: s.promptFocus ? '0 0 0 3px var(--fai-focus-ring)' : 'var(--fai-shadow-xs)', onPromptFocus: () => this.setState({ promptFocus: true }), onPromptBlur: () => this.setState({ promptFocus: false }),
+      clearProject: e => { e.stopPropagation(); this.setState({ project: null, dirOverride: false, pop: null }); },
+      repoTabIconO: s.dirMode === 'repo' ? 1 : .6,
+      branchDisabled: !Array.isArray(s.branches), branchCursor: Array.isArray(s.branches) ? 'pointer' : 'default', branchBg: Array.isArray(s.branches) ? SURF : 'var(--fai-grey-50)',
+      brEmptyO: s.branches === null ? 1 : 0, brEmptyS: s.branches === null ? '0' : '-6px', brLoadO: s.branches === 'loading' ? 1 : 0, brLoadS: s.branches === 'loading' ? '0' : '6px', brReadyO: Array.isArray(s.branches) ? 1 : 0, brReadyS: Array.isArray(s.branches) ? '0' : '6px',
+      branchesPopOpen: s.pop === 'branches', toggleBranchesPop: e => this.openPop('branches', e), branchIdx: Array.isArray(s.branches) ? Math.max(0, s.branches.findIndex(b => b.name === s.branch)) : 0,
+      branchItems: (Array.isArray(s.branches) ? s.branches : []).map((b, i) => ({ name: b.name, meta: b.meta, delay: (i * 25) + 'ms', color: b.name === s.branch ? INK : 'var(--fai-text-subtle)', pick: () => this.setState({ branch: b.name, pop: null }) })),
+      isDirMode: s.dirMode === 'dir', isRepoMode: s.dirMode === 'repo', repoRows: s.dirMode === 'repo' ? '1fr' : '0fr', repoShift: s.dirMode === 'repo' ? '0' : '-12px', repoOpacity: s.dirMode === 'repo' ? 1 : 0, repoEvents: s.dirMode === 'repo' ? 'auto' : 'none', setDirMode: () => this.setState({ dirMode: 'dir' }), setRepoMode: () => this.setState({ dirMode: 'repo', browsing: false }),
+      dirTabColor: s.dirMode === 'dir' ? INK : 'var(--fai-text-muted)', tabIdx: s.dirMode === 'dir' ? 0 : 1,
+      repoTabColor: s.dirMode === 'repo' ? INK : 'var(--fai-text-muted)',
+      dir: s.dir, onDirInput: val(v => this.setState({ dir: v })), dirLocked, dirUnlocked: !dirLocked, dirBg: dirLocked ? 'var(--fai-grey-50)' : SURF,
+      overrideDir: () => this.setState({ dirOverride: true }), noMachine: !selMachines.length, browseOpacity: selMachines.length ? 1 : .5,
+      browsing: s.browsing, browseRows: s.browsing ? '1fr' : '0fr', browseLabel: s.browsing ? 'Close' : 'Browse', browseIcon: s.browsing ? SOLAR('alt-arrow-up') .replace('-bold-duotone', '-linear') : SOLAR('magnifer').replace('-bold-duotone', '-linear'), openBrowse: () => this.setState({ browsing: !s.browsing }), closeBrowse: () => this.setState({ browsing: false }),
+      browseMachine: selMachines.length ? selMachines[0].name : '', crumbs, folders, noFolders: !keys.length, canGoUp: s.bpath.length > 0, goUp: () => this.setState({ bpath: s.bpath.slice(0, -1) }),
+      browsePathLabel: browsePath, useFolder: () => this.setState({ dir: browsePath, browsing: false, dirOverride: true }),
+      repo: s.repo, branch: s.branch || 'main', onRepoInput: val(v => { this.setState({ repo: v }); this.fetchBranches(v); }),
+      cloneTarget: s.dir || '~',
+      harnesses, harnessIdx: HARNESSES.findIndex(x => x.id === s.harness), harnessName: h.name,
+      query: s.query, hasQuery: !!s.query, onQuery: val(v => this.setState({ query: v })), clearQuery: () => this.setState({ query: '' }),
+      onQueryKey: e => { if (e.key === 'Enter' && showCustomRow) pickCustom(); if (e.key === 'Escape') this.setState({ query: '' }); },
+      onSearchFocus: () => this.setState({ searchFocus: true }), onSearchBlur: () => this.setState({ searchFocus: false }), searchBorder: s.searchFocus ? 'var(--fai-grey-400)' : BORDER,
+      visibleModels, modelIdx: Math.max(0, modelIdx), modelHiOpacity: s.phase === 'out' || visibleModels.findIndex(m => m.on) < 0 ? 0 : 1, showCustomRow, pickCustom, customBorder: 'var(--fai-grey-400)', noResults: !visibleModels.length && !showCustomRow,
+      hideImg: e => { e.currentTarget.style.display = 'none'; },
+      effortStops, sliderOpacity: n ? 1 : 0, sliderShift: n ? '0' : '-6px', sliderEvents: n ? 'auto' : 'none', lockOpacity: n ? 0 : 1, lockShift: n ? '6px' : '0', effortIdx, effortMax: Math.max(0, n - 1), effortCount: Math.max(1, n), effortFrac: frac(effortIdx), 
+      onEffortMove: e => { if (!n) return; const el = e.currentTarget, r = el.getBoundingClientRect(), W = el.clientWidth; const f = Math.min(1, Math.max(0, (e.clientX - r.left) / Math.max(1, W))); const idx = Math.round(f * (n - 1)); if (s.effortDrag) { if (efforts[idx] !== s.effort) this.setState({ effort: efforts[idx], effortW: W }); } else if (idx !== s.effortHover || W !== s.effortW) this.setState({ effortHover: idx, effortW: W }); },
+      onEffortDown: e => { if (!n || (e.pointerType === 'mouse' && e.button !== 0)) return; e.preventDefault(); const el = e.currentTarget, r = el.getBoundingClientRect(), W = el.clientWidth; const f = Math.min(1, Math.max(0, (e.clientX - r.left) / Math.max(1, W))); const idx = Math.round(f * (n - 1)); try { el.setPointerCapture(e.pointerId); } catch (x) {} this.setState({ effort: efforts[idx], effortDrag: true, effortHover: -1, effortW: W }); },
+      onEffortUp: () => this.setState({ effortDrag: false, effortHover: -1 }), onEffortLeave: () => { if (!s.effortDrag) this.setState({ effortHover: -1 }); },
+      onEffortFocus: () => this.setState({ effortFocus: true }), onEffortBlur: () => this.setState({ effortFocus: false }),
+      effortP: frac(effortIdx), effortFillOff: 20 - 20 * frac(effortIdx) - (effortIdx === 0 ? 20 : 0), effortLineOff: 11 - 24 * frac(effortIdx), effortLineInset: s.effortHover >= 0 || s.effortDrag || s.effortFocus ? 7 : 8, effortLineColor: s.effortFocus || s.effortDrag ? INK : s.effortHover >= 0 ? 'rgba(16,18,20,.5)' : 'rgba(16,18,20,.25)',
+      effortBoxBorder: s.effortFocus ? 'var(--fai-grey-400)' : BORDER, effortBoxShadow: s.effortFocus ? '0 0 0 3px var(--fai-focus-ring)' : 'none', effortTextColor: s.effortHover >= 0 || s.effortDrag || s.effortFocus ? INK : 'var(--fai-text-muted)', effortTextBg: 'transparent',
+      effortHoverO: s.effortHover >= 0 && !s.effortDrag && s.effortHover !== effortIdx ? 1 : 0, effortHoverL: hoverGeom.l, effortHoverW: hoverGeom.w,
+      effortLabel: efforts[effortIdx] || '',  onEffort: e => this.setState({ effort: efforts[+e.target.value] }),
+            noEffortText: cm ? (cm.vendor === 'custom' ? 'Effort is unknown for custom model ids. The harness default applies.' : vendorName + ' does not expose an effort setting for ' + cm.name + '. It runs at the model default.') : 'Pick a model to see effort levels.',
+      perms: PERMS.map((p, i) => Object.assign({}, p, { icon: SOLAR(p.icon), delay: (i * 35) + 'ms', on: p.id === s.perm, pick: () => this.setState({ perm: p.id }) })), permIdx: PERMS.findIndex(p => p.id === s.perm),
+      isEphemeral: s.session === 'ephemeral', isPersistent: s.session === 'persistent', setEphemeral: () => this.setState({ session: 'ephemeral' }), setPersistent: () => this.setState({ session: 'persistent' }),
+      lifeIdx: s.session === 'ephemeral' ? 0 : 1, ephColor: s.session === 'ephemeral' ? INK : 'var(--fai-text-muted)', perColor: s.session === 'persistent' ? INK : 'var(--fai-text-muted)',
+      prompt: s.prompt,
+            cantStart, startLabel: selMachines.length > 1 ? 'Start ' + selMachines.length + ' Sessions' : 'Start Session', start: () => {}
+    });
+  }
+}
+</script>
+</body>
+</html>

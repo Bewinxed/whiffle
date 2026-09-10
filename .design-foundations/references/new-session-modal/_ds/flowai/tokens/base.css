@@ -1,0 +1,22 @@
+/* FlowAI — base element styles + two brand utilities (icon mask, comb rule). */
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;font:var(--fai-type-body);color:var(--fai-text);background:var(--fai-app-bg);-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4,p{margin:0}
+button{font:inherit;color:inherit}
+a{color:var(--fai-text-link);text-decoration:none}
+a:hover{color:var(--fai-blue-500);text-decoration:underline;text-underline-offset:2px}
+:focus-visible{outline:2px solid var(--fai-focus-ring);outline-offset:1px}
+::selection{background:var(--fai-blue-100)}
+
+/* Iconography: Lucide (CDN), tinted with currentColor via mask so one component covers the set. */
+.fai-icon{display:inline-block;width:1em;height:1em;flex:none;background-color:currentColor;-webkit-mask:var(--fai-icon-url) center/contain no-repeat;mask:var(--fai-icon-url) center/contain no-repeat}
+
+/* Comb rule: the signature hairline tick row that sits under every section-card header. */
+.fai-comb{height:14px;background-image:repeating-linear-gradient(to right,var(--fai-grey-300) 0 1px,transparent 1px 6px);background-repeat:no-repeat;background-size:100% 100%}
+.fai-comb--dense{background-image:repeating-linear-gradient(to right,var(--fai-grey-300) 0 1px,transparent 1px 4px)}
+
+/* Product scrollbars are thin and neutral. */
+.fai-scroll{scrollbar-width:thin;scrollbar-color:var(--fai-grey-300) transparent}
+.fai-scroll::-webkit-scrollbar{width:8px;height:8px}
+.fai-scroll::-webkit-scrollbar-thumb{background:var(--fai-grey-300);border-radius:999px;border:2px solid transparent;background-clip:content-box}
+.fai-scroll::-webkit-scrollbar-track{background:transparent}

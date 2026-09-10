@@ -63,7 +63,7 @@
   import NewProjectPopover from "./NewProjectPopover.svelte";
   import OsMark from "./OsMark.svelte";
   import { type RailSort, rail } from "./rail.svelte";
-  import SpawnPanel from "./SpawnPanel.svelte";
+  import NewSessionDialog from "./spawn/NewSessionDialog.svelte";
   import UsageMeter from "./UsageMeter.svelte";
   import { workspace } from "./workspace/workspace.svelte";
 
@@ -986,7 +986,7 @@
 </div>
 <!-- end flex column wrapper -->
 
-<SpawnPanel
+<NewSessionDialog
   onclose={() => {
     spawnOpen = false;
   }}

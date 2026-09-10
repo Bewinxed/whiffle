@@ -593,9 +593,7 @@
      into an inset shadow so the chosen tab's sheet can cross it. The right
      cluster keeps its size — the well is what gives way, by scrolling. */
   .top.hosting {
-    padding-left: 0;
-    border-bottom: 0;
-    box-shadow: inset 0 -1px 0 var(--border-hairline);
+    padding-left: var(--space-4);
   }
   .burger {
     width: 44px;

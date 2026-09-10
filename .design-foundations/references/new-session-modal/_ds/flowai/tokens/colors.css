@@ -1,0 +1,89 @@
+/* FlowAI — color primitives + semantic aliases. Values sampled from the source product screenshots. */
+:root{
+/* neutrals — warm-free, very slightly cool greys */
+--fai-white:#ffffff;
+--fai-grey-25:#fbfbfb;
+--fai-grey-50:#f7f8f8;
+--fai-grey-100:#f2f3f3;
+--fai-grey-150:#ededee;
+--fai-grey-200:#e8e9ea;
+--fai-grey-300:#d8dadb;
+--fai-grey-400:#b3b7ba;
+--fai-grey-500:#9ca1a6;
+--fai-grey-600:#6e7378;
+--fai-grey-700:#4a4f54;
+--fai-grey-800:#2c2f32;
+--fai-grey-900:#1f2224;
+--fai-ink:#111315;
+
+/* brand accents seen in product */
+--fai-blue-50:#eaf0ff;
+--fai-blue-100:#dbe6ff;
+--fai-blue-500:#3b7bff;
+--fai-blue-600:#2f5ce6;
+--fai-green-50:#dcfce7;
+--fai-green-500:#22c55e;
+--fai-green-600:#16a34a;
+--fai-green-700:#15803d;
+--fai-amber-50:#fef3c7;
+--fai-amber-400:#f5c33b;
+--fai-amber-500:#f0ad1f;
+--fai-amber-700:#b45309;
+--fai-orange-50:#ffedd5;
+--fai-orange-500:#f97316;
+--fai-red-50:#fee2e2;
+--fai-red-400:#f87171;
+--fai-red-500:#ef4444;
+--fai-red-600:#dc2626;
+--fai-cyan-400:#38bdf8;
+--fai-cyan-500:#14b0e0;
+--fai-violet-400:#818cf8;
+--fai-violet-500:#6366f1;
+
+/* semantic — surfaces */
+--fai-desk:#ececec;
+--fai-app-bg:#f4f5f5;
+--fai-surface:var(--fai-white);
+--fai-surface-subtle:var(--fai-grey-50);
+--fai-surface-muted:var(--fai-grey-100);
+--fai-surface-sunken:var(--fai-grey-150);
+--fai-surface-inverse:var(--fai-grey-900);
+
+/* semantic — text */
+--fai-text:var(--fai-grey-900);
+--fai-text-strong:var(--fai-ink);
+--fai-text-muted:var(--fai-grey-600);
+--fai-text-subtle:var(--fai-grey-500);
+--fai-text-disabled:var(--fai-grey-400);
+--fai-text-inverse:var(--fai-white);
+--fai-text-link:var(--fai-blue-600);
+
+/* semantic — borders */
+--fai-border:var(--fai-grey-200);
+--fai-border-subtle:var(--fai-grey-150);
+--fai-border-strong:var(--fai-grey-300);
+--fai-focus-ring:rgba(59,123,255,.28);
+
+/* semantic — status */
+--fai-status-active-bg:var(--fai-green-50);
+--fai-status-active-fg:var(--fai-green-700);
+--fai-status-paused-bg:var(--fai-amber-50);
+--fai-status-paused-fg:var(--fai-amber-700);
+--fai-status-expired-bg:var(--fai-red-50);
+--fai-status-expired-fg:var(--fai-red-600);
+--fai-status-draft-bg:var(--fai-grey-100);
+--fai-status-draft-fg:var(--fai-grey-600);
+--fai-status-info-bg:var(--fai-blue-50);
+--fai-status-info-fg:var(--fai-blue-600);
+
+/* presence dots */
+--fai-presence-online:var(--fai-green-500);
+--fai-presence-away:var(--fai-orange-500);
+--fai-presence-offline:var(--fai-grey-400);
+--fai-presence-pending:var(--fai-amber-400);
+
+/* metric deltas */
+--fai-metric-up:var(--fai-green-600);
+--fai-metric-down:var(--fai-red-500);
+--fai-metric-warn:var(--fai-amber-700);
+}

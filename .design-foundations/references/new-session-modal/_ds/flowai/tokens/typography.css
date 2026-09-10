@@ -1,0 +1,40 @@
+/* FlowAI — type scale. One family (Geist) across the whole product; mono only for keys/IDs. */
+:root{
+--fai-font-sans:"Geist","Geist Placeholder",-apple-system,"Segoe UI",sans-serif;
+--fai-font-mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+
+--fai-weight-light:300;
+--fai-weight-regular:400;
+--fai-weight-medium:500;
+--fai-weight-semibold:600;
+--fai-weight-bold:700;
+
+/* sizes (px, product is a fixed-density desktop app) */
+--fai-text-micro:11px;
+--fai-text-xs:12px;
+--fai-text-sm:13px;
+--fai-text-base:14px;
+--fai-text-md:15px;
+--fai-text-lg:16px;
+--fai-text-xl:20px;
+--fai-text-2xl:24px;
+--fai-text-3xl:28px;
+
+--fai-leading-tight:1.15;
+--fai-leading-snug:1.3;
+--fai-leading-normal:1.45;
+--fai-leading-relaxed:1.6;
+
+--fai-tracking-tight:-0.02em;
+--fai-tracking-snug:-0.01em;
+--fai-tracking-normal:0;
+--fai-tracking-wide:0.04em;
+
+/* semantic roles */
+--fai-type-page-title:var(--fai-weight-semibold) var(--fai-text-xl)/1.25 var(--fai-font-sans);
+--fai-type-card-title:var(--fai-weight-medium) var(--fai-text-lg)/1.3 var(--fai-font-sans);
+--fai-type-metric:var(--fai-weight-medium) var(--fai-text-2xl)/1.15 var(--fai-font-sans);
+--fai-type-body:var(--fai-weight-regular) var(--fai-text-base)/1.45 var(--fai-font-sans);
+--fai-type-label:var(--fai-weight-medium) var(--fai-text-sm)/1.3 var(--fai-font-sans);
+--fai-type-meta:var(--fai-weight-regular) var(--fai-text-xs)/1.35 var(--fai-font-sans);
+}

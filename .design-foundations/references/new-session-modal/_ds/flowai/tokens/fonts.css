@@ -1,0 +1,4 @@
+/* FlowAI webfonts. NOTE: source files were screenshots only — no font binaries were provided.
+   Geist / Geist Mono (Google Fonts) is the closest match to the grotesque in the source UI.
+   Replace this @import with local @font-face rules if the real binaries become available. */
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap");

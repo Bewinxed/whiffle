@@ -1,0 +1,13 @@
+/* FlowAI — motion. Short, flat, no bounce. Colour/opacity only on hover; 1% press scale at most. */
+:root{
+--fai-ease-standard:cubic-bezier(.2,.8,.3,1); /* @kind other */
+--fai-ease-out:cubic-bezier(.16,1,.3,1); /* @kind other */
+--fai-ease-in-out:cubic-bezier(.4,0,.2,1); /* @kind other */
+--fai-duration-instant:80ms; /* @kind other */
+--fai-duration-fast:120ms; /* @kind other */
+--fai-duration-base:160ms; /* @kind other */
+--fai-duration-slow:240ms; /* @kind other */
+--fai-duration-panel:280ms; /* @kind other */
+--fai-transition-control:background-color var(--fai-duration-fast) var(--fai-ease-standard),border-color var(--fai-duration-fast) var(--fai-ease-standard),color var(--fai-duration-fast) var(--fai-ease-standard);
+--fai-press-scale:.99; /* @kind other */
+}

@@ -1,0 +1,19 @@
+/* FlowAI — corner radii. Nested-rounding: outer shell 20, cards 14, inner rows 10, chips 8. */
+:root{
+--fai-radius-xs:5px;
+--fai-radius-sm:8px;
+--fai-radius-md:10px;
+--fai-radius-lg:12px;
+--fai-radius-xl:14px;
+--fai-radius-2xl:18px;
+--fai-radius-3xl:20px;
+--fai-radius-pill:999px;
+
+--fai-radius-control:var(--fai-radius-md);
+--fai-radius-card:var(--fai-radius-xl);
+--fai-radius-row:var(--fai-radius-md);
+--fai-radius-chip:var(--fai-radius-sm);
+--fai-radius-badge:var(--fai-radius-sm);
+--fai-radius-shell:var(--fai-radius-3xl);
+--fai-radius-modal:var(--fai-radius-2xl);
+}
