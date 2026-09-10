@@ -4772,6 +4772,13 @@ export const createServer = ({
             from,
           },
         } satisfies Envelope);
+        // Settled here for the same reason a dashboard's control settles it in
+        // `relayControl`: the ask is answered whoever answered it. Without
+        // this the hub kept parking a question the harness had already moved
+        // past — offered again to the next dashboard that connected, and left
+        // live in Telegram for an answer that could no longer land.
+        telegram?.onSettled(requestId);
+        pending.resolve(requestId);
         recordDelegateAnswer(row.machineId, instanceId, requestId, result);
         return { ok: true };
       })
