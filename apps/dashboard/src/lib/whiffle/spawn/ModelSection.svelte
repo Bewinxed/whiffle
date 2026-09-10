@@ -71,11 +71,19 @@
   };
   const harnessName = (kind: HarnessKind) =>
     TABS.find((tab) => tab.id === kind)?.name ?? kind;
-  /** Exit and entrance run over each other; these are the two staggers. */
-  const OUT_MS = 160;
-  const OUT_STAGGER = 14;
-  const IN_MS = 260;
-  const IN_STAGGER = 32;
+  /**
+   * Exit and entrance run over each other. The entrance takes a short lead so
+   * the exit is visibly under way first — overlapping them without one made
+   * the whole swap land ~240ms sooner than before and read as hurried.
+   */
+  const OUT_MS = 200;
+  const OUT_STAGGER = 18;
+  const IN_LEAD = 80;
+  const IN_MS = 300;
+  const IN_STAGGER = 40;
+  /** Rows past this all leave together; a stagger that keeps growing down a
+      forty-model list is a wait, not a rhythm. */
+  const STAGGER_CAP = 9;
   /** How many leaving rows keep animating. The list shows about five. */
   const LEAVING = 8;
   let listHarness = $state<HarnessKind>(untrack(() => harness));
@@ -134,7 +142,7 @@
       () => {
         phase = "idle";
       },
-      reducedMotion.current ? 0 : 700
+      reducedMotion.current ? 0 : IN_LEAD + STAGGER_CAP * IN_STAGGER + IN_MS
     );
     return () => clearTimeout(idle);
   });
@@ -218,7 +226,8 @@
     if (phase !== "in") {
       return "none";
     }
-    return `${slideDir > 0 ? "ns-in-r" : "ns-in-l"} ${IN_MS}ms var(--ns-ease-out) both ${i * IN_STAGGER}ms`;
+    const step = Math.min(i, STAGGER_CAP);
+    return `${slideDir > 0 ? "ns-in-r" : "ns-in-l"} ${IN_MS}ms var(--ns-ease-out) both ${IN_LEAD + step * IN_STAGGER}ms`;
   }
   const leaveAnim = (i: number) =>
     `${slideDir > 0 ? "ns-out-l" : "ns-out-r"} ${OUT_MS}ms var(--ns-ease-out) both ${i * OUT_STAGGER}ms`;

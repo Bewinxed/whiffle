@@ -100,8 +100,14 @@
 
   /* Tunable durations/distances. The route's DialKit panel writes the same
      names on :root while the modal is open; these are the design defaults. */
-  --ns-pop-ms: 160ms;
-  --ns-pop-scale: 0.95;
+  /* The popover's own entrance. `--ns-ease-out` is easeOutQuint — it spends
+     ~70% of its travel in the first 25ms, so a 160ms/0.95 pop was over before
+     the eye caught it and read as no animation at all. This is longer, travels
+     further, and uses the gentler drawer curve. */
+  --ns-pop-ms: 260ms;
+  --ns-pop-scale: 0.92;
+  --ns-pop-rise: 8px;
+  --ns-ease-pop: cubic-bezier(0.32, 0.72, 0, 1);
   --ns-menu-ms: 140ms;
   --ns-swap-out-ms: 160ms;
   --ns-swap-out-stagger: 14ms;
@@ -393,15 +399,18 @@
   outline: none;
   opacity: 1;
   scale: 1;
+  translate: 0 0;
   transform-origin: var(--bits-popover-content-transform-origin, top left);
   transition:
-    opacity var(--ns-pop-ms) var(--ns-ease-out),
-    scale var(--ns-pop-ms) var(--ns-ease-out);
+    opacity var(--ns-pop-ms) var(--ns-ease-pop),
+    scale var(--ns-pop-ms) var(--ns-ease-pop),
+    translate var(--ns-pop-ms) var(--ns-ease-pop);
 }
 @starting-style {
   .ns-theme.ns-pop {
     opacity: 0;
     scale: var(--ns-pop-scale);
+    translate: 0 calc(-1 * var(--ns-pop-rise));
   }
 }
 /*

@@ -423,17 +423,6 @@
       // A stale saved directory leaves the location free for a fresh choice.
     }
   }
-  let focused = false;
-  $effect(() => {
-    if (!open) {
-      focused = false;
-      return;
-    }
-    if (!focused) {
-      focused = true;
-      tick().then(() => untrack(() => editor?.focus()));
-    }
-  });
   $effect(() => {
     const ids = machineIds;
     const path = cwd;
@@ -752,7 +741,7 @@
       class="session-card ns-theme"
       data-ns-dialog
       inert={busy}
-      onOpenAutoFocus={(event) => { event.preventDefault(); editor?.focus(); }}
+      onOpenAutoFocus={(event) => { event.preventDefault(); card?.focus(); }}
       bind:ref={card}
     >
       <DialogTitle class="sr-only">New session</DialogTitle>

@@ -1,8 +1,13 @@
 <script lang="ts">
   /**
-   * The effort slider (§1.7, §2.10), ported with the design's formulas as they
-   * are (decision §8.3). Pointer drives the track; the hidden range input keeps
-   * keyboard and screen readers.
+   * The effort slider (§1.7, §2.10). The level rides the slider's tip in a
+   * knob rather than being stamped at the track's right edge, so the reading
+   * and the thing being read are the same object.
+   *
+   * Every position — knob, fill edge, pip, hover preview — comes off one
+   * anchor formula, `RAIL_INSET + fraction * (100% - 2 * RAIL_INSET)`. The
+   * design's per-element pixel offsets did not agree with each other, which is
+   * why the label used to sit off the tip and overlap the stops.
    */
   import type { EffortLevel } from "@whiffle/core";
 
@@ -16,6 +21,12 @@
     value: EffortLevel | null;
     onchange: (level: EffortLevel) => void;
   } = $props();
+
+  /** Breathing room at each end so the knob never kisses the track's border. */
+  const RAIL_INSET = 3;
+  const anchor = (fraction: number) =>
+    `calc(${RAIL_INSET}px + ${fraction} * (100% - ${RAIL_INSET * 2}px))`;
+
   const n = $derived(efforts.length);
   const effortIdx = $derived(
     Math.max(0, efforts.indexOf(value as EffortLevel))
@@ -25,50 +36,27 @@
   let hover = $state(-1);
   let drag = $state(false);
   let focused = $state(false);
-  let width = $state(0);
-  const stops = $derived(
-    [0, 1, 2, 3, 4].map((i) => {
-      if (!n) {
-        return { frac: i / 4, pipO: 0.3 };
-      }
-      const live = i < n;
-      return {
-        frac: live ? frac(i) : 1,
-        pipO: live && i > effortIdx ? 0.3 : 0,
-      };
-    })
-  );
-  const fillOff = $derived(20 - 20 * p - (effortIdx === 0 ? 20 : 0));
-  const lineOff = $derived(11 - 24 * p);
   const active = $derived(hover >= 0 || drag || focused);
-  const lineInset = $derived(active ? 7 : 8);
-  const lineColor = $derived.by(() => {
-    if (focused || drag) {
-      return "var(--fai-grey-900)";
+  /** Stops still ahead of the level, so the track says where else it can go. */
+  const pips = $derived(
+    efforts.map((_, i) => ({ frac: frac(i), on: i > effortIdx }))
+  );
+  const preview = $derived.by(() => {
+    if (hover < 0 || drag || hover === effortIdx) {
+      return { from: 0, span: 0 };
     }
-    return hover >= 0
-      ? "oklch(from var(--fai-grey-900) l c h / 0.5)"
-      : "oklch(from var(--fai-grey-900) l c h / 0.25)";
+    const to = frac(hover);
+    return { from: Math.min(p, to), span: Math.abs(to - p) };
   });
-  const hoverGeom = $derived.by(() => {
-    if (hover < 0 || !n || !width) {
-      return { l: 0, w: 0 };
-    }
-    const hx = p * width + 20 - 20 * p - (effortIdx === 0 ? 20 : 0);
-    const edge = hover === 0 ? 0 : width;
-    const x = hover === 0 || hover === n - 1 ? edge : frac(hover) * width;
-    return { l: Math.min(hx, x), w: Math.abs(x - hx) };
-  });
-  const hoverO = $derived(hover >= 0 && !drag && hover !== effortIdx ? 1 : 0);
   const label = $derived(n ? (efforts[effortIdx] ?? "") : "Default");
 
   function indexAt(event: PointerEvent) {
     const el = event.currentTarget as HTMLElement;
-    const r = el.getBoundingClientRect();
-    width = el.clientWidth;
+    const box = el.getBoundingClientRect();
+    const rail = Math.max(1, box.width - RAIL_INSET * 2);
     const f = Math.min(
       1,
-      Math.max(0, (event.clientX - r.left) / Math.max(1, el.clientWidth))
+      Math.max(0, (event.clientX - box.left - RAIL_INSET) / rail)
     );
     return Math.round(f * (n - 1));
   }
@@ -126,30 +114,37 @@
       role="presentation"
       class:focus={focused}
     >
-      <div
-        class="fill"
-        style={`width:calc(${p} * 100% + ${fillOff}px);opacity:${n ? 1 : 0}`}
-      ></div>
+      <div class="fill" style={`width:${anchor(p)};opacity:${n ? 1 : 0}`}></div>
       <div
         class="preview"
-        style={`left:${hoverGeom.l}px;width:${hoverGeom.w}px;opacity:${hoverO}`}
+        style={`left:${anchor(preview.from)};width:calc(${preview.span} * (100% - ${RAIL_INSET * 2}px))`}
       ></div>
-      {#each stops as stop, i (i)}
+      {#each pips as pip, i (i)}
         <span
           class="pip"
           data-pip={i}
-          style={`left:calc(12px + (100% - 29px) * ${stop.frac});opacity:${stop.pipO}`}
+          style={`left:calc(${anchor(pip.frac)} - 2.5px);opacity:${pip.on ? 0.3 : 0}`}
         ></span>
       {/each}
+      <!-- The knob is the readout: it carries the level's name and a meter of
+           as many bars as the model actually offers, and it travels. -->
       <div
-        class="line"
-        data-effort-line
-        style={`top:${lineInset}px;bottom:${lineInset}px;left:calc(${p} * 100% + ${lineOff}px);background:${lineColor};opacity:${n ? 1 : 0}`}
-      ></div>
-      <!-- The section header above already says "Effort"; the track shows the
-           level it is on, nothing else. -->
-      <div class="labels">
-        <span class="lbl value" class:ink={active}>{label}</span>
+        class="knob"
+        style={`left:${anchor(p)};transform:translateX(calc(${p} * -100%));opacity:${n ? 1 : 0.7}`}
+        class:active={active}
+      >
+        {#if n}
+          <span aria-hidden="true" class="meter">
+            {#each efforts as level, i (level)}
+              <span
+                class="bar"
+                style={`height:${4 + (n > 1 ? i / (n - 1) : 1) * 8}px`}
+                class:lit={i <= effortIdx}
+              ></span>
+            {/each}
+          </span>
+        {/if}
+        <span class="lvl">{label}</span>
       </div>
       <input
         aria-label="Effort"
@@ -213,7 +208,7 @@
     top: 0;
     bottom: 0;
     background: var(--fai-fill);
-    transition: width 160ms var(--ns-ease-in-out);
+    transition: width var(--ns-fill-ms) var(--ns-ease-in-out);
     pointer-events: none;
   }
   .preview {
@@ -221,7 +216,9 @@
     top: 0;
     bottom: 0;
     background: var(--fai-hover-preview);
-    transition: opacity 120ms ease;
+    transition:
+      left 120ms var(--ns-ease-in-out),
+      width 120ms var(--ns-ease-in-out);
     pointer-events: none;
   }
   .pip {
@@ -233,41 +230,56 @@
     border-radius: var(--fai-radius-pill);
     background: var(--fai-grey-900);
     transition:
-      left 160ms var(--ns-ease-in-out),
+      left var(--ns-fill-ms) var(--ns-ease-in-out),
       opacity 120ms ease;
     pointer-events: none;
   }
-  .line {
+  .knob {
     position: absolute;
-    width: 2px;
-    border-radius: 1px;
-    transition:
-      left 160ms var(--ns-ease-in-out),
-      top 120ms ease,
-      bottom 120ms ease,
-      background-color 120ms ease;
-    pointer-events: none;
-  }
-  .labels {
-    position: absolute;
-    inset: 0;
+    top: 3px;
+    bottom: 3px;
     display: flex;
     align-items: center;
-    justify-content: flex-end;
-    padding: 0 10px;
-    pointer-events: none;
-  }
-  .lbl {
-    font: 500 13px / 1 var(--fai-font-sans);
+    gap: 7px;
+    padding: 0 9px;
+    border-radius: var(--fai-radius-sm);
+    background: var(--fai-raised);
+    box-shadow: var(--fai-shadow-raised);
     color: var(--fai-text-muted);
-    padding: 0 4px;
-    border-radius: 3px;
-    transition: color 120ms ease;
+    transition:
+      left var(--ns-fill-ms) var(--ns-ease-in-out),
+      transform var(--ns-fill-ms) var(--ns-ease-in-out),
+      color 120ms ease,
+      opacity 120ms ease;
+    pointer-events: none;
+    white-space: nowrap;
   }
-  .lbl.ink {
+  .knob.active {
     color: var(--fai-grey-900);
   }
-  .value {
+  /* As many bars as the model has levels, lit up to the one it sits on. The
+     ramp is set inline so it spans 4→12px whether the model offers three
+     levels or five. */
+  .meter {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 12px;
+  }
+  .bar {
+    width: 2px;
+    border-radius: 1px;
+    background: var(--fai-grey-900);
+    opacity: 0.22;
+    transition:
+      opacity 160ms ease,
+      height 160ms var(--ns-ease-in-out);
+  }
+  .bar.lit {
+    opacity: 1;
+  }
+  .lvl {
+    font: 500 12px / 1 var(--fai-font-sans);
     text-transform: capitalize;
     font-variant-numeric: tabular-nums;
   }
@@ -286,6 +298,9 @@
     }
     .track {
       height: 42px;
+    }
+    .lvl {
+      font-size: 13px;
     }
   }
 </style>
