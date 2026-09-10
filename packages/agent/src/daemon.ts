@@ -81,6 +81,14 @@ export interface RegisterPayload extends MachineIdentity {
    */
   resumable?: string[];
   /**
+   * When each of those conversations last changed, ms epoch, by session id.
+   * The hub writes it onto the rows it is not being told are live, so a
+   * sleeping session's age is when the session last said something rather than
+   * when this register ran. Absent alongside `resumable`, and separate from it
+   * so a hub that predates this field still reads the ids.
+   */
+  resumableAt?: Record<string, number>;
+  /**
    * What the machine has of the tool catalog (NEW.md §10), so the hub can send
    * an install for whatever its policy requires and this machine lacks.
    */
@@ -368,10 +376,18 @@ const attach = (
 ) =>
   Effect.gen(function* () {
     const socket = yield* connection(url);
+    const catalog = yield* Effect.promise(() => resumableSessions());
     const payload: RegisterPayload = {
       ...identity,
       instances: supervisor.instanceIds,
-      resumable: yield* Effect.promise(() => resumableSessions()),
+      ...(catalog
+        ? {
+            resumable: catalog.map((entry) => entry.sessionId),
+            resumableAt: Object.fromEntries(
+              catalog.map((entry) => [entry.sessionId, entry.lastModified])
+            ),
+          }
+        : {}),
       harnesses: yield* Effect.promise(() =>
         Promise.all(harnesses().map((adapter) => adapter.detect()))
       ),

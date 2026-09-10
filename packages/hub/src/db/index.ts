@@ -634,7 +634,14 @@ export interface DbShape {
   readonly settleInstances: (
     machineId: string,
     liveIds: string[],
-    resumable?: string[]
+    resumable?: string[],
+    /**
+     * When each of those conversations last changed, ms epoch by session id.
+     * Written onto every non-live row it names, because it is the only source
+     * in the fleet that knows when a sleeping session last *moved* rather than
+     * when the hub last wrote something down about it.
+     */
+    resumableAt?: Record<string, number>
   ) => SettledInstance[];
   readonly stopInstance: (id: string) => void;
   /**
@@ -662,6 +669,15 @@ export interface DbShape {
     toSleeping: number;
   };
   readonly touchAgent: (machineId: string) => void;
+  /**
+   * The session moved. This is the only write anywhere that means it: every
+   * other `updatedAt` on the table is a status change, which is the hub
+   * writing down its own bookkeeping. Without it the column a rail draws ages
+   * from says when a session was spawned or settled, never when it last said
+   * anything — which is why a fleet of live sessions all read the same age.
+   * Called off the daemon's pulse and throttled by the caller.
+   */
+  readonly touchInstanceActivity: (id: string) => void;
   /**
    * The machine's sessions that nothing has ever put a name to, however old
    * they are — a stored conversation the hub could name off the machine's own
@@ -989,6 +1005,56 @@ const make = (path: string): DbShape => {
         : eq(usageBuckets.machineId, q.machineId)
     );
 
+  /**
+   * Writes the catalog's own word on when each stored conversation last
+   * changed onto the rows that are not live, after the settle above so it
+   * overwrites it.
+   *
+   * Everything in `settleInstances` writes `updatedAt` from the hub's clock,
+   * because settling a row is the only moment the hub has an opinion about it —
+   * which is how a machine coming back stamped three hundred rows with the same
+   * instant and made every age in the rail read `1m` alike. The daemon's
+   * catalog knows better: a conversation's mtime is when the session itself last
+   * said something. Only rows that disagree are written, so a register that
+   * changes nothing costs one select.
+   */
+  const dateStoredSessions = (
+    machineId: string,
+    liveIds: string[],
+    resumableAt?: Record<string, number>
+  ): void => {
+    if (!resumableAt) {
+      return;
+    }
+    const dated = db
+      .select({
+        id: instances.id,
+        sessionId: instances.sessionId,
+        updatedAt: instances.updatedAt,
+      })
+      .from(instances)
+      .where(
+        and(
+          eq(instances.machineId, machineId),
+          // Not the live ones: a running session's own frames are fresher than
+          // any file the catalog looked at.
+          liveIds.length > 0 ? notInArray(instances.id, liveIds) : undefined,
+          isNotNull(instances.sessionId)
+        )
+      )
+      .all();
+    for (const row of dated) {
+      const at = row.sessionId ? resumableAt[row.sessionId] : undefined;
+      if (at === undefined || at === row.updatedAt.getTime()) {
+        continue;
+      }
+      db.update(instances)
+        .set({ updatedAt: new Date(at) })
+        .where(eq(instances.id, row.id))
+        .run();
+    }
+  };
+
   return {
     upsertAgent: ({ machineId, hostname, os, auth, build, harnesses }) => {
       const lastSeenAt = new Date();
@@ -1159,6 +1225,12 @@ const make = (path: string): DbShape => {
         .where(eq(instances.id, id))
         .run();
     },
+    touchInstanceActivity: (id) => {
+      db.update(instances)
+        .set({ updatedAt: new Date() })
+        .where(eq(instances.id, id))
+        .run();
+    },
     failInstance: (id, error) => {
       // A side quest that was thrown away stays thrown away: its teardown can
       // fail long after the session did, and it is not coming back as a row.
@@ -1221,22 +1293,7 @@ const make = (path: string): DbShape => {
     // no process any more — settled so it stays on the board instead of
     // ghosting, and separated at the source into the ones that can come back
     // and the ones whose transcript went with the process.
-    settleInstances: (machineId, liveIds, resumable) => {
-      // Touch every sleeping session on this machine so it stays inside the
-      // 24-hour stale window. Without this a sleeping session whose machine
-      // IS connected falls off `/api/instances` after a day of idleness, and
-      // the dashboard shows "no messages yet" because the tab strip's SSR
-      // load can't find it.
-      db.update(instances)
-        .set({ updatedAt: new Date() })
-        .where(
-          and(
-            eq(instances.machineId, machineId),
-            eq(instances.status, "sleeping")
-          )
-        )
-        .run();
-
+    settleInstances: (machineId, liveIds, resumable, resumableAt) => {
       // First, the ones it *does* carry. A dropped socket marks every session on
       // the machine `unknown` (see `reconcileInstances`), because from the hub's
       // side a daemon that vanished tells you nothing about the processes it
@@ -1245,8 +1302,12 @@ const make = (path: string): DbShape => {
       // demotion: one hub restart moved every live session on a machine into
       // "not running" permanently, where the rail files it under history.
       if (liveIds.length > 0) {
+        // `updatedAt` deliberately untouched, same rule as `sweepBootStatuses`
+        // below: the hub learning that a row it had misfiled is alive is the
+        // hub correcting itself, not the session doing anything. Stamping it
+        // here dated every live session on the machine to the register.
         db.update(instances)
-          .set({ status: "running", lastError: null, updatedAt: new Date() })
+          .set({ status: "running", lastError: null })
           .where(
             and(
               eq(instances.machineId, machineId),
@@ -1300,6 +1361,10 @@ const make = (path: string): DbShape => {
           .where(eq(instances.id, row.id))
           .run();
       }
+
+      // Last, the truth about when each of these sessions actually moved.
+      dateStoredSessions(machineId, liveIds, resumableAt);
+
       return orphans.map((row) => ({
         row,
         resumes:
@@ -1315,16 +1380,19 @@ const make = (path: string): DbShape => {
           ? []
           : db
               .update(instances)
-              .set({ status: "running", lastError: null, updatedAt: now })
+              // `updatedAt` untouched for the same reason the status filter
+              // below omits `running`: a promotion is the hub agreeing with the
+              // beat, not the session moving. It used to be stamped here, which
+              // dated every session the beat corrected to the beat itself.
+              .set({ status: "running", lastError: null })
               .where(
                 and(
                   eq(instances.machineId, machineId),
                   inArray(instances.id, liveIds),
                   // Note the omission of `running`: a row already at `running`
                   // that the beat lists has not moved, and writing it anyway
-                  // would touch `updatedAt` on every session every 15s, which
-                  // would erase the one column that says when a session last
-                  // did something.
+                  // would touch it every 15s, erasing the one column that says
+                  // when a session last did something.
                   inArray(instances.status, [
                     "starting",
                     "unknown",
@@ -2031,7 +2099,12 @@ const make = (path: string): DbShape => {
           ...(harnesses ? { harnesses } : {}),
         })),
     // A discarded side quest is gone for good, and a row that has not moved in a
-    // day is history no rail has a use for — a running one stays whatever its age.
+    // day is history no rail has a use for — a running one stays whatever its
+    // age, and so does a sleeping one: it is a conversation the fleet can pick
+    // back up, and the tab strip's SSR load has to find it or the session it
+    // opens reads "no messages yet". `sleeping` used to survive the cut by
+    // having its `updatedAt` touched on every register instead, which kept it
+    // listed at the price of every age in the rail reading the same.
     listInstances: () =>
       db
         .select()
@@ -2040,7 +2113,7 @@ const make = (path: string): DbShape => {
           and(
             ne(instances.status, "discarded"),
             or(
-              eq(instances.status, "running"),
+              inArray(instances.status, ["running", "sleeping"]),
               gt(instances.updatedAt, new Date(Date.now() - STALE_AFTER_MS))
             )
           )

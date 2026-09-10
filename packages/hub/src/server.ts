@@ -12,6 +12,7 @@ import type {
   FleetMcpConfig,
   FleetSyncReport,
   FramePayload,
+  FsImage,
   FsPayload,
   HarnessKind,
   HarnessReport,
@@ -123,6 +124,14 @@ const BUSY_TIMEOUT_MS = 5000;
  * and the operator wakes the ones they want.
  */
 const RESTORE_HORIZON_MS = 30 * 60_000;
+
+/**
+ * At most one activity write per session per minute. The daemon pulses up to
+ * once a second while a session is working, and `updatedAt` is read in minutes
+ * by everything that reads it at all — the rail's age column, the restore
+ * horizon — so anything finer is a write nobody can observe.
+ */
+const ACTIVITY_TOUCH_MS = 60_000;
 
 /**
  * And how many, newest first.
@@ -752,6 +761,30 @@ const peekResumable = (payload: unknown): string[] | undefined => {
 };
 
 /**
+ * `register`'s word on when each stored conversation last changed, session id
+ * to ms epoch. A daemon older than the field sends nothing, and the rows keep
+ * whatever the hub last wrote about them.
+ */
+const peekResumableAt = (
+  payload: unknown
+): Record<string, number> | undefined => {
+  if (typeof payload !== "object" || payload === null) {
+    return undefined;
+  }
+  const value = (payload as { resumableAt?: unknown }).resumableAt;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return undefined;
+  }
+  const at: Record<string, number> = {};
+  for (const [id, when] of Object.entries(value)) {
+    if (typeof when === "number" && Number.isFinite(when) && when > 0) {
+      at[id] = when;
+    }
+  }
+  return at;
+};
+
+/**
  * `register`'s word on the whiffle the daemon is running (NEW.md §12). Absent
  * from a daemon that predates it and from the re-announce, and the row keeps
  * what it had either way.
@@ -1235,6 +1268,31 @@ export const createServer = ({
   const pulses = new Map<string, SessionPulse>();
 
   /**
+   * When each session's activity was last written down, so the column that says
+   * it is not rewritten on every pulse. The pulse itself is throttled to one a
+   * second per session on the daemon side; a row does not need a write that
+   * often, and a rail cannot see the difference.
+   */
+  const touched = new Map<string, number>();
+
+  /**
+   * The session said something. `updatedAt` is the only per-session timestamp
+   * anywhere in the fleet, and until this existed nothing wrote it for the one
+   * reason a reader cares about: every value in it was a status change, so a
+   * rail asking "which of these did I touch last" got the moment the hub
+   * settled or promoted the row — the same moment for all of them.
+   */
+  const noteActivity = (instanceId: string): void => {
+    const last = touched.get(instanceId) ?? 0;
+    const now = Date.now();
+    if (now - last < ACTIVITY_TOUCH_MS) {
+      return;
+    }
+    touched.set(instanceId, now);
+    db.touchInstanceActivity(instanceId);
+  };
+
+  /**
    * Where each machine's deployment clone stands, as that machine last said:
    * memory only, and never a column, for the same reason {@link pulses} is.
    *
@@ -1335,6 +1393,7 @@ export const createServer = ({
     // Nor is it doing anything any more: a pulse outliving its process is the
     // same stale-liveness lie in memory instead of in a column.
     pulses.delete(instanceId);
+    touched.delete(instanceId);
     // A session that died before it ever said anything is never going to name
     // itself; nothing should still be waiting to hear its first words.
     awaitingFirstTurn.delete(instanceId);
@@ -2404,14 +2463,13 @@ export const createServer = ({
    * same `waiting` map routes the reply and no dashboard is broadcast a write
    * it never asked for.
    */
-  const writeMachineFile = (
+  const callFs = (
     machineId: string,
     agent: HubSocket,
-    path: string,
-    content: string
+    op: Omit<FsPayload, "requestId">
   ): Promise<ControlResult | "timeout"> => {
     const requestId = crypto.randomUUID();
-    const payload: FsPayload = { requestId, op: "write", path, content };
+    const payload: FsPayload = { requestId, ...op };
     agent.send({
       verb: "fs",
       machineId,
@@ -2429,6 +2487,50 @@ export const createServer = ({
       });
     });
   };
+
+  const writeMachineFile = (
+    machineId: string,
+    agent: HubSocket,
+    path: string,
+    content: string
+  ): Promise<ControlResult | "timeout"> =>
+    callFs(machineId, agent, { op: "write", path, content });
+
+  /**
+   * One image off a machine's disk, read the moment someone looks at it: the
+   * transcript card and the Telegram bridge both point at the path an agent
+   * named, and nothing is copied anywhere in between. A file that has since
+   * moved answers `missing` — the picture is gone, which is all there is to say.
+   */
+  const readMachineImage = async (
+    machineId: string,
+    path: string
+  ): Promise<
+    | { bytes: Uint8Array<ArrayBuffer>; mediaType: string }
+    | "offline"
+    | "timeout"
+    | "missing"
+  > => {
+    const agent = registry.agent(machineId);
+    if (!agent) {
+      return "offline";
+    }
+    const answer = await callFs(machineId, agent, { op: "image", path });
+    if (answer === "timeout") {
+      return "timeout";
+    }
+    if (!answer.ok) {
+      return "missing";
+    }
+    const { base64, mediaType } = answer.result as FsImage;
+    // Copied into a fresh ArrayBuffer-backed view: a Buffer's `ArrayBufferLike`
+    // backing is not what `Response` and `Blob` accept as a body.
+    const bytes = Uint8Array.from(Buffer.from(base64, "base64"));
+    return { bytes, mediaType };
+  };
+
+  // Registered here, after the reader exists — same shape as the answer recorder.
+  telegram?.setImageReader(readMachineImage);
 
   /**
    * Writes every fleet subagent into `<home>/.claude/agents/` on one machine
@@ -2752,6 +2854,32 @@ export const createServer = ({
       }))
       .get("/api/agents", () => withPresence(db.listAgents()))
       // What a restart polls to find a moment that cuts nothing in half.
+      // A picture on a machine's disk, for the transcript's image cards. No
+      // caching: the file is the agent's working state and may be rewritten or
+      // removed between two looks.
+      .get(
+        "/api/agents/:machineId/image",
+        { query: t.Object({ path: t.String() }) },
+        async ({ params, query, status }) => {
+          const answer = await readMachineImage(params.machineId, query.path);
+          if (answer === "offline") {
+            return status(503, `machine ${params.machineId} is not connected`);
+          }
+          if (answer === "timeout") {
+            return status(504, `machine ${params.machineId} did not answer`);
+          }
+          if (answer === "missing") {
+            return status(404, `${query.path} is not there any more`);
+          }
+          return new Response(answer.bytes, {
+            headers: {
+              "Content-Type": answer.mediaType,
+              "Content-Length": String(answer.bytes.byteLength),
+              "Cache-Control": "no-store",
+            },
+          });
+        }
+      )
       .get("/api/agents/:machineId/busy", async ({ params, status }) => {
         const answer = await callAgent(
           params.machineId,
@@ -4657,11 +4785,20 @@ export const createServer = ({
         if (!(machineId && instanceId && text)) {
           return status(400, "name a machine, an instance and a message");
         }
+        const raw = (body as { attachments?: unknown }).attachments;
+        const attachments = Array.isArray(raw)
+          ? raw.filter((p): p is string => typeof p === "string")
+          : undefined;
         telegram?.onUserMessage({
           verb: "frames",
           machineId,
           instanceId,
-          payload: { kind: "user_message", instanceId, text },
+          payload: {
+            kind: "user_message",
+            instanceId,
+            text,
+            ...(attachments?.length ? { attachments } : {}),
+          },
         });
         return { ok: true };
       })
@@ -4854,7 +4991,8 @@ export const createServer = ({
               const settled = db.settleInstances(
                 message.machineId,
                 peekInstances(message.payload),
-                peekResumable(message.payload)
+                peekResumable(message.payload),
+                peekResumableAt(message.payload)
               );
               for (const orphan of settled) {
                 forgetPending(orphan.row.id);
@@ -5217,6 +5355,10 @@ export const createServer = ({
                 const { pulse } = message.payload as { pulse?: SessionPulse };
                 if (pulse) {
                   pulses.set(message.instanceId, pulse);
+                  // A pulse is only ever emitted by a session doing something,
+                  // so it is the fleet's cheapest honest signal for the column
+                  // the rails age rows from.
+                  noteActivity(message.instanceId);
                 }
               }
               // What the session is holding but has not started. Mirrored here so
@@ -5608,6 +5750,7 @@ export const createServer = ({
                 // and whatever it was last seen doing, it is not doing now.
                 forgetQueue(message.instanceId);
                 pulses.delete(message.instanceId);
+                touched.delete(message.instanceId);
                 escalateRoutedAsks(message.instanceId);
                 publishInstances(message.machineId);
               }

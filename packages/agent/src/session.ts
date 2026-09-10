@@ -273,20 +273,34 @@ const dirOf = (arg: unknown): string | undefined => {
   return undefined;
 };
 
-export const resumableSessions = async (): Promise<string[] | undefined> => {
-  const ids: string[] = [];
+/**
+ * Every stored conversation this machine could pick back up, with the moment
+ * each one last changed. The mtime is the whole reason this carries more than
+ * ids: the hub's `updatedAt` is the only per-session timestamp anywhere in the
+ * fleet, nothing writes it while a session is talking, and so a row that has
+ * been asleep since Tuesday can only say when the *bookkeeping* last touched
+ * it. The catalog knows when the session itself last moved; sending it is what
+ * lets a rail draw ages that differ from each other.
+ */
+export const resumableSessions = async (): Promise<
+  { lastModified: number; sessionId: string }[] | undefined
+> => {
+  const found: { lastModified: number; sessionId: string }[] = [];
   let sawAny = false;
   for (const adapter of harnesses()) {
     try {
       for (const info of await adapter.listSessions()) {
-        ids.push(info.sessionId);
+        found.push({
+          sessionId: info.sessionId,
+          lastModified: info.lastModified,
+        });
       }
       sawAny = true;
     } catch (error) {
       warn(`could not read ${adapter.kind}'s session catalog: ${error}`);
     }
   }
-  return sawAny ? ids : undefined;
+  return sawAny ? found : undefined;
 };
 
 /**
