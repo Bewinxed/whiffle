@@ -618,12 +618,6 @@
     width: 19px;
     height: 19px;
   }
-  .crumb {
-    font-size: var(--text-md);
-    color: var(--ink-body);
-    font-weight: var(--weight-medium);
-  }
-
   .right {
     margin-left: auto;
     display: flex;
