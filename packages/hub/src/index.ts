@@ -6,6 +6,7 @@ import { advertise } from "./mdns";
 // from the checkout that actually holds the legacy file. See migrate-db.ts.
 import { migrateLegacyDb } from "./migrate-db";
 import { Pending, PendingLayer } from "./pending";
+import { startPreviewListener } from "./preview";
 import { Registry, RegistryLayer } from "./registry";
 import { createServer } from "./server";
 import { createTelegramBridge } from "./telegram";
@@ -22,10 +23,13 @@ const main = Effect.gen(function* () {
   // hashes the whole skill before it says anything (impeccable is 3.2MB /
   // 147 files), and the socket is silent that whole time. 120s clears the
   // resolver's own 60s fetch timeout with room for the hash.
+  const hostname = process.env.HOST ?? "0.0.0.0";
   createServer({ registry, db, pending, telegram }).listen({
+    hostname,
     port: HUB_PORT,
     idleTimeout: 120,
   });
+  startPreviewListener(hostname);
   yield* Effect.log(`whiffle hub ${HUB_VERSION} listening on :${HUB_PORT}`);
   advertise(HUB_PORT);
   // After `listen`, so the first ask the bridge can be handed is one this hub

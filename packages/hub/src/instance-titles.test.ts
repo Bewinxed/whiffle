@@ -151,6 +151,7 @@ const registry: RegistryShape = {
   },
   dropAgent: () => undefined,
   agent: () => undefined as HubSocket | undefined,
+  address: () => undefined,
   machineIds: () => [],
   addDashboard: () => {
     // not exercised by this suite: no dashboard ever connects

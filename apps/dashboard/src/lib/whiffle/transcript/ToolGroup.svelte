@@ -1,5 +1,7 @@
 <script lang="ts">
+  import type { PreviewSource } from "@whiffle/core";
   import { getContext } from "svelte";
+  import { toast } from "svelte-sonner";
   import {
     describeTool,
     pathLeaf,
@@ -10,7 +12,12 @@
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte convention for a component group.
   import * as Collapsible from "$lib/components/ui/collapsible";
   import { IconChevronRight } from "$lib/icons";
-  import { SHOW_IMAGE_TOOLS } from "$lib/whiffle/frames";
+  import {
+    openPreview,
+    revealPreview,
+    whiffle,
+  } from "$lib/whiffle/client.svelte";
+  import { SHOW_IMAGE_TOOLS, SHOW_PREVIEW_TOOLS } from "$lib/whiffle/frames";
   import Arrival from "$lib/whiffle/motion/Arrival.svelte";
   import { ARRIVAL } from "$lib/whiffle/motion/arrival";
   import Reveal from "$lib/whiffle/motion/Reveal.svelte";
@@ -141,6 +148,23 @@
         add: ADDED.test(token),
         del: REMOVED.test(token),
       }));
+
+  /**
+   * Whether the pane already shows what this row asked for. A preview open on
+   * another port under the same session is not it: the row then opens, and
+   * the pane swaps documents, instead of revealing the wrong app.
+   */
+  function showsSource(
+    preview: (typeof whiffle.previews)[string] | undefined,
+    wanted: PreviewSource
+  ): boolean {
+    if (preview?.state !== "open" || !preview.source) {
+      return false;
+    }
+    return "port" in wanted
+      ? "port" in preview.source && preview.source.port === wanted.port
+      : "dir" in preview.source && preview.source.dir === wanted.dir;
+  }
 </script>
 
 <div class="tools">
@@ -239,6 +263,21 @@
             />
           </div>
         {/if}
+        {#if SHOW_PREVIEW_TOOLS.has(m.metadata?.toolName ?? '')}
+          {@const input = m.metadata?.toolInput as PreviewSource}
+          {@const opened = showsSource(whiffle.previews[m.instanceId], input)}
+          <div class="preview-tool">
+            <span class="arg"
+              >{'port' in input ? `localhost:${input.port}` : input.dir}</span
+            >
+            <button
+              onclick={() => opened ? revealPreview(m.instanceId) : openPreview(m.instanceId, input).catch((error) => toast.error(error.message))}
+              type="button"
+            >
+              {opened ? 'Show preview' : 'Open preview'}
+            </button>
+          </div>
+        {/if}
         {#if m.metadata?.resultImages?.length}
           <div class="shots">
             {#each m.metadata.resultImages as image, i (i)}
@@ -256,6 +295,32 @@
 </div>
 
 <style>
+  .preview-tool {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    margin: var(--space-2) 0 0 calc(15px + var(--space-2));
+  }
+  .preview-tool button {
+    min-height: 34px;
+    padding: var(--space-1) var(--space-2);
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius-control);
+    background: var(--surface-raised);
+    color: var(--ink-body);
+    font-size: var(--text-xs);
+    cursor: pointer;
+  }
+  .preview-tool button:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+  @media (pointer: coarse) {
+    .preview-tool button {
+      min-height: 44px;
+    }
+  }
   .shots {
     display: flex;
     flex-wrap: wrap;

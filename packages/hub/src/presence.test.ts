@@ -57,6 +57,7 @@ const makeTestRegistry = (): RegistryShape & {
       }
     },
     agent: (machineId) => sockets.get(machineId),
+    address: () => undefined,
     machineIds: () => [...sockets.keys()],
     addDashboard: (socket) =>
       dashboards.set(socket.id, { socket, subscriptions: new Set() }),

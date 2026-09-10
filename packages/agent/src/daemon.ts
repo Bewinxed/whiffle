@@ -26,6 +26,7 @@ import { rediscoverHub, toWsUrl } from "./discovery";
 import { harnesses } from "./harnesses";
 import { cache as transcriptCache } from "./harnesses/transcript-cache";
 import { machineId } from "./machine-id";
+import { stopPreviews } from "./preview";
 import { TranscriptSearchService } from "./search";
 import { resumableSessions, SessionSupervisor } from "./session";
 import { probeTools } from "./tools";
@@ -376,6 +377,9 @@ const attach = (
 ) =>
   Effect.gen(function* () {
     const socket = yield* connection(url);
+    // The hub drops this machine's preview targets the moment the socket goes,
+    // so a forwarder kept alive past the connection serves nobody: it goes too.
+    yield* Effect.addFinalizer(() => Effect.sync(stopPreviews));
     const catalog = yield* Effect.promise(() => resumableSessions());
     const payload: RegisterPayload = {
       ...identity,

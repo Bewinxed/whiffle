@@ -366,6 +366,9 @@ const servicesFor = (layout: Layout): Record<ServiceId, ServiceSpec> => {
         // boot migration (see packages/hub/src/index.ts) carries an existing
         // in-tree database there the first time it finds one.
         [WHIFFLE_ENV.dbPath]: DEFAULT_DB_PATH, // ~/.local/share/whiffle or ~/Library/Application Support/whiffle
+        [WHIFFLE_ENV.previewPort]:
+          readEnv(WHIFFLE_ENV.previewPort) ??
+          String(Number(readEnv(WHIFFLE_ENV.hubPort) ?? WHIFFLE_HUB_PORT) + 1),
       },
       workingDirectory: LAYOUT_ROOT,
       after: ["network-online.target"],

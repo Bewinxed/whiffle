@@ -20,6 +20,7 @@ import type {
   PermissionMode,
   PermissionResult,
   PermissionUpdate,
+  PreviewSource,
   QueuedMessage,
   SDKSessionInfo,
   SDKStatus,
@@ -393,6 +394,8 @@ export interface SessionState {
 }
 
 const state = $state({
+  previews: {} as Record<string, Extract<FramePayload, { kind: "preview" }>>,
+  previewVisible: {} as Record<string, "preview" | "transcript" | false>,
   status: "disconnected" as ConnectionStatus,
   /**
    * Whether a socket has ever been opened for this document. A dashboard that
@@ -1088,7 +1091,31 @@ const nameOfCall = (messages: Message[], toolId: string): string =>
 
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: dispatches every FramePayload kind the socket can deliver; splitting it would scatter one state machine across files
 function handleFrame(frame: FramePayload): void {
+  if (frame.kind === "preview") {
+    state.previews[frame.instanceId] = frame;
+    if (frame.state === "open") {
+      state.previewVisible[frame.instanceId] = "preview";
+    }
+    return;
+  }
   if (frame.kind === "instances") {
+    if (frame.previews) {
+      const current = new Set(
+        frame.previews.map((preview) => preview.instanceId)
+      );
+      for (const [id, preview] of Object.entries(state.previews)) {
+        if (!current.has(id)) {
+          state.previews[id] = { ...preview, state: "closed" };
+        }
+      }
+      for (const preview of frame.previews) {
+        if (state.previews[preview.instanceId]?.state === "open") {
+          state.previews[preview.instanceId] = preview;
+        } else {
+          handleFrame(preview);
+        }
+      }
+    }
     // The machines ride along so a daemon registering — the moment its auth
     // state is decided — reaches the rail without a re-fetch.
     state.machines = frame.agents;
@@ -3312,6 +3339,67 @@ function control(
  * session functions. The reply is correlated by `requestId`, which the hub routes
  * back to this socket alone.
  */
+export function revealPreview(instanceId: string): void {
+  state.previewVisible[instanceId] = "preview";
+}
+
+export function hidePreview(instanceId: string): void {
+  state.previewVisible[instanceId] = false;
+}
+
+export async function loadPreview(instanceId: string): Promise<void> {
+  const previous = state.previews[instanceId];
+  const response = await fetch(
+    `/api/instances/${encodeURIComponent(instanceId)}/preview`
+  );
+  // A frame received during the read is newer than its REST snapshot.
+  if (state.previews[instanceId] !== previous) {
+    return;
+  }
+  if (response.status === 404) {
+    if (previous) {
+      state.previews[instanceId] = { ...previous, state: "closed" };
+    }
+    return;
+  }
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+  handleFrame(await response.json());
+}
+
+export async function openPreview(
+  instanceId: string,
+  source: PreviewSource
+): Promise<void> {
+  const response = await fetch(
+    `/api/instances/${encodeURIComponent(instanceId)}/preview`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(source),
+    }
+  );
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+  handleFrame(await response.json());
+}
+
+export async function closePreview(instanceId: string): Promise<void> {
+  const response = await fetch(
+    `/api/instances/${encodeURIComponent(instanceId)}/preview`,
+    { method: "DELETE" }
+  );
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+  const previous = state.previews[instanceId];
+  if (previous) {
+    state.previews[instanceId] = { ...previous, state: "closed" };
+  }
+}
+
 export async function machineControl<T>(
   machineId: string,
   method: string,
@@ -5048,6 +5136,12 @@ export const whiffle = {
   },
   get instances() {
     return state.instances;
+  },
+  get previews() {
+    return state.previews;
+  },
+  get previewVisible() {
+    return state.previewVisible;
   },
   get runningInstances() {
     return state.instances.filter(isLive);

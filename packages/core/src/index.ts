@@ -607,6 +607,14 @@ export const RESTART_LOST =
  */
 export type FramePayload =
   | {
+      kind: "preview";
+      instanceId: string;
+      state: "open" | "closed";
+      previewPort: number;
+      open: string;
+      source?: PreviewSource;
+    }
+  | {
       kind: "frame";
       instanceId: string;
       harness: import("./harness").HarnessKind;
@@ -620,6 +628,7 @@ export type FramePayload =
       kind: "instances";
       instances: InstanceRow[];
       agents: AgentRow[];
+      previews?: Extract<FramePayload, { kind: "preview" }>[];
     }
   | {
       kind: "permission_request";
@@ -684,6 +693,10 @@ export type FramePayload =
 
 export const WHIFFLE_HUB_PORT = 3456;
 
+export type PreviewSource = { port: number } | { dir: string };
+export const PREVIEW_START = "previewStart";
+export const PREVIEW_STOP = "previewStop";
+
 /**
  * The session tag a side quest's transcript carries (NEW.md §1). The agent
  * applies it when the session names itself and clears it when the quest is
@@ -709,6 +722,7 @@ export const WHIFFLE_SCRATCH_TAG = "whiffle-scratch";
 export const WHIFFLE_ENV = {
   hubUrl: "WHIFFLE_HUB_URL",
   hubPort: "WHIFFLE_HUB_PORT",
+  previewPort: "WHIFFLE_PREVIEW_PORT",
   machineId: "WHIFFLE_MACHINE_ID",
   /** `1` stops the hub advertising itself over mDNS. */
   noMdns: "WHIFFLE_NO_MDNS",

@@ -82,6 +82,7 @@ const makeRegistry = (): RegistryShape => {
     registerAgent: (machineId, socket) => {
       agents.set(machineId, socket);
     },
+    address: () => undefined,
     dropAgent: (socketId) => {
       for (const [machineId, socket] of agents) {
         if (socket.id === socketId) {

@@ -23,6 +23,7 @@ import type {
   MachineMemorySet,
   NeutralSessionInfo,
   PermissionMode,
+  PreviewSource,
   QueuedMessage,
   RegisterAckPayload,
   Rule,
@@ -57,6 +58,8 @@ import {
   MESSAGE_DEQUEUED,
   MESSAGE_QUEUED,
   memoryDocProblem,
+  PREVIEW_START,
+  PREVIEW_STOP,
   parseAgentFrontMatter,
   READ_MEMORY_FILE,
   READ_SKILL_FILES,
@@ -82,6 +85,7 @@ import { createDelegationMcp } from "./delegation-mcp";
 import { probe } from "./llm";
 import type { PendingShape } from "./pending";
 import { resolveMarketplacePlugins } from "./plugins";
+import { previewFrame, previewTargets } from "./preview";
 import type { HubSocket, RegistryShape } from "./registry";
 import { RuleEngine } from "./rules";
 import { hashFiles, resolveSkill } from "./skills";
@@ -1635,6 +1639,59 @@ export const createServer = ({
   };
 
   /**
+   * One counter per instance, moved by every preview start and close. A start
+   * awaits the daemon; if the instance was stopped, closed or lost meanwhile,
+   * the counter has moved on and the late answer must not become a target —
+   * the listener it names gets stopped instead.
+   */
+  const previewGeneration = new Map<string, number>();
+  const nextPreviewGeneration = (instanceId: string): number => {
+    const generation = (previewGeneration.get(instanceId) ?? 0) + 1;
+    previewGeneration.set(instanceId, generation);
+    return generation;
+  };
+
+  const publishPreview = (
+    instanceId: string,
+    state: "open" | "closed",
+    source?: PreviewSource
+  ) => {
+    const frame = previewFrame(instanceId, state, source);
+    streams.sequence(instanceId, frame);
+    registry.broadcastFrame(
+      { verb: "frames", machineId: "", instanceId, payload: frame },
+      instanceId
+    );
+    return frame;
+  };
+
+  const closePreview = async (instanceId: string): Promise<Response> => {
+    nextPreviewGeneration(instanceId);
+    const target = previewTargets.get(instanceId);
+    if (!target) {
+      return Response.json({ instanceId, state: "closed" });
+    }
+    previewTargets.delete(instanceId);
+    publishPreview(instanceId, "closed", target.source);
+    const answer = await callAgent(
+      target.machineId,
+      PREVIEW_STOP,
+      [{ instanceId }],
+      BUSY_TIMEOUT_MS
+    );
+    if (answer === "offline") {
+      return new Response("Machine is not connected", { status: 503 });
+    }
+    if (answer === "timeout") {
+      return new Response("Machine did not answer", { status: 504 });
+    }
+    if (!answer.ok) {
+      return new Response(answer.error, { status: 500 });
+    }
+    return Response.json({ instanceId, state: "closed" });
+  };
+
+  /**
    * WHERE a conversation lives: which machine, which folder, which harness.
    *
    * A session id is a uuid and does not collide, so it identifies a
@@ -1925,6 +1982,9 @@ export const createServer = ({
       kind: "instances",
       instances: withSessionPresence(db.listInstances()),
       agents: withPresence(db.listAgents()),
+      previews: [...previewTargets].map(([id, target]) =>
+        previewFrame(id, "open", target.source)
+      ),
       handoffs: Object.fromEntries(handoffs),
       queues: Object.fromEntries(queues),
       // Additive, both of them: a dashboard that predates either reads the
@@ -2853,6 +2913,84 @@ export const createServer = ({
         build: await buildInfo(),
       }))
       .get("/api/agents", () => withPresence(db.listAgents()))
+      .get("/api/instances/:id/preview", ({ params, status }) => {
+        const target = previewTargets.get(params.id);
+        return target
+          ? previewFrame(params.id, "open", target.source)
+          : status(404, "No preview for this session.");
+      })
+      .post(
+        "/api/instances/:id/preview",
+        {
+          body: t.Object({
+            port: t.Optional(t.Integer({ minimum: 1, maximum: 65_535 })),
+            dir: t.Optional(t.String({ minLength: 1, pattern: "^/" })),
+          }),
+        },
+        async ({ params, body, status }) => {
+          if ((body.port === undefined) === (body.dir === undefined)) {
+            return status(400, "Pass exactly one of port or dir.");
+          }
+          const [row] = db.getInstancesByIds([params.id]);
+          if (!row) {
+            return status(404, "Session not found.");
+          }
+          const source: PreviewSource =
+            body.port === undefined
+              ? { dir: body.dir as string }
+              : { port: body.port };
+          const generation = nextPreviewGeneration(row.id);
+          const stopLate = () =>
+            callAgent(
+              row.machineId,
+              PREVIEW_STOP,
+              [{ instanceId: row.id }],
+              BUSY_TIMEOUT_MS
+            ).catch(console.error);
+          const answer = await callAgent(
+            row.machineId,
+            PREVIEW_START,
+            [
+              {
+                instanceId: row.id,
+                ...source,
+                dashboardOrigin: registry.dashboardOrigin(),
+              },
+            ],
+            BUSY_TIMEOUT_MS
+          );
+          if (answer === "offline") {
+            return status(503, "Machine is not connected");
+          }
+          if (answer === "timeout") {
+            // The daemon may still finish the start after this gave up; the
+            // listener it would open has no target here, so it is told to go.
+            stopLate();
+            return status(504, "Machine did not answer");
+          }
+          if (!answer.ok) {
+            return status(500, answer.error ?? "Preview failed");
+          }
+          if (previewGeneration.get(row.id) !== generation) {
+            stopLate();
+            return status(409, "Preview was closed while starting.");
+          }
+          const address = registry.address(row.machineId);
+          if (!address) {
+            return status(503, "Machine is not connected");
+          }
+          previewTargets.set(row.id, {
+            machineId: row.machineId,
+            address,
+            port: (answer.result as { port: number }).port,
+            source,
+          });
+          return publishPreview(row.id, "open", source);
+        }
+      )
+      .delete("/api/instances/:id/preview", ({ params }) =>
+        closePreview(params.id)
+      )
       // What a restart polls to find a moment that cuts nothing in half.
       // A picture on a machine's disk, for the transcript's image cards. No
       // caching: the file is the agent's working state and may be rewritten or
@@ -4708,6 +4846,7 @@ export const createServer = ({
           instanceId,
           payload: { instanceId, from },
         } satisfies Envelope);
+        closePreview(instanceId).catch(console.error);
         // Same as a stop from a dashboard: whatever it was holding dies with it.
         if (forgetQueue(instanceId)) {
           publishInstances(row.machineId);
@@ -4965,7 +5104,7 @@ export const createServer = ({
 
           switch (message.verb) {
             case "register": {
-              registry.registerAgent(message.machineId, ws);
+              registry.registerAgent(message.machineId, ws, ws.remoteAddress);
               // A machine arriving can turn a remembered "nobody holds this"
               // into an answer, so the negatives go. The hits stay: a
               // conversation does not move between machines.
@@ -5286,6 +5425,17 @@ export const createServer = ({
                 } as FramePayload;
               }
               const kind = peek(message.payload, "kind");
+              if (kind === "preview" && message.instanceId) {
+                const target = previewTargets.get(message.instanceId);
+                if (
+                  target?.machineId === message.machineId &&
+                  peek(message.payload, "state") === "closed"
+                ) {
+                  previewTargets.delete(message.instanceId);
+                  publishPreview(message.instanceId, "closed", target.source);
+                }
+                break;
+              }
               // THE INGEST LEDGER (design §7): a line becomes a hub frame AT MOST
               // ONCE per (instanceId, epoch, srcSeq). A returning agent replays
               // the gap this hub named on its register ack, and an overshoot —
@@ -5626,6 +5776,9 @@ export const createServer = ({
               registry
                 .agent(row.machineId)
                 ?.send({ ...message, machineId: row.machineId });
+              if (message.verb === "stop") {
+                closePreview(row.id).catch(console.error);
+              }
               // A parent answering its delegate's ask with `answer_delegate`.
               const answered = peekAnswer(message.payload);
               if (answered) {
@@ -5644,10 +5797,18 @@ export const createServer = ({
               );
           }
         },
+        // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: releases each kind of machine-owned state when its socket goes away.
         close(ws) {
           const machineId = registry.dropAgent(ws.id);
           if (!machineId) {
             return;
+          }
+          for (const [instanceId, target] of previewTargets) {
+            if (target.machineId === machineId) {
+              nextPreviewGeneration(instanceId);
+              previewTargets.delete(instanceId);
+              publishPreview(instanceId, "closed", target.source);
+            }
           }
           // The install may well still be running out there, but its reply can no
           // longer arrive on this socket — and the register that follows carries
@@ -5748,6 +5909,7 @@ export const createServer = ({
               break;
             case "stop":
               if (forward(message, ws) && message.instanceId) {
+                closePreview(message.instanceId).catch(console.error);
                 if (peekDiscard(message.payload)) {
                   db.discardInstance(message.instanceId);
                 } else {

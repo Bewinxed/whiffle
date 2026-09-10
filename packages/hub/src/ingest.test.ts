@@ -458,6 +458,7 @@ const registry: RegistryShape = (() => {
     },
     dropAgent: () => undefined,
     agent: () => undefined,
+    address: () => undefined,
     machineIds: () => [MACHINE],
     addDashboard: (socket) =>
       dashboards.set(socket.id, { socket, subscriptions: new Set() }),

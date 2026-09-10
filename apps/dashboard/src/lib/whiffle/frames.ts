@@ -313,6 +313,12 @@ export const SHOW_IMAGE_TOOLS = new Set([
   "show_image",
 ]);
 
+export const SHOW_PREVIEW_TOOLS = new Set([
+  "mcp__whiffle__show_preview",
+  "whiffle_show_preview",
+  "show_preview",
+]);
+
 /**
  * Whether a parked ask was routed to its parent session rather than to the
  * user's attention queue. The hub tags such a frame's payload with

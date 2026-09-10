@@ -7,6 +7,9 @@ export const HUB_PORT = Number(
   readEnv(WHIFFLE_ENV.hubPort) ?? WHIFFLE_HUB_PORT
 );
 
+export const PREVIEW_PORT =
+  Number(readEnv(WHIFFLE_ENV.previewPort)) || HUB_PORT + 1;
+
 /**
  * Where the hub's sqlite file lives. The production path comes from the CLI
  * through the environment; the relative default is the bare `bun run hub` case.

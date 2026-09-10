@@ -392,6 +392,29 @@ export function handoffTools(deps: HandoffDeps) {
         })
     ),
     tool(
+      "show_preview",
+      "Show a web app or a directory of HTML from this machine in a preview pane beside this session's transcript. Pass the local port of a dev server you started, or the absolute path of a directory whose index.html the user should see. Use it whenever the user should look at a running page rather than read about it.",
+      {
+        port: z.number().int().min(1).max(65_535).optional(),
+        dir: z.string().startsWith("/").optional(),
+      },
+      async ({ port, dir }) => {
+        if ((port === undefined) === (dir === undefined)) {
+          throw new Error("Pass exactly one of port or dir.");
+        }
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: await actions.showPreview(
+                port === undefined ? { dir: dir as string } : { port }
+              ),
+            },
+          ],
+        };
+      }
+    ),
+    tool(
       "note_for_user",
       "Record a note for the user about a concern they raised, saying what you actually did " +
         "about it. Use this after you have acted on something the user pushed back on: which " +

@@ -14,6 +14,7 @@ export interface HubSocket {
 
 export interface RegistryShape {
   readonly addDashboard: (socket: HubSocket) => void;
+  readonly address: (machineId: string) => string | undefined;
   readonly agent: (machineId: string) => HubSocket | undefined;
   readonly broadcast: (envelope: Envelope) => void;
   /**
@@ -34,7 +35,11 @@ export interface RegistryShape {
    * to send whatever `Origin` it likes.
    */
   readonly noteDashboardOrigin: (origin: string | undefined) => void;
-  readonly registerAgent: (machineId: string, socket: HubSocket) => void;
+  readonly registerAgent: (
+    machineId: string,
+    socket: HubSocket,
+    address?: string
+  ) => void;
   /** Routes the reply to a forwarded `control` back to the dashboard that asked. */
   readonly rememberRequester: (requestId: string, socket: HubSocket) => void;
   /** Replaces a dashboard's subscription set whole — one verb, no add/remove bookkeeping. */
@@ -92,6 +97,7 @@ export class Registry extends Context.Service<Registry, RegistryShape>()(
 
 const make = (): RegistryShape => {
   const agents = new Map<string, HubSocket>();
+  const addresses = new Map<string, string>();
   /** One entry per dashboard socket, with the instances it subscribes to. */
   const dashboards = new Map<
     string,
@@ -117,18 +123,23 @@ const make = (): RegistryShape => {
   sweep.unref();
 
   return {
-    registerAgent: (machineId, socket) => {
+    registerAgent: (machineId, socket, address) => {
       agents.set(machineId, socket);
+      if (address) {
+        addresses.set(machineId, address);
+      }
     },
     dropAgent: (socketId) => {
       for (const [machineId, socket] of agents) {
         if (socket.id === socketId) {
           agents.delete(machineId);
+          addresses.delete(machineId);
           return machineId;
         }
       }
     },
     agent: (machineId) => agents.get(machineId),
+    address: (machineId) => addresses.get(machineId),
     machineIds: () => [...agents.keys()],
     addDashboard: (socket) => {
       dashboards.set(socket.id, { socket, subscriptions: new Set() });

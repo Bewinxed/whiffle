@@ -663,6 +663,7 @@ const makeTestRegistry = (): RegistryShape & {
     },
     dropAgent: () => undefined,
     agent: (machineId) => (machineId === MACHINE ? agentSocket : undefined),
+    address: () => undefined,
     machineIds: () => [MACHINE],
     addDashboard: (socket) =>
       dashboards.set(socket.id, { socket, subscriptions: new Set() }),

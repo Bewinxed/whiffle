@@ -29,10 +29,12 @@
     latestCommandFor,
     loadCommands,
     loadMcpServers,
+    loadPreview,
     openSession,
     type PendingPermission,
     pendingRestore,
     relaunchSession,
+    revealPreview,
     type SendExtras,
     type SessionState,
     sendFailureNotice,
@@ -46,6 +48,7 @@
   import { delegateHandle } from "./links";
   import { describingRow, ensureModels, models } from "./models.svelte";
   import { PERMISSION_MODES } from "./permission-modes";
+  import PreviewPane from "./preview/PreviewPane.svelte";
   import { sessionName } from "./session-name";
   // StaticTail removed — virtua's ssrCount renders the tail directly.
   import Composer, { type Mention } from "./transcript/Composer.svelte";
@@ -102,6 +105,16 @@
     /** Called when the user toggles between chat and flow. */
     onview?: (v: "chat" | "flow") => void;
   } = $props();
+
+  const previewTab = $derived(whiffle.previewVisible[viewId]);
+  const previewVisible = $derived(Boolean(previewTab));
+  $effect(() => {
+    const id = viewId;
+    const connected = whiffle.status === "connected";
+    if (connected) {
+      untrack(() => loadPreview(id).catch(console.error));
+    }
+  });
 
   /** The newest turns the server read back, and the identity that names them. */
   interface ServerTail {
@@ -781,96 +794,124 @@
       />
     {/if}
 
+    <div class="preview-actions">
+      <button
+        aria-pressed={previewVisible && previewTab === 'preview'}
+        onclick={() => revealPreview(viewId)}
+        type="button"
+      >
+        Preview
+      </button>
+      {#if previewVisible}
+        <button
+          aria-pressed={previewTab === 'transcript'}
+          class="transcript-toggle"
+          onclick={() => { whiffle.previewVisible[viewId] = 'transcript'; }}
+          type="button"
+        >
+          Transcript
+        </button>
+      {/if}
+    </div>
     <div
-      class="body"
-      style="--composer-clearance: calc({composerHeight}px + var(--space-4) + var(--space-4))"
+      class="session-content"
+      class:preview-tab={previewTab === 'preview'}
+      class:with-preview={previewVisible}
     >
-      <!-- The transcript area. Movement between conversations is owned by the
+      <div
+        class="body"
+        style="--composer-clearance: calc({composerHeight}px + var(--space-4) + var(--space-4))"
+      >
+        <!-- The transcript area. Movement between conversations is owned by the
            pane above this one, so nothing here animates on a switch — this is
            the surface a swipe carries, not the thing that carries it. -->
-      <div class="transcript-slide">
-        {#if fault}
-          <div class="stateful">
-            <h2>
-              {fault.reason === 'offline'
+        <div class="transcript-slide">
+          {#if fault}
+            <div class="stateful">
+              <h2>
+                {fault.reason === 'offline'
                 ? 'This machine is offline'
                 : "This transcript couldn't be read"}
-            </h2>
-            <p>{fault.message}</p>
-            <button onclick={retry} type="button">Try again</button>
-          </div>
-        {:else if unaddressable}
-          <div class="stateful">
-            <h2>This session isn't reachable from here</h2>
-            <p>
-              The hub has no record of <code>{viewId}</code>, and no machine it
-              can reach has a transcript filed under it. It may live on a
-              machine that is offline, or it may have been deleted.
-            </p>
-            <a href="/session">Back to the fleet</a>
-          </div>
-        {:else if empty && session.messages.length === 0}
-          <div class="stateful">
-            <h2>Nothing has been said here yet</h2>
-            <p>The transcript was found, and it has no turns in it.</p>
-          </div>
-        {:else if !session.initialized && session.messages.length === 0}
-          <TranscriptSkeleton />
-        {:else if view === 'flow'}
-          <FlowView
-            instanceId={viewId}
-            messages={session.messages}
-            streamingToolId={session.currentTool?.toolId}
-            subagents={flowSubagents}
-            totalCostUsd={session.totalCost}
-          />
-        {:else}
-          <Transcript
-            {agentName}
-            cwd={session.cwd || browsingCwd}
-            {focused}
-            {machineName}
-            {session}
-            {visible}
-          />
+              </h2>
+              <p>{fault.message}</p>
+              <button onclick={retry} type="button">Try again</button>
+            </div>
+          {:else if unaddressable}
+            <div class="stateful">
+              <h2>This session isn't reachable from here</h2>
+              <p>
+                The hub has no record of <code>{viewId}</code>, and no machine
+                it can reach has a transcript filed under it. It may live on a
+                machine that is offline, or it may have been deleted.
+              </p>
+              <a href="/session">Back to the fleet</a>
+            </div>
+          {:else if empty && session.messages.length === 0}
+            <div class="stateful">
+              <h2>Nothing has been said here yet</h2>
+              <p>The transcript was found, and it has no turns in it.</p>
+            </div>
+          {:else if !session.initialized && session.messages.length === 0}
+            <TranscriptSkeleton />
+          {:else if view === 'flow'}
+            <FlowView
+              instanceId={viewId}
+              messages={session.messages}
+              streamingToolId={session.currentTool?.toolId}
+              subagents={flowSubagents}
+              totalCostUsd={session.totalCost}
+            />
+          {:else}
+            <Transcript
+              {agentName}
+              cwd={session.cwd || browsingCwd}
+              {focused}
+              {machineName}
+              {session}
+              {visible}
+            />
+          {/if}
+        </div>
+
+        <!-- Composer stays outside the slide — it's shared structure. -->
+        {#if !fault && (unaddressable || readOnly)}
+          <p class="readonly">
+            This transcript is stored; the session isn't reachable from here.
+          </p>
+        {:else if !fault}
+          <Composer
+            busy={session.busy}
+            {commands}
+            {mentions}
+            {oninterruptsend}
+            {onstop}
+            {onsubmit}
+            {sending}
+            bind:this={composer}
+            bind:height={composerHeight}
+            bind:value={draft}
+          >
+            {#snippet leading()}
+              <AutopilotToggle instance={instanceRow} instanceId={viewId} />
+            {/snippet}
+            {#snippet prompts()}
+              {#each parked as request (request.requestId)}
+                <div class="parked" out:promptExit>
+                  <Prompt
+                    onanswer={(result) => onanswer(request, result)}
+                    {request}
+                  />
+                </div>
+              {/each}
+            {/snippet}
+          </Composer>
         {/if}
+
+        <p aria-live="polite" class="announce" role="status">{sendFailure}</p>
       </div>
-
-      <!-- Composer stays outside the slide — it's shared structure. -->
-      {#if !fault && (unaddressable || readOnly)}
-        <p class="readonly">
-          This transcript is stored; the session isn't reachable from here.
-        </p>
-      {:else if !fault}
-        <Composer
-          busy={session.busy}
-          {commands}
-          {mentions}
-          {oninterruptsend}
-          {onstop}
-          {onsubmit}
-          {sending}
-          bind:this={composer}
-          bind:height={composerHeight}
-          bind:value={draft}
-        >
-          {#snippet leading()}
-            <AutopilotToggle instance={instanceRow} instanceId={viewId} />
-          {/snippet}
-          {#snippet prompts()}
-            {#each parked as request (request.requestId)}
-              <div class="parked" out:promptExit>
-                <Prompt
-                  onanswer={(result) => onanswer(request, result)}
-                  {request}
-                />
-              </div>
-            {/each}
-          {/snippet}
-        </Composer>
+      {#if previewVisible}
+        <div class="preview-column"><PreviewPane instanceId={viewId} /></div>
       {/if}
-
-      <p aria-live="polite" class="announce" role="status">{sendFailure}</p>
     </div>
   {:else}
     <!-- No session in the store yet: the same placeholder the transcript
@@ -880,6 +921,71 @@
 </div>
 
 <style>
+  .preview-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-3);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .preview-actions button {
+    min-height: 34px;
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius-control);
+    background: var(--surface-raised);
+    color: var(--ink-body);
+    font-size: var(--text-xs);
+    cursor: pointer;
+  }
+  .preview-actions button:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+  .preview-actions .transcript-toggle {
+    display: none;
+  }
+  .session-content {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+  }
+  .session-content.with-preview {
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 45%);
+  }
+  .preview-column {
+    min-height: 0;
+    min-width: 0;
+    border-left: 1px solid var(--border-subtle);
+  }
+  .body {
+    min-width: 0;
+  }
+  @container (max-width: 899px) {
+    .session-content.with-preview {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .preview-actions .transcript-toggle {
+      display: inline-block;
+    }
+    .with-preview.preview-tab > .body {
+      display: none;
+    }
+    .with-preview:not(.preview-tab) > .preview-column {
+      display: none;
+    }
+    .preview-column {
+      grid-row: 1;
+      border-left: 0;
+    }
+  }
+  @media (pointer: coarse) {
+    .preview-actions button {
+      min-height: 44px;
+    }
+  }
   /* Announced, never drawn: the live region carries the failure to a screen
      reader while the row itself carries it to everyone else. */
   .announce {
@@ -905,6 +1011,7 @@
   }
 
   .pane {
+    container-type: inline-size;
     display: flex;
     flex-direction: column;
     flex: 1 1 auto;

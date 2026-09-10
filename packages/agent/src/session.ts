@@ -36,6 +36,8 @@ import {
   alreadyIngested,
   FLEET_STATUS,
   FLEET_SYNC,
+  PREVIEW_START,
+  PREVIEW_STOP,
   RESOLVE_PERMISSION,
   readIngested,
   readSpecs,
@@ -48,6 +50,7 @@ import { Effect } from "effect";
 import { expandHome, runFs } from "./fs";
 import type { Harness, HarnessContext, HarnessSession } from "./harness";
 import { harnesses, harness as harnessOf } from "./harnesses";
+import { startPreview, stopPreview, stopPreviews } from "./preview";
 import { installTool, probeTools } from "./tools";
 import { type UpdateOptions, updateCheckout } from "./update";
 
@@ -377,6 +380,9 @@ export class SessionSupervisor {
   readonly #pulseTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   readonly #daemonFunctions: Record<string, ControlMethod> = {
+    [PREVIEW_START]: (options) =>
+      startPreview(options as Parameters<typeof startPreview>[0]),
+    [PREVIEW_STOP]: (options) => stopPreview(options as { instanceId: string }),
     [AGENT_BUSY]: () => ({ busy: this.#busy.size, instances: [...this.#busy] }),
     [UPDATE_WHIFFLE]: (options) =>
       updateCheckout({ ...(options as UpdateOptions), busy: this.#busy.size }),
@@ -527,6 +533,15 @@ export class SessionSupervisor {
 
   /** Drops every trace of an instance's pulse — the session is gone. */
   #forgetPulse(instanceId: string): void {
+    if (stopPreview({ instanceId })) {
+      this.sink({
+        kind: "preview",
+        instanceId,
+        state: "closed",
+        previewPort: 0,
+        open: "",
+      });
+    }
     this.#line.delete(instanceId);
     // The custody this mark gated is over — a relaunch, a hand-off or a death.
     // Whatever produces frames next is not replaying the hub's own past.
@@ -638,6 +653,7 @@ export class SessionSupervisor {
    * down still takes its children with it. Neither is a restart.
    */
   detach(): void {
+    stopPreviews();
     for (const instanceId of [...this.#sessions.keys()]) {
       this.#sessions.delete(instanceId);
       this.#forgetPulse(instanceId);
@@ -1109,10 +1125,10 @@ export class SessionSupervisor {
   }
 
   async #stop({ instanceId, discard, requestId }: StopPayload): Promise<void> {
+    this.#forgetPulse(instanceId);
     const session = this.#sessions.get(instanceId);
     if (session) {
       this.#sessions.delete(instanceId);
-      this.#forgetPulse(instanceId);
       await session.stop();
     }
     if (!discard) {

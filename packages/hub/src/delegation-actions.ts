@@ -14,6 +14,7 @@ import type {
   Envelope,
   InstanceRow,
   PermissionResult,
+  PreviewSource,
   SendPayload,
   SpawnPayload,
 } from "@whiffle/core";
@@ -31,7 +32,8 @@ const WS_PATH_SUFFIX = /\/ws$/;
 /** Where the hub answers REST, derived from the websocket url the daemon uses. */
 export const hubHttpUrl = (): string => {
   const ws =
-    process.env[WHIFFLE_ENV.hubUrl] ?? `ws://localhost:${WHIFFLE_HUB_PORT}/ws`;
+    process.env[WHIFFLE_ENV.hubUrl] ??
+    `ws://localhost:${process.env[WHIFFLE_ENV.hubPort] ?? WHIFFLE_HUB_PORT}/ws`;
   return ws.replace(WS_SCHEME, "http").replace(WS_PATH_SUFFIX, "");
 };
 
@@ -346,6 +348,7 @@ export interface HandoffActions {
   /** Pushes a note to the owner's Telegram — no peer, no ask, fire-and-forget. */
   // biome-ignore lint/style/useConsistentMethodSignatures: implemented below; property-style would change parameter variance against that implementation
   sendToUser(message: string, attachments?: string[]): Promise<string>;
+  readonly showPreview: (source: PreviewSource) => Promise<string>;
   // biome-ignore lint/style/useConsistentMethodSignatures: implemented below; property-style would change parameter variance against that implementation
   startSession(
     cwd: string,
@@ -397,6 +400,20 @@ export const handoffActions = ({
   harness: callerHarness,
   emit,
 }: HandoffDeps): HandoffActions => ({
+  async showPreview(source) {
+    const response = await fetch(
+      `${hubHttpUrl()}/api/instances/${encodeURIComponent(instanceId)}/preview`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(source),
+      }
+    );
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+    return `Preview opened beside the transcript: ${"port" in source ? `localhost:${source.port}` : source.dir}`;
+  },
   async listDelegateTypes() {
     const types = await fetchDelegateTypes((message) => {
       throw new Error(message);

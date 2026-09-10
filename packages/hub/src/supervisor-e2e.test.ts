@@ -40,6 +40,7 @@ const makeRegistry = (): RegistryShape => {
       }
     },
     agent: (machineId) => agents.get(machineId),
+    address: () => undefined,
     machineIds: () => [...agents.keys()],
     addDashboard: (socket) => {
       dashboards.set(socket.id, { socket, subscriptions: new Set() });
