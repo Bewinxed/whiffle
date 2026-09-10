@@ -2,13 +2,11 @@
   /**
    * The modal's popover shell: a portaled bits-ui Popover anchored to its
    * trigger (or a caret rect), collision-handled, scaled from the trigger side,
-   * and a full-viewport panel on small screens. Decision §8.6: the design's
+   * and capped rather than full-screen on small screens. Decision §8.6: the design's
    * `fixedOrigin` maths is unnecessary here because the content is portaled.
    */
   import { Popover as PopoverPrimitive } from "bits-ui";
   import type { Snippet } from "svelte";
-  import { MediaQuery } from "svelte/reactivity";
-  import Back from "~icons/solar/alt-arrow-left-linear";
 
   let {
     id,
@@ -45,7 +43,6 @@
     onmouseleave?: (event: MouseEvent) => void;
     "aria-label"?: string;
   } = $props();
-  const mobile = new MediaQuery("(max-width: 640px)");
 </script>
 
 <PopoverPrimitive.Root onOpenChange={onchange} {open}>
@@ -82,15 +79,6 @@
             {onmousemove}
             role="presentation"
           >
-            {#if mobile.current && trapFocus}
-              <button
-                class="ns-pop-back"
-                onclick={() => onchange(false)}
-                type="button"
-              >
-                <Back />Back
-              </button>
-            {/if}
             {@render children()}
           </div>
         </div>
@@ -98,29 +86,3 @@
     </PopoverPrimitive.Content>
   </PopoverPrimitive.Portal>
 </PopoverPrimitive.Root>
-
-<style>
-  .ns-pop-back {
-    display: none;
-    align-items: center;
-    gap: 6px;
-    height: 44px;
-    padding: 0 8px;
-    border: 0;
-    border-radius: var(--fai-radius-sm);
-    background: transparent;
-    color: var(--fai-text);
-    font: 500 13px / 1 var(--fai-font-sans);
-    text-align: left;
-    cursor: pointer;
-  }
-  .ns-pop-back :global(svg) {
-    width: 16px;
-    height: 16px;
-  }
-  @media (max-width: 640px) {
-    .ns-pop-back {
-      display: flex;
-    }
-  }
-</style>

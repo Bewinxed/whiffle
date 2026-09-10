@@ -683,7 +683,11 @@
         if (!(ok && current())) {
           return;
         }
-        first ||= spawnOne(target, draft);
+        // Every machine gets spawned; `first` only remembers which one to
+        // open. `first ||= spawnOne(…)` short-circuited after machine one, so
+        // "Start 3 sessions" started exactly one.
+        const spawned = spawnOne(target, draft);
+        first ||= spawned;
       }
       recordModelUse(draft.harness, draft.usedModel);
       rememberSpawn({
@@ -908,7 +912,7 @@
     max-height: calc(100dvh - 48px);
     display: flex;
     flex-direction: column;
-    background: var(--fai-grey-100);
+    background: var(--fai-recess);
     border-radius: var(--fai-radius-modal);
     padding: 7px;
     box-shadow: var(--fai-shadow-modal);
@@ -970,7 +974,7 @@
   }
   @media (hover: hover) {
     .close:hover {
-      background: var(--fai-grey-100);
+      background: var(--fai-hover);
       color: var(--fai-text);
     }
   }

@@ -81,7 +81,7 @@
     grid-template-columns: repeat(var(--n), minmax(0, 1fr));
     gap: 2px;
     padding: 3px;
-    background: var(--fai-grey-200);
+    background: var(--fai-recess-deep);
     border-radius: var(--fai-radius-md);
   }
   .thumb {
@@ -90,7 +90,7 @@
     bottom: 3px;
     left: 3px;
     width: calc((100% - 6px - (var(--n) - 1) * 2px) / var(--n));
-    background: var(--fai-surface);
+    background: var(--fai-raised);
     border-radius: var(--fai-radius-sm);
     box-shadow: var(--fai-shadow-raised);
     transition: transform var(--ns-thumb-ms) var(--ns-ease-in-out);

@@ -198,7 +198,7 @@
   }
   @media (hover: hover) {
     .clear:hover {
-      background: var(--fai-grey-100);
+      background: var(--fai-hover);
       color: var(--fai-text);
     }
   }
@@ -221,7 +221,7 @@
       transform 160ms var(--ns-ease-out);
   }
   .row.on {
-    background: var(--fai-grey-100);
+    background: var(--fai-fill);
   }
   .tile {
     width: 24px;

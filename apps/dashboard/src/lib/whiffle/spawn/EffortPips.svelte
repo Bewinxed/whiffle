@@ -211,7 +211,7 @@
     left: 0;
     top: 0;
     bottom: 0;
-    background: var(--fai-grey-100);
+    background: var(--fai-fill);
     transition: width 160ms var(--ns-ease-in-out);
     pointer-events: none;
   }

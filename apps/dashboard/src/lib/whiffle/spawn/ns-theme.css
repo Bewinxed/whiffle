@@ -33,6 +33,20 @@
 
   --fai-surface: var(--surface-raised);
   --fai-surface-subtle: var(--surface-field);
+
+  /*
+   * Elevation as roles, not ramp steps. The design recesses with grey and
+   * lifts with white, which only reads in light: the `--fai-grey-*` ramp
+   * descends from the surface in light and climbs past it in dark, so every
+   * groove, thumb, selected row and hover tint painted straight off the ramp
+   * came out the same colour as what it sat on. These four carry the polarity
+   * instead, and dark flips them in one place below.
+   */
+  --fai-recess: var(--fai-grey-100);
+  --fai-recess-deep: var(--fai-grey-200);
+  --fai-raised: var(--fai-surface);
+  --fai-fill: var(--fai-grey-100);
+  --fai-hover: var(--fai-grey-50);
   --fai-text: var(--ink-strong);
   --fai-text-muted: var(--ink-muted);
   --fai-text-subtle: var(--fai-grey-500);
@@ -111,6 +125,16 @@
 .dark .ns-theme {
   --fai-ink: oklch(from var(--ink-strong) calc(l + 0.05) c h);
   --fai-scrim: oklch(from var(--neutral-1) l c h / 0.72);
+
+  /* Inverted polarity: a groove goes below the card, a lift goes above it. */
+  --fai-recess: var(--neutral-2);
+  --fai-recess-deep: var(--neutral-1);
+  --fai-raised: var(--neutral-5);
+  --fai-fill: var(--neutral-5);
+  --fai-hover: var(--neutral-4);
+  /* A black drop shadow says nothing under a pill that is already lighter
+     than its groove; the raised edge does the lifting instead. */
+  --fai-shadow-raised: inset 0 0 0 1px oklch(from var(--neutral-6) l c h / 0.7);
 }
 
 .ns-theme *,
@@ -200,7 +224,7 @@
   left: 0;
   top: 0;
   border-radius: var(--fai-radius-sm);
-  background: var(--fai-grey-50);
+  background: var(--fai-hover);
   pointer-events: none;
   transition:
     transform var(--ns-ghost-ms) var(--ns-ease-in-out),
@@ -246,6 +270,46 @@
     transform: rotate(360deg);
   }
 }
+/*
+ * The model list's harness slide-swap. These live here, not in
+ * ModelSection.svelte, because the rows name them from an inline `style`
+ * attribute: Svelte rewrites `animation:` inside a component's own <style>
+ * to the scoped name (`svelte-xxxxxx-ns-in-r`) but cannot rewrite a string
+ * built in script, so a component-scoped copy left every row naming an
+ * animation that did not exist, and the swap never moved.
+ */
+@keyframes ns-in-r {
+  from {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes ns-in-l {
+  from {
+    opacity: 0;
+    transform: translateX(-18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes ns-out-l {
+  to {
+    opacity: 0;
+    transform: translateX(-18px);
+  }
+}
+@keyframes ns-out-r {
+  to {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+}
 .ns-theme .ns-in {
   animation: ns-in var(--ns-row-ms) var(--ns-ease-out) both;
   animation-delay: var(--delay, 0ms);
@@ -286,14 +350,14 @@
   border-color: transparent;
 }
 .ns-theme .ns-btn:disabled {
-  background: var(--fai-grey-100);
+  background: var(--fai-recess);
   border-color: var(--fai-border-subtle);
   cursor: not-allowed;
   opacity: 0.6;
 }
 @media (hover: hover) {
   .ns-theme .ns-btn:not(:disabled):hover {
-    background: var(--fai-grey-50);
+    background: var(--fai-hover);
   }
   .ns-theme .ns-btn.primary:not(:disabled):hover {
     background: var(--fai-ink);
@@ -329,30 +393,20 @@
     scale: var(--ns-pop-scale);
   }
 }
+/*
+ * Small screens get a wider, taller popover — not a takeover. Picking a
+ * machine or a project is a detail of the form behind it, and covering the
+ * whole viewport to answer it loses the row being edited and reads as a
+ * second modal. It stays anchored to its trigger; only the cap changes.
+ */
 @media (max-width: 640px) {
-  .ns-pop-shell {
-    position: fixed !important;
-    top: var(--ns-viewport-top, 0px) !important;
-    left: 0 !important;
-    right: 0 !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: 100vw !important;
-    height: var(--ns-viewport-height, 100dvh) !important;
-    transform: none !important;
-    z-index: 90 !important;
-  }
   .ns-theme.ns-pop {
-    width: 100%;
-    max-width: 100%;
-    height: 100%;
-    max-height: 100%;
-    border-radius: 0;
-    border: 0;
-    padding: calc(6px + env(safe-area-inset-top)) 12px
-      calc(6px + env(safe-area-inset-bottom));
-    scale: 1 !important;
-    transform-origin: bottom center;
+    width: calc(100vw - 24px);
+    max-height: min(
+      420px,
+      55dvh,
+      var(--bits-popover-content-available-height, 55dvh)
+    );
   }
   .ns-theme.ns-pop button {
     min-height: 44px;

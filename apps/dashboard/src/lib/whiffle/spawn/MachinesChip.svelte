@@ -134,7 +134,7 @@
   }
   @media (hover: hover) {
     :global(.ns-theme .ns-chip-btn:hover) {
-      background: var(--fai-grey-50);
+      background: var(--fai-hover);
     }
   }
   .row {
@@ -156,7 +156,7 @@
       transform 160ms var(--ns-ease-out);
   }
   .row.on {
-    background: var(--fai-grey-100);
+    background: var(--fai-fill);
   }
   .row:disabled {
     cursor: not-allowed;

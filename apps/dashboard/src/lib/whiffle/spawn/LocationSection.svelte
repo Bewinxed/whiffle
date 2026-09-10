@@ -286,7 +286,7 @@
     transition: var(--fai-transition-control);
   }
   .field.locked {
-    background: var(--fai-grey-50);
+    background: var(--fai-recess);
   }
   .row {
     display: flex;
@@ -365,12 +365,12 @@
   }
   @media (hover: hover) {
     .override:hover {
-      background: var(--fai-grey-100);
+      background: var(--fai-hover);
       color: var(--fai-text);
     }
     .browse:not(:disabled):hover,
     .crumb:hover {
-      background: var(--fai-grey-50);
+      background: var(--fai-hover);
     }
     .folder:hover {
       background: var(--fai-surface);
@@ -403,7 +403,7 @@
     height: 24px;
     padding: 0 8px;
     border-radius: var(--fai-radius-sm);
-    background: var(--fai-grey-100);
+    background: var(--fai-fill);
     font: 500 12px / 1 var(--fai-font-sans);
     color: var(--fai-text);
     white-space: nowrap;

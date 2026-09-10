@@ -271,7 +271,7 @@
     margin: 0 1px;
     vertical-align: -5px;
     border-radius: var(--fai-radius-sm);
-    background: var(--fai-grey-100);
+    background: var(--fai-fill);
     border: 1px solid var(--fai-border);
     font: 500 13px / 1 var(--fai-font-sans);
     color: var(--fai-text);

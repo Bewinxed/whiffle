@@ -72,7 +72,7 @@
     right: 4px;
     top: 4px;
     height: 36px;
-    background: var(--fai-grey-100);
+    background: var(--fai-fill);
     border-radius: var(--fai-radius-sm);
     transition: transform 120ms var(--ns-ease-in-out);
     pointer-events: none;
