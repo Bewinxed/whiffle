@@ -33,6 +33,14 @@ export interface Pin {
 }
 
 interface RailLayout {
+  /**
+   * Whether delegate sessions are listed at all. Off by default: a session that
+   * fans out ten delegates puts eleven rows in the rail, ten of which are work
+   * the reader handed off precisely so they would not have to watch it. Off,
+   * every list in the rail shows only sessions nobody delegated; on, delegates
+   * are back, nested under the session that spawned them as before.
+   */
+  delegates: boolean;
   /** Machine ids in the reader's order; anything not named here sorts after. */
   machines: string[];
   /** The order the Pinned group is drawn in — first pinned, first shown. */
@@ -48,7 +56,7 @@ const isPin = (value: Pin | undefined): value is Pin =>
 
 function read(): RailLayout {
   if (!browser) {
-    return { pins: [], machines: [], sort: "recent" };
+    return { pins: [], machines: [], sort: "recent", delegates: false };
   }
   try {
     const stored = JSON.parse(
@@ -60,9 +68,10 @@ function read(): RailLayout {
       sort: SORTS.includes(stored.sort ?? "")
         ? (stored.sort as RailSort)
         : "recent",
+      delegates: stored.delegates === true,
     };
   } catch {
-    return { pins: [], machines: [], sort: "recent" };
+    return { pins: [], machines: [], sort: "recent", delegates: false };
   }
 }
 
@@ -84,6 +93,13 @@ export const rail = {
   },
   setSort(sort: RailSort): void {
     layout.sort = sort;
+    save();
+  },
+  get delegates(): boolean {
+    return layout.delegates;
+  },
+  setDelegates(show: boolean): void {
+    layout.delegates = show;
     save();
   },
   get flipDurationMs(): number {

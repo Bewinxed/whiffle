@@ -21,6 +21,7 @@
   import { Virtualizer } from "virtua/svelte";
   import { page } from "$app/state";
   import { Button } from "$lib/components/ui/button";
+  import { Checkbox } from "$lib/components/ui/checkbox";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte component-group convention
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte component-group convention
@@ -162,25 +163,43 @@
     })
   );
 
+  /**
+   * Every session list in the rail passes through here. A delegate is work the
+   * reader handed off — six of them under one session is six rows about one
+   * thing — so unless they asked for them (the Delegates checkbox in the
+   * Projects label), the rail lists only sessions nobody delegated. Every list
+   * and not just the running one: "Not running" is where delegates pile up by
+   * the hundred, and a filter that left it alone would not be a filter.
+   */
+  const shown = (rows: InstanceRow[]): InstanceRow[] =>
+    rail.delegates ? rows : rows.filter((row) => !row.parentInstanceId);
+
   const sessionsOf = (project: ProjectRow): InstanceRow[] =>
-    ordered(running.filter((row) => inProject(row, project)));
+    ordered(shown(running.filter((row) => inProject(row, project))));
 
   const recentCountOf = (project: ProjectRow): number =>
     notRunning.filter((row) => inProject(row, project)).length;
 
-  const ungrouped = $derived(
-    ordered(
-      running.filter(
-        (row) => !whiffle.projects.some((project) => inProject(row, project))
-      )
+  /**
+   * Each section keeps its unfiltered list beside its filtered one. Two reasons,
+   * both about the checkbox that sits on the section's own label: the group has
+   * to draw while its every row is hidden, or the control that hid them goes
+   * with them and there is no way back — and the count beside the checkbox is
+   * the difference between the two lists.
+   */
+  const ungroupedAll = $derived(
+    running.filter(
+      (row) => !whiffle.projects.some((project) => inProject(row, project))
     )
   );
 
-  const notRunning = $derived(
-    ordered(
-      whiffle.listedInstances.filter((row) => isResumable(row) || isStale(row))
-    )
+  const ungrouped = $derived(ordered(shown(ungroupedAll)));
+
+  const notRunningAll = $derived(
+    whiffle.listedInstances.filter((row) => isResumable(row) || isStale(row))
   );
+
+  const notRunning = $derived(ordered(shown(notRunningAll)));
 
   const notRunningHint = (row: InstanceRow): string =>
     isResumable(row) ? SLEEPING_HINT : UNKNOWN_HINT;
@@ -359,6 +378,30 @@
 <!-- When a session last moved, in the ~28px a rail can spare. Every session
      row in the rail renders this, so "which one was I just in" is answered by
      looking down one column instead of opening six of them. -->
+<!-- The delegates checkbox, on the label of every section it filters. One
+     switch behind both: "do I want the work I handed off in this rail" is a
+     single question, and a reader who asks it of the running list means it of
+     the sleeping one too. The number is what the section is not showing. -->
+{#snippet delegates(id: string, hidden: number)}
+  <label
+    class="-mr-1 ml-auto flex cursor-pointer items-center gap-1.5 font-normal text-muted-foreground hover:text-foreground"
+    for={id}
+    title={rail.delegates
+      ? 'Listing delegate sessions, nested under the session that spawned them'
+      : 'Delegate sessions are hidden — this lists only sessions nobody delegated'}
+  >
+    <Checkbox
+      checked={rail.delegates}
+      {id}
+      onCheckedChange={(value) => rail.setDelegates(value === true)}
+    />
+    <span>Delegates</span>
+    {#if hidden > 0}
+      <span class="tabular-nums opacity-70">{hidden}</span>
+    {/if}
+  </label>
+{/snippet}
+
 {#snippet age(row: InstanceRow)}
   {@const label = ageOf(row)}
   {#if label}
@@ -781,9 +824,15 @@
     </Sidebar.Group>
 
     <!-- Running now (ungrouped sessions) -->
-    {#if ungrouped.length > 0}
+    {#if ungroupedAll.length > 0}
       <Sidebar.Group class={GROUP}>
-        <Sidebar.GroupLabel class={GROUP_LABEL}>Running now</Sidebar.GroupLabel>
+        <Sidebar.GroupLabel class="{GROUP_LABEL} pr-1">
+          <span>Running now</span>
+          {@render delegates(
+            'rail-delegates-running',
+            ungroupedAll.length - ungrouped.length
+          )}
+        </Sidebar.GroupLabel>
         <Sidebar.Menu class={MENU}>
           {#each nested(ungrouped) as { row, depth } (row.id)}
             {@const activity = whiffle.activityOf(row.id)}
@@ -820,13 +869,17 @@
     {/if}
 
     <!-- Not running -->
-    {#if notRunning.length > 0}
+    {#if notRunningAll.length > 0}
       <Sidebar.Group class="{GROUP} min-h-0 flex-1">
-        <Sidebar.GroupLabel class={GROUP_LABEL}>
+        <Sidebar.GroupLabel class="{GROUP_LABEL} pr-1">
           <span>Not running</span>
-          <span class="ml-auto tabular-nums opacity-70"
+          <span class="ml-1.5 tabular-nums opacity-70"
             >{notRunning.length}</span
           >
+          {@render delegates(
+            'rail-delegates-stored',
+            notRunningAll.length - notRunning.length
+          )}
         </Sidebar.GroupLabel>
         <!-- Virtualized rather than capped. This list is the whole history of the
            fleet — two hundred rows on this machine today — and "15 more…" is
