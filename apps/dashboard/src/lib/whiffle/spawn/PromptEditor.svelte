@@ -170,7 +170,9 @@
       event.preventDefault();
       insertChip(items[menuIdx] ?? items[0]);
     } else if (event.key === "Escape") {
+      // Without this the dialog's own Escape handler closes the whole modal.
       event.preventDefault();
+      event.stopPropagation();
       menu = null;
     }
   }
@@ -287,6 +289,10 @@
     .editor,
     .placeholder {
       font-size: 16px;
+    }
+    /* The hint would only ellipsise at this width; the question survives whole. */
+    .hint {
+      display: none;
     }
   }
 </style>

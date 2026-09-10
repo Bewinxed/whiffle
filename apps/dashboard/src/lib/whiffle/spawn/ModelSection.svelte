@@ -7,6 +7,7 @@
   import { HARNESSES, type HarnessKind } from "@whiffle/core";
   import { untrack } from "svelte";
   import ProviderLogo from "$lib/components/features/ProviderLogo.svelte";
+  import OpenAiMark from "~icons/logos/openai-icon";
   import Down from "~icons/solar/alt-arrow-down-linear";
   import Clear from "~icons/solar/close-square-linear";
   import Code from "~icons/solar/code-square-bold-duotone";
@@ -246,13 +247,13 @@
         class:on={tab.id === harness}
       >
         {#if tab.id === "codex"}
-          <span aria-hidden="true" class="codex-mark">X</span>
+          <OpenAiMark aria-hidden="true" class="codex-mark" />
         {:else}
           <HarnessLogo harness={tab.id as HarnessKind} />
         {/if}
         <span class="tab-name">{tab.name}</span>
         {#if tab.soon}
-          <span class="soon">Coming soon</span>
+          <span class="soon">soon</span>
         {/if}
         {#if !available}
           <span class="sr-only" id={`harness-${tab.id}-why`}
@@ -358,9 +359,7 @@
         {#if q}
           No {harnessName(listHarness)} models match "{query}"
         {:else}
-          No {harnessName(listHarness)} models reported yet. Start any
-          {harnessName(listHarness)}
-          session and they appear here.
+          No {harnessName(listHarness)} models reported yet
         {/if}
       </div>
     {/if}
@@ -422,20 +421,10 @@
     width: 16px;
     height: 16px;
   }
-  .codex-mark {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+  .tab :global(.codex-mark) {
     width: 16px;
     height: 16px;
     flex: none;
-    border-radius: 4px;
-    background: currentColor;
-    color: var(--fai-surface);
-    font: 700 10px / 1 var(--fai-font-sans);
-  }
-  .codex-mark {
-    color: var(--fai-text-muted);
   }
   .tab-name {
     font: 500 12px / 1 var(--fai-font-sans);
@@ -444,12 +433,20 @@
     text-overflow: ellipsis;
     min-width: 0;
   }
+  /* The disabled tab still has to read as "Codex": the tag gives up room first. */
+  .tab:has(.soon) {
+    gap: 4px;
+    padding: 0 4px;
+  }
+  .tab:has(.soon) .tab-name {
+    flex: none;
+  }
   .soon {
     flex: none;
-    font: 500 9px / 1 var(--fai-font-sans);
+    font: 500 8px / 1 var(--fai-font-sans);
     letter-spacing: 0.02em;
     text-transform: uppercase;
-    padding: 3px 4px;
+    padding: 3px 3px;
     border-radius: 4px;
     background: var(--fai-grey-200);
     color: var(--fai-text-muted);
