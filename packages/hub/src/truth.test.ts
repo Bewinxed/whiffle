@@ -498,7 +498,7 @@ test("the instances frame carries the same derived status, plus pulses and hubBu
     instanceId: "frame-live",
     busy: true,
     activity: "working",
-    currentTool: { name: "Bash", glance: "bun test" },
+    currentTool: { name: "Bash", glance: "bun test", toolId: "toolu_1" },
     runningSubagents: 0,
     at: Date.now(),
   };

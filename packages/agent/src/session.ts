@@ -366,7 +366,10 @@ export class SessionSupervisor {
    * the tool in flight, the parked-permission count, and the running-subagent
    * task ids. `busy` reuses {@link #busy}; the pulse is rebuilt on emit.
    */
-  readonly #pulseTool = new Map<string, { name: string; glance: string }>();
+  readonly #pulseTool = new Map<
+    string,
+    { name: string; glance: string; toolId: string }
+  >();
   readonly #pulseBlocked = new Map<string, number>();
   readonly #pulseSubagents = new Map<string, Set<string>>();
   /** Last emit per instance — the 1/sec throttle — and its trailing-edge timer. */
@@ -557,6 +560,7 @@ export class SessionSupervisor {
         this.#pulseTool.set(instanceId, {
           name: block.name,
           glance: glanceOf(block.input as Record<string, unknown>),
+          toolId: block.id,
         });
         this.#emitPulse(instanceId, false);
         return;

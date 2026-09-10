@@ -584,7 +584,8 @@ export interface SessionPulse {
   /** ms epoch of the last frame that changed this pulse. */
   at: number;
   busy: boolean;
-  currentTool: { name: string; glance: string } | null;
+  /** The tool the main loop is inside, addressed as the transcript addresses it. */
+  currentTool: { name: string; glance: string; toolId: string } | null;
   instanceId: string;
   runningSubagents: number;
 }

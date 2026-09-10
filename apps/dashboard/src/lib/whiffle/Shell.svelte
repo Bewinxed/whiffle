@@ -15,10 +15,11 @@
   import { Button } from "$lib/components/ui/button";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte convention for component groups
   import * as Sheet from "$lib/components/ui/sheet";
+  import { setSidebar } from "$lib/components/ui/sidebar/context.svelte";
   import ThemeSwitcher from "$lib/components/ui/ThemeSwitcher.svelte";
+  import { IsMobile, IsTouchPortrait } from "$lib/hooks/is-mobile.svelte";
   import { IconSearch, IconShield, IconSidebar } from "$lib/icons";
   import { isTyping } from "$lib/utils/typing";
-  import { setSidebar } from "$lib/components/ui/sidebar/context.svelte";
   import AssistantOrb from "./assistant/AssistantOrb.svelte";
   import AssistantPanel from "./assistant/AssistantPanel.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
@@ -26,7 +27,8 @@
   import JumpPalette from "./JumpPalette.svelte";
   import Sidebar from "./Sidebar.svelte";
   import UsageMeter from "./UsageMeter.svelte";
-  import { workspace } from "./workspace/workspace.svelte";
+  import PaneTabs from "./workspace/PaneTabs.svelte";
+  import { type WorkspaceV1, workspace } from "./workspace/workspace.svelte";
 
   // The sidebar primitives (SidebarMenuButton etc.) call `useSidebar()` which
   // needs a context. The Shell manages its own layout (resize, mobile sheet),
@@ -34,7 +36,9 @@
   let sidebarOpen = $state(true);
   setSidebar({
     open: () => sidebarOpen,
-    setOpen: (v: boolean) => { sidebarOpen = v; },
+    setOpen: (v: boolean) => {
+      sidebarOpen = v;
+    },
   });
 
   const RAIL_KEY = "whiffle-rail-width";
@@ -240,6 +244,30 @@
   const limits = $derived(whiffle.usageLimitsAny());
   const onSession = $derived(page.url.pathname.startsWith("/session"));
 
+  /* ── The tabs, in the bar ──────────────────────────────────────────
+     A workspace that is one group has one strip, and the bar is where it
+     goes: the crumb it replaces said "Fleet" on every conversation, which
+     told the reader nothing the rail did not. A split keeps a strip per
+     group, on the group; a phone keeps its own row too, since the bar there
+     is the burger's. The same width line the session layout draws — and, on
+     the server, the same cookie — so the bar and the groups agree on who
+     draws the tabs before anything is painted. */
+  if (!browser) {
+    workspace.serve(
+      (page.data as { workspace?: WorkspaceV1 | null }).workspace ?? null
+    );
+  }
+  const mobile = new IsMobile(900);
+  const touchPortrait = new IsTouchPortrait();
+  const narrow = $derived(
+    browser
+      ? mobile.current || touchPortrait.current
+      : (page.data.narrow as boolean)
+  );
+  const hostedLeaf = $derived(
+    onSession && !narrow && workspace.root.t === "l" ? workspace.root : null
+  );
+
   /** Which section the bar names, for the readers who arrived by URL. */
   const crumb = $derived.by(() => {
     const [section] = page.url.pathname.split("/").filter(Boolean);
@@ -360,7 +388,7 @@
   </Sheet.Root>
 
   <div class="main">
-    <header class="top">
+    <header class="top" class:hosting={hostedLeaf !== null}>
       <button
         aria-label="Open navigation"
         class="burger min-[900px]:hidden"
@@ -374,7 +402,11 @@
       <!-- The one "where am I" label, now visible at every width — the brand
            lives in the rail, and the crumb is what the top bar owes a reader
            who arrived by URL. -->
-      <TextMorph as="span" class="crumb" duration={150} text={crumb} />
+      {#if hostedLeaf}
+        <PaneTabs hosted leaf={hostedLeaf} />
+      {:else}
+        <TextMorph as="span" class="crumb" duration={150} text={crumb} />
+      {/if}
 
       <div class="right">
         <!-- Desktop budget and fleet status — phone shows UsageMeter instead. -->
@@ -552,6 +584,13 @@
     background: var(--surface-raised);
     border-bottom: 1px solid var(--border-hairline);
     view-transition-name: topbar;
+  }
+  /* Hosting the tabs, the bar is their well: the tabs start where the
+     identity bar's mark starts (its inset, less the tab's own), and the
+     chosen one's sheet runs down into the pane through the hairline. */
+  .top.hosting {
+    padding-left: calc(var(--space-7) - 10px);
+    background: var(--surface-field);
   }
   .burger {
     width: 44px;

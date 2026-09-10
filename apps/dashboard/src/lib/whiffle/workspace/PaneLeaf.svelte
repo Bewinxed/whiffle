@@ -48,10 +48,13 @@
   let {
     leaf,
     swipeable = false,
+    hosted = false,
   }: {
     leaf: LeafNode;
     /** Only the phone's single group takes the swipe. */
     swipeable?: boolean;
+    /** The top bar is drawing this group's tabs; the group draws none of its own. */
+    hosted?: boolean;
   } = $props();
 
   const swipe = createSwipe(() => leaf.id);
@@ -235,7 +238,9 @@
        typing here" must not compete with it. -->
   <span aria-hidden="true" class="rail"></span>
 
-  <PaneTabs {leaf} />
+  {#if !hosted}
+    <PaneTabs {leaf} />
+  {/if}
 
   {#if viewId}
     <SessionHeader

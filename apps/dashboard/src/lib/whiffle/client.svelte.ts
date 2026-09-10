@@ -614,7 +614,28 @@ function session(instanceId: string): SessionState {
 }
 
 /** Fills in what the registry knows about a session this browser did not spawn. */
+/**
+ * The daemon's now-state, written onto the session it describes.
+ *
+ * `busy` and the running tool are otherwise learnt from the turn's own
+ * frames — a delta, a tool starting, the turn ending — which is a complete
+ * account only for a subscriber who was there for all of them. One that
+ * joined while a tool was running has seen none, and would hold the session
+ * as idle until the next delta. The pulse is built from the same state
+ * machine, sent down the same ordered channel after the frames that changed
+ * it, and broadcast to every tab, so it is never behind what this tab has
+ * already applied: writing it is the same truth arriving by a second road.
+ */
+function applyPulse(target: SessionState, pulse: SessionPulse): void {
+  target.busy = pulse.busy;
+  target.currentTool = pulse.currentTool;
+}
+
 function hydrate(target: SessionState): void {
+  const pulse = state.pulses[target.instanceId];
+  if (pulse) {
+    applyPulse(target, pulse);
+  }
   // What the session was already holding before this view existed. Only ever
   // fills a blank: once frames are flowing they are fresher than any snapshot.
   if (target.queued.length === 0) {
@@ -1087,6 +1108,12 @@ function handleFrame(frame: FramePayload): void {
       state.pulses,
       (frame as { pulses?: Record<string, SessionPulse> }).pulses
     );
+    for (const [id, pulse] of Object.entries(state.pulses)) {
+      const held = state.sessions[id];
+      if (held) {
+        applyPulse(held, pulse);
+      }
+    }
     // Structural read, same reason as `pulses` and `handoffs` above: a hub
     // that predates C2 sends nothing here, and the comparisons that use it
     // (see convergence.ts) already treat "nothing to compare against" as
@@ -1107,6 +1134,10 @@ function handleFrame(frame: FramePayload): void {
     // The daemon's coarse now-state, broadcast — this is the whole of what the
     // rail knows about a session this browser has not subscribed to.
     state.pulses[frame.instanceId] = frame.pulse;
+    const held = state.sessions[frame.instanceId];
+    if (held) {
+      applyPulse(held, frame.pulse);
+    }
     return;
   }
 

@@ -65,8 +65,18 @@
   import { type RailSort, rail } from "./rail.svelte";
   import SpawnPanel from "./SpawnPanel.svelte";
   import UsageMeter from "./UsageMeter.svelte";
+  import { workspace } from "./workspace/workspace.svelte";
 
   const path = $derived(page.url.pathname);
+  /**
+   * Which conversation is in front, for the rows to mark. The workspace
+   * store, not the URL: a tab switch writes the address with `pushState`,
+   * which moves nothing the page reads, so a rail keyed to the path stayed
+   * on the tab the reader had left.
+   */
+  const activeSession = $derived(
+    path.startsWith("/session") ? workspace.activeSessionId : null
+  );
 
   /**
    * The rail's steps, named once. Every size here comes from app.css's scale
@@ -778,7 +788,7 @@
                         <Sidebar.MenuSubButton
                           class={SUB_ROW}
                           href="/session/{row.id}"
-                          isActive={path === `/session/${row.id}`}
+                          isActive={activeSession === row.id}
                           style={indent(depth)}
                         >
                           <span
@@ -840,7 +850,7 @@
             <Sidebar.MenuItem>
               <Sidebar.MenuButton
                 class={LIST_ROW}
-                isActive={path === `/session/${row.id}`}
+                isActive={activeSession === row.id}
               >
                 {#snippet child({ props })}
                   <a href="/session/{row.id}" style={indent(depth)} {...props}>
@@ -910,7 +920,7 @@
               {@const rowStale = isStale(row)}
               <Sidebar.MenuButton
                 class={LIST_ROW}
-                isActive={path === `/session/${row.id}`}
+                isActive={activeSession === row.id}
               >
                 {#snippet child({ props })}
                   <a

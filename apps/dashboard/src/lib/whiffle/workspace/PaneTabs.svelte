@@ -1,21 +1,38 @@
 <script lang="ts">
   /**
-   * One group's tabs.
+   * One group's tabs, drawn as page tabs.
    *
    * The app used to have a single strip because there was a single place a
    * conversation could be. A group owns its own now, which is what makes a
    * split two workstations rather than one view showing two things: each half
    * has its own set of things open and its own idea of which is in front.
    *
-   * Ported from the app strip: the active tab is raised off the strip and
-   * carries strong ink, so the selection survives greyscale.
+   * The tabs are not chips. The strip is a well, the tab in front is a SHEET
+   * — the same surface as the pane below it, open along its bottom edge and
+   * curling into the pane at both corners — and there is exactly one sheet,
+   * which slides to whichever tab is chosen rather than being redrawn on it.
+   * A hover is the same idea one register down: a soft field that follows
+   * the tab nearest the pointer and returns to the sheet when the pointer
+   * leaves. Labels are set at the strong weight invisibly underneath their
+   * visible text, so choosing a tab changes its weight without changing its
+   * width and the sheet lands where it was aimed.
+   *
+   * Hosted (`hosted`), the strip is the top bar's content and the bar
+   * supplies the well; in a group it brings its own row.
    */
   import { untrack } from "svelte";
   import { page } from "$app/state";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte convention for component groups
   import * as ContextMenu from "$lib/components/ui/context-menu";
   import { IconClose } from "$lib/icons";
-  import { whiffle } from "../client.svelte";
+  import ActivityDot from "../ActivityDot.svelte";
+  import {
+    ACTIVITY_LABEL,
+    type Activity,
+    FAILED_LABEL,
+    UNKNOWN_LABEL,
+  } from "../activity";
+  import { isFailed, isStale, whiffle } from "../client.svelte";
   import { copyToClipboard } from "../copy";
   import HarnessGlyph from "../HarnessGlyph.svelte";
   import { markHue } from "../mark";
@@ -29,19 +46,24 @@
     workspace,
   } from "./workspace.svelte";
 
-  let { leaf }: { leaf: LeafNode } = $props();
+  let { leaf, hosted = false }: { leaf: LeafNode; hosted?: boolean } = $props();
 
   const servedNames = $derived(
     (page.data as { names?: Record<string, string> }).names ?? {}
   );
 
   interface Tab {
+    activity: Activity;
+    failed: boolean;
     harness: string;
     href: string;
     hue: ReturnType<typeof markHue>;
     id: string;
     label: string;
     named: boolean;
+    stale: boolean;
+    /** What the badge says, or '' for a tab with nothing to say. */
+    status: string;
   }
 
   function resolve(id: string): Tab {
@@ -49,6 +71,21 @@
     const view = whiffle.session(id);
     const ctx = contextOf(id);
     const { label, named } = sessionName(id, servedNames);
+    const activity = whiffle.activityOf(id);
+    const failed = row ? isFailed(row) : false;
+    const stale = row ? isStale(row) : false;
+    const tool = whiffle.currentToolOf(id)?.name;
+    let status = "";
+    if (failed) {
+      status = FAILED_LABEL;
+    } else if (stale) {
+      status = UNKNOWN_LABEL;
+    } else if (activity !== "idle") {
+      status =
+        activity === "working" && tool
+          ? `${ACTIVITY_LABEL.working} — ${tool}`
+          : ACTIVITY_LABEL[activity];
+    }
     return {
       id,
       href: urlFor(id),
@@ -56,6 +93,10 @@
       hue: markHue(view?.cwd || row?.cwd || ctx?.cwd || id),
       harness: ctx?.harness || row?.harness || view?.harness || "claude",
       named,
+      activity,
+      failed,
+      stale,
+      status,
     };
   }
 
@@ -94,9 +135,152 @@
   const otherLeaves = $derived(
     workspace.leaves.filter((other) => other.id !== leaf.id)
   );
+
+  /* ── Where the tabs are ──────────────────────────────────────────────
+     The sheet and the hover field are positioned from measurements, not
+     drawn by the tabs, which is what lets one element travel between them.
+     Offsets are read against the strip (its offset parent), so a transform
+     on an ancestor — the deck's lift — does not skew them. */
+
+  interface Box {
+    left: number;
+    width: number;
+  }
+
+  let strip = $state<HTMLElement | undefined>();
+  let boxes = $state<Record<string, Box>>({});
+  const items = new Map<string, HTMLElement>();
+  let observer: ResizeObserver | null = null;
+
+  function measure(): void {
+    if (!strip) {
+      return;
+    }
+    const next: Record<string, Box> = {};
+    for (const [id, el] of items) {
+      next[id] = { left: el.offsetLeft, width: el.offsetWidth };
+    }
+    boxes = next;
+  }
+
+  /** Registers a tab's box with the strip for as long as it is mounted. */
+  function item(node: HTMLElement, id: string) {
+    let key = id;
+    items.set(key, node);
+    observer?.observe(node);
+    measure();
+    return {
+      update(next: string) {
+        if (next !== key) {
+          items.delete(key);
+          key = next;
+          items.set(key, node);
+        }
+      },
+      destroy() {
+        items.delete(key);
+        observer?.unobserve(node);
+        measure();
+      },
+    };
+  }
+
+  $effect(() => {
+    if (!strip) {
+      return;
+    }
+    observer = new ResizeObserver(measure);
+    observer.observe(strip);
+    for (const el of items.values()) {
+      observer.observe(el);
+    }
+    measure();
+    return () => {
+      observer?.disconnect();
+      observer = null;
+    };
+  });
+
+  const sheet = $derived(leaf.active ? boxes[leaf.active] : undefined);
+
+  /* ── Proximity hover ─────────────────────────────────────────────────
+     The field goes to the tab NEAREST the pointer, not the one under it, so
+     the gaps between tabs are never dead and the field is always somewhere.
+     Pointer-only: a finger has no hover, and arming this under it would
+     leave a field stranded on whatever was tapped last. */
+
+  let hoverId = $state<string | null>(null);
+  let frame: number | null = null;
+  const canHover = () =>
+    typeof window !== "undefined" &&
+    window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+
+  function onpointermove(event: PointerEvent): void {
+    if (!(strip && canHover())) {
+      return;
+    }
+    const x = event.clientX;
+    if (frame !== null) {
+      cancelAnimationFrame(frame);
+    }
+    frame = requestAnimationFrame(() => {
+      frame = null;
+      if (!strip) {
+        return;
+      }
+      const origin = strip.getBoundingClientRect().left - strip.scrollLeft;
+      let nearest: string | null = null;
+      let distance = Number.POSITIVE_INFINITY;
+      for (const [id, box] of Object.entries(boxes)) {
+        const gap = Math.abs(x - (origin + box.left + box.width / 2));
+        if (gap < distance) {
+          distance = gap;
+          nearest = id;
+        }
+      }
+      hoverId = nearest;
+    });
+  }
+
+  function onpointerleave(): void {
+    if (frame !== null) {
+      cancelAnimationFrame(frame);
+      frame = null;
+    }
+    hoverId = null;
+  }
+
+  const hover = $derived(
+    hoverId && hoverId !== leaf.active ? boxes[hoverId] : undefined
+  );
+  /** Where the field sits when it is not showing: under the sheet, ready. */
+  const fieldBox = $derived(hover ?? sheet);
 </script>
 
-<div aria-label="Open sessions in this group" class="tabstrip" role="tablist">
+<div
+  aria-label="Open sessions in this group"
+  class="strip"
+  {onpointerleave}
+  {onpointermove}
+  role="tablist"
+  bind:this={strip}
+  class:hosted={hosted}
+>
+  {#if sheet}
+    <div
+      aria-hidden="true"
+      class="sheet"
+      style="left: {sheet.left}px; width: {sheet.width}px"
+    ></div>
+  {/if}
+  {#if fieldBox}
+    <div
+      aria-hidden="true"
+      class="field"
+      style="left: {fieldBox.left}px; width: {fieldBox.width}px"
+      class:shown={hover !== undefined}
+    ></div>
+  {/if}
   {#each tabs as tab, i (tab.id)}
     {@const active = leaf.active === tab.id}
     <ContextMenu.Root>
@@ -108,8 +292,11 @@
           class="tab"
           class:drop-after={dropHint.tabIndexIn(leaf.id) === i + 1 && i === tabs.length - 1}
           class:drop-before={dropHint.tabIndexIn(leaf.id) === i}
+          class:near={hoverId === tab.id}
+          class:needs={tab.activity === 'blocked'}
           class:on={active}
           use:dragSession={{ sessionId: tab.id, from: leaf.id }}
+          use:item={tab.id}
           use:tabDropTarget={{ leafId: leaf.id, index: i, sessionId: tab.id }}
         >
           <a
@@ -119,12 +306,28 @@
             href={tab.href}
             onclick={(e) => show(e, tab.id)}
             role="tab"
-            title={tab.label}
+            title={tab.status ? `${tab.label} — ${tab.status}` : tab.label}
           >
             <span aria-hidden="true" class="tm m{tab.hue}">
               <HarnessGlyph harness={tab.harness} />
             </span>
-            <span class="nm">{tab.label}</span>
+            <!-- The session's state, on the mark's corner: the running one
+                 breathes, the one parked on you pings, a failed one is red
+                 and still. An idle tab says nothing — quiet is the default. -->
+            {#if tab.status}
+              <span class="badge">
+                <ActivityDot
+                  activity={tab.activity}
+                  failed={tab.failed}
+                  size={1.5}
+                  stale={tab.stale}
+                />
+              </span>
+            {/if}
+            <span class="nm">
+              <span aria-hidden="true" class="sizer">{tab.label}</span>
+              <span class="text">{tab.label}</span>
+            </span>
           </a>
           <button
             aria-label="Close {tab.label}"
@@ -186,54 +389,141 @@
 </div>
 
 <style>
-  /* The strip shares the identity bar's inset, so the first tab and the
-     session mark below it sit on one line. */
-  .tabstrip {
+  /* The well. In a group it is its own row over the identity bar; hosted,
+     the top bar is the row and this is what fills it. `--tab-top` is where
+     the tabs begin below the row's top edge; the sheet and the field share
+     it so all three agree on one baseline. */
+  .strip {
+    --tab-top: 6px;
+    --tab-well: var(--surface-field);
+    position: relative;
     display: flex;
     align-items: stretch;
     gap: 2px;
-    flex-shrink: 0;
-    padding: 6px var(--space-6) 6px var(--space-7);
+    flex: 0 0 auto;
+    min-width: 0;
+    height: 50px;
+    padding: var(--tab-top) var(--space-6) 0 calc(var(--space-7) - 10px);
+    background: var(--tab-well);
     border-bottom: 1px solid var(--border-hairline);
-    background: var(--surface-raised);
-    overflow-x: auto;
-    scrollbar-width: thin;
+  }
+  .strip.hosted {
+    --tab-top: 9px;
+    flex: 1 1 auto;
+    align-self: stretch;
+    height: auto;
+    padding: var(--tab-top) var(--space-4) 0 0;
+    background: none;
+    border-bottom: 0;
   }
   @container leaf (max-width: 620px) {
-    .tabstrip {
-      padding-left: var(--space-4);
+    .strip:not(.hosted) {
+      padding-left: calc(var(--space-4) - 10px);
       padding-right: var(--space-4);
     }
   }
 
+  /* The sheet: the pane's own surface, brought up behind the chosen tab. It
+     reaches one pixel past the well's bottom edge to cover the hairline, so
+     the tab and the pane are one shape. The corners curl OUTWARD at the foot
+     — a quarter circle of the sheet's colour, edged with the same hairline
+     the sides carry, cut from the well on either side. */
+  .sheet,
+  .field {
+    position: absolute;
+    top: var(--tab-top);
+    z-index: 0;
+    pointer-events: none;
+  }
+  .sheet {
+    bottom: -1px;
+    background: var(--surface-raised);
+    border: 1px solid var(--border-hairline);
+    border-bottom: 0;
+    border-radius: var(--radius-control) var(--radius-control) 0 0;
+    transition:
+      left var(--c-300) var(--e-in),
+      width var(--c-300) var(--e-in);
+  }
+  .sheet::before,
+  .sheet::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    width: var(--radius-control);
+    height: var(--radius-control);
+  }
+  .sheet::before {
+    left: calc(-1 * var(--radius-control) - 1px);
+    background: radial-gradient(
+      circle at 0 0,
+      transparent calc(var(--radius-control) - 1px),
+      var(--border-hairline) calc(var(--radius-control) - 1px),
+      var(--border-hairline) var(--radius-control),
+      var(--surface-raised) calc(var(--radius-control) + 0.5px)
+    );
+  }
+  .sheet::after {
+    right: calc(-1 * var(--radius-control) - 1px);
+    background: radial-gradient(
+      circle at 100% 0,
+      transparent calc(var(--radius-control) - 1px),
+      var(--border-hairline) calc(var(--radius-control) - 1px),
+      var(--border-hairline) var(--radius-control),
+      var(--surface-raised) calc(var(--radius-control) + 0.5px)
+    );
+  }
+
+  /* The hover field: a register below the sheet, and quicker — it is
+     following a hand. Parked under the sheet while nothing is hovered, so
+     it enters from there and leaves to there. */
+  .field {
+    bottom: 5px;
+    border-radius: var(--radius-control);
+    background: var(--surface-hover);
+    opacity: 0;
+    transition:
+      left var(--c-100) var(--e-in),
+      width var(--c-100) var(--e-in),
+      opacity var(--c-100) var(--e-in);
+  }
+  .field.shown {
+    opacity: 1;
+  }
+
+  /* Tabs are transparent: the sheet and the field paint, the tab only
+     places its content over them. They share the row's width the way a
+     browser's do, giving up their labels before their marks. */
   .tab {
+    --tab-bg: var(--tab-well);
     position: relative;
+    z-index: 1;
     display: flex;
     align-items: center;
     gap: 6px;
-    flex: 0 0 auto;
-    min-width: 0;
-    max-width: 200px;
-    height: 38px;
-    padding: 0 8px 0 10px;
-    border: 1px solid transparent;
-    /* Concentric: the tab's own radius, less its 6px inset, is the radius of
-       the mark and the close target seated inside it. */
-    border-radius: var(--radius-control);
-    background: var(--surface-field);
-    color: var(--ink-body);
+    flex: 1 1 auto;
+    min-width: 44px;
+    max-width: 220px;
+    padding: 0 6px 0 10px;
+    color: var(--ink-muted);
     font-size: var(--text-base);
     font-weight: var(--weight-medium);
     white-space: nowrap;
-    transition:
-      background-color var(--c-100) var(--e-in),
-      color var(--c-100) var(--e-in);
+    transition: color var(--c-100) var(--e-in);
   }
-  @media (hover: hover) and (pointer: fine) {
-    .tab:hover:not(.on) {
-      background: var(--surface-hover);
-    }
+  .tab.near,
+  .tab.on {
+    color: var(--ink-strong);
   }
+  .tab.on {
+    --tab-bg: var(--surface-raised);
+  }
+  /* Parked on you: the label carries the strong ink whether or not it is
+     in front, so the ask is legible from across the strip. */
+  .tab.needs {
+    color: var(--ink-strong);
+  }
+
   /* Where it would land. A 2px rule against the gap between tabs, so the
      answer is unambiguous about WHICH side without moving anything. */
   .tab.drop-before::before,
@@ -258,22 +548,14 @@
     opacity: 0.4;
   }
 
-  /* Raised surface, hairline and weight say "this one" — colour is never the
-     only channel. */
-  .tab.on {
-    background: var(--surface-raised);
-    color: var(--ink-strong);
-    font-weight: var(--weight-strong);
-    border-color: var(--border-hairline);
-    box-shadow: var(--shadow-tile);
-  }
-
   .tl {
+    position: relative;
     display: flex;
     align-items: center;
     align-self: stretch;
     gap: 8px;
     min-width: 0;
+    flex: 1 1 auto;
     color: inherit;
     text-decoration: none;
   }
@@ -317,11 +599,41 @@
     background-color: var(--mark-8);
   }
 
+  /* On the mark's corner, ringed in the tab's own surface so it reads as
+     sitting on the mark rather than beside it. */
+  .badge {
+    position: absolute;
+    left: 9px;
+    top: calc(50% + 2px);
+    display: grid;
+    place-items: center;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--tab-bg);
+    transition: background-color var(--c-100) var(--e-in);
+  }
+
+  /* Two labels in one cell: the invisible one is set at the strong weight
+     and decides the width, so the visible one can change weight in place. */
   .nm {
+    display: grid;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .nm > span {
+    grid-area: 1 / 1;
     min-width: 0;
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
+  }
+  .sizer {
+    visibility: hidden;
+    font-weight: var(--weight-strong);
+  }
+  .tab.on .text {
+    font-weight: var(--weight-strong);
   }
 
   .tclose {
@@ -359,12 +671,13 @@
   .tl:focus-visible,
   .tclose:focus-visible {
     outline: 2px solid var(--focus-ring);
-    outline-offset: 2px;
+    outline-offset: -2px;
+    border-radius: var(--radius-control);
   }
 
   @media (pointer: coarse) {
-    .tab {
-      height: 44px;
+    .strip:not(.hosted) {
+      height: 56px;
     }
     .tclose {
       width: 28px;
@@ -372,6 +685,8 @@
     }
   }
   @media (prefers-reduced-motion: reduce) {
+    .sheet,
+    .field,
     .tab,
     .tclose {
       transition: none;
