@@ -1,3 +1,20 @@
+<script lang="ts" module>
+  import type { CacheSnapshot } from "virtua";
+
+  /**
+   * Where each conversation was left, by session id: virtua's measured sizes
+   * and the scroll offset, so a pane that mounts again lands in one write
+   * instead of hunting for its tail across several re-ranges.
+   */
+  const landings = new Map<
+    string,
+    { cache: CacheSnapshot; offset: number; count: number; tail: boolean }
+  >();
+  /** A running average of measured row heights — virtua's first estimate for a pane with no landing yet. */
+  let measuredHeight = 0;
+  let measuredCount = 0;
+</script>
+
 <script lang="ts">
   /**
    * The scrolling transcript: the folded rows, virtualized. The live tail rides
@@ -6,8 +23,8 @@
    * genuine arrivals — and blocked-on-you — through a dedicated live region
    * beside the log, never through the virtualized container itself.
    */
-  import { setContext, tick, untrack } from "svelte";
-  import { Virtualizer } from "virtua/svelte";
+  import { onDestroy, setContext, tick, untrack } from "svelte";
+  import { Virtualizer, type VirtualizerHandle } from "virtua/svelte";
   import { browser } from "$app/environment";
   import { describeTool } from "$lib/components/features/tool-cards/descriptors";
   import { ThinkingIndicator } from "$lib/components/ui/thinking-indicator";
@@ -352,6 +369,11 @@
     }
   });
   const rows = $derived(built.rows);
+  const snapshot = untrack(() => {
+    const saved = landings.get(session.instanceId);
+    return saved?.count === built.rows.length ? saved : undefined;
+  });
+  const itemSize = measuredCount ? measuredHeight / measuredCount : 320;
 
   /**
    * How many rows the SERVER paints — and nothing the browser ever hears about.
@@ -402,16 +424,38 @@
   let scroller = $state<HTMLElement | undefined>();
   /** virtua's imperative handle — `scrollToIndex` reaches the true last row even
       as rows are still being measured, which a one-shot scrollTop cannot. */
-  let list = $state<
-    | {
-        scrollToIndex: (
-          i: number,
-          opts?: { align?: "start" | "center" | "end" | "nearest" }
-        ) => void;
-      }
-    | undefined
-  >();
+  let list = $state<VirtualizerHandle | undefined>();
   let atBottom = $state(true);
+
+  function saveLanding(): void {
+    if (!(list && scroller && landed)) {
+      return;
+    }
+    const cache = list.getCache();
+    landings.set(session.instanceId, {
+      cache,
+      offset: scroller.scrollTop,
+      count: built.rows.length,
+      tail:
+        scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <
+        120,
+    });
+    // virtua 0.50 serializes [sizes, defaultSize]; -1 marks an unmeasured row.
+    const [sizes] = cache as unknown as [number[], number];
+    for (const size of sizes) {
+      if (size >= 0) {
+        measuredHeight += size;
+        measuredCount += 1;
+      }
+    }
+  }
+
+  $effect.pre(() => {
+    if (!visible) {
+      untrack(saveLanding);
+    }
+  });
+  onDestroy(saveLanding);
 
   function onscroll(): void {
     if (!(scroller && landed)) {
@@ -458,6 +502,7 @@
    *  made them (a scrollbar drag fires no wheel event; a tagged write needs no
    *  event taxonomy at all). */
   let following: number | null = null;
+  let landingFrame: number | null = null;
   let lastWrite = -1;
   function stopFollow(): void {
     if (following !== null) {
@@ -623,6 +668,21 @@
       ? scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop
       : 0;
     const instant = !landed;
+    if (instant) {
+      if (snapshot && scroller) {
+        scroller.scrollTop = snapshot.tail
+          ? scroller.scrollHeight
+          : snapshot.offset;
+        lastWrite = scroller.scrollTop;
+        atBottom = snapshot.tail;
+      } else {
+        list?.scrollToIndex(rows.length - 1, { align: "end" });
+        atBottom = true;
+      }
+      landed = true;
+      settle();
+      return;
+    }
     // A tab-return whose catch-up has just appended: the reader left at the
     // tail, so the new turns ride in from where they were. A gap past the
     // followable bound is first closed to within it in one silent write, and
@@ -630,14 +690,14 @@
     // a teleport for a long absence. virtua measures the rows the ride
     // crosses as they enter the viewport; the loop reads the live target
     // every frame, so an estimate that firms up mid-ride is absorbed.
-    const riding = landed && returning && gap > 0;
+    const riding = returning && gap > 0;
     // Consumed by the land that has somewhere to go: the rising edge lands
     // once on the frozen rows (gap 0) before the append does.
     if (gap > 0) {
       returning = false;
     }
     const bound = (scroller?.clientHeight ?? 0) * 2;
-    const followable = !instant && !!scroller && (gap <= bound || riding);
+    const followable = !!scroller && (gap <= bound || riding);
     if (!followable) {
       if (list) {
         list.scrollToIndex(rows.length - 1, { align: "end" });
@@ -645,12 +705,15 @@
         scroller.scrollTop = scroller.scrollHeight;
       }
     }
-    requestAnimationFrame(() => {
-      if (!scroller) {
+    if (landingFrame !== null) {
+      cancelAnimationFrame(landingFrame);
+    }
+    landingFrame = requestAnimationFrame(() => {
+      landingFrame = null;
+      if (!(scroller && active && atBottom)) {
         return;
       }
-      // First landings teleport — there is no continuity to keep; the live
-      // follow and the catch-up ride the loop. The closing write sits inside
+      // The live follow and the catch-up ride the loop. The closing write sits inside
       // the same frame as the loop's start, so the scroll event it raises
       // carries the loop's own tag and is not read as the reader scrolling.
       if (followable) {
@@ -668,17 +731,6 @@
         followBottom();
       } else {
         scroller.scrollTop = scroller.scrollHeight;
-        // This frame is the first one painted since the landing. A tab that
-        // loaded in the background painted nothing: virtua's `scrollToIndex`
-        // waits on a measurement that never came, gives up on its timeout at
-        // an estimated offset, and when the tab is shown the rows measure
-        // around that stale write — virtua keeps its anchor as the rows above
-        // grow, the tail ends up a viewport away, and that move reads as the
-        // reader scrolling. Asking again now, with frames painting, converges
-        // on the true last row the way a foreground landing does.
-        if (instant && list) {
-          list.scrollToIndex(rows.length - 1, { align: "end" });
-        }
       }
       settle();
     });
@@ -727,7 +779,7 @@
    *  stay where they were. */
   let returning = false;
   $effect(() => {
-    if (!active) {
+    if (!active && landed) {
       return;
     }
     // Read, not used: these two are this effect's tracked dependencies, read
@@ -735,14 +787,20 @@
     // comment above this effect for why the order and the guard matter.
     // biome-ignore lint/complexity/noVoid: see comment above — a bare reference would look unused and get "cleaned up".
     void rows.length;
-    // biome-ignore lint/complexity/noVoid: see comment above — a bare reference would look unused and get "cleaned up".
-    void session.streaming;
+    if (active) {
+      // biome-ignore lint/complexity/noVoid: track streaming only while focused
+      void session.streaming;
+    }
     if (rows.length === 0) {
       return;
     }
     if (!landed || atBottom) {
       // biome-ignore lint/complexity/noVoid: fire-and-forget by intent — this effect does not await the land, it only arms it.
-      void tick().then(land);
+      void tick().then(() => {
+        if (!landed || (active && atBottom)) {
+          land();
+        }
+      });
     } else {
       returning = false;
     }
@@ -1294,12 +1352,17 @@
   {/if}
 
   <Virtualizer
+    cache={snapshot?.cache}
     data={built.rows}
     getKey={(r) => r.key}
+    {itemSize}
     scrollRef={scroller}
     shift={built.shifted}
     {ssrCount}
-    bind:this={list}
+    bind:this={
+      () => list,
+      (value) => { list = value as unknown as VirtualizerHandle; }
+    }
   >
     {#snippet children(row)}
       {@const landing = enter(row)}

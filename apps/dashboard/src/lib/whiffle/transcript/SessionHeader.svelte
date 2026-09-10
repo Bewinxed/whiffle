@@ -57,6 +57,7 @@
 
   let {
     title,
+    morph = false,
     seed,
     harness,
     machineName,
@@ -83,6 +84,7 @@
     streaming,
   }: {
     title: string;
+    morph?: boolean;
     /** What the identity HUE is keyed to — the project, so a repo reads as one. */
     seed: string;
     harness: string;
@@ -525,13 +527,28 @@
   <span aria-hidden="true" class="mark m{markHue(seed)}"
     ><HarnessGlyph {harness} /></span
   >
-  <h1><TextMorph as="span" duration={120} text={title} /></h1>
-  <span class="path"
-    ><TextMorph as="span" duration={120} text="{machineName} : {cwd}" /></span
-  >
-  <span class="pill {pill.status}"
-    ><TextMorph as="span" duration={100} text={pill.label} /></span
-  >
+  <h1>
+    {#if morph}
+      <TextMorph as="span" duration={120} text={title} />
+    {:else}
+      {title}
+    {/if}
+  </h1>
+  <span class="path">
+    {#if morph}
+      <TextMorph as="span" duration={120} text="{machineName} : {cwd}" />
+    {:else}
+      {machineName}
+      : {cwd}
+    {/if}
+  </span>
+  <span class="pill {pill.status}">
+    {#if morph}
+      <TextMorph as="span" duration={100} text={pill.label} />
+    {:else}
+      {pill.label}
+    {/if}
+  </span>
 
   <div class="mid">
     <ToggleGroup.Root

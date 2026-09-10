@@ -21,14 +21,16 @@
    * animation guards used to be hiding.
    */
   import type { Snippet } from "svelte";
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { browser } from "$app/environment";
   import { afterNavigate } from "$app/navigation";
   import { page } from "$app/state";
   import { IsMobile, IsTouchPortrait } from "$lib/hooks/is-mobile.svelte";
   import {
     type HistorySource,
+    preloadHistory,
     syncSubscriptions,
+    whiffle,
   } from "$lib/whiffle/client.svelte";
   import FleetBoard from "$lib/whiffle/FleetBoard.svelte";
   import PaneDeck from "$lib/whiffle/workspace/PaneDeck.svelte";
@@ -166,6 +168,66 @@
     const onPop = () => reconcileFromUrl();
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
+  });
+
+  const queued = new Set<string>();
+  const historyQueue: string[] = [];
+  let preloadReady = false;
+  let preloading = false;
+
+  async function drainHistory(): Promise<void> {
+    if (!preloadReady || preloading) {
+      return;
+    }
+    preloading = true;
+    while (preloadReady && historyQueue.length > 0) {
+      const [id] = historyQueue;
+      historyQueue.shift();
+      if (id !== workspace.activeSessionId && workspace.openIds.includes(id)) {
+        // biome-ignore lint/performance/noAwaitInLoops: background reads deliberately run one at a time
+        await preloadHistory(id);
+      }
+      await new Promise<void>((resolve) => {
+        if ("requestIdleCallback" in window) {
+          window.requestIdleCallback(() => resolve());
+        } else {
+          setTimeout(resolve, 0);
+        }
+      });
+    }
+    preloading = false;
+  }
+
+  // The other tabs read behind the active one, not behind a clock: the loop
+  // starts the moment the active conversation has its first chunk (or at once,
+  // when the store already holds it), so the only tap that can still find a
+  // skeleton is one that beats the active tab's own read.
+  $effect(() => {
+    const active = workspace.activeSessionId;
+    const held = active ? whiffle.session(active) : null;
+    const ready =
+      active === null ||
+      (held !== null && (held.initialized || held.messages.length > 0));
+    if (!ready) {
+      return;
+    }
+    untrack(() => {
+      preloadReady = true;
+      drainHistory();
+    });
+  });
+
+  $effect(() => {
+    const ids = workspace.openIds;
+    untrack(() => {
+      for (const id of ids) {
+        if (!queued.has(id)) {
+          queued.add(id);
+          historyQueue.push(id);
+        }
+      }
+      drainHistory();
+    });
   });
 
   $effect(() => {

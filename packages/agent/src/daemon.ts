@@ -398,11 +398,6 @@ const attach = (
     send(socket, { verb: "register", machineId: identity.machineId, payload });
     yield* Effect.logInfo(`registered with ${url}`);
     markLive();
-    // A hub that restarted while a session sat on a permission ask has
-    // forgotten the question; the callback is still parked here. Replay every
-    // unresolved ask so the hub can re-park it — it re-notifies only what it
-    // does not already know.
-    supervisor.replayOpenAsks();
 
     supervisor.reannounce = () => {
       if (socket.readyState !== WebSocket.OPEN) {
@@ -455,6 +450,21 @@ const attach = (
         payload: frame,
       });
     };
+    // A hub that restarted while a session sat on a permission ask has
+    // forgotten the question; the callback is still parked here. Replay every
+    // unresolved ask so the hub can re-park it — it re-notifies only what it
+    // does not already know.
+    //
+    // AFTER THE SINK, NOT AFTER THE REGISTER. The replay goes out through
+    // `supervisor.sink`, and until the assignment above that field still holds
+    // the CLOSED socket of the connection that just died — on the first
+    // connection, the no-op it is born with. Replaying any earlier therefore
+    // sank every parked ask into nothing, which is how a session blocked on a
+    // question outlived the hub that could have answered it: the daemon held
+    // the callback, the hub had forgotten the request, and no dashboard could
+    // see one to answer. The register is already on the wire above and the
+    // socket preserves that order, so the hub still reads the register first.
+    supervisor.replayOpenAsks();
     /**
      * CUSTODY OFF THE REGISTER ACK (design §7, step 4).
      *

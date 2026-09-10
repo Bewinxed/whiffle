@@ -1890,9 +1890,59 @@ export class ClaudeHarness implements Harness {
         (ctx as Partial<SessiondAwareContext>).line?.(srcEpoch, seq);
       }
     };
+    // A PEEK THAT NEVER REACHES `head` MUST STILL HAND BACK.
+    //
+    // The hand-off below fires on the line at `head`, and there are survivors
+    // no such line ever arrives for: a sessiond too old to name its retained
+    // window (see `reset`) refuses the peek outright, and an idle child writes
+    // nothing further to rescue it. The session is then held for the life of
+    // this process — every message sent to it parked, the board showing it
+    // running — which is the wedge custody exists to prevent, not to cause.
+    //
+    // SILENCE IS THE EVIDENCE, so it is read as such. Every line pushes the
+    // deadline out, so a child that is genuinely mid-turn — which writes
+    // assistant and stream lines continuously — never reaches it, and one
+    // whose replay is merely slow keeps its full peek. What fires it is the
+    // child having gone quiet with the peek still outstanding, and the answer
+    // is then the same one `head` would have given: the verdict as it stands,
+    // and a hand-off only if nothing in what was read says mid-turn.
+    //
+    // The two refusals above it are the two above: a `verdict` of false is a
+    // turn still running, which custody is right to keep and which the child's
+    // own `result` line hands back; a null session key is nothing to resume,
+    // and respawning on it would orphan the conversation.
+    const QUIET_HANDBACK_MS = 15_000;
+    let quiet: ReturnType<typeof setTimeout> | undefined;
+    const stopWaiting = (): void => {
+      if (quiet !== undefined) {
+        clearTimeout(quiet);
+        quiet = undefined;
+      }
+    };
+    const waitForQuiet = (): void => {
+      stopWaiting();
+      quiet = setTimeout(() => {
+        quiet = undefined;
+        if (peekSeq === undefined || custody.handedOff) {
+          return;
+        }
+        if (custody.sessionId === null || !(verdict ?? true)) {
+          // Held on purpose, and said so: a custody nobody can explain looks
+          // exactly like the bug this guard removes.
+          ctx.frame({
+            type: "system",
+            subtype: "sessiond_custody_held",
+            text: `whiffle: adopted this session but sessiond's replay stopped short of line ${head}; holding it ${custody.sessionId === null ? "because there is no session id to resume" : "because its last turn reads as still running"}`,
+          } as unknown as NeutralMessage);
+          return;
+        }
+        custody.handOff();
+      }, QUIET_HANDBACK_MS);
+    };
     const listener: Parameters<SessiondClient["subscribe"]>[1] = {
       line: (event) => {
         seen = true;
+        waitForQuiet();
         // Every line up to `head` feeds the verdict, peeked or really
         // replayed: a replayed `result` hands off inside `ingest` anyway, but
         // a replayed `init` would not, and a fresh child the hub saw nothing
@@ -1944,6 +1994,7 @@ export class ClaudeHarness implements Harness {
           custody.sessionId !== null &&
           (verdict ?? true)
         ) {
+          stopWaiting();
           custody.handOff();
         }
       },
@@ -1953,6 +2004,7 @@ export class ClaudeHarness implements Harness {
       // do — expected, and not the session ending — so only `stop`'s wait
       // hears of it.
       exit: () => {
+        stopWaiting();
         custody.exited();
         if (!custody.handedOff) {
           ctx.closed?.();
@@ -1995,6 +2047,7 @@ export class ClaudeHarness implements Harness {
             } as unknown as NeutralMessage);
           }
           client.subscribe(instanceId, listener, reopenAt);
+          waitForQuiet();
           return;
         }
         ctx.frame({
@@ -2005,6 +2058,11 @@ export class ClaudeHarness implements Harness {
       },
     };
     client.subscribe(instanceId, listener, peekSeq ?? options.afterSeq);
+    if (peekSeq !== undefined) {
+      // A peek that is refused outright, or answered with nothing, produces no
+      // line to arm the wait from — so it is armed here, before the first one.
+      waitForQuiet();
+    }
     return custody;
   }
 

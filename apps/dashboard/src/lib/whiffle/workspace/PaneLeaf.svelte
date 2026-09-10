@@ -250,6 +250,7 @@
       maxTokens={stats.maxTokens}
       mcpCount={session?.mcp?.length ?? null}
       model={session?.model ?? null}
+      morph={swipe.previewId !== null}
       {offeredModes}
       {oneffort}
       {onmodel}

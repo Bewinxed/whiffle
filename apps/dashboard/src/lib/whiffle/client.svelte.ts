@@ -3764,6 +3764,18 @@ export function messagesUrl(source: HistorySource, tail?: number): string {
   return `${path}${suffix}`;
 }
 
+export function preloadHistory(viewId: string): Promise<TranscriptOutcome> {
+  const row = whiffle.instances.find((instance) => instance.id === viewId);
+  return streamHistory({
+    viewId,
+    machineId: "",
+    sessionId: row?.sessionId ?? undefined,
+    cwd: "",
+    harness: (row?.harness ?? "claude") as HarnessKind,
+    live: !!row,
+  });
+}
+
 /**
  * A session's stored transcript over HTTP, published as it arrives.
  *
