@@ -146,8 +146,9 @@
         data-effort-line
         style={`top:${lineInset}px;bottom:${lineInset}px;left:calc(${p} * 100% + ${lineOff}px);background:${lineColor};opacity:${n ? 1 : 0}`}
       ></div>
+      <!-- The section header above already says "Effort"; the track shows the
+           level it is on, nothing else. -->
       <div class="labels">
-        <span class="lbl" class:ink={active}>Effort</span>
         <span class="lbl value" class:ink={active}>{label}</span>
       </div>
       <input
@@ -252,7 +253,7 @@
     inset: 0;
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     padding: 0 10px;
     pointer-events: none;
   }

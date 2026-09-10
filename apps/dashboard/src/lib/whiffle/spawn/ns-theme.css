@@ -218,8 +218,14 @@
   box-shadow: none;
 }
 
-/* Follow-hover ghost. */
+/*
+ * Follow-hover ghost. Hidden wherever the pointer cannot hover: a tap fires a
+ * synthetic mousemove and no matching mouseleave, so on a phone the ghost
+ * parked on whatever was tapped last and read as a second selection sitting
+ * beside the real one.
+ */
 .ns-theme .ns-ghost {
+  display: none;
   position: absolute;
   left: 0;
   top: 0;
@@ -231,6 +237,11 @@
     width var(--ns-ghost-ms) var(--ns-ease-in-out),
     height var(--ns-ghost-ms) var(--ns-ease-in-out),
     opacity 120ms ease;
+}
+@media (hover: hover) {
+  .ns-theme .ns-ghost {
+    display: block;
+  }
 }
 
 /* One-shot entrance for rows/badges (the design's `nsIn`); interruptible

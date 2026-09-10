@@ -6,6 +6,7 @@
    */
   import { HARNESSES, type HarnessKind } from "@whiffle/core";
   import { untrack } from "svelte";
+  import { MediaQuery } from "svelte/reactivity";
   import ProviderLogo from "$lib/components/features/ProviderLogo.svelte";
   import OpenAiMark from "~icons/logos/openai-icon";
   import Down from "~icons/solar/alt-arrow-down-linear";
@@ -70,14 +71,28 @@
   };
   const harnessName = (kind: HarnessKind) =>
     TABS.find((tab) => tab.id === kind)?.name ?? kind;
+  /** Exit and entrance run over each other; these are the two staggers. */
+  const OUT_MS = 160;
+  const OUT_STAGGER = 14;
+  const IN_MS = 260;
+  const IN_STAGGER = 32;
+  /** How many leaving rows keep animating. The list shows about five. */
+  const LEAVING = 8;
   let listHarness = $state<HarnessKind>(untrack(() => harness));
-  let phase = $state<"in" | "out" | "idle">("in");
+  let phase = $state<"in" | "idle">("in");
   let slideDir = $state(1);
   let gen = $state(0);
   let query = $state("");
   let searchFocus = $state(false);
   let list = $state<HTMLDivElement>();
+  /** The rows the last harness had, still on screen while the new ones arrive. */
+  let leaving = $state<ModelEntry[]>([]);
   const harnessIdx = $derived(TABS.findIndex((tab) => tab.id === harness));
+  /** Two-up under 640px, so the thumb travels in both axes. */
+  const twoUp = new MediaQuery("(max-width: 640px)");
+  const cols = $derived(twoUp.current ? 2 : 4);
+  const thumbCol = $derived(harnessIdx % cols);
+  const thumbRow = $derived(Math.floor(harnessIdx / cols));
   const fhHarness = new FollowHover("x");
   const fhModels = new FollowHover("y");
 
@@ -91,17 +106,25 @@
       HARNESSES.indexOf(next) > HARNESSES.indexOf(untrack(() => listHarness))
         ? 1
         : -1;
-    phase = "out";
-    const swap = setTimeout(
+    // The new list mounts immediately and the old rows keep animating in a
+    // layer above it, so the two staggers overlap. Swapping only after the
+    // exit finished left a dead beat between them, and it also froze `pick`
+    // for the whole of that wait.
+    leaving = untrack(() => rows.slice(0, LEAVING));
+    listHarness = next;
+    gen += 1;
+    query = "";
+    phase = "in";
+    // A different catalogue entirely; keeping the old scroll offset would
+    // land mid-list and misalign the layer that is animating out.
+    untrack(() => list)?.scrollTo({ top: 0 });
+    const clear = setTimeout(
       () => {
-        listHarness = next;
-        gen += 1;
-        query = "";
-        phase = "in";
+        leaving = [];
       },
-      reducedMotion.current ? 0 : 200
+      reducedMotion.current ? 0 : OUT_MS + OUT_STAGGER * LEAVING
     );
-    return () => clearTimeout(swap);
+    return () => clearTimeout(clear);
   });
   $effect(() => {
     if (phase !== "in") {
@@ -156,15 +179,10 @@
       rows.findIndex((row) => row.id === selectedId)
     ) + (showCustomRow ? 1 : 0)
   );
-  const hiOpacity = $derived(
-    phase === "out" || !rows.some((row) => row.id === selectedId) ? 0 : 1
-  );
+  const hiOpacity = $derived(rows.some((row) => row.id === selectedId) ? 1 : 0);
   const ctx = (entry: ModelEntry) => (entry.name.endsWith("· 1M") ? "1M" : "");
   const vendor = (id: string) => VENDOR[providerOf(id) ?? ""] ?? "";
   function pick(entry: ModelEntry) {
-    if (listHarness !== harness) {
-      return;
-    }
     if (entry.isCustom) {
       rememberModel(entry.id);
     }
@@ -197,14 +215,13 @@
     }
   }
   function rowAnim(i: number) {
-    if (phase === "out") {
-      return `${slideDir > 0 ? "ns-out-l" : "ns-out-r"} 160ms var(--ns-ease-out) both ${i * 14}ms`;
+    if (phase !== "in") {
+      return "none";
     }
-    if (phase === "in") {
-      return `${slideDir > 0 ? "ns-in-r" : "ns-in-l"} 260ms var(--ns-ease-out) both ${40 + i * 32}ms`;
-    }
-    return "none";
+    return `${slideDir > 0 ? "ns-in-r" : "ns-in-l"} ${IN_MS}ms var(--ns-ease-out) both ${i * IN_STAGGER}ms`;
   }
+  const leaveAnim = (i: number) =>
+    `${slideDir > 0 ? "ns-out-l" : "ns-out-r"} ${OUT_MS}ms var(--ns-ease-out) both ${i * OUT_STAGGER}ms`;
 </script>
 
 <section class="model">
@@ -226,7 +243,7 @@
     <span
       aria-hidden="true"
       class="thumb"
-      style={`transform:translateX(calc(${harnessIdx} * (100% + 2px)))`}
+      style={`--col:${thumbCol};--row:${thumbRow}`}
     ></span>
     {#each TABS as tab, i (tab.id)}
       {@const available = !tab.soon && installed.includes(tab.id as HarnessKind)}
@@ -308,6 +325,15 @@
       class="fill"
       style={`transform:translateY(calc(${modelIdx} * 46px));opacity:${hiOpacity}`}
     ></span>
+    {#if leaving.length}
+      <div aria-hidden="true" class="leaving" inert>
+        {#each leaving as entry, i (entry.id)}
+          <div class="row" style={`animation:${leaveAnim(i)}`}>
+            {@render rowBody(entry)}
+          </div>
+        {/each}
+      </div>
+    {/if}
     {#if showCustomRow}
       <button
         class="row custom ns-in"
@@ -324,7 +350,6 @@
       </button>
     {/if}
     {#each rows as entry, i (`${gen}:${entry.id}`)}
-      {@const provider = providerOf(entry.id)}
       <button
         aria-selected={entry.id === selectedId}
         class="row"
@@ -335,23 +360,7 @@
         style={`animation:${rowAnim(i)}`}
         type="button"
       >
-        <span class="ns-tile tile vendor">
-          {#if provider}
-            <ProviderLogo model={entry.id} size={16} />
-          {:else}
-            <HarnessLogo harness={listHarness} />
-          {/if}
-        </span>
-        <span class="text">
-          <span class="name" class:mono={entry.mono}>{entry.name}</span>
-          <span class="meta"
-            ><span class="mono">{entry.id}</span>
-            {vendor(entry.id) ? ` · ${vendor(entry.id)}` : ""}</span
-          >
-        </span>
-        {#if ctx(entry)}
-          <span class="ctx">{ctx(entry)}</span>
-        {/if}
+        {@render rowBody(entry)}
       </button>
     {/each}
     {#if noResults}
@@ -365,6 +374,27 @@
     {/if}
   </div>
 </section>
+
+{#snippet rowBody(entry: ModelEntry)}
+  {@const provider = providerOf(entry.id)}
+  <span class="ns-tile tile vendor">
+    {#if provider}
+      <ProviderLogo model={entry.id} size={16} />
+    {:else}
+      <HarnessLogo harness={listHarness} />
+    {/if}
+  </span>
+  <span class="text">
+    <span class="name" class:mono={entry.mono}>{entry.name}</span>
+    <span class="meta"
+      ><span class="mono">{entry.id}</span>
+      {vendor(entry.id) ? ` · ${vendor(entry.id)}` : ""}</span
+    >
+  </span>
+  {#if ctx(entry)}
+    <span class="ctx">{ctx(entry)}</span>
+  {/if}
+{/snippet}
 
 <style>
   .model {
@@ -392,6 +422,10 @@
     background: var(--fai-raised);
     border-radius: var(--fai-radius-sm);
     box-shadow: var(--fai-shadow-raised);
+    transform: translate(
+      calc(var(--col) * (100% + 2px)),
+      calc(var(--row) * (100% + 2px))
+    );
     transition: transform 160ms var(--ns-ease-in-out);
     pointer-events: none;
   }
@@ -520,6 +554,17 @@
     border-radius: var(--fai-radius-md);
     box-shadow: var(--fai-shadow-xs);
   }
+  /* The outgoing rows, over the incoming ones so both staggers run at once. */
+  .leaving {
+    position: absolute;
+    left: 4px;
+    right: 4px;
+    top: 4px;
+    display: grid;
+    gap: 2px;
+    align-content: start;
+    pointer-events: none;
+  }
   .fill {
     position: absolute;
     left: 4px;
@@ -616,15 +661,14 @@
     .tabs {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+    /* Two rows now, so the thumb needs a row's height rather than the box's. */
     .thumb {
-      display: none;
+      bottom: auto;
+      height: 44px;
+      width: calc((100% - 8px) / 2);
     }
     .tab {
       height: 44px;
-    }
-    .tab.on {
-      background: var(--fai-raised);
-      box-shadow: var(--fai-shadow-raised);
     }
     .search {
       height: 44px;
