@@ -588,9 +588,14 @@
   /* Hosting the tabs, the bar is their well: the tabs start where the
      identity bar's mark starts (its inset, less the tab's own), and the
      chosen one's sheet runs down into the pane through the hairline. */
+  /* Hosting the tabs, the bar keeps its own surface and the well is sunk
+     into it, flush with the bar's leading edge; the bar's hairline moves
+     into an inset shadow so the chosen tab's sheet can cross it. The right
+     cluster keeps its size — the well is what gives way, by scrolling. */
   .top.hosting {
-    padding-left: calc(var(--space-7) - 10px);
-    background: var(--surface-field);
+    padding-left: 0;
+    border-bottom: 0;
+    box-shadow: inset 0 -1px 0 var(--border-hairline);
   }
   .burger {
     width: 44px;
@@ -627,6 +632,10 @@
     align-items: center;
     gap: var(--space-2);
     min-width: 0;
+  }
+  .top.hosting .right {
+    flex: 0 0 auto;
+    padding-left: var(--space-3);
   }
   .right :global(.jump) {
     gap: var(--space-2);

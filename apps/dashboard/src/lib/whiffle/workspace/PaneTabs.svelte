@@ -203,6 +203,45 @@
 
   const sheet = $derived(leaf.active ? boxes[leaf.active] : undefined);
 
+  /* ── A strip that overflows scrolls ──────────────────────────────────
+     Tabs give up width down to a floor and then the strip scrolls, the
+     way a browser's does. The chosen tab is kept in view, and a wheel over
+     the strip — which has no vertical travel to spend it on — moves it
+     sideways. */
+
+  $effect(() => {
+    const id = leaf.active;
+    // The box, not the element: it is re-read as names resolve and the tabs
+    // change width, so the scroll lands on where the tab ends up.
+    const box = id ? boxes[id] : undefined;
+    if (!(strip && box)) {
+      return;
+    }
+    const left = box.left - 12;
+    const right = box.left + box.width + 12;
+    if (left < strip.scrollLeft) {
+      strip.scrollTo({ left, behavior: "smooth" });
+    } else if (right > strip.scrollLeft + strip.clientWidth) {
+      strip.scrollTo({ left: right - strip.clientWidth, behavior: "smooth" });
+    }
+  });
+
+  function sideways(node: HTMLElement) {
+    const onwheel = (event: WheelEvent) => {
+      if (event.deltaX !== 0 || node.scrollWidth <= node.clientWidth) {
+        return;
+      }
+      event.preventDefault();
+      node.scrollLeft += event.deltaY;
+    };
+    node.addEventListener("wheel", onwheel, { passive: false });
+    return {
+      destroy() {
+        node.removeEventListener("wheel", onwheel);
+      },
+    };
+  }
+
   /* ── Proximity hover ─────────────────────────────────────────────────
      The field goes to the tab NEAREST the pointer, not the one under it, so
      the gaps between tabs are never dead and the field is always somewhere.
@@ -265,20 +304,21 @@
   role="tablist"
   bind:this={strip}
   class:hosted={hosted}
+  use:sideways
 >
-  {#if sheet}
-    <div
-      aria-hidden="true"
-      class="sheet"
-      style="left: {sheet.left}px; width: {sheet.width}px"
-    ></div>
-  {/if}
   {#if fieldBox}
     <div
       aria-hidden="true"
       class="field"
       style="left: {fieldBox.left}px; width: {fieldBox.width}px"
       class:shown={hover !== undefined}
+    ></div>
+  {/if}
+  {#if sheet}
+    <div
+      aria-hidden="true"
+      class="sheet"
+      style="left: {sheet.left}px; width: {sheet.width}px"
     ></div>
   {/if}
   {#each tabs as tab, i (tab.id)}
@@ -389,58 +429,65 @@
 </div>
 
 <style>
-  /* The well. In a group it is its own row over the identity bar; hosted,
-     the top bar is the row and this is what fills it. `--tab-top` is where
-     the tabs begin below the row's top edge; the sheet and the field share
-     it so all three agree on one baseline. */
+  /* The well. A recessed track — sunk a step below the bar, lit along its
+     top edge — that the tabs sit in, and the one region of the bar that
+     scrolls. Its floor is the bar's own hairline, drawn as an inset shadow
+     rather than a border so that it stays put while the tabs scroll and so
+     the chosen tab's sheet, a child, can paint over it: that is the join
+     between the tab and the pane. `--tab-top` is where the tabs begin
+     below the well's top edge; the sheet and the field share it. */
   .strip {
-    --tab-top: 6px;
-    --tab-well: var(--surface-field);
+    --tab-top: 8px;
+    --curl: var(--radius-control);
     position: relative;
     display: flex;
     align-items: stretch;
     gap: 2px;
-    flex: 0 0 auto;
+    flex: 1 1 0;
     min-width: 0;
-    height: 50px;
-    padding: var(--tab-top) var(--space-6) 0 calc(var(--space-7) - 10px);
-    background: var(--tab-well);
-    border-bottom: 1px solid var(--border-hairline);
+    height: 46px;
+    padding: var(--tab-top) var(--space-4) 0 calc(var(--space-7) - 10px);
+    background: var(--surface-sunken);
+    box-shadow:
+      inset 0 1px 2px var(--shadow-tint-2),
+      inset 0 -1px 0 var(--border-hairline);
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+  .strip::-webkit-scrollbar {
+    display: none;
   }
   .strip.hosted {
-    --tab-top: 9px;
-    flex: 1 1 auto;
+    --tab-top: 19px;
     align-self: stretch;
     height: auto;
-    padding: var(--tab-top) var(--space-4) 0 0;
-    background: none;
-    border-bottom: 0;
   }
   @container leaf (max-width: 620px) {
     .strip:not(.hosted) {
       padding-left: calc(var(--space-4) - 10px);
-      padding-right: var(--space-4);
     }
   }
 
-  /* The sheet: the pane's own surface, brought up behind the chosen tab. It
-     reaches one pixel past the well's bottom edge to cover the hairline, so
-     the tab and the pane are one shape. The corners curl OUTWARD at the foot
-     — a quarter circle of the sheet's colour, edged with the same hairline
-     the sides carry, cut from the well on either side. */
+  /* The sheet: the pane's own surface, brought up behind the chosen tab and
+     run down to the well's floor, over the hairline, so the tab and the pane
+     below are one shape. The corners curl OUTWARD at the foot — a quarter
+     circle of the sheet's colour, edged with the same hairline the sides
+     carry, cut from the well on either side. Above the field: the field is
+     the hover, a register down, and it goes under the sheet, never over. */
   .sheet,
   .field {
     position: absolute;
     top: var(--tab-top);
-    z-index: 0;
     pointer-events: none;
   }
   .sheet {
-    bottom: -1px;
+    z-index: 1;
+    bottom: 0;
     background: var(--surface-raised);
     border: 1px solid var(--border-hairline);
     border-bottom: 0;
-    border-radius: var(--radius-control) var(--radius-control) 0 0;
+    border-radius: var(--curl) var(--curl) 0 0;
     transition:
       left var(--c-300) var(--e-in),
       width var(--c-300) var(--e-in);
@@ -450,37 +497,40 @@
     content: "";
     position: absolute;
     bottom: 0;
-    width: var(--radius-control);
-    height: var(--radius-control);
+    width: var(--curl);
+    height: var(--curl);
   }
   .sheet::before {
-    left: calc(-1 * var(--radius-control) - 1px);
+    left: calc(-1 * var(--curl) - 1px);
     background: radial-gradient(
       circle at 0 0,
-      transparent calc(var(--radius-control) - 1px),
-      var(--border-hairline) calc(var(--radius-control) - 1px),
-      var(--border-hairline) var(--radius-control),
-      var(--surface-raised) calc(var(--radius-control) + 0.5px)
+      transparent calc(var(--curl) - 1px),
+      var(--border-hairline) calc(var(--curl) - 1px),
+      var(--border-hairline) var(--curl),
+      var(--surface-raised) calc(var(--curl) + 0.5px)
     );
   }
   .sheet::after {
-    right: calc(-1 * var(--radius-control) - 1px);
+    right: calc(-1 * var(--curl) - 1px);
     background: radial-gradient(
       circle at 100% 0,
-      transparent calc(var(--radius-control) - 1px),
-      var(--border-hairline) calc(var(--radius-control) - 1px),
-      var(--border-hairline) var(--radius-control),
-      var(--surface-raised) calc(var(--radius-control) + 0.5px)
+      transparent calc(var(--curl) - 1px),
+      var(--border-hairline) calc(var(--curl) - 1px),
+      var(--border-hairline) var(--curl),
+      var(--surface-raised) calc(var(--curl) + 0.5px)
     );
   }
 
-  /* The hover field: a register below the sheet, and quicker — it is
-     following a hand. Parked under the sheet while nothing is hovered, so
-     it enters from there and leaves to there. */
+  /* The hover field: quicker than the sheet — it is following a hand —
+     and parked under the sheet while nothing is hovered, so it enters from
+     there and leaves to there without ever crossing the sheet. */
   .field {
-    bottom: 5px;
-    border-radius: var(--radius-control);
-    background: var(--surface-hover);
+    z-index: 0;
+    bottom: 4px;
+    border-radius: var(--curl);
+    /* Half a step toward the sheet's surface: lighter than the well in both
+       modes, so it reads as the tab beginning to lift rather than a tint. */
+    background: color-mix(in oklab, var(--surface-raised) 55%, transparent);
     opacity: 0;
     transition:
       left var(--c-100) var(--e-in),
@@ -497,13 +547,12 @@
   .tab {
     --tab-bg: var(--tab-well);
     position: relative;
-    z-index: 1;
+    z-index: 2;
     display: flex;
     align-items: center;
     gap: 6px;
-    flex: 1 1 auto;
-    min-width: 44px;
-    max-width: 220px;
+    flex: 0 1 200px;
+    min-width: 120px;
     padding: 0 6px 0 10px;
     color: var(--ink-muted);
     font-size: var(--text-base);
@@ -677,7 +726,8 @@
 
   @media (pointer: coarse) {
     .strip:not(.hosted) {
-      height: 56px;
+      --tab-top: 10px;
+      height: 54px;
     }
     .tclose {
       width: 28px;
