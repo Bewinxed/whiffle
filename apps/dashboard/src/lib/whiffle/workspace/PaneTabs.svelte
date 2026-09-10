@@ -245,7 +245,7 @@
     align-items: center;
     flex: 0 0 auto;
     min-width: 0;
-    padding: 2px var(--space-4) 2px var(--space-7);
+    padding: 4px var(--space-4) 4px var(--space-7);
     border-bottom: 1px solid var(--border-hairline);
   }
   :global(.tabs.hosted) {
@@ -259,44 +259,32 @@
     }
   }
 
-  /* Strip the segmented control chrome. No pill background, tighter
-     dimensions, smaller text. The overlays remain — the sliding
-     segment and hover field — but against a transparent background
-     they read as inline highlights, not floating cards. */
+  /* Compact the segmented control for a scrolling tab strip. The
+     muted well stays — it is what makes the segment overlay readable
+     in both themes — but at a tighter density than the generic
+     control's default. */
   :global(.tabs .ff-tabs-list) {
-    --pad: 2px;
-    --item: 26px;
-    --gap: 1px;
+    --pad: 3px;
+    --item: 24px;
+    --gap: 2px;
     --px: 8px;
     --text: var(--text-sm);
     --radius: var(--radius-tile);
-    background: transparent;
   }
-  /* Coarse pointer bumps to 32px in the generic component — session
-     tabs stay compact; the row's own padding handles the touch
-     target, not inflated items. */
+  /* Coarse pointer: the generic component jumps to 32px; a tab strip
+     stays compact — the well's own height is the touch target. */
   @media (pointer: coarse) {
     :global(.tabs .ff-tabs-list) {
-      --item: 28px;
+      --item: 26px;
     }
   }
 
-  /* The active segment: a gentle surface, no shadow. The raised-card
-     look is for toggles with 3–4 items; a scrolling strip with many
-     tabs needs something quieter. */
+  /* The active segment: raised surface with a hairline ring instead
+     of the full tile shadow — present but not heavy. */
   :global(.tabs .segment) {
-    background: var(--surface-hover);
-    box-shadow: none;
+    box-shadow: 0 0 0 0.5px var(--shadow-tint), 0 1px 2px var(--shadow-tint);
   }
-  /* No dimming when hovering another tab — the subtle segment
-     doesn't need to recede further. */
-  :global(.tabs .segment.dim) {
-    opacity: 1;
-  }
-  /* The hover field is softer. */
-  :global(.tabs .field.shown) {
-    opacity: 0.3;
-  }
+  /* The hover field stays at the component's default opacity. */
 
   .tab {
     position: relative;
