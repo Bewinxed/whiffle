@@ -259,20 +259,14 @@
     }
   }
 
-  /* The component's defaults (28px items, 4px pad, 12px horizontal
-     padding) are fine — the only overrides are: smaller text for a
-     dense tab strip, a less pill-shaped radius, and capping the
-     coarse-pointer item height at 28px instead of the component's
-     32px (which was the original "too tall on mobile" complaint). */
+  /* The component's size ladder is left alone — its coarse-pointer step
+     (32px items, a 40px control) is the touch answer. What the strip sets
+     is texture: the small text of a dense strip, a tighter horizontal pad,
+     a less pill-shaped radius. */
   :global(.tabs .ff-tabs-list) {
     --px: 10px;
     --text: var(--text-sm);
     --radius: var(--radius-tile);
-  }
-  @media (pointer: coarse) {
-    :global(.tabs .ff-tabs-list) {
-      --item: 28px;
-    }
   }
 
   /* A lighter shadow than the full shadow-tile — present but not
@@ -366,6 +360,10 @@
     flex: 0 0 auto;
     width: 20px;
     height: 20px;
+    /* Sized here, not by the page-wide 44px touch minimum: a 44px button
+       in a 32px item is the overflow. 24px on a coarse pointer, below. */
+    min-width: 0;
+    min-height: 0;
     margin-left: 2px;
     border: 0;
     padding: 0;

@@ -232,6 +232,12 @@
     .ff-tabs-list {
       --item: 32px;
     }
+    /* Compact takes its own step (24 → 28): named here because the size
+       rule above outranks a bare class, so it would otherwise stay put. */
+    :global([data-size="compact"]) > .ff-tabs-list,
+    :global([data-size="compact"]) .ff-tabs-list {
+      --item: 28px;
+    }
   }
 
   /* A scrolling track hugs its items and gives way — never grows — when

@@ -137,6 +137,10 @@
     flex: 1 1 auto;
     gap: calc(var(--gap) + 4px);
     min-width: 0;
+    /* The track's ladder is the hit's size: it fills the item and no more.
+       Without this the page-wide touch minimum (44px on every [role=tab])
+       makes a 44px hit inside a 32px item, and the content sits 6px low. */
+    min-height: 0;
     padding: 0 var(--px);
     border: 0;
     border-radius: inherit;
