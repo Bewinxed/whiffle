@@ -468,10 +468,21 @@ export class SessiondServer {
       // §6: an honest refusal, never a partial replay. The agent turns this
       // into a visible seam in the transcript rather than a stream that
       // silently skipped the lines nobody will ever look for.
+      //
+      // The refusal carries how far back this ring DOES go, because refusing
+      // without saying so threw away a window that was still there: a caller
+      // asking from the ring's start is asking that very question, and
+      // `nextSeq` alone answered it with a line the child has not written yet
+      // (`head + 1`). A reader that reopens on `oldest - 1` gets everything
+      // sessiond still holds; one that ignores the field behaves exactly as
+      // it did before. Absent when the ring has been dropped entirely, which
+      // is the one case where there is honestly nothing to go back to.
+      const { oldest } = proc.ring;
       this.#send(conn, {
         type: "proc.reset",
         procId,
         nextSeq: proc.ring.head + 1,
+        ...(oldest >= 1 && oldest <= proc.ring.head ? { oldest } : {}),
       });
       return;
     }

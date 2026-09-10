@@ -194,7 +194,14 @@ export interface SessiondWelcomeInfo {
 interface ProcListener {
   exit?: (exitCode: number | null, signal: NodeJS.Signals | null) => void;
   line?: (event: SessiondLine) => void;
-  reset?: (nextSeq: number) => void;
+  /**
+   * `nextSeq` is where this subscription resumes; `oldest` is the earliest
+   * line sessiond can still serve, absent when it holds none (or when the
+   * sessiond on the other end predates the field). A caller that only needs
+   * to know it lost lines reads the first; one that wants to reopen on what
+   * survives reads the second.
+   */
+  reset?: (nextSeq: number, oldest?: number) => void;
 }
 
 /**
@@ -329,7 +336,9 @@ export class SessiondClient {
         }
         return;
       case "proc.reset":
-        this.#listeners.get(message.procId)?.reset?.(message.nextSeq);
+        this.#listeners
+          .get(message.procId)
+          ?.reset?.(message.nextSeq, message.oldest);
         return;
       case "proc.exit":
         this.#listeners

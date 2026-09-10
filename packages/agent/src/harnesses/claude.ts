@@ -1865,7 +1865,9 @@ export class ClaudeHarness implements Harness {
     // lines the ring never assigned — sessiond's refusal covers that, and a
     // peek would only muddle whose refusal it was.
     const head = options.head ?? 0;
-    const boundary = options.afterSeq ?? head;
+    // Raised to `head` if the replay is refused: what survives is then read
+    // for the verdict and emitted to nobody (see the `reset` handler).
+    let boundary = options.afterSeq ?? head;
     let peekSeq = head >= 1 && boundary <= head ? RING_START : undefined;
     let verdict: boolean | undefined;
     let seen = false;
@@ -1960,15 +1962,39 @@ export class ClaudeHarness implements Harness {
       // was refused is the peek window, which nobody asked to see. Asking from
       // the ring's start is asking for more than sessiond may still hold, so a
       // refusal here is not a failure but the answer to how far back it goes:
-      // `nextSeq` is the oldest line it will serve, and the peek reopens there
-      // rather than switching itself off. The verdict is then read over
-      // everything that survives, which is all there is to read. Any reset
-      // after that, or with no peek outstanding, is a real seam.
-      reset: (nextSeq) => {
-        if (peekSeq !== undefined && peekSeq < nextSeq && !seen && !reopened) {
+      // `oldest` is the earliest line it will serve, and the peek reopens on
+      // the cursor just below it rather than switching itself off. The verdict
+      // is then read over everything that survives, which is all there is to
+      // read. Any reset after that, or with no peek outstanding, is a real seam.
+      //
+      // IT MUST BE `oldest`, NOT `nextSeq`. `nextSeq` is where the REFUSED
+      // subscription resumes — `head + 1`, a line the child has not written —
+      // and reopening there is how an idle survivor stayed wedged: the peek
+      // read nothing, never reached `head`, never handed back, and held every
+      // message sent to it for as long as the process lived. A sessiond too
+      // old to send `oldest` has no window to name, so that case keeps the
+      // previous behaviour rather than inventing a cursor.
+      reset: (nextSeq, oldest) => {
+        const reopenAt = oldest === undefined ? nextSeq : oldest - 1;
+        if (peekSeq !== undefined && peekSeq < reopenAt && !seen && !reopened) {
           reopened = true;
-          peekSeq = nextSeq;
-          client.subscribe(instanceId, listener, nextSeq);
+          peekSeq = reopenAt;
+          if (reopenAt > boundary) {
+            // The caller's replay was refused, and reading the survivors does
+            // not quietly grant a smaller one: §6 is never a PARTIAL replay,
+            // so the seam is announced and the peek window is widened to the
+            // whole of it. Everything sessiond still holds is then looked at
+            // for the verdict and emitted to nobody; the transcript resumes
+            // where the refusal said it would, at the next line the child
+            // writes.
+            boundary = head;
+            ctx.frame({
+              type: "system",
+              subtype: "sessiond_stream_gap",
+              text: `whiffle: sessiond's replay window overflowed; this transcript resumes at line ${nextSeq}`,
+            } as unknown as NeutralMessage);
+          }
+          client.subscribe(instanceId, listener, reopenAt);
           return;
         }
         ctx.frame({

@@ -141,6 +141,19 @@ export interface SessiondBacklog {
  */
 export interface SessiondReset {
   nextSeq: number;
+  /**
+   * The earliest seq sessiond can still serve, when it holds one at all.
+   *
+   * `nextSeq` answers "where does MY stream resume" — past `head`, because a
+   * refused subscriber is left following from now. That is the right answer
+   * for a wrapper feeding the SDK, and the wrong one for a caller that asked
+   * from the ring's start to READ what is there: it names a line the child has
+   * not written yet, so a peek that reopens on it reads nothing at all. This
+   * field is the other question — "how far back do you go" — and is absent
+   * only when the ring has nothing left (`oldest > head`), or from a sessiond
+   * built before it existed.
+   */
+  oldest?: number;
   procId: string;
   type: "proc.reset";
 }
