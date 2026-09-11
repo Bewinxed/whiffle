@@ -1872,6 +1872,15 @@ export class ClaudeHarness implements Harness {
     let verdict: boolean | undefined;
     let seen = false;
     let reopened = false;
+    const outstanding = new Map<string, string>();
+    const repark = (): void => {
+      // The hub has these lines, but its pending asks did not survive restart.
+      // Only unresolved can_use_tool requests may replay without emitting frames.
+      for (const line of outstanding.values()) {
+        custody.ingest(line);
+      }
+      outstanding.clear();
+    };
     // PROVENANCE (design §7). This frame came from exactly one sessiond line,
     // and this is the only place that knows which: the stamp goes one
     // statement before the ingest that emits it, because `ingest` emits
@@ -1926,6 +1935,7 @@ export class ClaudeHarness implements Harness {
         if (peekSeq === undefined || custody.handedOff) {
           return;
         }
+        repark();
         if (custody.sessionId === null || !(verdict ?? true)) {
           // Held on purpose, and said so: a custody nobody can explain looks
           // exactly like the bug this guard removes.
@@ -1955,9 +1965,24 @@ export class ClaudeHarness implements Harness {
           verdict = idleVerdict(parsed, verdict);
         }
         if (peekSeq !== undefined && event.seq <= boundary) {
-          // Peek-only: looked at, never emitted. The session id is the one
-          // thing taken from it — a survivor the hub never named arrives
-          // without one, and the hand-off's `resume` cannot do without it.
+          // Peek-only: recover the session id and unanswered asks, never frames.
+          if (parsed?.type === "control_request") {
+            const request = parsed as Extract<
+              CustodyLine,
+              { type: "control_request" }
+            >;
+            if (request.request.subtype === "can_use_tool") {
+              outstanding.set(request.request_id, event.data);
+            }
+          } else if (parsed?.type === "control_cancel_request") {
+            outstanding.delete((parsed as { request_id: string }).request_id);
+          } else if (
+            parsed?.type === "assistant" ||
+            parsed?.type === "user" ||
+            parsed?.type === "result"
+          ) {
+            outstanding.clear();
+          }
           if (
             custody.sessionId === null &&
             typeof parsed?.session_id === "string"
@@ -1965,8 +1990,12 @@ export class ClaudeHarness implements Harness {
             custody.sessionId = parsed.session_id;
           }
         } else {
+          repark();
           stamp(event.seq);
           custody.ingest(event.data);
+        }
+        if (event.seq === head) {
+          repark();
         }
         // There is no backlog-complete event; the ring's last line is it, and
         // it is the one place an adoption decides.
