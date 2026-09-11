@@ -13,8 +13,48 @@ const previews = new Map<string, Server<PreviewSocket>>();
 const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
 const HEAD = /<\/head\s*>/i;
 const BODY = /<\/body\s*>/i;
-const OVERLAY =
-  'const origin = document.currentScript.dataset.origin;\nconsole.debug("[whiffle] overlay loaded", origin);\n';
+let overlay: Promise<string> | undefined;
+
+/**
+ * The script the forwarder injects into every previewed page. Two deployment
+ * shapes reach this code: a source checkout, where the overlay's TypeScript
+ * sits beside this file and is bundled here on first request; and the packed
+ * release, where `build-release.mjs` folded this file into `cli.js` and put a
+ * prebuilt `preview-overlay.js` next to it, because the source and its
+ * dependency are not shipped. The sibling wins when it is there.
+ */
+async function buildOverlay(): Promise<string> {
+  const prebuilt = Bun.file(new URL("./preview-overlay.js", import.meta.url));
+  if (await prebuilt.exists()) {
+    return await prebuilt.text();
+  }
+  const result = await Bun.build({
+    entrypoints: [
+      new URL("./preview-overlay/overlay.ts", import.meta.url).pathname,
+    ],
+    target: "browser",
+    minify: true,
+    format: "iife",
+  });
+  if (!result.success) {
+    throw new AggregateError(result.logs, "Preview overlay build failed");
+  }
+  return result.outputs[0].text();
+}
+
+/**
+ * Built once per process and kept, unless the build fails — a missing source
+ * file makes `Bun.build` throw rather than answer `success: false`, and a
+ * rejected promise left in the cache would turn one bad request into every
+ * request until restart. A failure clears the slot so the next one retries.
+ */
+function loadOverlay(): Promise<string> {
+  overlay ??= buildOverlay().catch((error: unknown) => {
+    overlay = undefined;
+    throw error;
+  });
+  return overlay;
+}
 
 export function stopPreview({ instanceId }: { instanceId: string }): boolean {
   previews.get(instanceId)?.stop(true);
@@ -66,7 +106,7 @@ export async function startPreview(options: {
     async fetch(request, server) {
       const url = new URL(request.url);
       if (url.pathname === "/__whiffle/overlay.js") {
-        return new Response(OVERLAY, {
+        return new Response(await loadOverlay(), {
           headers: {
             "content-type": "text/javascript",
             "cache-control": "no-store",

@@ -646,7 +646,10 @@
     }
   }
 
-  function onsubmit(text: string, extras: SendExtras = {}): void {
+  async function onsubmit(
+    text: string,
+    extras: SendExtras = {}
+  ): Promise<string | undefined> {
     if (!machineId) {
       // A tripwire, not a guard anybody should hit: a pane with no machine
       // renders no composer at all. A render race can still land one keystroke
@@ -669,8 +672,7 @@
     // to catch here, and why the `.catch(() => {})` that used to sit on this
     // chain (and ate every send made from a plain-http origin) is gone.
     const submit = () => submitCommand(viewId, mid, "send", { text, extras });
-    // biome-ignore lint/complexity/noVoid: fire-and-forget by intent — the command tracker (submit) is the report, per the comment above
-    void ensureAlive(viewId, mid)
+    return await ensureAlive(viewId, mid)
       .then(submit, submit)
       .finally(() => {
         reviving = false;
@@ -898,7 +900,9 @@
         <p aria-live="polite" class="announce" role="status">{sendFailure}</p>
       </div>
       {#if previewVisible}
-        <div class="preview-column"><PreviewPane instanceId={viewId} /></div>
+        <div class="preview-column">
+          <PreviewPane instanceId={viewId} {machineId} {onsubmit} {sending} />
+        </div>
       {/if}
     </div>
   {:else}

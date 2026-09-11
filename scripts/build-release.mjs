@@ -86,6 +86,25 @@ await writeFile(
 );
 await chmod(join(OUT, "cli.js"), 0o755);
 
+// 1b. The preview overlay — the script the daemon injects into previewed
+// pages. A source checkout bundles it on first request from
+// packages/agent/src/preview-overlay/; the release ships neither that source
+// nor a resolvable copy of its dependency, so it is built here and placed
+// beside cli.js, where packages/agent/src/preview.ts looks first.
+say("bundling the preview overlay");
+await run([
+  "bun",
+  "build",
+  join(ROOT, "packages/agent/src/preview-overlay/overlay.ts"),
+  "--target",
+  "browser",
+  "--format",
+  "iife",
+  "--minify",
+  "--outfile",
+  join(OUT, "preview-overlay.js"),
+]);
+
 // 2. The dashboard, built and carried whole.
 say("building the dashboard");
 await run(["bun", "run", "--filter", "@whiffle/dashboard", "build"]);
@@ -170,7 +189,7 @@ await writeFile(
       repository: root.repository ?? "https://github.com/Bewinxed/whiffle",
       type: "module",
       bin: { whiffle: "./cli.js" },
-      files: ["cli.js", "dashboard"],
+      files: ["cli.js", "preview-overlay.js", "dashboard"],
       engines: { bun: ">=1.4.0" },
       dependencies: Object.fromEntries(
         Object.entries(deps).sort(([a], [b]) => a.localeCompare(b))

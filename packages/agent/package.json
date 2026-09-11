@@ -20,6 +20,7 @@
     "@whiffle/jsonl-parser": "workspace:*",
     "bonjour-service": "^1.4.4",
     "effect": "beta",
+    "modern-screenshot": "4.7.0",
     "typebox": "1.3.7",
     "zod": "3.25.76"
   },

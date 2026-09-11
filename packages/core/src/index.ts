@@ -694,6 +694,40 @@ export type FramePayload =
 export const WHIFFLE_HUB_PORT = 3456;
 
 export type PreviewSource = { port: number } | { dir: string };
+
+export interface PreviewElement {
+  classes: string[];
+  html: string;
+  id: string;
+  page: { x: number; y: number };
+  rect: { x: number; y: number; width: number; height: number };
+  selector: string;
+  source: {
+    file: string | null;
+    line: number | null;
+    column: number | null;
+    framework: "svelte" | "code-inspector" | "react" | "vue";
+    of: "self" | `ancestor:${string}`;
+    component?: string;
+  } | null;
+  styles: Record<
+    | "color"
+    | "backgroundColor"
+    | "fontFamily"
+    | "fontSize"
+    | "fontWeight"
+    | "lineHeight"
+    | "display"
+    | "position"
+    | "padding"
+    | "margin"
+    | "borderRadius",
+    string
+  >;
+  tag: string;
+  text: string;
+  url: string;
+}
 export const PREVIEW_START = "previewStart";
 export const PREVIEW_STOP = "previewStop";
 
