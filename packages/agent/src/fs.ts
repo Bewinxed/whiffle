@@ -128,7 +128,7 @@ export const runFs = async ({
   path,
   content,
 }: FsPayload): Promise<unknown> => {
-  const target = safePath(path);
+  const target = safePath(expandHome(path));
   switch (op) {
     case "list":
       return await list(target);

@@ -440,10 +440,9 @@ const attach = (
       if (socket.readyState !== WebSocket.OPEN) {
         return;
       }
-      // Every frame a session sinks is instance-scoped. `usage` is the one
-      // FramePayload variant the hub originates for dashboards, so it never
-      // arrives here — narrowing on the field keeps that asymmetry honest.
-      if (!("instanceId" in frame)) {
+      // Usage originates at the hub; machine-scoped control replies also
+      // travel through this sink without an instanceId.
+      if (frame.kind === "usage") {
         return;
       }
       send(socket, {
