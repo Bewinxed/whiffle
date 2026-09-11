@@ -181,6 +181,28 @@
       detectTrigger();
     }
   }
+  function paste(event: ClipboardEvent) {
+    event.preventDefault();
+    // Native text insertion preserves the editing undo history and inline chips.
+    document.execCommand(
+      "insertText",
+      false,
+      event.clipboardData?.getData("text/plain") ?? ""
+    );
+    requestAnimationFrame(() => {
+      const selection = window.getSelection();
+      if (!(element && selection?.rangeCount)) {
+        return;
+      }
+      const rect = selection.getRangeAt(0).getBoundingClientRect();
+      const visible = element.getBoundingClientRect();
+      if (rect.bottom > visible.bottom) {
+        element.scrollTop += Math.ceil(rect.bottom - visible.bottom);
+      } else if (rect.top < visible.top) {
+        element.scrollTop += Math.floor(rect.top - visible.top);
+      }
+    });
+  }
   $effect(() => {
     if (value === "" && element && element.textContent !== "") {
       element.replaceChildren();
@@ -206,8 +228,9 @@
     oninput={() => { value = text(); detectTrigger(); }}
     {onkeydown}
     onkeyup={caret}
+    onpaste={paste}
     role="textbox"
-    style={`height:${promptH}px`}
+    style={`--prompt-height:${promptH}px`}
     tabindex="0"
     bind:this={element}
   ></div>
@@ -236,6 +259,7 @@
   }
   .editor {
     width: 100%;
+    height: var(--prompt-height);
     padding: 12px 16px 6px;
     overflow: auto;
     outline: none;
@@ -286,6 +310,11 @@
     height: 13px;
   }
   @media (max-width: 640px) {
+    .editor {
+      height: 120px;
+      overscroll-behavior: contain;
+      transition: none;
+    }
     .editor,
     .placeholder {
       font-size: 16px;

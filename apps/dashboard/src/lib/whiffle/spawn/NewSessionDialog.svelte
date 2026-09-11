@@ -78,34 +78,85 @@
     }
     const viewport = window.visualViewport;
     const root = document.documentElement.style;
-    let blurFrame = 0;
     let viewportFrame = 0;
+    let settleTimer: ReturnType<typeof setTimeout>;
+    let blurredField = false;
+    let height = 0;
     const textEntry =
       "input:not([type=range]), textarea, [contenteditable=true]";
-    const measure = () => {
-      if (viewport && viewport.scale > 1) {
-        return;
+    const writeHeight = (next: number) => {
+      if (height !== next) {
+        height = next;
+        root.setProperty("--ns-viewport-height", `${height}px`);
       }
-      root.setProperty(
-        "--ns-viewport-height",
-        `${viewport ? viewport.height * viewport.scale : window.innerHeight}px`
-      );
-      cancelAnimationFrame(viewportFrame);
-      viewportFrame = requestAnimationFrame(() => {
-        const active = document.activeElement;
-        const body = active?.closest<HTMLElement>(".session-card .body");
-        if (!(body && active?.matches(textEntry))) {
+    };
+    const focusedRect = (active: HTMLElement) => {
+      const field = active.getBoundingClientRect();
+      const selection = window.getSelection();
+      if (
+        !(
+          active.isContentEditable &&
+          selection?.rangeCount &&
+          active.contains(selection.focusNode)
+        )
+      ) {
+        return field;
+      }
+      const range = selection.getRangeAt(0).cloneRange();
+      range.setStart(selection.focusNode as Node, selection.focusOffset);
+      range.collapse(true);
+      const caret = range.getBoundingClientRect();
+      if (!caret.height) {
+        return field;
+      }
+      if (caret.bottom > field.bottom) {
+        active.scrollTop += Math.ceil(caret.bottom - field.bottom);
+      } else if (caret.top < field.top) {
+        active.scrollTop += Math.floor(caret.top - field.top);
+      }
+      return range.getBoundingClientRect();
+    };
+    const settled = () => {
+      clearTimeout(settleTimer);
+      // Let WebKit finish its keyboard animation and native caret scrolling.
+      settleTimer = setTimeout(() => {
+        if (viewport && viewport.scale > 1) {
           return;
         }
-        const field = active.getBoundingClientRect();
+        const active = document.activeElement;
+        if (blurredField && !active?.matches(textEntry)) {
+          cancelAnimationFrame(viewportFrame);
+          viewportFrame = requestAnimationFrame(() => {
+            writeHeight(document.documentElement.clientHeight);
+          });
+        }
+        blurredField = false;
+        const body = active?.closest<HTMLElement>(".session-card .body");
+        if (
+          !(body && active instanceof HTMLElement && active.matches(textEntry))
+        ) {
+          return;
+        }
+        const field = focusedRect(active);
         const visible = body.getBoundingClientRect();
-        // Keep caret reveal inside the sheet's scroll root after keyboard resize.
         if (field.bottom > visible.bottom) {
           body.scrollTop += Math.ceil(field.bottom - visible.bottom);
         } else if (field.top < visible.top) {
           body.scrollTop += Math.floor(field.top - visible.top);
         }
+      }, 120);
+    };
+    const measure = () => {
+      cancelAnimationFrame(viewportFrame);
+      viewportFrame = requestAnimationFrame(() => {
+        if (viewport && viewport.scale > 1) {
+          return;
+        }
+        writeHeight(
+          viewport ? viewport.height * viewport.scale : window.innerHeight
+        );
       });
+      settled();
     };
     const measurePage = () => {
       const page = document.scrollingElement ?? document.documentElement;
@@ -121,32 +172,22 @@
       ) {
         return;
       }
-      cancelAnimationFrame(blurFrame);
-      blurFrame = requestAnimationFrame(() => {
-        if (
-          !(
-            (viewport && viewport.scale > 1) ||
-            document.activeElement?.matches(textEntry)
-          )
-        ) {
-          root.setProperty(
-            "--ns-viewport-height",
-            `${document.documentElement.clientHeight}px`
-          );
-        }
-      });
+      blurredField = true;
+      settled();
     };
     measurePage();
     viewport?.addEventListener("resize", measure);
-    viewport?.addEventListener("scroll", measure);
+    viewport?.addEventListener("scroll", settled);
     window.addEventListener("resize", measurePage);
     window.addEventListener("blur", blurred, true);
+    window.addEventListener("focusin", settled);
     return () => {
       viewport?.removeEventListener("resize", measure);
-      viewport?.removeEventListener("scroll", measure);
+      viewport?.removeEventListener("scroll", settled);
       window.removeEventListener("resize", measurePage);
       window.removeEventListener("blur", blurred, true);
-      cancelAnimationFrame(blurFrame);
+      window.removeEventListener("focusin", settled);
+      clearTimeout(settleTimer);
       cancelAnimationFrame(viewportFrame);
       root.removeProperty("--ns-viewport-height");
       root.removeProperty("--ns-page-height");
