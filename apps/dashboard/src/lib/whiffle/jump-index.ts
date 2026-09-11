@@ -1,5 +1,5 @@
-import type { SDKSessionInfo } from "@whiffle/core";
-import { sessionTitle, transcriptHref } from "./links";
+import type { InstanceRow, SDKSessionInfo } from "@whiffle/core";
+import { conversationHref, sessionTitle } from "./links";
 
 /** Which of the four groups a row belongs to — decides its icon and its cap. */
 export type JumpKind = "project" | "machine" | "live" | "stored";
@@ -39,6 +39,7 @@ export interface JumpIndex {
 }
 
 export interface JumpIndexInput {
+  instances: readonly InstanceRow[];
   onlineMachines: ReadonlyArray<{
     machineId: string;
     hostname: string;
@@ -118,22 +119,31 @@ export function buildJumpIndex(input: JumpIndexInput): JumpIndex {
       kind: "live",
       label: leaf(instance.cwd) || instance.id,
       detail: `${instance.cwd || "—"} · ${instance.activityLabel}`,
-      href: `/session/${instance.id}`,
+      href: conversationHref(instance.id, input.instances),
       hay: "",
       labelLower: "",
       detailLower: "",
     });
   }
+  const destinations = new Set(groups[2].rows.map((row) => row.href));
   for (const machine of input.stored) {
     for (const [i, info] of machine.catalog.entries()) {
       const title = sessionTitle(info);
       sessionTitles.set(info.sessionId, title);
+      const href = conversationHref(info.sessionId, input.instances, {
+        machineId: machine.machineId,
+        cwd: info.cwd,
+      });
+      if (destinations.has(href)) {
+        continue;
+      }
+      destinations.add(href);
       const row: JumpRow = {
         id: `stored:${machine.machineId}:${info.sessionId}`,
         kind: "stored",
         label: title,
         detail: `${machine.hostname} · ${info.cwd ?? ""}`,
-        href: transcriptHref(info),
+        href,
         hay: "",
         labelLower: "",
         detailLower: "",

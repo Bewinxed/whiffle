@@ -20,6 +20,7 @@
 import { browser } from "$app/environment";
 import { pushState, replaceState } from "$app/navigation";
 import { whiffle } from "../client.svelte";
+import { conversationHref } from "../links";
 import { workingSet } from "../working-set.svelte";
 
 /** A split: two or more children laid out along one axis. */
@@ -321,7 +322,7 @@ function settle(): void {
 }
 
 /* ── The URL projection ───────────────────────────────────────────────
-   One direction only. `urlFor` builds exactly the href the tab strip
+   One direction only. `conversationHref` builds exactly the href the tab strip
    builds, so a projected URL and a copied link are the same string. */
 
 /** Records how a conversation is addressed, if this is news. */
@@ -449,20 +450,6 @@ export function locate(sessionId: string): Promise<SessionContext | null> {
   return ask;
 }
 
-/**
- * The URL a conversation is addressed by: its id, bare. The machine and folder
- * used to ride along as a query string so a stored transcript could be found
- * again, but the hub locates an id across the fleet now — see
- * `/api/instances/:id/location` — so a URL that carries them is only a cache
- * that can go stale.
- */
-export function urlFor(sessionId: string | null): string {
-  if (!sessionId) {
-    return "/session";
-  }
-  return `/session/${sessionId}`;
-}
-
 /** The session id a URL names, or `null` for the board. */
 export function sessionIdOf(url: URL): string | null {
   const parts = url.pathname.split("/").filter(Boolean);
@@ -488,7 +475,11 @@ function project(sessionId: string | null, mode: "push" | "replace"): void {
   if (!browser) {
     return;
   }
-  const url = urlFor(sessionId);
+  const ctx = sessionId ? contextOf(sessionId) : null;
+  const url = conversationHref(sessionId, whiffle.instances, {
+    machineId: ctx?.machine,
+    cwd: ctx?.cwd,
+  });
   try {
     if (mode === "push") {
       pushState(url, {});

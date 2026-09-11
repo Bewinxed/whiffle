@@ -2,7 +2,8 @@
   /** One stored session from `listSessions`, linking to its read-only transcript. */
   import type { SDKSessionInfo } from "@whiffle/core";
   import { formatDistanceToNow } from "$lib/utils/time";
-  import { sessionTitle, transcriptHref } from "./links";
+  import { whiffle } from "./client.svelte";
+  import { conversationHref, sessionTitle } from "./links";
   import { markHue, sessionSprite } from "./mark";
   import StoredSessionMenu from "./StoredSessionMenu.svelte";
   import { dragSession } from "./workspace/dnd.svelte";
@@ -17,6 +18,9 @@
   let { machineId, info, groupCwd }: Props = $props();
 
   const showCwd = $derived(Boolean(info.cwd) && info.cwd !== groupCwd);
+  const href = $derived(
+    conversationHref(info.sessionId, whiffle.instances, { machineId, cwd: info.cwd })
+  );
 
   // Distinct per stored session (seeded by its SDK session id). These rows all
   // drew the same cube before; the sprite gives each transcript its own face.
@@ -27,9 +31,9 @@
   <a
     class="flex min-h-9 items-center rounded-[var(--radius-control)] px-4 py-1.5
       transition-colors duration-150 ease-out hover:bg-accent hover:text-accent-foreground"
-    href={transcriptHref(info)}
+    {href}
     use:dragSession={{
-      sessionId: info.sessionId,
+      sessionId: href.slice('/session/'.length),
       from: null,
       ctx: () => ({ machine: machineId, cwd: info.cwd ?? '', harness: info.harness ?? 'claude' }),
     }}

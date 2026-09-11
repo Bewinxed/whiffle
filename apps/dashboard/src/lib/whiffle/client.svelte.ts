@@ -74,6 +74,7 @@ import {
   turnStart,
 } from "./frames";
 import { newId } from "./id";
+import { conversationHref, instanceForSession } from "./links";
 import { ingestQueued, retireQueued } from "./queue";
 import type {
   CommandRecord,
@@ -1039,7 +1040,7 @@ function announceSupervisorEvent(event: SupervisorEvent): void {
   const open = {
     label: "Open",
     // biome-ignore lint/complexity/noVoid: fire-and-forget — the toast dismisses on click, navigation doesn't need to be awaited
-    onClick: () => void goto(`/session/${event.instanceId}`),
+    onClick: () => void goto(conversationHref(event.instanceId, state.instances)),
   };
   if (event.verdict === "error") {
     // One toast per (session, cause) — sonner replaces by id, so a broken
@@ -2947,32 +2948,12 @@ export function resumeSession({
   harness?: HarnessKind;
   history?: Message[];
 }): string {
-  // Already running? Then this is not a resume, it is a way back to it. sessionId is
-  // not unique across rows (empty strings and true duplicates both occur), so an empty
-  // match is never trusted and an ambiguous one is refused rather than adopted at random.
-  const candidates = state.instances.filter(
-    (row) => row.sessionId && row.sessionId === sessionId && isLive(row)
+  const live = instanceForSession(
+    state.instances.filter(isLive),
+    sessionId,
+    { machineId, cwd },
+    true
   );
-  let live: InstanceRow | undefined = candidates[0];
-  if (candidates.length > 1) {
-    const narrowed = candidates.filter(
-      (row) => row.machineId === machineId && row.cwd === cwd
-    );
-    // A true duplicate — same machine, same cwd, same session — is settled by
-    // picking whichever row moved most recently, not by minting a third one.
-    if (narrowed.length === 1) {
-      [live] = narrowed;
-    } else if (narrowed.length > 1) {
-      live = narrowed.reduce((newest, row) =>
-        new Date(row.updatedAt ?? 0).getTime() >
-        new Date(newest.updatedAt ?? 0).getTime()
-          ? row
-          : newest
-      );
-    } else {
-      live = undefined;
-    }
-  }
   if (live) {
     const existing = session(live.id);
     existing.machineId ||= live.machineId;

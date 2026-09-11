@@ -57,6 +57,7 @@
     whiffle,
   } from "./client.svelte";
   import FolderMenu from "./FolderMenu.svelte";
+  import { conversationHref } from "./links";
   import MachineMenu from "./MachineMenu.svelte";
   import { machineLabel } from "./machine";
   import { markHue, sessionSprite } from "./mark";
@@ -787,7 +788,7 @@
                       <Sidebar.MenuSubItem>
                         <Sidebar.MenuSubButton
                           class={SUB_ROW}
-                          href="/session/{row.id}"
+                          href={conversationHref(row.id, whiffle.instances)}
                           isActive={activeSession === row.id}
                           style={indent(depth)}
                         >
@@ -853,7 +854,7 @@
                 isActive={activeSession === row.id}
               >
                 {#snippet child({ props })}
-                  <a href="/session/{row.id}" style={indent(depth)} {...props}>
+                  <a href={conversationHref(row.id, whiffle.instances)} style={indent(depth)} {...props}>
                     <span
                       class={MARK}
                       style="background-image: var(--mark-overlay); background-color: var(--mark-{markHue(row.cwd || row.machineId)});"
@@ -924,7 +925,7 @@
               >
                 {#snippet child({ props })}
                   <a
-                    href="/session/{row.id}"
+                    href={conversationHref(row.id, whiffle.instances)}
                     style={indent(depth)}
                     title={notRunningHint(row)}
                     {...props}

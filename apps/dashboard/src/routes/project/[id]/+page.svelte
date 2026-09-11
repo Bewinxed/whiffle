@@ -27,6 +27,7 @@
     whiffle,
   } from "$lib/whiffle/client.svelte";
   import { type Doc, readDocs } from "$lib/whiffle/docs";
+  import { conversationHref } from "$lib/whiffle/links";
   import LiveSessionRow from "$lib/whiffle/LiveSessionRow.svelte";
   import MachineInventory from "$lib/whiffle/MachineInventory.svelte";
   import { machineLabel } from "$lib/whiffle/machine";
@@ -221,7 +222,7 @@
     spawnPrompt = "";
     spawnOpen = false;
     // biome-ignore lint/complexity/noVoid: fire-and-forget navigation after the spawn already succeeded
-    void goto(`/session/${instanceId}`);
+    void goto(conversationHref(instanceId, whiffle.instances));
   }
 
   async function forget() {

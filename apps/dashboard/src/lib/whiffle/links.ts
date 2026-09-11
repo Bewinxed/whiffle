@@ -1,19 +1,65 @@
-/**
- * How a stored session addresses itself in the URL bar: by its SDK `sessionId`
- * and nothing else. The machine and folder it lives on used to ride in the
- * query, but they were a cache of a fact the hub can be asked for (it locates
- * an id across the fleet), and a link that carried them went stale the moment
- * the transcript moved. A bare id is shareable, bookmarkable, and never wrong.
- */
 import {
   deriveTitleFromFirstMessage,
+  type InstanceRow,
   type SDKSessionInfo,
 } from "@whiffle/core";
 
-export function transcriptHref(
-  info: Pick<SDKSessionInfo, "sessionId">
+interface SessionInstance {
+  id: string;
+  sessionId?: string | null;
+  machineId?: string;
+  cwd?: string;
+  updatedAt?: InstanceRow["updatedAt"];
+}
+
+interface SessionLocation {
+  machineId?: string | null;
+  cwd?: string;
+}
+
+/** Location settles shared session keys; the newest row settles true duplicates. */
+export function instanceForSession<T extends SessionInstance>(
+  instances: readonly T[],
+  sessionId: string,
+  location?: SessionLocation,
+  requireLocation = false
+): T | undefined {
+  const candidates = instances.filter(
+    (row) => row.sessionId && row.sessionId === sessionId
+  );
+  const narrowed = location
+    ? candidates.filter(
+        (row) =>
+          row.machineId === location.machineId && row.cwd === location.cwd
+      )
+    : [];
+  // Resume must not adopt an ambiguous session from another machine or checkout.
+  const eligible =
+    requireLocation && candidates.length > 1
+      ? narrowed
+      : narrowed.length
+        ? narrowed
+        : candidates;
+  return eligible.sort(
+    (a, b) =>
+      new Date(b.updatedAt ?? 0).getTime() -
+        new Date(a.updatedAt ?? 0).getTime() || a.id.localeCompare(b.id)
+  )[0];
+}
+
+/** Instance-backed conversations have one address, including sleeping instances. */
+export function conversationHref(
+  id: string | null,
+  instances: readonly SessionInstance[],
+  location?: SessionLocation
 ): string {
-  return `/session/${info.sessionId}`;
+  if (!id) {
+    return "/session";
+  }
+  const instance =
+    instances.find((row) => row.id === id) ??
+    instanceForSession(instances, id, location);
+  return `/session/${instance?.id ?? id}`;
 }
 
 /**

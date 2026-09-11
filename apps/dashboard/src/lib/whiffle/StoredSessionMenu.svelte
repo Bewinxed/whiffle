@@ -22,9 +22,14 @@
     IconPenLine,
     IconTrash,
   } from "$lib/icons";
-  import { forkSession, loadCatalog, machineControl } from "./client.svelte";
+  import {
+    forkSession,
+    loadCatalog,
+    machineControl,
+    whiffle,
+  } from "./client.svelte";
   import { copyToClipboard } from "./copy";
-  import { sessionTitle, transcriptHref } from "./links";
+  import { conversationHref, sessionTitle } from "./links";
 
   let {
     machineId,
@@ -32,7 +37,9 @@
     children,
   }: { machineId: string; info: SDKSessionInfo; children: Snippet } = $props();
 
-  const href = $derived(transcriptHref(info));
+  const href = $derived(
+    conversationHref(info.sessionId, whiffle.instances, { machineId, cwd: info.cwd })
+  );
   /** Every mutation names the directory the session was recorded under. */
   const where = $derived({ dir: info.cwd || undefined });
 
@@ -92,7 +99,7 @@
       sessionId: info.sessionId,
       harness: info.harness,
     });
-    await goto(`/session/${instanceId}`);
+    await goto(conversationHref(instanceId, whiffle.instances));
   }
 </script>
 

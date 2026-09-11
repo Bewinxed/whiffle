@@ -22,9 +22,11 @@
     type InstanceRow,
     keepSession,
     stopSession,
+    whiffle,
   } from "./client.svelte";
   import { confirm } from "./confirm.svelte";
   import { copyToClipboard } from "./copy";
+  import { conversationHref } from "./links";
   import { rail } from "./rail.svelte";
 
   interface Props {
@@ -40,7 +42,7 @@
 
   let { instance, ongroup, children }: Props = $props();
 
-  const href = $derived(`/session/${instance.id}`);
+  const href = $derived(conversationHref(instance.id, whiffle.instances));
   const scratch = $derived(instance.kind === "scratch");
   const pinned = $derived(rail.isPinned("session", instance.id));
 

@@ -15,6 +15,7 @@
   import * as Drawer from "$lib/components/ui/drawer";
   import { IconAssistant } from "$lib/icons";
   import { whiffle } from "../client.svelte";
+  import { conversationHref } from "../links";
   import {
     loadSupervisor,
     loadSupervisorEvents,
@@ -142,7 +143,7 @@
 
   function navigateToSession(instanceId: string) {
     close();
-    goto(`/session/${instanceId}`);
+    goto(conversationHref(instanceId, whiffle.instances));
   }
 
   const VERDICT_TONE: Record<string, string> = {

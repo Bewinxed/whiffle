@@ -31,12 +31,14 @@
     parseQuery,
     stripFragment,
   } from "./jump-search.svelte";
+  import { conversationHref } from "./links";
 
   let { open = $bindable(false) }: { open?: boolean } = $props();
   let query = $state("");
 
   const index = $derived.by(() =>
     buildJumpIndex({
+      instances: whiffle.instances,
       projects: whiffle.projects,
       onlineMachines: whiffle.onlineMachines,
       running: whiffle.runningInstances.map((instance) => ({
@@ -301,7 +303,7 @@
               <Command.Item
                 class="jump-hit"
                 onSelect={() =>
-                jump(`/session/${hit.instanceId ?? hit.sessionId}`)}
+                jump(conversationHref(hit.instanceId ?? hit.sessionId, whiffle.instances))}
                 value={`hit:${hit.docId}`}
               >
                 <!-- Which conversation this line came out of. Without it a list of

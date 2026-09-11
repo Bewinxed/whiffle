@@ -45,6 +45,7 @@
     UNKNOWN_LABEL,
   } from "./activity";
   import ContextMeter from "./ContextMeter.svelte";
+  import { conversationHref } from "./links";
   import {
     backfillSession,
     forkSession,
@@ -218,7 +219,7 @@
       harness: session?.harness ?? "claude",
       history: session?.messages ?? [],
     });
-    await goto(`/session/${instanceId}`);
+    await goto(conversationHref(instanceId, whiffle.instances));
   }
 
   /**

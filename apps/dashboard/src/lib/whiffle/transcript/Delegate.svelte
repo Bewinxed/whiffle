@@ -17,7 +17,7 @@
     askShortOf,
     matchesSession,
   } from "../frames";
-  import { delegateHandle } from "../links";
+  import { conversationHref, delegateHandle } from "../links";
   import { markHue, sessionSprite } from "../mark";
   import { modelLabel } from "../models.svelte";
   /**
@@ -372,7 +372,7 @@
         <a
           aria-label="Open {label} in its own view"
           class="jump"
-          href="/session/{id}"
+          href={conversationHref(id, whiffle.instances)}
           title="Open {label} in its own view"
         >
           <IconExternal />

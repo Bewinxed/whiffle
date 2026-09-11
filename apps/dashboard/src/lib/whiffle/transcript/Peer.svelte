@@ -1,7 +1,7 @@
 <script lang="ts">
   import { IconArrowRight, IconRules, IconSubagent } from "$lib/icons";
   import { whiffle } from "../client.svelte";
-  import { resolveInstanceId } from "../links";
+  import { conversationHref, resolveInstanceId } from "../links";
   /**
    * Reported speech — a message another session sent, or a rule firing. Never
    * the reader's own words, so it rides the rail as a peer note with a mark that
@@ -48,7 +48,7 @@
   </span>
   {#if sender}
     {#if senderId}
-      <a class="from" href="/session/{senderId}">{sender}</a>
+      <a class="from" href={conversationHref(senderId, whiffle.instances)}>{sender}</a>
     {:else}
       <span class="from">{sender}</span>
     {/if}

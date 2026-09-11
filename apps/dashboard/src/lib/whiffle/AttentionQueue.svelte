@@ -37,6 +37,7 @@
     resolvePermission,
     whiffle,
   } from "./client.svelte";
+  import { conversationHref } from "./links";
   import { reducedMotion } from "./motion.svelte";
   import { permissionSummary } from "./permission-summary";
   import { questionsOf } from "./question";
@@ -194,7 +195,7 @@
             <div class="flex flex-wrap items-baseline gap-x-2">
               <a
                 class="text-body truncate font-medium text-foreground transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                href="/session/{item.instanceId}"
+                href={conversationHref(item.instanceId, whiffle.instances)}
                 onkeydown={(event) => onKeydown(event, item, entry.isQuestion)}
               >
                 {item.hostname}
@@ -221,7 +222,7 @@
             class="flex w-full shrink-0 items-center justify-end gap-[var(--space-1)] sm:w-auto sm:pt-0.5"
           >
             {#if entry.isQuestion}
-              <Button href="/session/{item.instanceId}" size="sm"
+              <Button href={conversationHref(item.instanceId, whiffle.instances)} size="sm"
                 >Answer</Button
               >
             {:else}
@@ -243,7 +244,7 @@
                 Deny
               </Button>
               <Button
-                href="/session/{item.instanceId}"
+                href={conversationHref(item.instanceId, whiffle.instances)}
                 size="sm"
                 variant="ghost"
                 >Open</Button

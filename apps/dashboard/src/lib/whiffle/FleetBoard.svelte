@@ -53,7 +53,7 @@
     whiffle,
   } from "./client.svelte";
   import HarnessGlyph from "./HarnessGlyph.svelte";
-  import { sessionTitle, transcriptHref } from "./links";
+  import { conversationHref, sessionTitle } from "./links";
   import { machineLabel } from "./machine";
   import { type MarkHue, markHue } from "./mark";
 
@@ -136,7 +136,7 @@
         contextPct: stats.contextPct,
         cost: stats.cost,
         at: whiffle.pulseAt(instance.id),
-        href: `/session/${instance.id}`,
+        href: conversationHref(instance.id, whiffle.instances),
         instance,
         stored: null,
         cwd: instance.cwd,
@@ -165,7 +165,10 @@
             contextPct: null,
             cost: null,
             at: info.lastModified,
-            href: transcriptHref(info),
+            href: conversationHref(info.sessionId, whiffle.instances, {
+              machineId: machine.machineId,
+              cwd: info.cwd,
+            }),
             instance: null,
             stored: info,
             cwd: info.cwd ?? "",
@@ -337,7 +340,7 @@
       harness: row.harness as never,
     });
     // biome-ignore lint/complexity/noVoid: fire-and-forget — the session is already resuming, navigation doesn't need to be awaited
-    void goto(`/session/${id}`);
+    void goto(conversationHref(id, whiffle.instances));
   }
 
   function exportCsv() {

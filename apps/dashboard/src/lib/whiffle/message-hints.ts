@@ -9,7 +9,7 @@
  */
 
 import { delegateOf, isDelegateReport, matchesSession } from "./frames";
-import { resolveInstanceId } from "./links";
+import { conversationHref, resolveInstanceId } from "./links";
 import { type SourceRef, sourcesForMessage } from "./sources";
 import type { Message } from "./types";
 
@@ -175,11 +175,11 @@ export function computeMessageHints(
     if (type === "user.peer") {
       const sender = msg.metadata?.peerSession ?? msg.metadata?.peerFrom;
       const resolved = resolveInstanceId(sender, instances);
-      sessionHref = resolved ? `/session/${resolved}` : null;
+      sessionHref = resolved ? conversationHref(resolved, instances) : null;
     } else if (type === "tool.handoff") {
       const full = msg.metadata?.delegateInstanceId;
       if (typeof full === "string") {
-        sessionHref = `/session/${full}`;
+        sessionHref = conversationHref(full, instances);
       } else {
         const short = TRAILING_INSTANCE_ID.exec(
           String(msg.content ?? "").trim()
@@ -187,7 +187,7 @@ export function computeMessageHints(
         const resolved = short
           ? resolveInstanceId(short[1], instances)
           : undefined;
-        sessionHref = resolved ? `/session/${resolved}` : null;
+        sessionHref = resolved ? conversationHref(resolved, instances) : null;
       }
     }
 

@@ -34,6 +34,7 @@
   import { isFailed, isStale, whiffle } from "../client.svelte";
   import { copyToClipboard } from "../copy";
   import HarnessGlyph from "../HarnessGlyph.svelte";
+  import { conversationHref } from "../links";
   import { markHue } from "../mark";
   import { sessionName } from "../session-name";
   import { workingSet } from "../working-set.svelte";
@@ -41,7 +42,6 @@
   import {
     contextOf,
     type LeafNode,
-    urlFor,
     workspace,
   } from "./workspace.svelte";
 
@@ -96,7 +96,10 @@
     }
     return {
       id,
-      href: urlFor(id),
+      href: conversationHref(id, whiffle.instances, {
+        machineId: ctx?.machine,
+        cwd: ctx?.cwd,
+      }),
       label,
       hue: markHue(view?.cwd || row?.cwd || ctx?.cwd || id),
       harness: ctx?.harness || row?.harness || view?.harness || "claude",

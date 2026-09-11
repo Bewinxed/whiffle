@@ -42,6 +42,7 @@
   } from "../client.svelte";
   import { EFFORT_LEVELS } from "../effort-levels";
   import { type FleetSnapshot, inspectMachine } from "../fleet";
+  import { conversationHref } from "../links";
   import { models } from "../models.svelte";
   import { PERMISSION_MODES } from "../permission-modes";
   import { rememberSpawn, spawnPrefs } from "../spawnPrefs.svelte";
@@ -811,7 +812,7 @@
       }
     }
     close();
-    await goto(`/session/${instanceId}`);
+    await goto(conversationHref(instanceId, whiffle.instances));
   }
   function keydown(event: KeyboardEvent) {
     if (!open || event.defaultPrevented || event.isComposing) {
