@@ -1,13 +1,8 @@
 <script lang="ts">
   /**
-   * The effort slider (§1.7, §2.10). The level rides the slider's tip in a
-   * knob rather than being stamped at the track's right edge, so the reading
-   * and the thing being read are the same object.
-   *
-   * Every position — knob, fill edge, pip, hover preview — comes off one
-   * anchor formula, `RAIL_INSET + fraction * (100% - 2 * RAIL_INSET)`. The
-   * design's per-element pixel offsets did not agree with each other, which is
-   * why the label used to sit off the tip and overlap the stops.
+   * The chip lives inside the fill so the level and its filled track read as
+   * one object. Its measured width keeps the fill wrapped at both ends and
+   * gives pips, hover previews, and pointer targeting the same geometry.
    */
   import type { EffortLevel } from "@whiffle/core";
 
@@ -22,10 +17,8 @@
     onchange: (level: EffortLevel) => void;
   } = $props();
 
-  /** Breathing room at each end so the knob never kisses the track's border. */
-  const RAIL_INSET = 3;
-  const anchor = (fraction: number) =>
-    `calc(${RAIL_INSET}px + ${fraction} * (100% - ${RAIL_INSET * 2}px))`;
+  let knobWidth = $state(0);
+  const kw = $derived(knobWidth + 6);
 
   const n = $derived(efforts.length);
   const effortIdx = $derived(
@@ -53,10 +46,10 @@
   function indexAt(event: PointerEvent) {
     const el = event.currentTarget as HTMLElement;
     const box = el.getBoundingClientRect();
-    const rail = Math.max(1, box.width - RAIL_INSET * 2);
+    const rail = el.clientWidth - kw;
     const f = Math.min(
       1,
-      Math.max(0, (event.clientX - box.left - RAIL_INSET) / rail)
+      Math.max(0, (event.clientX - box.left - el.clientLeft - kw / 2) / rail)
     );
     return Math.round(f * (n - 1));
   }
@@ -112,43 +105,48 @@
       onpointermove={move}
       onpointerup={up}
       role="presentation"
+      style={`--kw:${kw}px`}
       class:focus={focused}
     >
-      <div class="fill" style={`width:${anchor(p)};opacity:${n ? 1 : 0}`}></div>
+      <div
+        class="fill"
+        style={`width:calc(var(--kw) + ${p} * (100% - var(--kw)))`}
+      >
+        <div
+          class="knob"
+          style={`opacity:${n ? 1 : 0.7}`}
+          class:active={active}
+          bind:offsetWidth={knobWidth}
+        >
+          {#if n}
+            <span aria-hidden="true" class="meter">
+              {#each efforts as level, i (level)}
+                <span
+                  class="bar"
+                  style={`height:${4 + (n > 1 ? i / (n - 1) : 1) * 8}px`}
+                  class:lit={i <= effortIdx}
+                ></span>
+              {/each}
+            </span>
+          {/if}
+          <span class="lvl">{label}</span>
+        </div>
+      </div>
       <div
         class="preview"
-        style={`left:${anchor(preview.from)};width:calc(${preview.span} * (100% - ${RAIL_INSET * 2}px))`}
+        style={`left:calc(var(--kw) + ${preview.from} * (100% - var(--kw)));width:calc(${preview.span} * (100% - var(--kw)))`}
       ></div>
       {#each pips as pip, i (i)}
         <span
           class="pip"
           data-pip={i}
-          style={`left:calc(${anchor(pip.frac)} - 2.5px);opacity:${pip.on ? 0.3 : 0}`}
+          style={`left:calc(var(--kw) / 2 + ${pip.frac} * (100% - var(--kw)) - 2.5px);opacity:${pip.on ? 0.3 : 0}`}
         ></span>
       {/each}
-      <!-- The knob is the readout: it carries the level's name and a meter of
-           as many bars as the model actually offers, and it travels. -->
-      <div
-        class="knob"
-        style={`left:${anchor(p)};transform:translateX(calc(${p} * -100%));opacity:${n ? 1 : 0.7}`}
-        class:active={active}
-      >
-        {#if n}
-          <span aria-hidden="true" class="meter">
-            {#each efforts as level, i (level)}
-              <span
-                class="bar"
-                style={`height:${4 + (n > 1 ? i / (n - 1) : 1) * 8}px`}
-                class:lit={i <= effortIdx}
-              ></span>
-            {/each}
-          </span>
-        {/if}
-        <span class="lvl">{label}</span>
-      </div>
       <input
         aria-label="Effort"
         aria-valuetext={label}
+        disabled={!n}
         max={Math.max(0, n - 1)}
         min="0"
         onblur={() => {
@@ -204,6 +202,11 @@
   }
   .fill {
     position: absolute;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    padding: 3px;
+    border-radius: calc(var(--fai-radius-md) - 1px);
     left: 0;
     top: 0;
     bottom: 0;
@@ -235,9 +238,8 @@
     pointer-events: none;
   }
   .knob {
-    position: absolute;
-    top: 3px;
-    bottom: 3px;
+    flex-shrink: 0;
+    height: 100%;
     display: flex;
     align-items: center;
     gap: 7px;
@@ -247,8 +249,6 @@
     box-shadow: var(--fai-shadow-raised);
     color: var(--fai-text-muted);
     transition:
-      left var(--ns-fill-ms) var(--ns-ease-in-out),
-      transform var(--ns-fill-ms) var(--ns-ease-in-out),
       color 120ms ease,
       opacity 120ms ease;
     pointer-events: none;
