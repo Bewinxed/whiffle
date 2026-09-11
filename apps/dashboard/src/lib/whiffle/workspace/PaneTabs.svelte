@@ -282,12 +282,13 @@
     }
   }
 
-  /* The strip's texture: a dense strip's small text and a tighter
-     horizontal pad. The ladder, the shape and the sheet are the
-     component's. */
+  /* The strip takes one step taller than the component's default in a
+     bar with room, with the component's own text size and a tighter
+     horizontal pad. The shape and the sheet are the component's. */
   :global(.tabs .ff-tabs-list) {
     --px: 10px;
-    --text: var(--text-sm);
+    --text: var(--text-base);
+    --item: 32px;
   }
 
   .tab {
