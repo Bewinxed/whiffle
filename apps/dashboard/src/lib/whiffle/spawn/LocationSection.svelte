@@ -161,6 +161,7 @@
         </button>
       {:else}
         <button
+          aria-expanded={browsing}
           class="browse ns-in"
           disabled={!machineId}
           id="session-browse"
@@ -169,7 +170,7 @@
           type="button"
         >
           {#if browsing}
-            <Up />Close
+            <Up /><span>Close</span>
           {:else}
             <Search />
             Browse
@@ -177,55 +178,70 @@
         </button>
       {/if}
     </div>
-    <div class="panel" style={`grid-template-rows:${browsing ? "1fr" : "0fr"}`}>
+    <div
+      class="panel"
+      inert={!browsing}
+      style={`grid-template-rows:${browsing ? "1fr" : "0fr"}`}
+    >
       <div class="clip">
         <div class="browser">
           <div class="crumbs">
             <span class="machine"><span class="dot"></span>{machineName}</span>
-            <div class="trail fai-scroll">
-              {#each crumbs as crumb, i (crumb.to)}
-                <button
-                  class="crumb"
-                  onclick={() => list(crumb.to)}
-                  style={i === crumbs.length - 1 ? "color:var(--fai-grey-900)" : ""}
-                  type="button"
-                >
-                  {crumb.label}
-                </button>
-                {#if i < crumbs.length - 1}
-                  <span class="sep">/</span>
-                {/if}
-              {/each}
+            <div class="trail">
+              <div class="ancestors fai-scroll">
+                {#each crumbs.slice(0, -1) as crumb (crumb.to)}
+                  <button
+                    class="crumb"
+                    onclick={() => list(crumb.to)}
+                    type="button"
+                  >
+                    {crumb.label}
+                  </button>
+                  <span aria-hidden="true" class="sep">/</span>
+                {/each}
+              </div>
+              <button
+                aria-current="location"
+                class="crumb current"
+                onclick={() => list(path)}
+                type="button"
+              >
+                {crumbs.at(-1)?.label}
+              </button>
             </div>
           </div>
           <div class="folders fai-scroll">
             {#if canGoUp}
               <button class="folder up" onclick={goUp} type="button">
-                <Left />..
+                <Left /><span>Parent folder</span>
               </button>
             {/if}
-            {#each folders as folder, i (`${path}/${folder.name}`)}
-              <button
-                class="folder ns-in"
-                onclick={() => enter(folder.name)}
-                style={`--delay:${i * 22}ms`}
-                type="button"
-              >
-                <Folder
-                  style={`color:${folder.name.startsWith('.') ? 'var(--fai-grey-400)' : 'var(--fai-amber-500)'}`}
-                />
-                <span class="name">{folder.name}</span>
-                <Right class="go" />
-              </button>
-            {/each}
-            {#if listError}
-              <div class="empty ns-in" role="alert">{listError}</div>
-            {:else if !(listing || folders.length)}
-              <div class="empty ns-in">No subfolders</div>
+            {#if listing}
+              <div class="empty" role="status">Loading folders...</div>
+            {:else if listError}
+              <div class="empty error" role="alert">{listError}</div>
+            {:else}
+              {#each folders as folder (`${path}/${folder.name}`)}
+                <button
+                  class="folder"
+                  onclick={() => enter(folder.name)}
+                  title={folder.name}
+                  type="button"
+                >
+                  <Folder
+                    style={`color:${folder.name.startsWith('.') ? 'var(--fai-grey-400)' : 'var(--fai-amber-500)'}`}
+                  />
+                  <span class="name">{folder.name}</span>
+                  <Right class="go" />
+                </button>
+              {/each}
+              {#if !folders.length}
+                <div class="empty" role="status">No subfolders</div>
+              {/if}
             {/if}
           </div>
           <div class="use">
-            <span class="path">{path}</span>
+            <span class="path" title={path}>{path}</span>
             <button class="ns-btn sm primary" onclick={useFolder} type="button">
               Use this folder
             </button>
@@ -343,6 +359,7 @@
   }
   .browse {
     display: inline-flex;
+    justify-content: flex-start;
     align-items: center;
     gap: 6px;
     height: 30px;
@@ -373,7 +390,7 @@
       background: var(--fai-hover);
     }
     .folder:hover {
-      background: var(--fai-surface);
+      background: var(--fai-hover);
     }
   }
   .panel {
@@ -386,7 +403,7 @@
   }
   .browser {
     border-top: 1px solid var(--fai-border-subtle);
-    background: var(--fai-surface-subtle);
+    background: var(--fai-recess);
   }
   .crumbs {
     display: flex;
@@ -394,7 +411,7 @@
     gap: 8px;
     padding: 8px 8px 8px 10px;
     border-bottom: 1px solid var(--fai-border-subtle);
-    background: var(--fai-surface-subtle);
+    background: var(--fai-recess);
   }
   .machine {
     display: inline-flex;
@@ -421,13 +438,21 @@
     display: flex;
     align-items: center;
     gap: 2px;
-    overflow-x: auto;
-    font: 400 13px / 1 var(--fai-font-mono);
+    font: 400 13px / 1.4 var(--fai-font-mono);
     color: var(--fai-text-muted);
+  }
+  .ancestors {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 2px;
+    overflow-x: auto;
     white-space: nowrap;
   }
   .crumb {
-    height: 24px;
+    min-height: 44px;
+    min-width: 44px;
+    flex: none;
     padding: 0 6px;
     border: 0;
     background: transparent;
@@ -435,6 +460,15 @@
     font: inherit;
     color: inherit;
     cursor: pointer;
+  }
+  .crumb.current {
+    max-width: 100%;
+    padding: 8px;
+    background: var(--fai-raised);
+    color: var(--fai-text);
+    font-weight: 500;
+    text-align: left;
+    overflow-wrap: anywhere;
   }
   .sep {
     color: var(--fai-grey-400);
@@ -444,10 +478,14 @@
     overflow: auto;
     padding: 6px;
     display: grid;
+    align-content: start;
+    overscroll-behavior: contain;
     gap: 1px;
   }
   .folder {
     display: flex;
+    justify-content: flex-start;
+    min-width: 0;
     align-items: center;
     gap: 10px;
     height: 34px;
@@ -481,10 +519,14 @@
     text-overflow: ellipsis;
   }
   .empty {
-    padding: 14px 8px;
+    padding: 24px 8px;
     font: var(--fai-type-meta);
     color: var(--fai-text-subtle);
     text-align: center;
+    overflow-wrap: anywhere;
+  }
+  .empty.error {
+    color: var(--fai-status-expired-fg);
   }
   .use {
     display: flex;
@@ -493,7 +535,11 @@
     gap: 8px;
     padding: 8px;
     border-top: 1px solid var(--fai-border-subtle);
-    background: var(--fai-surface);
+    background: var(--fai-raised);
+  }
+  .use .ns-btn {
+    flex: none;
+    white-space: nowrap;
   }
   .path {
     font: 400 12px / 1.3 var(--fai-font-mono);
@@ -546,6 +592,17 @@
     min-height: 16px;
   }
   @media (max-width: 640px) {
+    .crumbs {
+      flex-wrap: wrap;
+    }
+    .trail {
+      flex-basis: 100%;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    .ancestors {
+      max-width: 100%;
+    }
     .row {
       height: 46px;
     }
@@ -554,10 +611,20 @@
     }
     .browse,
     .override {
-      height: 36px;
+      height: 44px;
     }
     .folder {
       height: 44px;
+    }
+    .use {
+      flex-wrap: wrap;
+    }
+    .path {
+      flex-basis: 100%;
+    }
+    .use .ns-btn {
+      width: 100%;
+      min-height: 44px;
     }
   }
 </style>
