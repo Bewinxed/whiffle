@@ -197,7 +197,8 @@
 <style>
   /* The size ladder: the pad and the item add up to the control height —
      36px by default, 28px compact — so the control lines up with the
-     buttons, selects and inputs beside it. */
+     buttons, selects and inputs beside it. `--shape` is the corner the
+     overlays and items share; `--sheet` is the chosen segment's surface. */
   .ff-tabs-list {
     --pad: 4px;
     --item: 28px;
@@ -206,6 +207,8 @@
     --icon: 16px;
     --text: var(--text-base);
     --radius: var(--radius-control);
+    --shape: calc(var(--radius) - var(--pad));
+    --sheet: var(--surface-raised);
     position: relative;
     display: inline-flex;
     align-items: center;
@@ -216,8 +219,28 @@
     background: var(--muted);
     user-select: none;
     -webkit-user-select: none;
+
+    /* A finger needs more room than a pointer: one step up the ladder on
+       a coarse pointer — a 40px control — its shape unchanged. */
+    @media (pointer: coarse) {
+      --item: 32px;
+    }
+
+    /* A scrolling track hugs its items and gives way — never grows —
+       when the row it sits in is narrower than they are. */
+    &.scrollable {
+      flex: 0 1 auto;
+      min-inline-size: 0;
+      max-inline-size: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: none;
+
+      &::-webkit-scrollbar {
+        display: none;
+      }
+    }
   }
-  :global([data-size="compact"]) > .ff-tabs-list,
   :global([data-size="compact"]) .ff-tabs-list {
     --pad: 2px;
     --item: 24px;
@@ -225,33 +248,23 @@
     --icon: 14px;
     --text: var(--text-sm);
     --radius: var(--radius-tile);
-  }
-  /* A finger needs more room than a pointer: one step up the ladder on a
-     coarse pointer — a 40px control — its shape unchanged. */
-  @media (pointer: coarse) {
-    .ff-tabs-list {
-      --item: 32px;
-    }
-    /* Compact takes its own step (24 → 28): named here because the size
-       rule above outranks a bare class, so it would otherwise stay put. */
-    :global([data-size="compact"]) > .ff-tabs-list,
-    :global([data-size="compact"]) .ff-tabs-list {
+
+    /* Its own step up (24 → 28): this rule outranks the bare class, so
+       the ladder above would not move it. */
+    @media (pointer: coarse) {
       --item: 28px;
     }
   }
 
-  /* A scrolling track hugs its items and gives way — never grows — when
-     the row it sits in is narrower than they are. */
-  .scrollable {
-    flex: 0 1 auto;
-    min-width: 0;
-    max-width: 100%;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scrollbar-width: none;
-  }
-  .scrollable::-webkit-scrollbar {
-    display: none;
+  /* Folder tabs: no well. The items stand on the row's shelf — the row
+     draws that hairline along its own bottom edge — and the chosen one
+     is a sheet with a rounded top and no bottom, in the surface of what
+     lies below, so it opens into it. */
+  :global([data-variant="folder"]) .ff-tabs-list {
+    --shape: var(--radius) var(--radius) 0 0;
+    padding-block-end: 0;
+    border-radius: 0;
+    background: none;
   }
 
   .segment,
@@ -259,56 +272,75 @@
   .ring {
     position: absolute;
     pointer-events: none;
-    border-radius: calc(var(--radius) - var(--pad));
+    border-radius: var(--shape);
   }
-  /* The active segment: raised, at the moderate tier — critically damped,
-     lands without overshoot. Steps back a little while another tab is
-     hovered, so the field reads as the thing about to take over. */
+  /* The active segment: raised, at the moderate tier — critically
+     damped, lands without overshoot. Steps back a little while another
+     tab is hovered, so the field reads as the thing about to take over. */
   .segment {
     z-index: 1;
-    background: var(--surface-raised);
+    background: var(--sheet);
     box-shadow: var(--shadow-tile);
-    transition:
-      left 160ms var(--e-in),
-      top 160ms var(--e-in),
-      width 160ms var(--e-in),
-      height 160ms var(--e-in),
-      opacity 80ms linear;
+
+    &.dim {
+      opacity: 0.85;
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      transition:
+        left 160ms var(--e-in),
+        top 160ms var(--e-in),
+        width 160ms var(--e-in),
+        height 160ms var(--e-in),
+        opacity 80ms linear;
+    }
   }
-  .segment.dim {
-    opacity: 0.85;
+  /* As a folder tab the sheet has an edge, not a shadow, and no bottom
+     edge at all: it is the page below, continued. It does not step back
+     for a hover — a page is not a control. */
+  :global([data-variant="folder"]) .segment {
+    box-sizing: border-box;
+    border: 1px solid var(--border-hairline);
+    border-block-end: 0;
+    box-shadow: none;
+
+    &.dim {
+      opacity: 1;
+    }
   }
   /* The hover field, one register down and one tier quicker. */
   .field {
     z-index: 0;
     background: var(--surface-hover);
     opacity: 0;
-    transition:
-      left 80ms var(--e-in),
-      top 80ms var(--e-in),
-      width 80ms var(--e-in),
-      height 80ms var(--e-in),
-      opacity 80ms linear;
-  }
-  .field.shown {
-    opacity: 0.4;
+
+    &.shown {
+      opacity: 0.4;
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      transition:
+        left 80ms var(--e-in),
+        top 80ms var(--e-in),
+        width 80ms var(--e-in),
+        height 80ms var(--e-in),
+        opacity 80ms linear;
+    }
   }
   .ring {
     z-index: 3;
     border: 1px solid var(--focus-ring);
     border-radius: calc(var(--radius) - var(--pad) + 2px);
-    transition:
-      left 80ms var(--e-in),
-      top 80ms var(--e-in),
-      width 80ms var(--e-in),
-      height 80ms var(--e-in);
-  }
 
-  @media (prefers-reduced-motion: reduce) {
-    .segment,
-    .field,
-    .ring {
-      transition: none;
+    @media (prefers-reduced-motion: no-preference) {
+      transition:
+        left 80ms var(--e-in),
+        top 80ms var(--e-in),
+        width 80ms var(--e-in),
+        height 80ms var(--e-in);
     }
+  }
+  :global([data-variant="folder"]) .ring {
+    border-radius: calc(var(--radius) + 2px) calc(var(--radius) + 2px) 0 0;
   }
 </style>

@@ -7,6 +7,8 @@ import { getContext, setContext } from "svelte";
 import type { ProximityHover } from "$lib/hooks/proximity-hover.svelte";
 
 export type TabsSize = "default" | "compact";
+/** A segmented control in a well, or folder tabs standing on a shelf. */
+export type TabsVariant = "segmented" | "folder";
 
 export class TabsState {
   order = $state<string[]>([]);

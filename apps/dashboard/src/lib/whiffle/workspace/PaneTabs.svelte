@@ -116,11 +116,15 @@
 </script>
 
 <!-- `''` when the board is showing: a value no segment carries, so nothing
-     is drawn as chosen. -->
+     is drawn as chosen. The name is per group: two groups' strips in one
+     navigation must be two transition groups, or the transition is
+     abandoned. -->
 <Tabs
   class="tabs {hosted ? 'hosted' : ''}"
   onValueChange={(id) => workspace.activate(id, leaf.id)}
+  style="view-transition-name: tabs-{leaf.id}"
   value={leaf.active ?? ''}
+  variant="folder"
 >
   <TabsList aria-label="Open sessions in this group" scrollable>
     {#each tabs as tab, i (tab.id)}
@@ -230,83 +234,78 @@
 </Tabs>
 
 <style>
-  /* ── Strip overrides ─────────────────────────────────────────────
-     The FF tabs component is a segmented control: a muted-background
-     pill with a raised, shadowed active segment. Session tabs are
-     navigation — a flat strip flush with its surface, compact, the
-     active tab distinguished by a subtle fill rather than a lifted
-     card. Everything below overrides the component's defaults for
-     this use case. */
-
-  /* The wrapper row. Non-hosted: its own row with a hairline.
-     Hosted: fills the top bar inline. */
+  /* ── The row ──────────────────────────────────────────────────────
+     Folder tabs stand on a shelf: a hairline in the row's own bottom
+     pixel, so the chosen tab's sheet — which ends on that same pixel —
+     covers it and runs on into the header below. In a group the row is
+     the group's own; hosted, it fills the top bar and the bar draws the
+     shelf. The row is its own view-transition group and, like the bar
+     and the rail, holds still while a spoke navigation slides the
+     content under it: it is chrome. (A tab switch is not a navigation
+     at all — the segment simply slides.) */
   :global(.tabs) {
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     flex: 0 0 auto;
-    min-width: 0;
-    padding: 4px var(--space-4) 4px var(--space-7);
-    border-bottom: 1px solid var(--border-hairline);
+    min-inline-size: 0;
+    padding-block: 4px 0;
+    padding-inline: var(--space-7) var(--space-4);
+    background:
+      linear-gradient(var(--border-hairline), var(--border-hairline)) bottom /
+      100% 1px no-repeat;
+    view-transition-class: tabs;
   }
   :global(.tabs.hosted) {
     flex: 1 1 0;
+    align-self: stretch;
     padding: 0;
-    border-bottom: 0;
+    background: none;
   }
-  @container leaf (max-width: 620px) {
+  @container leaf (width <= 620px) {
     :global(.tabs:not(.hosted)) {
-      padding-left: var(--space-4);
+      padding-inline-start: var(--space-4);
     }
   }
 
-  /* The component's size ladder is left alone — its coarse-pointer step
-     (32px items, a 40px control) is the touch answer. What the strip sets
-     is texture: the small text of a dense strip, a tighter horizontal pad,
-     a less pill-shaped radius. */
+  /* The strip's texture: a dense strip's small text and a tighter
+     horizontal pad. The ladder, the shape and the sheet are the
+     component's. */
   :global(.tabs .ff-tabs-list) {
     --px: 10px;
     --text: var(--text-sm);
-    --radius: var(--radius-tile);
-  }
-
-  /* A lighter shadow than the full shadow-tile — present but not
-     heavy in a scrolling strip with many segments. */
-  :global(.tabs .segment) {
-    box-shadow: 0 0 0 0.5px var(--shadow-tint), 0 1px 2px var(--shadow-tint);
   }
 
   .tab {
     position: relative;
     display: flex;
     flex: 0 0 auto;
-    min-width: 0;
-    max-width: 200px;
-  }
-  /* Parked on you: the label carries the strong ink whether or not it is
-     chosen, so the ask is legible from across the strip. */
-  .tab.needs {
-    color: var(--ink-strong);
-  }
+    min-inline-size: 0;
+    max-inline-size: 200px;
 
-  /* Where it would land. A 2px rule against the gap between tabs. */
-  .tab.drop-before::before,
-  .tab.drop-after::after {
-    content: "";
-    position: absolute;
-    top: 2px;
-    bottom: 2px;
-    width: 2px;
-    border-radius: 1px;
-    background: var(--ink-strong);
-    z-index: 3;
-  }
-  .tab.drop-before::before {
-    left: -2px;
-  }
-  .tab.drop-after::after {
-    right: -2px;
-  }
+    /* Parked on you: the label carries the strong ink whether or not it
+       is chosen, so the ask is legible from across the strip. */
+    &.needs {
+      color: var(--ink-strong);
+    }
 
+    /* Where a drop would land: a 2px rule in the gap, on the near side. */
+    &.drop-before::before,
+    &.drop-after::after {
+      content: "";
+      position: absolute;
+      inset-block: 2px;
+      inline-size: 2px;
+      border-radius: 1px;
+      background: var(--ink-strong);
+      z-index: 3;
+    }
+    &.drop-before::before {
+      inset-inline-start: -2px;
+    }
+    &.drop-after::after {
+      inset-inline-end: -2px;
+    }
+  }
   /* The tab being carried recedes; it is somewhere else now. */
   :global(.tab[data-dragging]) {
     opacity: 0.4;
@@ -321,91 +320,105 @@
   .tm {
     display: grid;
     place-items: center;
-    width: 14px;
-    height: 14px;
+    inline-size: 14px;
+    block-size: 14px;
     border-radius: var(--radius-mark);
     background-image: var(--mark-overlay);
     background-color: var(--mark-1);
+
+    &.m2 {
+      background-color: var(--mark-2);
+    }
+    &.m3 {
+      background-color: var(--mark-3);
+    }
+    &.m4 {
+      background-color: var(--mark-4);
+    }
+    &.m5 {
+      background-color: var(--mark-5);
+    }
+    &.m6 {
+      background-color: var(--mark-6);
+    }
+    &.m7 {
+      background-color: var(--mark-7);
+    }
+    &.m8 {
+      background-color: var(--mark-8);
+    }
   }
   .tm :global(svg) {
-    width: 10px;
-    height: 10px;
+    inline-size: 10px;
+    block-size: 10px;
     display: block;
     color: var(--mark-glyph);
   }
-  .tm.m2 { background-color: var(--mark-2); }
-  .tm.m3 { background-color: var(--mark-3); }
-  .tm.m4 { background-color: var(--mark-4); }
-  .tm.m5 { background-color: var(--mark-5); }
-  .tm.m6 { background-color: var(--mark-6); }
-  .tm.m7 { background-color: var(--mark-7); }
-  .tm.m8 { background-color: var(--mark-8); }
 
-  /* On the mark's corner, ringed in the well's surface. */
+  /* On the mark's corner, ringed in the surface the tab stands on: the
+     shelf's field, or — chosen — the sheet. */
   .badge {
     position: absolute;
-    right: -4px;
-    bottom: -4px;
+    inset-inline-end: -4px;
+    inset-block-end: -4px;
     display: grid;
     place-items: center;
-    width: 10px;
-    height: 10px;
+    inline-size: 10px;
+    block-size: 10px;
     border-radius: 50%;
-    background: var(--muted);
+    background: var(--surface-field);
+  }
+  :global(.ff-tab.selected) .badge {
+    background: var(--sheet);
   }
 
   .tclose {
     display: grid;
     place-items: center;
     flex: 0 0 auto;
-    width: 20px;
-    height: 20px;
-    /* Sized here, not by the page-wide 44px touch minimum: a 44px button
-       in a 32px item is the overflow. 24px on a coarse pointer, below. */
-    min-width: 0;
-    min-height: 0;
-    margin-left: 2px;
+    inline-size: 20px;
+    block-size: 20px;
+    /* Its own size, not the page-wide touch floor: a 44px button does
+       not fit a 32px tab. 24px on a coarse pointer is the WCAG floor. */
+    min-inline-size: 0;
+    min-block-size: 0;
+    margin-inline-start: 2px;
     border: 0;
     padding: 0;
     background: none;
     border-radius: var(--radius-mark);
     color: var(--ink-muted);
     cursor: pointer;
-    transition:
-      background-color var(--c-100) var(--e-in),
-      color var(--c-100) var(--e-in),
-      transform var(--c-100) var(--e-in);
+
+    &:focus-visible {
+      outline: 2px solid var(--focus-ring);
+      outline-offset: 1px;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      &:hover {
+        background: var(--surface-active);
+        color: var(--ink-strong);
+      }
+    }
+    @media (pointer: coarse) {
+      inline-size: 24px;
+      block-size: 24px;
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      transition:
+        background-color var(--c-100) var(--e-in),
+        color var(--c-100) var(--e-in),
+        transform var(--c-100) var(--e-in);
+
+      &:active {
+        transform: scale(0.9);
+      }
+    }
   }
   .tclose :global(svg) {
-    width: 11px;
-    height: 11px;
+    inline-size: 11px;
+    block-size: 11px;
     display: block;
-  }
-  @media (hover: hover) and (pointer: fine) {
-    .tclose:hover {
-      background: var(--surface-active);
-      color: var(--ink-strong);
-    }
-  }
-  .tclose:active {
-    transform: scale(0.9);
-  }
-  .tclose:focus-visible {
-    outline: 2px solid var(--focus-ring);
-    outline-offset: 1px;
-  }
-  @media (pointer: coarse) {
-    .tclose {
-      width: 24px;
-      height: 24px;
-    }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .tclose {
-      transition: none;
-    }
-    .tclose:active {
-      transform: none;
-    }
   }
 </style>

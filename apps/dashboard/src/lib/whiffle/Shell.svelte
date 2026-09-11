@@ -585,15 +585,17 @@
     border-bottom: 1px solid var(--border-hairline);
     view-transition-name: topbar;
   }
-  /* Hosting the tabs, the bar is their well: the tabs start where the
-     identity bar's mark starts (its inset, less the tab's own), and the
-     chosen one's sheet runs down into the pane through the hairline. */
-  /* Hosting the tabs, the bar keeps its own surface and the well is sunk
-     into it, flush with the bar's leading edge; the bar's hairline moves
-     into an inset shadow so the chosen tab's sheet can cross it. The right
-     cluster keeps its size — the well is what gives way, by scrolling. */
+  /* Hosting the tabs, the bar is the shelf they stand on: the field, one
+     step below the bar's usual surface so the chosen tab's raised sheet
+     reads, with the hairline drawn in the bar's bottom pixel — where the
+     sheet ends and covers it — rather than as a border below it. */
   .top.hosting {
-    padding-left: var(--space-4);
+    padding-inline-start: var(--space-4);
+    border-bottom: 0;
+    background:
+      linear-gradient(var(--border-hairline), var(--border-hairline)) bottom /
+      100% 1px no-repeat,
+      var(--surface-field);
   }
   .burger {
     width: 44px;

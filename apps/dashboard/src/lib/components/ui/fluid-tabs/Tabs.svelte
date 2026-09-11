@@ -8,7 +8,12 @@
    */
   import type { Snippet } from "svelte";
   import type { HTMLAttributes } from "svelte/elements";
-  import { provideTabs, type TabsSize, TabsState } from "./context.svelte";
+  import {
+    provideTabs,
+    type TabsSize,
+    TabsState,
+    type TabsVariant,
+  } from "./context.svelte";
 
   let {
     value,
@@ -17,6 +22,7 @@
     onSelect,
     defaultValue,
     size = "default",
+    variant = "segmented",
     children,
     ...rest
   }: Omit<HTMLAttributes<HTMLDivElement>, "onselect"> & {
@@ -27,6 +33,8 @@
     defaultValue?: string;
     /** One step of the size ladder: 36px outer by default, 28px compact. */
     size?: TabsSize;
+    /** A segmented control in a well (default), or folder tabs on a shelf. */
+    variant?: TabsVariant;
     children: Snippet;
   } = $props();
 
@@ -44,6 +52,6 @@
   provideTabs(state);
 </script>
 
-<div data-size={size} data-slot="tabs" {...rest}>
+<div data-size={size} data-slot="tabs" data-variant={variant} {...rest}>
   {@render children()}
 </div>

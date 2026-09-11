@@ -1058,6 +1058,12 @@
 ::view-transition-new(topbar) {
   animation: none;
 }
+/* The session tab strips too — one group per pane group, named by the
+   pane and classed here — since they are chrome as much as the bar is. */
+::view-transition-old(.tabs),
+::view-transition-new(.tabs) {
+  animation: none;
+}
 
 /* Session pane crossfade — only the active pane carries this name,
    so the VT API morphs between old and new pane content. */
@@ -1119,37 +1125,33 @@
     --text-sm: 0.8125rem; /* 13px floor on touch */
   }
 
-  /* Ensure all tappable elements meet the 44px minimum */
-  button,
-  /* biome-ignore lint/style/noDescendingSpecificity: cascade order is deliberate — this touch-target rule must lose to .prose a's font-weight only where they'd conflict, but they set disjoint properties */
-  a,
-  [role="button"],
-  [role="tab"],
-  [role="menuitem"],
-  input:not([type="hidden"]),
-  select,
-  textarea,
-  /* biome-ignore lint/style/noDescendingSpecificity: cascade order is deliberate — this touch-target rule must stay after .prose summary's font-weight rule */
-  summary {
+  /* A 44px floor for tappable elements. Wrapped in :where() so it has
+     zero specificity: any component that sizes its own controls — a
+     tab strip, a toolbar, a segmented control — wins with a single
+     class, without a specificity war. */
+  :where(
+    button,
+    a,
+    [role="button"],
+    [role="tab"],
+    [role="menuitem"],
+    input:not([type="hidden"]),
+    select,
+    textarea,
+    summary
+  ) {
     min-height: 44px;
     min-width: 44px;
   }
 
-  /* Except inline links inside prose — those flow with text */
-  .prose a,
-  /* biome-ignore lint/style/noDescendingSpecificity: must come after .prose a and the button/a touch-target rule above to win the cascade for plain-text links */
-  p a,
-  /* biome-ignore lint/style/noDescendingSpecificity: must come after .prose a and the button/a touch-target rule above to win the cascade for plain-text links */
-  li a,
-  /* biome-ignore lint/style/noDescendingSpecificity: must come after .prose a and the button/a touch-target rule above to win the cascade for plain-text links */
-  span a {
+  /* Inline links flow with text. */
+  :where(.prose a, p a, li a, span a) {
     min-height: unset;
     min-width: unset;
   }
 
-  /* Icon-only buttons get padding to meet the target without stretching visually */
-  button:has(> svg:only-child),
-  a:has(> svg:only-child) {
+  /* Icon-only buttons meet the target through padding. */
+  :where(button:has(> svg:only-child), a:has(> svg:only-child)) {
     padding: 10px;
     min-height: 44px;
     min-width: 44px;

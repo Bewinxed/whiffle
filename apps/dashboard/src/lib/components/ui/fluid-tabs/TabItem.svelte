@@ -120,15 +120,22 @@
     display: flex;
     align-items: center;
     flex: 0 1 auto;
-    min-width: 0;
-    height: var(--item);
-    padding-right: calc(var(--px) - 6px);
-    border-radius: calc(var(--radius) - var(--pad));
+    min-inline-size: 0;
+    block-size: var(--item);
+    padding-inline-end: calc(var(--px) - 6px);
+    border-radius: var(--shape);
     color: var(--ink-muted);
-    transition: color 80ms linear;
-  }
-  .ff-tab:has(.hit:last-child) {
-    padding-right: 0;
+
+    &:has(.hit:last-child) {
+      padding-inline-end: 0;
+    }
+    &.active {
+      color: var(--ink-strong);
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      transition: color 80ms linear;
+    }
   }
   .hit {
     display: flex;
@@ -136,12 +143,13 @@
     align-self: stretch;
     flex: 1 1 auto;
     gap: calc(var(--gap) + 4px);
-    min-width: 0;
-    /* The track's ladder is the hit's size: it fills the item and no more.
-       Without this the page-wide touch minimum (44px on every [role=tab])
-       makes a 44px hit inside a 32px item, and the content sits 6px low. */
-    min-height: 0;
-    padding: 0 var(--px);
+    min-inline-size: 0;
+    /* The item's height is the hit's. The page-wide touch floor on
+       [role=tab] is for a control standing alone; one inside a sized
+       track takes the track's ladder. */
+    min-block-size: 0;
+    padding-block: 0;
+    padding-inline: var(--px);
     border: 0;
     border-radius: inherit;
     background: transparent;
@@ -153,41 +161,43 @@
     text-decoration: none;
     cursor: pointer;
     outline: none;
-  }
-  .ff-tab:has(.hit:not(:last-child)) .hit {
-    padding-right: 0;
-  }
-  .ff-tab.active {
-    color: var(--ink-strong);
+
+    /* Followed by a trailing control: the box's own end padding, not
+       the hit's, is what keeps the control off the segment's edge. */
+    &:not(:last-child) {
+      padding-inline-end: 0;
+    }
   }
   .ff-tab :global(.ff-tab-icon) {
-    width: var(--icon);
-    height: var(--icon);
+    inline-size: var(--icon);
+    block-size: var(--icon);
     flex: 0 0 auto;
-    transition: stroke-width 80ms linear;
+    stroke-width: 1.5;
+
+    @media (prefers-reduced-motion: no-preference) {
+      transition: stroke-width 80ms linear;
+    }
   }
   .ff-tab.active :global(.ff-tab-icon) {
     stroke-width: 2;
   }
-  .ff-tab :global(.ff-tab-icon) {
-    stroke-width: 1.5;
-  }
 
-  /* Two labels in one cell: the hidden one is set at the strong weight and
-     decides the width; the visible one animates its weight in place. */
+  /* Two labels in one cell: the hidden one is set at the strong weight
+     and decides the width; the visible one animates its weight in place. */
   .label {
     display: grid;
-    min-width: 0;
-  }
-  /* Clipped for the ellipsis, so the line box is left whole — a trimmed
-     one would lose its descenders to the clip. */
-  .label > span {
-    grid-area: 1 / 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    line-height: var(--item);
+    min-inline-size: 0;
+
+    /* Clipped for the ellipsis, so the line box is left whole — a
+       trimmed one would lose its descenders to the clip. */
+    & > span {
+      grid-area: 1 / 1;
+      min-inline-size: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      line-height: var(--item);
+    }
   }
   .sizer {
     visibility: hidden;
@@ -195,16 +205,12 @@
   }
   .text {
     font-variation-settings: "wght" var(--weight-body);
-    transition: font-variation-settings 80ms linear;
+
+    @media (prefers-reduced-motion: no-preference) {
+      transition: font-variation-settings 80ms linear;
+    }
   }
   .ff-tab.selected .text {
     font-variation-settings: "wght" var(--weight-strong);
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .ff-tab,
-    .text {
-      transition: none;
-    }
   }
 </style>
