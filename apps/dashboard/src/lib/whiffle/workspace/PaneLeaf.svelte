@@ -241,7 +241,7 @@
   <span aria-hidden="true" class="rail"></span>
 
   {#if !hosted}
-    <PaneTabs {leaf} />
+    <PaneTabs {leaf} travel={swipe.travel} />
   {/if}
 
   {#if viewId}

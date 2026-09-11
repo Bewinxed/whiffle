@@ -51,8 +51,31 @@
   );
   const hoveringSelected = $derived(hover.activeIndex === list.optimisticIndex);
   const hovering = $derived(hoverRect !== undefined && !hoveringSelected);
+
+  const lerp = (a: number, b: number, f: number) => a + (b - a) * f;
+  /**
+   * The segment part-way to another item, when a gesture is driving it: the
+   * chosen box and the target's, mixed by the fraction. Undefined at rest,
+   * or while the target has no box yet.
+   */
+  const travelRect = $derived.by(() => {
+    const { travel } = tabs;
+    const from = selectedRect;
+    const to = travel && hover.rects[tabs.order.indexOf(travel.toward)];
+    if (!(from && to)) {
+      return;
+    }
+    const f = Math.min(1, Math.max(0, travel.fraction));
+    return {
+      left: lerp(from.left, to.left, f),
+      top: lerp(from.top, to.top, f),
+      width: lerp(from.width, to.width, f),
+      height: lerp(from.height, to.height, f),
+    };
+  });
+  const segmentRect = $derived(travelRect ?? selectedRect);
   /** The field rests under the active segment: that is where it comes from and goes back to. */
-  const fieldRect = $derived(hovering ? hoverRect : selectedRect);
+  const fieldRect = $derived(hovering ? hoverRect : segmentRect);
 
   let node = $state<HTMLElement | undefined>();
 
@@ -110,10 +133,11 @@
     items[to].click();
   }
 
-  // Keep the chosen item in view. The rect, not the element: it is re-read
-  // as items resize, so the scroll lands on where the item ends up.
+  // Keep the chosen item in view — or, mid-gesture, the segment on its way
+  // to the next one. The rect, not the element: it is re-read as items
+  // resize, so the scroll lands on where the item ends up.
   $effect(() => {
-    const rect = selectedRect;
+    const rect = segmentRect;
     const { width } = hover.viewport;
     if (!(scrollable && node && rect && width > 0)) {
       return;
@@ -171,12 +195,14 @@
       class="field"
       style={px(fieldRect ?? selectedRect)}
       class:shown={hovering}
+      class:travelling={travelRect !== undefined}
     ></div>
     <div
       aria-hidden="true"
       class="segment"
-      style={px(selectedRect)}
+      style={px(segmentRect ?? selectedRect)}
       class:dim={hovering}
+      class:travelling={travelRect !== undefined}
     ></div>
   {/if}
   {#if focusRect}
@@ -285,6 +311,11 @@
     &.dim {
       opacity: 0.85;
     }
+    /* Under a hand, or riding a settle read off its clock each frame: the
+       position is the motion, and an easing on top would lag the finger. */
+    &.travelling {
+      transition: none;
+    }
 
     @media (prefers-reduced-motion: no-preference) {
       transition:
@@ -316,6 +347,9 @@
 
     &.shown {
       opacity: 0.4;
+    }
+    &.travelling {
+      transition: none;
     }
 
     @media (prefers-reduced-motion: no-preference) {

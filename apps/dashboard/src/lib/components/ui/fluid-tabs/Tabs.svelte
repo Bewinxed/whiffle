@@ -12,6 +12,7 @@
     provideTabs,
     type TabsSize,
     TabsState,
+    type TabsTravel,
     type TabsVariant,
   } from "./context.svelte";
 
@@ -23,6 +24,7 @@
     defaultValue,
     size = "default",
     variant = "segmented",
+    travel = null,
     children,
     ...rest
   }: Omit<HTMLAttributes<HTMLDivElement>, "onselect"> & {
@@ -35,6 +37,12 @@
     size?: TabsSize;
     /** A segmented control in a well (default), or folder tabs on a shelf. */
     variant?: TabsVariant;
+    /**
+     * The indicator part-way from the chosen item toward another — a swipe
+     * between panels, say — so it follows the hand and lands with the value
+     * rather than jumping after it. Null at rest.
+     */
+    travel?: TabsTravel | null;
     children: Snippet;
   } = $props();
 
@@ -46,6 +54,7 @@
     state.controlled = value;
     state.selectedIndex = selectedIndex;
     state.size = size;
+    state.travel = travel;
     state.onValueChange = onValueChange;
     state.onSelect = onSelect;
   });

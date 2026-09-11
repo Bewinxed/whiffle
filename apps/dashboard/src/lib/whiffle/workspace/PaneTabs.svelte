@@ -17,7 +17,12 @@
   import { page } from "$app/state";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte convention for component groups
   import * as ContextMenu from "$lib/components/ui/context-menu";
-  import { TabItem, Tabs, TabsList } from "$lib/components/ui/fluid-tabs";
+  import {
+    TabItem,
+    Tabs,
+    TabsList,
+    type TabsTravel,
+  } from "$lib/components/ui/fluid-tabs";
   import { IconClose } from "$lib/icons";
   import ActivityDot from "../ActivityDot.svelte";
   import {
@@ -40,7 +45,16 @@
     workspace,
   } from "./workspace.svelte";
 
-  let { leaf, hosted = false }: { leaf: LeafNode; hosted?: boolean } = $props();
+  let {
+    leaf,
+    hosted = false,
+    travel = null,
+  }: {
+    leaf: LeafNode;
+    hosted?: boolean;
+    /** A swipe in progress: the indicator follows it toward the next tab. */
+    travel?: TabsTravel | null;
+  } = $props();
 
   const servedNames = $derived(
     (page.data as { names?: Record<string, string> }).names ?? {}
@@ -123,6 +137,7 @@
   class="tabs {hosted ? 'hosted' : ''}"
   onValueChange={(id) => workspace.activate(id, leaf.id)}
   style="view-transition-name: tabs-{leaf.id}"
+  {travel}
   value={leaf.active ?? ''}
   variant="folder"
 >

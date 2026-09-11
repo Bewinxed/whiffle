@@ -112,6 +112,15 @@ export function createSwipe(
   /** The neighbour the finger is uncovering, and whether it is past the commit point. */
   let targetId = $state<string | null>(null);
   let past = $state(false);
+  /**
+   * Where the strip's indicator should be: part-way from the active tab
+   * toward another, by a fraction of the width. Under the finger it is the
+   * drag; after release it is the settle, read off its clock each frame, so
+   * the indicator lands with the pane. The one thing here written per move,
+   * because a template reads it.
+   */
+  let toward = $state<string | null>(null);
+  let fraction = $state(0);
 
   // Not reactive: the finger writes the transforms itself, straight onto the
   // panes in view, and writing state per touchmove would schedule a render
@@ -132,6 +141,8 @@ export function createSwipe(
   let animations: Animation[] = [];
   /** The settle's velocity where a finger stopped it, until that finger moves or leaves. */
   let held: number | null = null;
+  /** The frame reading the settle for the indicator. */
+  let followFrame: number | null = null;
 
   const reduced = () =>
     typeof window !== "undefined" &&
@@ -144,6 +155,7 @@ export function createSwipe(
     const tabs = leaf?.tabs ?? [];
     const at = leaf?.active ? tabs.indexOf(leaf.active) : -1;
     return {
+      here: leaf?.active ?? null,
       prev: at > 0 ? tabs[at - 1] : null,
       next: at >= 0 && at < tabs.length - 1 ? tabs[at + 1] : null,
     };
@@ -181,7 +193,15 @@ export function createSwipe(
   const resist = (d: number) =>
     Math.sign(d) * Math.min(Math.abs(d) * RESIST, width * RESIST_MAX);
 
+  const stopFollow = () => {
+    if (followFrame !== null) {
+      cancelAnimationFrame(followFrame);
+      followFrame = null;
+    }
+  };
+
   const stopSettle = () => {
+    stopFollow();
     for (const animation of animations) {
       animation.cancel();
     }
@@ -193,7 +213,12 @@ export function createSwipe(
     stopSettle();
     clear();
     offset = 0;
+    toward = null;
+    fraction = 0;
   };
+
+  const travelled = () =>
+    width > 0 ? Math.min(1, Math.abs(offset) / width) : 0;
 
   /** Where the settle is right now, read off the active pane's clock. */
   const progress = (): Sample | null => {
@@ -267,6 +292,21 @@ export function createSwipe(
       land();
       return;
     }
+    // The indicator rides the settle: the same path, sampled where the
+    // compositor is. Whoever stops the settle decides what the travel is
+    // next, so the loop simply ends when the animations are gone.
+    const follow = () => {
+      followFrame = null;
+      if (animations.length === 0) {
+        return;
+      }
+      const at = progress();
+      if (at) {
+        fraction = width > 0 ? Math.min(1, Math.abs(at.x) / width) : 0;
+      }
+      followFrame = requestAnimationFrame(follow);
+    };
+    followFrame = requestAnimationFrame(follow);
     // The last keyframe is the parking place itself, so handing back to the
     // stylesheet in one task — cancel, then clear — paints no frame that
     // differs from the one the compositor is already holding.
@@ -323,7 +363,7 @@ export function createSwipe(
 
   function release(allowed: boolean) {
     const velocity = releaseVelocity();
-    const { prev, next } = neighbours();
+    const { here, prev, next } = neighbours();
     const left = offset < 0;
     let target: string | null;
     if (offset === 0) {
@@ -351,7 +391,13 @@ export function createSwipe(
       panes = gather();
       offset += left ? width : -width;
       paint(offset);
+      // The indicator is on the new tab now, drawn the rest of the way back
+      // toward the old one, and settles home from there with the pane.
+      toward = here;
+    } else {
+      toward = target;
     }
+    fraction = travelled();
 
     if (reduced()) {
       land();
@@ -379,6 +425,10 @@ export function createSwipe(
         return null;
       }
       return past ? targetId : null;
+    },
+    /** The strip indicator's travel: toward which tab and how far, or null at rest. */
+    get travel(): { toward: string; fraction: number } | null {
+      return toward === null ? null : { toward, fraction };
     },
 
     /**
@@ -483,6 +533,8 @@ export function createSwipe(
           targetId = offset > 0 ? prev : null;
         }
         past = width > 0 && Math.abs(offset) / width > COMMIT;
+        toward = targetId;
+        fraction = travelled();
       };
 
       const onEnd = () => {

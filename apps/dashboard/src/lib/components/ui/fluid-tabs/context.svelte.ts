@@ -9,6 +9,14 @@ import type { ProximityHover } from "$lib/hooks/proximity-hover.svelte";
 export type TabsSize = "default" | "compact";
 /** A segmented control in a well, or folder tabs standing on a shelf. */
 export type TabsVariant = "segmented" | "folder";
+/**
+ * The indicator part-way from the chosen item toward another, by a fraction
+ * of the way: a gesture in progress, driving it by hand.
+ */
+export interface TabsTravel {
+  fraction: number;
+  toward: string;
+}
 
 export class TabsState {
   order = $state<string[]>([]);
@@ -16,6 +24,7 @@ export class TabsState {
   controlled = $state<string | undefined>(undefined);
   selectedIndex = $state<number | undefined>(undefined);
   size = $state<TabsSize>("default");
+  travel = $state<TabsTravel | null>(null);
   onValueChange: ((value: string) => void) | undefined;
   onSelect: ((index: number) => void) | undefined;
 
