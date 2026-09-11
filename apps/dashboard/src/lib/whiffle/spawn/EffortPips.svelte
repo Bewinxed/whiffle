@@ -129,7 +129,12 @@
               {/each}
             </span>
           {/if}
-          <span class="lvl">{label}</span>
+          <span class="lvl">
+            {#each efforts as level (level)}
+              <span aria-hidden="true" class="sizer">{level}</span>
+            {/each}
+            <span>{label}</span>
+          </span>
         </div>
       </div>
       <div
@@ -279,9 +284,17 @@
     opacity: 1;
   }
   .lvl {
+    /* Reserve every label's width so a switch keeps the chip and rail stable. */
+    display: grid;
     font: 500 12px / 1 var(--fai-font-sans);
     text-transform: capitalize;
     font-variant-numeric: tabular-nums;
+  }
+  .lvl > span {
+    grid-area: 1 / 1;
+  }
+  .sizer {
+    visibility: hidden;
   }
   input[type="range"] {
     position: absolute;
