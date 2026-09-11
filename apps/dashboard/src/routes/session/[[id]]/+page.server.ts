@@ -13,8 +13,6 @@ interface HistorySource {
   harness: string;
   live: boolean;
   machineId: string;
-  /** The location came from the URL's own query and is sent to the hub as an override. */
-  override?: boolean;
   /** The harness session key, as the hub holds it — absent until the hub has said. */
   sessionId?: string;
   viewId: string;
@@ -145,8 +143,7 @@ async function readTail(
 
 /**
  * The read URL, addressed exactly as `streamHistory` addresses it: the view's
- * id alone — the hub maps a live instance to its SDK key and locates any other
- * — unless the URL that brought the reader here spelled the location out.
+ * id alone — the hub maps a live instance to its SDK key and locates any other.
  */
 function messagesUrl(source: HistorySource): string {
   const path = `/api/instances/${encodeURIComponent(source.viewId)}/messages`;
@@ -155,13 +152,6 @@ function messagesUrl(source: HistorySource): string {
   // (~4ms on a 97MB transcript) instead of the whole transcript. The client's
   // own full read still runs after hydration for scrollback.
   const params = new URLSearchParams({ tail: String(TRANSCRIPT_TAIL_CEILING) });
-  if (source.override) {
-    params.set("machine", source.machineId);
-    params.set("harness", source.harness);
-    if (source.cwd) {
-      params.set("cwd", source.cwd);
-    }
-  }
   return `${path}?${params}`;
 }
 
@@ -191,7 +181,6 @@ function messagesUrl(source: HistorySource): string {
  */
 export const load: PageServerLoad = async ({
   params,
-  url,
   fetch,
   untrack,
   isDataRequest,
@@ -202,26 +191,7 @@ export const load: PageServerLoad = async ({
     return { history: null, tail: null };
   }
 
-  // A link minted while stored transcripts still carried their location. It
-  // is honoured as an override rather than resolved, so an old bookmark reads
-  // exactly what it always read.
-  const machine = untrack(() => url.searchParams.get("machine"));
-  if (machine) {
-    const source: HistorySource = {
-      viewId,
-      machineId: machine,
-      cwd: untrack(() => url.searchParams.get("cwd")) ?? "",
-      harness: untrack(() => url.searchParams.get("harness")) ?? "claude",
-      live: false,
-      override: true,
-    };
-    return {
-      history: Promise.resolve(source),
-      tail: isDataRequest ? null : await tailFor(fetch, source),
-    };
-  }
-
-  // Otherwise the id is the whole address. The hub's rows say whether it is a
+  // The id is the whole address. The hub's rows say whether it is a
   // running session — which decides how the client reconciles live frames
   // behind the read — and name it ahead of the transcript; a session the hub
   // does not hold is read by the same id and located on the way.

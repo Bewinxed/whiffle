@@ -166,8 +166,7 @@
    * nothing on screen; now every way this ends is a named state.
    *
    * `source` is the server's descriptor when this pane is the one the URL
-   * loaded, and carries the only thing the id does not say: a location
-   * spelled out by an old link, sent to the hub as an override.
+   * loaded, and carries the identity resolved from the hub's instance row.
    */
   async function readHistory(
     id: string,

@@ -3831,12 +3831,6 @@ export interface HistorySource {
    */
   machineId: string;
   /**
-   * The machine/folder/harness above came from the URL itself — a link minted
-   * while stored transcripts still carried them — and are sent to the hub as
-   * an override rather than left to its resolver.
-   */
-  override?: boolean;
-  /**
    * The key the transcript is stored under: the SDK session id, never the
    * view. Only a hub row's own key belongs here; absent, the read's header
    * names it.
@@ -3849,7 +3843,7 @@ export interface HistorySource {
  * Where a session's transcript is read from. The view's id alone, in both
  * tenses: the hub maps a live instance to its SDK key and locates any other,
  * so the same address works before this browser knows anything about the
- * conversation. Only an explicit override still spells the location out.
+ * conversation.
  */
 export function messagesUrl(source: HistorySource, tail?: number): string {
   const path = `/api/instances/${encodeURIComponent(source.viewId)}/messages`;
@@ -3858,13 +3852,6 @@ export function messagesUrl(source: HistorySource, tail?: number): string {
   // transcript file — the difference between ~4ms and a full-file parse.
   if (tail) {
     params.set("tail", String(tail));
-  }
-  if (source.override && source.machineId) {
-    params.set("machine", source.machineId);
-    params.set("harness", source.harness ?? "claude");
-    if (source.cwd) {
-      params.set("cwd", source.cwd);
-    }
   }
   const suffix = params.size > 0 ? `?${params}` : "";
   return `${path}${suffix}`;
@@ -3904,7 +3891,6 @@ export async function streamHistory({
   cwd,
   harness,
   live,
-  override,
 }: HistorySource): Promise<TranscriptOutcome> {
   const target = session(viewId);
   if (machineId) {
@@ -3971,7 +3957,6 @@ export async function streamHistory({
     cwd,
     harness,
     live,
-    override,
   };
 
   const epoch = claimTranscript(viewId);

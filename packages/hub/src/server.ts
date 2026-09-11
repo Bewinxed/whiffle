@@ -3111,8 +3111,8 @@ export const createServer = ({
       // name was never missing; it was filtered out. This answers by id straight
       // off the row, past the cut-off.
       //
-      // Each ask is an id, or an id with the machine/cwd/harness a stored-session
-      // link carries (the same context `/messages` takes). Cheap first: a name
+      // Each ask is an id, or an id with a stored session's machine/cwd/harness.
+      // Cheap first: a name
       // already written down costs one query for the whole batch. Only a row that
       // has never been named at all reaches for its machine, and then only if the
       // machine is connected — and what comes back is written down, so no session
@@ -3249,11 +3249,8 @@ export const createServer = ({
       //
       // Addressed by id alone. The hub's own row answers for a session it holds —
       // including the SDK session key, which is what the machine stores the
-      // transcript under — and no query hint can override it. An id with no row
-      // is a stored session key: `machine`/`cwd`/`harness` say where it lives
-      // (kept for the links and bookmarks minted while a stored transcript
-      // still carried them), and without them it is located the way
-      // `/location` is.
+      // transcript under. An id with no row is a stored session key, located
+      // the way `/location` is.
       //
       // Where the transcript was found rides back in headers, so a reader that
       // addressed a session by id alone learns which machine can act on it
@@ -3262,21 +3259,17 @@ export const createServer = ({
         "/api/instances/:id/messages",
         {
           query: t.Object({
-            machine: t.Optional(t.String()),
-            cwd: t.Optional(t.String()),
-            harness: t.Optional(t.String()),
             tail: t.Optional(t.String()),
           }),
         },
-        // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: resolves the session's machine/cwd/harness from the query, the row, or a live locate in one place; splitting it would scatter the fallback order this route depends on.
+        // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: resolves the session's machine/cwd/harness from the row or a live locate in one place; splitting it would scatter the fallback order this route depends on.
         async ({ params, query, status }) => {
           // Two mutually exclusive cases, never mixed. A hub row for this id is
           // the single authority for the session it holds: its key, machine,
-          // folder and harness — a `machine`/`cwd`/`harness` hint from the
-          // client cannot override any of them. (An opencode session resumed
-          // under its whiffle instance id instead of its `ses_…` key is how
-          // two rows went unrevivable after a hub restart.) Without a row, the
-          // id is by definition a stored session key, and the hint says where.
+          // folder and harness. (An opencode session resumed under its whiffle
+          // instance id instead of its `ses_…` key is how two rows went
+          // unrevivable after a hub restart.) Without a row, the id is by
+          // definition a stored session key whose location is resolved below.
           const [row] = db.getInstancesByIds([params.id]);
           let machineId: string;
           let sessionKey: string;
@@ -3302,11 +3295,6 @@ export const createServer = ({
             sessionKey = row.sessionId;
             cwd = row.cwd || undefined;
             harness = (row.harness || undefined) as HarnessKind | undefined;
-          } else if (query.machine) {
-            machineId = query.machine;
-            sessionKey = params.id;
-            cwd = query.cwd || undefined;
-            harness = (query.harness || undefined) as HarnessKind | undefined;
           } else {
             const where = await locateSession(params.id);
             if (!where) {
