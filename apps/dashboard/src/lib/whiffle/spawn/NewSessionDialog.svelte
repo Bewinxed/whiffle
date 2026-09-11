@@ -78,23 +78,79 @@
     }
     const viewport = window.visualViewport;
     const root = document.documentElement.style;
+    let blurFrame = 0;
+    let viewportFrame = 0;
+    const textEntry =
+      "input:not([type=range]), textarea, [contenteditable=true]";
     const measure = () => {
+      if (viewport && viewport.scale > 1) {
+        return;
+      }
       root.setProperty(
         "--ns-viewport-height",
-        `${viewport?.height ?? window.innerHeight}px`
+        `${viewport ? viewport.height * viewport.scale : window.innerHeight}px`
       );
-      root.setProperty("--ns-viewport-top", `${viewport?.offsetTop ?? 0}px`);
+      cancelAnimationFrame(viewportFrame);
+      viewportFrame = requestAnimationFrame(() => {
+        const active = document.activeElement;
+        const body = active?.closest<HTMLElement>(".session-card .body");
+        if (!(body && active?.matches(textEntry))) {
+          return;
+        }
+        const field = active.getBoundingClientRect();
+        const visible = body.getBoundingClientRect();
+        // Keep caret reveal inside the sheet's scroll root after keyboard resize.
+        if (field.bottom > visible.bottom) {
+          body.scrollTop += Math.ceil(field.bottom - visible.bottom);
+        } else if (field.top < visible.top) {
+          body.scrollTop += Math.floor(field.top - visible.top);
+        }
+      });
     };
-    measure();
+    const measurePage = () => {
+      const page = document.scrollingElement ?? document.documentElement;
+      root.setProperty("--ns-page-height", `${page.scrollHeight}px`);
+      root.setProperty("--ns-page-width", `${page.scrollWidth}px`);
+      measure();
+    };
+    const blurred = (event: FocusEvent) => {
+      if (
+        !(
+          event.target instanceof HTMLElement && event.target.matches(textEntry)
+        )
+      ) {
+        return;
+      }
+      cancelAnimationFrame(blurFrame);
+      blurFrame = requestAnimationFrame(() => {
+        if (
+          !(
+            (viewport && viewport.scale > 1) ||
+            document.activeElement?.matches(textEntry)
+          )
+        ) {
+          root.setProperty(
+            "--ns-viewport-height",
+            `${document.documentElement.clientHeight}px`
+          );
+        }
+      });
+    };
+    measurePage();
     viewport?.addEventListener("resize", measure);
     viewport?.addEventListener("scroll", measure);
-    window.addEventListener("resize", measure);
+    window.addEventListener("resize", measurePage);
+    window.addEventListener("blur", blurred, true);
     return () => {
       viewport?.removeEventListener("resize", measure);
       viewport?.removeEventListener("scroll", measure);
-      window.removeEventListener("resize", measure);
+      window.removeEventListener("resize", measurePage);
+      window.removeEventListener("blur", blurred, true);
+      cancelAnimationFrame(blurFrame);
+      cancelAnimationFrame(viewportFrame);
       root.removeProperty("--ns-viewport-height");
-      root.removeProperty("--ns-viewport-top");
+      root.removeProperty("--ns-page-height");
+      root.removeProperty("--ns-page-width");
     };
   });
   let opener: HTMLElement | null = null;
@@ -735,147 +791,152 @@
 <svelte:window onkeydown={keydown} />
 <Dialog onOpenChange={(value) => { if (!value) { close(); } }} {open}>
   <DialogPortal>
-    <DialogOverlay class="session-scrim ns-theme" />
-    <DialogPrimitive.Content
-      aria-label="New Session"
-      class="session-card ns-theme"
-      data-ns-dialog
-      inert={busy}
-      onOpenAutoFocus={(event) => { event.preventDefault(); card?.focus(); }}
-      bind:ref={card}
-    >
-      <DialogTitle class="sr-only">New session</DialogTitle>
-      <div class="head">
-        <div class="head-left">
-          <span class="bolt"><Bolt /></span>
-          <span class="title">Sessions · New</span>
-        </div>
-        <button
-          aria-label="Close"
-          class="close"
-          onclick={close}
-          title="Close"
-          type="button"
-        >
-          <X />
-        </button>
-      </div>
-      <div class="body fai-scroll" onscroll={bodyScroll}>
-        <h2>New Session</h2>
-        <section class="sec prompt-sec" style="--delay:0ms">
-          <SectionHeader
-            hue="var(--fai-blue-500)"
-            icon={Chat}
-            label="First prompt"
-          />
-          <div class="fai-comb"></div>
-          <div
-            class="composer"
-            class:focus={editor === document.activeElement || menuOpen}
+    <div class="session-viewport" data-open={open || undefined}>
+      <DialogOverlay class="session-scrim ns-theme" />
+      <DialogPrimitive.Content
+        aria-label="New Session"
+        class="session-card ns-theme"
+        data-ns-dialog
+        inert={busy}
+        onOpenAutoFocus={(event) => { event.preventDefault(); card?.focus({ preventScroll: true }); }}
+        bind:ref={card}
+      >
+        <DialogTitle class="sr-only">New session</DialogTitle>
+        <div class="head">
+          <div class="head-left">
+            <span class="bolt"><Bolt /></span>
+            <span class="title">Sessions · New</span>
+          </div>
+          <button
+            aria-label="Close"
+            class="close"
+            onclick={close}
+            title="Close"
+            type="button"
           >
-            <PromptEditor
-              {menuItems}
-              onmenu={(value) => { menuOpen = value; }}
-              onsubmit={start}
-              bind:element={editor}
-              bind:value={prompt}
+            <X />
+          </button>
+        </div>
+        <div class="body fai-scroll" onscroll={bodyScroll}>
+          <h2>New Session</h2>
+          <section class="sec prompt-sec" style="--delay:0ms">
+            <SectionHeader
+              hue="var(--fai-blue-500)"
+              icon={Chat}
+              label="First prompt"
             />
-            <div class="chips">
-              <MachinesChip
-                machines={machineItems}
-                onchange={(value) => { popover = value ? "machines" : null; }}
-                ontoggle={toggleMachine}
-                open={popover === "machines"}
-                selected={machineIds}
+            <div class="fai-comb"></div>
+            <div
+              class="composer"
+              class:focus={editor === document.activeElement || menuOpen}
+            >
+              <PromptEditor
+                {menuItems}
+                onmenu={(value) => { menuOpen = value; }}
+                onsubmit={start}
+                bind:element={editor}
+                bind:value={prompt}
               />
-              <ProjectChip
-                onchange={(value) => { popover = value ? "project" : null; }}
-                onclear={clearProject}
-                oncreate={createFromChip}
-                onpick={pickProject}
-                open={popover === "project"}
-                {projectId}
-                projects={projectItems}
+              <div class="chips">
+                <MachinesChip
+                  machines={machineItems}
+                  onchange={(value) => { popover = value ? "machines" : null; }}
+                  ontoggle={toggleMachine}
+                  open={popover === "machines"}
+                  selected={machineIds}
+                />
+                <ProjectChip
+                  onchange={(value) => { popover = value ? "project" : null; }}
+                  onclear={clearProject}
+                  oncreate={createFromChip}
+                  onpick={pickProject}
+                  open={popover === "project"}
+                  {projectId}
+                  projects={projectItems}
+                />
+              </div>
+            </div>
+          </section>
+          <div class="fai-comb comb-gap"></div>
+          <div class="stack">
+            <div class="sec" style="--delay:60ms">
+              <LocationSection
+                dir={cwd}
+                {locked}
+                {machineId}
+                machineName={machine?.hostname ?? ""}
+                mode={repo === undefined ? "dir" : "repo"}
+                ondir={(value) => { cwd = value; editing = true; projectId = undefined; }}
+                onmode={(value) => { repo = value === "repo" ? (repo ?? "") : undefined; if (value === "repo") { projectId = undefined; editing = true; cwd ||= "~"; } }}
+                onoverride={() => { editing = true; }}
+                onrepo={(value) => { repo = value; }}
+                {reading}
+                repo={repo ?? ""}
               />
             </div>
-          </div>
-        </section>
-        <div class="fai-comb comb-gap"></div>
-        <div class="stack">
-          <div class="sec" style="--delay:60ms">
-            <LocationSection
-              dir={cwd}
-              {locked}
-              {machineId}
-              machineName={machine?.hostname ?? ""}
-              mode={repo === undefined ? "dir" : "repo"}
-              ondir={(value) => { cwd = value; editing = true; projectId = undefined; }}
-              onmode={(value) => { repo = value === "repo" ? (repo ?? "") : undefined; if (value === "repo") { projectId = undefined; editing = true; cwd ||= "~"; } }}
-              onoverride={() => { editing = true; }}
-              onrepo={(value) => { repo = value; }}
-              {reading}
-              repo={repo ?? ""}
-            />
-          </div>
-          <div class="fai-comb"></div>
-          <div class="sec" style="--delay:140ms">
-            <div class="columns">
-              <div class="col">
-                <div class="sec" style="--delay:40ms">
-                  <ModelSection
-                    {harness}
-                    installed={installedHarnesses}
-                    machineName={machine?.hostname ?? machineId}
-                    {model}
-                    onharness={chooseHarness}
-                    onmodel={(id) => { model = id; effort = null; }}
-                  />
+            <div class="fai-comb"></div>
+            <div class="sec" style="--delay:140ms">
+              <div class="columns">
+                <div class="col">
+                  <div class="sec" style="--delay:40ms">
+                    <ModelSection
+                      {harness}
+                      installed={installedHarnesses}
+                      machineName={machine?.hostname ?? machineId}
+                      {model}
+                      onharness={chooseHarness}
+                      onmodel={(id) => { model = id; effort = null; }}
+                    />
+                  </div>
+                </div>
+                <div class="col">
+                  <section class="sec" style="--delay:80ms">
+                    <SectionHeader
+                      hue="var(--fai-orange-500)"
+                      icon={Tuning}
+                      label="Effort"
+                    />
+                    <EffortPips
+                      {efforts}
+                      onchange={(level) => { effort = level; }}
+                      value={effortShown}
+                    />
+                  </section>
+                  <section class="sec" style="--delay:120ms">
+                    <SectionHeader
+                      hue="var(--fai-green-600)"
+                      icon={Shield}
+                      label="Permission mode"
+                    />
+                    <PermissionSection
+                      {modes}
+                      onchange={(value) => { permissionMode = value; }}
+                      value={permissionMode}
+                    />
+                  </section>
                 </div>
               </div>
-              <div class="col">
-                <section class="sec" style="--delay:80ms">
-                  <SectionHeader
-                    hue="var(--fai-orange-500)"
-                    icon={Tuning}
-                    label="Effort"
-                  />
-                  <EffortPips
-                    {efforts}
-                    onchange={(level) => { effort = level; }}
-                    value={effortShown}
-                  />
-                </section>
-                <section class="sec" style="--delay:120ms">
-                  <SectionHeader
-                    hue="var(--fai-green-600)"
-                    icon={Shield}
-                    label="Permission mode"
-                  />
-                  <PermissionSection
-                    {modes}
-                    onchange={(value) => { permissionMode = value; }}
-                    value={permissionMode}
-                  />
-                </section>
-              </div>
             </div>
           </div>
         </div>
-      </div>
-      <SessionFooter
-        {busy}
-        disabled={cantStart}
-        ephemeral={sideQuest}
-        oncancel={close}
-        onlifetime={(value) => { sideQuest = value; }}
-        onstart={start}
-        {startLabel}
-      />
-    </DialogPrimitive.Content>
+        <SessionFooter
+          {busy}
+          disabled={cantStart}
+          ephemeral={sideQuest}
+          oncancel={close}
+          onlifetime={(value) => { sideQuest = value; }}
+          onstart={start}
+          {startLabel}
+        />
+      </DialogPrimitive.Content>
+    </div>
   </DialogPortal>
 </Dialog>
 
 <style>
+  .session-viewport {
+    display: contents;
+  }
   :global(.session-scrim) {
     position: fixed;
     inset: 0;
@@ -1035,9 +1096,24 @@
     padding: 8px 10px 10px;
   }
   @media (max-width: 640px) {
+    /* Page-sized containment keeps the sheet clear of iOS fixed-overlay clipping. */
+    .session-viewport[data-open] {
+      display: block;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: var(--ns-page-width, 100%);
+      height: var(--ns-page-height, 100%);
+      isolation: isolate;
+      z-index: 80;
+    }
+    :global(.session-scrim) {
+      position: absolute;
+    }
     :global(.session-card) {
-      inset: auto 0 0 0;
-      top: var(--ns-viewport-top, 0px);
+      position: sticky;
+      inset: 0 0 auto;
+      margin: 0;
       width: 100%;
       height: var(--ns-viewport-height, 100dvh);
       max-height: var(--ns-viewport-height, 100dvh);
