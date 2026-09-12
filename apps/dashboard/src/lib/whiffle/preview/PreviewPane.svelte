@@ -85,7 +85,7 @@
     selecting = on;
     post({ type: "whiffle:mode", mode: on ? "select" : "off" });
   }
-  function parentEscape(event: KeyboardEvent) {
+  export function parentEscape(event: KeyboardEvent) {
     if (
       event.key !== "Escape" ||
       event.defaultPrevented ||
@@ -386,6 +386,8 @@
     cursor: crosshair;
   }
   iframe {
+    color-scheme: light;
+    background: Canvas;
     display: block;
     width: 100%;
     height: 100%;

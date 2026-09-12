@@ -3,6 +3,7 @@
   import { tick, untrack } from "svelte";
   import { Drawer } from "vaul-svelte";
   import { hidePreview, whiffle } from "../client.svelte";
+  import { lightbox } from "../transcript/lightbox.svelte";
   import PreviewPane from "./PreviewPane.svelte";
   import type { CapturedSelection } from "./selection";
 
@@ -26,24 +27,29 @@
   const peek = "106px";
   let snap = $state<number | string | null>(peek);
   let bottom = $state(0);
-  let top = $state(0);
-  let left = $state(0);
-  let width = $state(0);
+  let viewportHeight = $state(0);
   let availableHeight = $state(0);
+  const middle = $derived(
+    `${Math.min(viewportHeight * 0.6, availableHeight)}px`
+  );
+  let previousMiddle: string;
   let host = $state<HTMLDivElement>();
   let drawer = $state<HTMLElement | null>(null);
+  let previewPane = $state<ReturnType<typeof PreviewPane>>();
   let handleStartY = 0;
   let handleDragged = false;
   function reportSnap() {
     whiffle.previewVisible[instanceId] = snap !== peek;
   }
-  function cycleSnap() {
+  async function cycleSnap() {
     if (handleDragged) {
       return;
     }
+    // Vaul finishes its pointer-release transaction before accepting a new snap.
+    await tick();
     if (snap === peek) {
-      snap = 0.6;
-    } else if (snap === 0.6) {
+      snap = middle;
+    } else if (snap === middle) {
       snap = 1;
     } else {
       snap = peek;
@@ -52,10 +58,16 @@
   }
   let snapPoints = $state<(number | string)[]>([peek, 0.6, 1]);
   $effect(() => {
-    const dimensions = bottom + top + width + availableHeight;
+    const dimensions = bottom + viewportHeight + availableHeight;
+    const nextMiddle = middle;
     if (dimensions) {
       tick().then(async () => {
-        snapPoints = [peek, 0.6, 1];
+        if (snap === previousMiddle) {
+          snap = nextMiddle;
+        }
+        previousMiddle = nextMiddle;
+        // The middle snap is viewport-relative; the composer shortens the host.
+        snapPoints = [peek, nextMiddle, 1];
         await tick();
         if (drawer && host && snap !== null) {
           const { height } = host.getBoundingClientRect();
@@ -75,13 +87,14 @@
     const request = whiffle.previewRequests[instanceId];
     if (request !== undefined) {
       untrack(() => {
-        snap = whiffle.previewVisible[instanceId] ? 0.6 : peek;
+        snap = whiffle.previewVisible[instanceId] ? middle : peek;
       });
     }
   });
   $effect(() => {
     const node = content;
     const height = composerHeight;
+    const frame = host;
     if (!node) {
       return;
     }
@@ -94,8 +107,11 @@
         node.querySelector(".composer")?.getBoundingClientRect().top ??
         box.bottom - height - offset;
       bottom = innerHeight - composerTop;
-      availableHeight = composerTop - box.top;
-      ({ top, left, width } = box);
+      viewportHeight = window.visualViewport?.height ?? innerHeight;
+      const safeTop = frame
+        ? Number.parseFloat(getComputedStyle(frame).top)
+        : 0;
+      availableHeight = composerTop - safeTop;
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -115,12 +131,12 @@
 <Portal
   ><div
     class="preview-sheet-host"
-    data-active-snap={snap}
-    style={`bottom:${bottom}px;left:${left}px;width:${width}px;top:${top}px`}
+    data-active-snap={typeof snap === 'string' && snap !== peek ? 0.6 : snap}
+    style={`bottom:${bottom}px`}
     bind:this={host}
   ></div></Portal
 >
-{#if host && width}
+{#if host && availableHeight}
   <Drawer.Root
     container={host}
     dismissible={false}
@@ -137,6 +153,7 @@
       <Drawer.Content
         class="preview-sheet"
         onCloseAutoFocus={(event) => event.preventDefault()}
+        onEscapeKeydown={(event) => { if (lightbox.current) { lightbox.close(); } else { previewPane?.parentEscape(event); } event.preventDefault(); }}
         onOpenAutoFocus={(event) => event.preventDefault()}
         style="inset:0;width:100%;height:100%"
         trapFocus={false}
@@ -150,7 +167,12 @@
           onpointermove={(event) => { if (Math.abs(event.clientY - handleStartY) > 8) { handleDragged = true; } }}
           preventCycle
         />
-        <PreviewPane {instanceId} {onescape} {onselect} />
+        <PreviewPane
+          {instanceId}
+          {onescape}
+          {onselect}
+          bind:this={previewPane}
+        />
       </Drawer.Content>
     </Drawer.Portal>
   </Drawer.Root>
@@ -159,6 +181,9 @@
 <style>
   .preview-sheet-host {
     position: fixed;
+    top: env(safe-area-inset-top, 0px);
+    left: 0;
+    right: 0;
     z-index: 40;
     overflow: hidden;
     pointer-events: none;
