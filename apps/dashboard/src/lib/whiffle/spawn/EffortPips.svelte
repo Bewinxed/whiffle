@@ -215,7 +215,7 @@
     left: 0;
     top: 0;
     bottom: 0;
-    background: var(--fai-fill);
+    background: var(--fai-recess-deep);
     transition: width var(--ns-fill-ms) var(--ns-ease-in-out);
     pointer-events: none;
   }
@@ -251,7 +251,8 @@
     padding: 0 9px;
     border-radius: var(--fai-radius-sm);
     background: var(--fai-raised);
-    box-shadow: var(--fai-shadow-raised);
+    box-shadow:
+      inset 0 0 0 1px var(--fai-grey-400), var(--fai-shadow-raised);
     color: var(--fai-text-muted);
     transition:
       color 120ms ease,
