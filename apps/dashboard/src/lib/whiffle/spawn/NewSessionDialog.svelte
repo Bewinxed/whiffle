@@ -223,6 +223,11 @@
   const machine = $derived(
     whiffle.machines.find((row) => row.machineId === machineId)
   );
+  const offlineMachine = $derived(
+    whiffle.machines.find(
+      (row) => machineIds.includes(row.machineId) && row.status !== "online"
+    )
+  );
   const report = $derived(
     machine?.harnesses?.find((row) => row.harness === harness)
   );
@@ -352,6 +357,9 @@
       }))
   );
   const locationReading = $derived.by(() => {
+    if (offlineMachine) {
+      return `${offlineMachine.hostname} is offline. Pick another machine, or start when it returns.`;
+    }
     if (unreadable) {
       return `That directory can't be read on ${machine?.hostname ?? machineId}. Check the path and try again.`;
     }
@@ -360,11 +368,9 @@
         (id) =>
           whiffle.machines.find((row) => row.machineId === id)?.hostname ?? id
       );
-      return `This folder doesn't exist on ${names.join(", ")}. It will be created when the session starts.`;
+      return `Folder missing. Start creates it on ${names.join(", ")}.`;
     }
-    return machine && machine.status !== "online"
-      ? `${machine.hostname} is offline. Pick another machine, or start when it returns.`
-      : "";
+    return "";
   });
   const reading = $derived(
     whiffle.hub === "connected"
@@ -373,7 +379,7 @@
   );
   const locationInformational = $derived(
     Boolean(
-      !(error || locationUnverified || unreadable) &&
+      !(error || locationUnverified || unreadable || offlineMachine) &&
         missingMachines.length &&
         whiffle.hub === "connected"
     )
@@ -382,6 +388,7 @@
     busy ||
       whiffle.hub !== "connected" ||
       machineIds.length === 0 ||
+      Boolean(offlineMachine) ||
       unreadable ||
       locationUnverified ||
       (repo !== undefined && !REPO.test(repo.trim()))
@@ -573,7 +580,7 @@
     if (!cwd.trim()) {
       return "Enter the directory this session should work in.";
     }
-    if (unreadable) {
+    if (unreadable || offlineMachine) {
       return locationReading;
     }
     return locationUnverified ? "Reading…" : "";
