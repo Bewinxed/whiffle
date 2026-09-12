@@ -239,15 +239,15 @@
                 ></span
               >
             </button>
-            <div aria-hidden="true" class="artifact-thumb" inert>
-              {#if preview?.thumbnail}
+            {#if preview?.thumbnail}
+              <div aria-hidden="true" class="artifact-thumb" inert>
                 <Shot
                   alt="Preview"
                   size="thumb"
                   src={`data:image/png;base64,${preview.thumbnail}`}
                 />
-              {/if}
-            </div>
+              </div>
+            {/if}
           </div>
         {:else if hasBody}
           <Collapsible.Root>
@@ -325,6 +325,9 @@
   }
   .preview-tool.closed {
     opacity: 0.5;
+  }
+  .preview-tool:not(:has(.artifact-thumb)) {
+    width: fit-content;
   }
   .artifact-open {
     display: flex;
