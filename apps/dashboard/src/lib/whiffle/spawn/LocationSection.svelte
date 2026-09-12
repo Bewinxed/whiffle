@@ -173,7 +173,7 @@
             <Up /><span>Close</span>
           {:else}
             <Search />
-            Browse
+            <span>Browse</span>
           {/if}
         </button>
       {/if}
@@ -327,6 +327,7 @@
   input {
     flex: 1;
     min-width: 0;
+    min-height: 30px;
     border: 0;
     outline: none;
     background: transparent;
@@ -347,6 +348,7 @@
     white-space: nowrap;
   }
   .override {
+    flex: none;
     height: 30px;
     padding: 0 10px;
     border: 0;
@@ -359,6 +361,7 @@
   }
   .browse {
     display: inline-flex;
+    flex: none;
     justify-content: flex-start;
     align-items: center;
     gap: 6px;
@@ -378,6 +381,7 @@
   .browse :global(svg) {
     width: 14px;
     height: 14px;
+    flex: none;
     color: var(--fai-text-muted);
   }
   @media (hover: hover) {
@@ -606,7 +610,11 @@
     .row {
       height: 46px;
     }
+    .row:not(.repo-row) {
+      height: 56px;
+    }
     input {
+      min-height: 44px;
       font-size: 16px;
     }
     .browse,
