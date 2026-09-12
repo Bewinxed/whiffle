@@ -545,6 +545,7 @@
     if (verifiedLocation === key) {
       return;
     }
+    verifiedLocation = "";
     unreadable = false;
     missingMachines = [];
     if (!(open && ids.length && path) || machine?.status !== "online") {
