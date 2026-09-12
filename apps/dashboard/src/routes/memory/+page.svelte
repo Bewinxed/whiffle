@@ -334,7 +334,8 @@
             class="memory-action w-full justify-start"
             onclick={() => (drafting = true)}
             size="xs"
-            variant="outline"><IconPlus class="shrink-0" />New document</Button
+            variant="outline"
+            ><IconPlus class="shrink-0" /><span>New document</span></Button
           >
         {/if}
       </div>
