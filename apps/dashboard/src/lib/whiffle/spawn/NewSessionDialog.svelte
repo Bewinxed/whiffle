@@ -593,6 +593,7 @@
   }
   function clearProject() {
     projectId = undefined;
+    cwd = "";
     editing = true;
     popover = null;
   }
