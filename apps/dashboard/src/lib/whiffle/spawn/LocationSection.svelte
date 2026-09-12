@@ -424,7 +424,7 @@
     height: 24px;
     padding: 0 8px;
     border-radius: var(--fai-radius-sm);
-    background: var(--fai-fill);
+    background: var(--fai-raised);
     font: 500 12px / 1 var(--fai-font-sans);
     color: var(--fai-text);
     white-space: nowrap;
