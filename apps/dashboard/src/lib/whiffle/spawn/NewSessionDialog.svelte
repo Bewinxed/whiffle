@@ -13,15 +13,10 @@
   } from "@whiffle/core";
   import { Dialog as DialogPrimitive } from "bits-ui";
   import { tick, untrack } from "svelte";
-  import { prefersReducedMotion } from "svelte/motion";
   import { MediaQuery } from "svelte/reactivity";
+  import { Drawer } from "vaul-svelte";
   import { goto } from "$app/navigation";
-  import {
-    Dialog,
-    DialogOverlay,
-    DialogPortal,
-    DialogTitle,
-  } from "$lib/components/ui/dialog";
+  import { Dialog, DialogPortal, DialogTitle } from "$lib/components/ui/dialog";
   import { IconClose as X } from "$lib/icons";
   import Bolt from "~icons/solar/bolt-bold-duotone";
   import Book from "~icons/solar/book-2-bold-duotone";
@@ -74,7 +69,8 @@
   let editor = $state<HTMLDivElement>();
   const mobile = new MediaQuery("(max-width: 640px)");
   $effect(() => {
-    if (!(open && mobile.current)) {
+    // Keep the viewport geometry until the closing sheet has left the DOM.
+    if (!(card && mobile.current)) {
       return;
     }
     const viewport = window.visualViewport;
@@ -121,7 +117,7 @@
       clearTimeout(settleTimer);
       // Let WebKit finish its keyboard animation and native caret scrolling.
       settleTimer = setTimeout(() => {
-        if (viewport && viewport.scale > 1) {
+        if (!open || (viewport && viewport.scale > 1)) {
           return;
         }
         const active = document.activeElement;
@@ -150,7 +146,7 @@
     const measure = () => {
       cancelAnimationFrame(viewportFrame);
       viewportFrame = requestAnimationFrame(() => {
-        if (viewport && viewport.scale > 1) {
+        if (!open || (viewport && viewport.scale > 1)) {
           return;
         }
         writeHeight(
@@ -795,23 +791,18 @@
     }
   }
   async function exitTo(instanceId: string, current: () => boolean) {
-    if (card) {
-      await card.animate(
-        [
-          { opacity: 1, transform: "scale(1)" },
-          { opacity: 0, transform: "scale(.98)" },
-        ],
-        {
-          duration: prefersReducedMotion.current ? 1 : 200,
-          easing: "cubic-bezier(0.23, 1, 0.32, 1)",
-          fill: "forwards",
-        }
-      ).finished;
-      if (!current()) {
-        return;
-      }
+    if (!current()) {
+      return;
     }
     close();
+    await tick();
+    const request = submission;
+    await Promise.allSettled(
+      card?.getAnimations().map((animation) => animation.finished) ?? []
+    );
+    if (open || request !== submission) {
+      return;
+    }
     await goto(conversationHref(instanceId, whiffle.instances));
   }
   function keydown(event: KeyboardEvent) {
@@ -831,152 +822,187 @@
 </script>
 
 <svelte:window onkeydown={keydown} />
-<Dialog onOpenChange={(value) => { if (!value) { close(); } }} {open}>
-  <DialogPortal>
-    <div class="session-viewport" data-open={open || undefined}>
-      <DialogOverlay class="session-scrim ns-theme" />
+{#if mobile.current}
+  <Drawer.Root
+    noBodyStyles
+    onOpenChange={(value) => { if (!value) { close(); } }}
+    {open}
+    repositionInputs={false}
+    shouldScaleBackground={false}
+  >
+    <Drawer.Portal>
+      <div class="session-viewport">
+        <Drawer.Overlay class="session-scrim ns-theme" />
+        <Drawer.Content
+          aria-label="New Session"
+          class="session-card ns-theme"
+          data-ns-dialog
+          inert={busy}
+          onCloseAutoFocus={(event) => { event.preventDefault(); opener?.focus({ preventScroll: true }); }}
+          onOpenAutoFocus={(event) => { event.preventDefault(); card?.focus({ preventScroll: true }); }}
+          bind:ref={card}
+        >
+          <Drawer.Title class="sr-only">New session</Drawer.Title>
+          <Drawer.Handle class="session-handle" preventCycle />
+          {@render formContent()}
+        </Drawer.Content>
+      </div>
+    </Drawer.Portal>
+  </Drawer.Root>
+{:else}
+  <Dialog onOpenChange={(value) => { if (!value) { close(); } }} {open}>
+    <DialogPortal>
+      <DialogPrimitive.Overlay class="session-scrim ns-theme" />
       <DialogPrimitive.Content
         aria-label="New Session"
         class="session-card ns-theme"
         data-ns-dialog
         inert={busy}
+        onCloseAutoFocus={(event) => { event.preventDefault(); opener?.focus({ preventScroll: true }); }}
         onOpenAutoFocus={(event) => { event.preventDefault(); card?.focus({ preventScroll: true }); }}
         bind:ref={card}
       >
         <DialogTitle class="sr-only">New session</DialogTitle>
-        <div class="head">
-          <div class="head-left">
-            <span class="bolt"><Bolt /></span>
-            <span class="title">Sessions · New</span>
-          </div>
-          <button
-            aria-label="Close"
-            class="close"
-            onclick={close}
-            title="Close"
-            type="button"
-          >
-            <X />
-          </button>
-        </div>
-        <div class="body fai-scroll" onscroll={bodyScroll}>
-          <h2>New Session</h2>
-          <section class="sec prompt-sec" style="--delay:0ms">
-            <SectionHeader
-              hue="var(--fai-blue-500)"
-              icon={Chat}
-              label="First prompt"
-            />
-            <div class="fai-comb"></div>
-            <div
-              class="composer"
-              class:focus={editor === document.activeElement || menuOpen}
-            >
-              <PromptEditor
-                {menuItems}
-                onmenu={(value) => { menuOpen = value; }}
-                onsubmit={start}
-                bind:element={editor}
-                bind:value={prompt}
-              />
-              <div class="chips">
-                <MachinesChip
-                  machines={machineItems}
-                  onchange={(value) => { popover = value ? "machines" : null; }}
-                  ontoggle={toggleMachine}
-                  open={popover === "machines"}
-                  selected={machineIds}
-                />
-                <ProjectChip
-                  onchange={(value) => { popover = value ? "project" : null; }}
-                  onclear={clearProject}
-                  oncreate={createFromChip}
-                  onpick={pickProject}
-                  open={popover === "project"}
-                  {projectId}
-                  projects={projectItems}
-                />
-              </div>
-            </div>
-          </section>
-          <div class="fai-comb comb-gap"></div>
-          <div class="stack">
-            <div class="sec" style="--delay:60ms">
-              <LocationSection
-                dir={cwd}
-                {locked}
-                {machineId}
-                machineName={machine?.hostname ?? ""}
-                mode={repo === undefined ? "dir" : "repo"}
-                ondir={(value) => { cwd = value; editing = true; projectId = undefined; }}
-                onmode={(value) => { repo = value === "repo" ? (repo ?? "") : undefined; if (value === "repo") { projectId = undefined; editing = true; cwd ||= "~"; } }}
-                onoverride={() => { editing = true; }}
-                onrepo={(value) => { repo = value; }}
-                {reading}
-                repo={repo ?? ""}
-              />
-            </div>
-            <div class="fai-comb"></div>
-            <div class="sec" style="--delay:140ms">
-              <div class="columns">
-                <div class="col">
-                  <div class="sec" style="--delay:40ms">
-                    <ModelSection
-                      {harness}
-                      installed={installedHarnesses}
-                      machineName={machine?.hostname ?? machineId}
-                      {model}
-                      onharness={chooseHarness}
-                      onmodel={(id) => { model = id; effort = null; }}
-                    />
-                  </div>
-                </div>
-                <div class="col">
-                  <section class="sec" style="--delay:80ms">
-                    <SectionHeader
-                      hue="var(--fai-orange-500)"
-                      icon={Tuning}
-                      label="Effort"
-                    />
-                    <EffortPips
-                      {efforts}
-                      onchange={(level) => { effort = level; }}
-                      value={effortShown}
-                    />
-                  </section>
-                  <section class="sec" style="--delay:120ms">
-                    <SectionHeader
-                      hue="var(--fai-green-600)"
-                      icon={Shield}
-                      label="Permission mode"
-                    />
-                    <PermissionSection
-                      {modes}
-                      onchange={(value) => { permissionMode = value; }}
-                      value={permissionMode}
-                    />
-                  </section>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <SessionFooter
-          {busy}
-          disabled={cantStart}
-          ephemeral={sideQuest}
-          oncancel={close}
-          onlifetime={(value) => { sideQuest = value; }}
-          onstart={start}
-          {startLabel}
-        />
+        {@render formContent()}
       </DialogPrimitive.Content>
+    </DialogPortal>
+  </Dialog>
+{/if}
+
+{#snippet formContent()}
+  <div class="head">
+    <div class="head-left">
+      <span class="bolt"><Bolt /></span>
+      <span class="title">Sessions · New</span>
     </div>
-  </DialogPortal>
-</Dialog>
+    <button
+      aria-label="Close"
+      class="close"
+      data-vaul-no-drag
+      onclick={close}
+      title="Close"
+      type="button"
+    >
+      <X />
+    </button>
+  </div>
+  <div class="body fai-scroll" data-vaul-no-drag onscroll={bodyScroll}>
+    <h2>New Session</h2>
+    <section class="sec prompt-sec" style="--delay:0ms">
+      <SectionHeader
+        hue="var(--fai-blue-500)"
+        icon={Chat}
+        label="First prompt"
+      />
+      <div class="fai-comb"></div>
+      <div
+        class="composer"
+        class:focus={editor === document.activeElement || menuOpen}
+      >
+        <PromptEditor
+          {menuItems}
+          onmenu={(value) => { menuOpen = value; }}
+          onsubmit={start}
+          bind:element={editor}
+          bind:value={prompt}
+        />
+        <div class="chips">
+          <MachinesChip
+            machines={machineItems}
+            onchange={(value) => { popover = value ? "machines" : null; }}
+            ontoggle={toggleMachine}
+            open={popover === "machines"}
+            selected={machineIds}
+          />
+          <ProjectChip
+            onchange={(value) => { popover = value ? "project" : null; }}
+            onclear={clearProject}
+            oncreate={createFromChip}
+            onpick={pickProject}
+            open={popover === "project"}
+            {projectId}
+            projects={projectItems}
+          />
+        </div>
+      </div>
+    </section>
+    <div class="fai-comb comb-gap"></div>
+    <div class="stack">
+      <div class="sec" style="--delay:60ms">
+        <LocationSection
+          dir={cwd}
+          {locked}
+          {machineId}
+          machineName={machine?.hostname ?? ""}
+          mode={repo === undefined ? "dir" : "repo"}
+          ondir={(value) => { cwd = value; editing = true; projectId = undefined; }}
+          onmode={(value) => { repo = value === "repo" ? (repo ?? "") : undefined; if (value === "repo") { projectId = undefined; editing = true; cwd ||= "~"; } }}
+          onoverride={() => { editing = true; }}
+          onrepo={(value) => { repo = value; }}
+          {reading}
+          repo={repo ?? ""}
+        />
+      </div>
+      <div class="fai-comb"></div>
+      <div class="sec" style="--delay:140ms">
+        <div class="columns">
+          <div class="col">
+            <div class="sec" style="--delay:40ms">
+              <ModelSection
+                {harness}
+                installed={installedHarnesses}
+                machineName={machine?.hostname ?? machineId}
+                {model}
+                onharness={chooseHarness}
+                onmodel={(id) => { model = id; effort = null; }}
+              />
+            </div>
+          </div>
+          <div class="col">
+            <section class="sec" style="--delay:80ms">
+              <SectionHeader
+                hue="var(--fai-orange-500)"
+                icon={Tuning}
+                label="Effort"
+              />
+              <EffortPips
+                {efforts}
+                onchange={(level) => { effort = level; }}
+                value={effortShown}
+              />
+            </section>
+            <section class="sec" style="--delay:120ms">
+              <SectionHeader
+                hue="var(--fai-green-600)"
+                icon={Shield}
+                label="Permission mode"
+              />
+              <PermissionSection
+                {modes}
+                onchange={(value) => { permissionMode = value; }}
+                value={permissionMode}
+              />
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="footer" data-vaul-no-drag>
+    <SessionFooter
+      {busy}
+      disabled={cantStart}
+      ephemeral={sideQuest}
+      oncancel={close}
+      onlifetime={(value) => { sideQuest = value; }}
+      onstart={start}
+      {startLabel}
+    />
+  </div>
+{/snippet}
 
 <style>
-  .session-viewport {
+  .footer {
     display: contents;
   }
   :global(.session-scrim) {
@@ -986,13 +1012,6 @@
     background: var(--fai-scrim);
     backdrop-filter: blur(var(--fai-scrim-blur));
     -webkit-backdrop-filter: blur(var(--fai-scrim-blur));
-    animation: none !important;
-    transition: opacity 200ms var(--ns-ease-out);
-  }
-  @starting-style {
-    :global(.session-scrim) {
-      opacity: 0;
-    }
   }
   :global(.session-card) {
     position: fixed;
@@ -1010,7 +1029,18 @@
     box-shadow: var(--fai-shadow-modal);
     outline: none;
     transform-origin: center;
-    animation: ns-panel 260ms var(--ns-ease-out) both;
+  }
+  :global(.session-card:not([data-vaul-drawer])[data-state="open"]) {
+    animation: ns-panel var(--ns-panel-ms) var(--ns-ease-out) both;
+  }
+  :global(.session-card:not([data-vaul-drawer])[data-state="closed"]) {
+    animation: ns-panel-out var(--ns-panel-ms) var(--ns-ease-out) both;
+  }
+  :global(.session-scrim:not([data-vaul-overlay])[data-state="open"]) {
+    animation: ns-scrim var(--ns-panel-ms) var(--ns-ease-out) both;
+  }
+  :global(.session-scrim:not([data-vaul-overlay])[data-state="closed"]) {
+    animation: ns-scrim-out var(--ns-panel-ms) var(--ns-ease-out) both;
   }
   .head {
     display: flex;
@@ -1139,7 +1169,7 @@
   }
   @media (max-width: 640px) {
     /* Page-sized containment keeps the sheet clear of iOS fixed-overlay clipping. */
-    .session-viewport[data-open] {
+    .session-viewport:has(:global(.session-card)) {
       display: block;
       position: absolute;
       top: 0;
@@ -1148,11 +1178,12 @@
       height: var(--ns-page-height, 100%);
       isolation: isolate;
       z-index: 80;
+      overflow: clip;
     }
     :global(.session-scrim) {
       position: absolute;
     }
-    :global(.session-card) {
+    :global(.session-card[data-vaul-drawer]) {
       position: sticky;
       inset: 0 0 auto;
       margin: 0;
@@ -1162,22 +1193,48 @@
       border-radius: 0;
       padding: max(env(safe-area-inset-top), 7px) 7px
         max(env(safe-area-inset-bottom), 7px);
-      animation-name: ns-sheet;
-      animation-timing-function: var(--ns-ease-drawer);
-      animation-duration: 300ms;
+      touch-action: pan-y;
+    }
+    :global(.session-card[data-vaul-drawer])::after {
+      display: none;
+    }
+    :global(.session-card[data-vaul-drawer][data-state="closed"]),
+    :global(.session-scrim[data-vaul-overlay][data-state="closed"]) {
+      animation-fill-mode: forwards;
+    }
+    :global(.session-handle) {
+      flex: none;
+      margin: 4px auto 10px;
+      background: var(--fai-grey-400);
+      border-radius: var(--fai-radius-pill);
+      touch-action: none;
+    }
+    .head {
+      touch-action: none;
     }
     .body {
       padding: 14px 12px 16px;
+      touch-action: pan-y;
+      overscroll-behavior: contain;
     }
   }
-  @keyframes ns-sheet {
+  @keyframes ns-panel-out {
+    to {
+      transform: translateY(6px) scale(0.98);
+      opacity: 0;
+    }
+  }
+  @keyframes ns-scrim {
     from {
-      transform: translateY(24px);
       opacity: 0;
     }
     to {
-      transform: none;
       opacity: 1;
+    }
+  }
+  @keyframes ns-scrim-out {
+    to {
+      opacity: 0;
     }
   }
   @media (prefers-reduced-motion: reduce) {
