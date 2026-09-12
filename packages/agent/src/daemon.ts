@@ -15,6 +15,7 @@ import {
   WHIFFLE_ENV,
   WHIFFLE_HUB_PORT,
 } from "@whiffle/core";
+import { sessiondEndpoint } from "@whiffle/core/sessiond";
 import { fetchClaudeLimits } from "@whiffle/core/usage/limits";
 import { mergeObserved } from "@whiffle/core/usage/observed";
 import { Data, Duration, Effect, Fiber, Schedule } from "effect";
@@ -24,11 +25,13 @@ import { convergeDeniedTools } from "./denied-tools";
 import { latestDeploy } from "./deploy";
 import { rediscoverHub, toWsUrl } from "./discovery";
 import { harnesses } from "./harnesses";
+import { OPENCODE_SERVER_PROC_ID } from "./harnesses/opencode";
 import { cache as transcriptCache } from "./harnesses/transcript-cache";
 import { machineId } from "./machine-id";
 import { stopPreviews } from "./preview";
 import { TranscriptSearchService } from "./search";
 import { resumableSessions, SessionSupervisor } from "./session";
+import { SessiondClient } from "./sessiond-client";
 import { probeTools } from "./tools";
 import { UsageScanner } from "./usage/scanner";
 
@@ -61,6 +64,8 @@ export interface RegisterPayload extends MachineIdentity {
    * The whiffle this daemon is running (NEW.md §12), as it reported at register.
    */
   build?: BuildInfo;
+  /** Custody is not attachment: these still need a handle before being listed live. */
+  custody?: { instances: string[]; opencode: boolean };
   /**
    * Where this machine's deployment clone stood at register (contract C8), so a
    * board that has just been handed a machine knows without waiting a beat.
@@ -380,10 +385,37 @@ const attach = (
     // The hub drops this machine's preview targets the moment the socket goes,
     // so a forwarder kept alive past the connection serves nobody: it goes too.
     yield* Effect.addFinalizer(() => Effect.sync(stopPreviews));
+    // Read before the catalog: listing OpenCode conversations may start a new
+    // server, which must not be mistaken for one that survived this restart.
+    const custody = yield* Effect.promise(async () => {
+      try {
+        const client = await SessiondClient.connect(
+          process.env.WHIFFLE_SESSIOND_ENDPOINT ?? sessiondEndpoint()
+        );
+        try {
+          const held = client.procs.filter((proc) => proc.alive);
+          return {
+            instances: held
+              .filter((proc) => proc.procId !== OPENCODE_SERVER_PROC_ID)
+              .map((proc) => proc.procId),
+            opencode: held.some(
+              (proc) => proc.procId === OPENCODE_SERVER_PROC_ID
+            ),
+          };
+        } finally {
+          client.close();
+        }
+      } catch (error) {
+        Effect.runFork(
+          Effect.logWarning(`session custody unavailable: ${String(error)}`)
+        );
+      }
+    });
     const catalog = yield* Effect.promise(() => resumableSessions());
     const payload: RegisterPayload = {
       ...identity,
       instances: supervisor.instanceIds,
+      ...(custody ? { custody } : {}),
       ...(catalog
         ? {
             resumable: catalog.map((entry) => entry.sessionId),
@@ -518,8 +550,8 @@ const attach = (
           return supervisor.reattachFrom(ackPayload, rows);
         })
         .catch((error: unknown) => {
-          // A sessiond that cannot be reached is not a reason to lose the
-          // hub's restores: adopt nothing, spawn everything, exactly as before.
+          // Fresh restores may still spawn; custody-only requests must not turn
+          // an unavailable sessiond into an unbounded spawn queue.
           Effect.runFork(
             Effect.logWarning(`reattach failed: ${String(error)}`)
           );
@@ -534,9 +566,8 @@ const attach = (
             );
           }
           for (const envelope of spawns) {
-            if (
-              !adopted.includes((envelope.payload as SpawnPayload).instanceId)
-            ) {
+            const spawn = envelope.payload as SpawnPayload;
+            if (!(adopted.includes(spawn.instanceId) || spawn.reattachOnly)) {
               supervisor.dispatch(envelope);
             }
           }

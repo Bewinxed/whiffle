@@ -60,6 +60,9 @@ export interface HarnessContext {
     suggestions?: PermissionUpdate[];
     requestKind?: "tool" | "question";
   }): void;
+  /** A gate was answered elsewhere, or by the adapter's own policy. */
+  // biome-ignore lint/style/useConsistentMethodSignatures: matches the context callbacks
+  permissionResolved?(requestId: string): void;
   /** The harness's own session id, once the runtime names it. */
   // biome-ignore lint/style/useConsistentMethodSignatures: method-style kept so implementers (opencode.ts, pi.ts) keep contravariant parameter checking; property-style would change signature variance
   session(sessionId: string): void;
@@ -67,6 +70,9 @@ export interface HarnessContext {
 
 /** One live session, owned by a harness. */
 export interface HarnessSession {
+  /** Called only after the supervisor has installed this handle. */
+  // biome-ignore lint/style/useConsistentMethodSignatures: matches the session methods
+  attached?(): void;
   /** A neutral control ({@link CONTROL_INTERRUPT}, …), mapped to the runtime. */
   // biome-ignore lint/style/useConsistentMethodSignatures: method-style kept so implementers (opencode.ts, pi.ts) keep contravariant parameter checking; property-style would change signature variance
   control(method: string, args: unknown[]): Promise<unknown>;
@@ -126,6 +132,12 @@ export interface Harness {
   /** A machine-scoped control this harness owns; `undefined` when it is not its word. */
   // biome-ignore lint/style/useConsistentMethodSignatures: method-style kept so implementers (opencode.ts, pi.ts) keep contravariant parameter checking; property-style would change signature variance
   machine?(method: string, args: unknown[]): Promise<unknown> | undefined;
+  /** Reopen surviving custody, or leave the instance sleeping if it is gone. */
+  // biome-ignore lint/style/useConsistentMethodSignatures: matches the other adapter methods
+  reattach?(
+    spec: SpawnPayload,
+    ctx: HarnessContext
+  ): Promise<HarnessSession | undefined>;
   // biome-ignore lint/style/useConsistentMethodSignatures: method-style kept so implementers (opencode.ts, pi.ts) keep contravariant parameter checking; property-style would change signature variance
   renameSession(sessionKey: string, title: string, dir?: string): Promise<void>;
   /** Start a session; resolves once the runtime handle is in place. */

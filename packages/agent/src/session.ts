@@ -548,6 +548,11 @@ export class SessionSupervisor {
     this.#ingested.delete(instanceId);
     this.#pulseTool.delete(instanceId);
     this.#pulseBlocked.delete(instanceId);
+    for (const [requestId, ask] of this.#openAsks) {
+      if ("instanceId" in ask && ask.instanceId === instanceId) {
+        this.#openAsks.delete(requestId);
+      }
+    }
     this.#pulseSubagents.delete(instanceId);
     this.#pulseAt.delete(instanceId);
     const timer = this.#pulseTimers.get(instanceId);
@@ -738,9 +743,15 @@ export class SessionSupervisor {
       const holder: { session: HarnessSession | null } = { session: null };
       const ctx = this.#context(instanceId, workdir, adapter, holder);
 
-      const session = await adapter.spawn(payload, ctx);
+      const session = payload.reattachOnly
+        ? await adapter.reattach?.(payload, ctx)
+        : await adapter.spawn(payload, ctx);
+      if (!session) {
+        return;
+      }
       holder.session = session;
       this.#sessions.set(instanceId, session);
+      session.attached?.();
       // The session is in place. Worth saying out loud for a relaunch, whose
       // caller has nothing else to wait on.
       if (ack) {
@@ -820,6 +831,9 @@ export class SessionSupervisor {
         });
       },
       permission: (request) => {
+        if (this.#openAsks.has(request.requestId)) {
+          return;
+        }
         this.#pulseBlocked.set(
           instanceId,
           (this.#pulseBlocked.get(instanceId) ?? 0) + 1
@@ -834,6 +848,7 @@ export class SessionSupervisor {
         this.#openAsks.set(request.requestId, body);
         this.sink(body);
       },
+      permissionResolved: (requestId) => this.#settleAsk(instanceId, requestId),
       busy: (active) => {
         if (active) {
           this.#busy.add(instanceId);
@@ -1519,14 +1534,7 @@ export class SessionSupervisor {
         args[0] as string,
         args[1] as PermissionResult
       );
-      this.#openAsks.delete(args[0] as string);
-      const left = (this.#pulseBlocked.get(instanceId) ?? 1) - 1;
-      if (left <= 0) {
-        this.#pulseBlocked.delete(instanceId);
-      } else {
-        this.#pulseBlocked.set(instanceId, left);
-      }
-      this.#emitPulse(instanceId, true);
+      this.#settleAsk(instanceId, args[0] as string);
       return undefined;
     }
     return await this.#session(instanceId).control(method, args);
@@ -1538,5 +1546,20 @@ export class SessionSupervisor {
       throw new Error(`no session ${instanceId}`);
     }
     return session;
+  }
+
+  #settleAsk(instanceId: string, requestId: string): void {
+    const ask = this.#openAsks.get(requestId);
+    if (!(ask && "instanceId" in ask) || ask.instanceId !== instanceId) {
+      return;
+    }
+    this.#openAsks.delete(requestId);
+    const left = (this.#pulseBlocked.get(instanceId) ?? 1) - 1;
+    if (left === 0) {
+      this.#pulseBlocked.delete(instanceId);
+    } else {
+      this.#pulseBlocked.set(instanceId, left);
+    }
+    this.#emitPulse(instanceId, true);
   }
 }

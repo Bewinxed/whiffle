@@ -675,6 +675,34 @@ const peekInstances = (payload: unknown): string[] => {
     : [];
 };
 
+/** First-hand process custody, separate from the daemon's attached live list. */
+const peekCustody = (
+  payload: unknown
+): { instances: string[]; opencode: boolean } => {
+  const value = (payload as { custody?: unknown } | null)?.custody;
+  return {
+    instances: peekInstances(value),
+    opencode: (value as { opencode?: unknown } | null)?.opencode === true,
+  };
+};
+
+/** The same operator notice on the live stream and a later transcript read. */
+const custodyNotice = (
+  row: Pick<InstanceRow, "id" | "sessionId">,
+  reason: string
+) => ({
+  type: "user" as const,
+  uuid: `custody-held-${row.id}`,
+  session_id: row.sessionId ?? "",
+  parent_agent_id: null,
+  parent_tool_use_id: null,
+  origin: { kind: "system" as const },
+  message: {
+    role: "user" as const,
+    content: `[SYSTEM NOTIFICATION]\n${reason}`,
+  },
+});
+
 /**
  * THE SESSIONS A REGISTER ACK'S LEDGER MUST COVER (sessiond design §7, step 3).
  *
@@ -1270,6 +1298,10 @@ export const createServer = ({
    * wait for the next pulse to arrive.
    */
   const pulses = new Map<string, SessionPulse>();
+  const heldSessions = new Map<
+    string,
+    { machineId: string; since: number; reason: string }
+  >();
 
   /**
    * When each session's activity was last written down, so the column that says
@@ -1835,11 +1867,16 @@ export const createServer = ({
    * promotes it. That single distinction is most of the difference between a
    * board that reports 178 live sessions and one that reports 42.
    */
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: builds every field of a restore's spawn payload (model, effort, permission mode, delegate wiring) from the stored row in one place; splitting it would scatter the fallback order this depends on.
-  const restore = (agent: HubSocket, row: InstanceRow): void => {
+  const restore = (
+    agent: HubSocket,
+    row: InstanceRow,
+    reattachOnly: SpawnPayload["reattachOnly"] = false
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: builds the restore payload from the stored row in one place
+  ): void => {
     const payload: SpawnPayload = {
       instanceId: row.id,
       cwd: row.cwd,
+      ...(reattachOnly ? { reattachOnly } : {}),
       ...(row.sessionId ? { resume: { sessionKey: row.sessionId } } : {}),
       ...(row.harness
         ? { harness: row.harness as SpawnPayload["harness"] }
@@ -1861,6 +1898,11 @@ export const createServer = ({
       instanceId: row.id,
       payload,
     });
+    // A probe of a previously lost handle is not a spawn. Leave its history
+    // alone until the daemon confirms the server still has a turn in flight.
+    if (reattachOnly === "busy" || reattachOnly === "inspect") {
+      return;
+    }
     db.openInstance({
       id: row.id,
       machineId: row.machineId,
@@ -1951,18 +1993,30 @@ export const createServer = ({
    * `/api/instances` route and {@link instancesFrame}.
    */
   const withSessionPresence = <
-    Row extends { machineId: string; status: string },
+    Row extends { id: string; machineId: string; status: string },
   >(
     rows: Row[]
   ): Row[] =>
-    rows.map((row) =>
-      registry.agent(row.machineId) ||
-      (row.status !== "running" &&
-        row.status !== "starting" &&
-        row.status !== "sleeping")
+    rows.map((row) => {
+      const held = heldSessions.get(row.id);
+      if (
+        held &&
+        registry.agent(row.machineId) &&
+        (row.status === "sleeping" || row.status === "error")
+      ) {
+        return {
+          ...row,
+          status: "sleeping",
+          held: { since: held.since, reason: held.reason },
+        };
+      }
+      return registry.agent(row.machineId) ||
+        (row.status !== "running" &&
+          row.status !== "starting" &&
+          row.status !== "sleeping")
         ? row
-        : { ...row, status: "unknown" }
-    );
+        : { ...row, status: "unknown" };
+    });
 
   /**
    * The whole board as one message: every row, every machine, and what each
@@ -3345,6 +3399,16 @@ export const createServer = ({
             if (first) {
               nameFromFirstTurn(machineId, row.id, first);
             }
+          }
+
+          const held = row && heldSessions.get(row.id);
+          if (
+            row &&
+            held &&
+            registry.agent(row.machineId) &&
+            (row.status === "sleeping" || row.status === "error")
+          ) {
+            transcript.push(custodyNotice(row, held.reason));
           }
 
           // URI-encoded because a header is Latin-1 on the wire and a folder
@@ -5092,6 +5156,11 @@ export const createServer = ({
 
           switch (message.verb) {
             case "register": {
+              for (const [id, held] of heldSessions) {
+                if (held.machineId === message.machineId) {
+                  heldSessions.delete(id);
+                }
+              }
               registry.registerAgent(message.machineId, ws, ws.remoteAddress);
               // A machine arriving can turn a remembered "nobody holds this"
               // into an answer, so the negatives go. The hits stay: a
@@ -5149,7 +5218,21 @@ export const createServer = ({
               // one of these `sleeping`, so the ones this skips are not lost —
               // they are asleep, listed, and one wake away.
               const cutoff = Date.now() - RESTORE_HORIZON_MS;
-              const revivable = settled
+              const custody = peekCustody(message.payload);
+              const heldIds = new Set(custody.instances);
+              // A surviving child is not a fresh spawn. OpenCode's one held
+              // server owns its sessions; the adapter verifies each key with
+              // session.get before publishing an init frame and subscribing.
+              const held = settled.filter(
+                ({ row }) =>
+                  heldIds.has(row.id) ||
+                  (custody.opencode &&
+                    row.harness === "opencode" &&
+                    row.sessionId !== null)
+              );
+              const heldRows = new Set(held.map(({ row }) => row.id));
+              const fresh = settled
+                .filter(({ row }) => !heldRows.has(row.id))
                 .filter((orphan) => orphan.resumes && orphan.row.sessionId)
                 // `row` is the pre-settle snapshot, so this reads when the session
                 // last moved, not when the settle just now touched it.
@@ -5159,8 +5242,30 @@ export const createServer = ({
                 )
                 .filter((orphan) => orphan.row.updatedAt.getTime() >= cutoff)
                 .slice(0, RESTORE_MAX);
+              const revivable = [...held, ...fresh];
               for (const orphan of revivable) {
-                restore(ws, orphan.row);
+                restore(ws, orphan.row, heldRows.has(orphan.row.id));
+              }
+              // Rows still live at disconnect (now settled above) retain custody.
+              // A previously sleeping row only recovers within the fresh-spawn
+              // horizon: an older held tool may apply a stale patch to a tree
+              // since rewritten. Inspect those without attaching or replaying asks.
+              // Discarded/stopped rows are never even sent to the server to probe.
+              if (custody.opencode) {
+                for (const row of db.listInstances()) {
+                  if (
+                    row.machineId === message.machineId &&
+                    row.harness === "opencode" &&
+                    row.sessionId &&
+                    (row.status === "sleeping" || row.status === "error")
+                  ) {
+                    restore(
+                      ws,
+                      row,
+                      row.updatedAt.getTime() >= cutoff ? "busy" : "inspect"
+                    );
+                  }
+                }
               }
               if (settled.length > revivable.length) {
                 console.log(
@@ -5413,6 +5518,43 @@ export const createServer = ({
                 } as FramePayload;
               }
               const kind = peek(message.payload, "kind");
+              if (kind === "frame" && message.instanceId) {
+                const frame = message.payload as FramePayload & {
+                  kind: "frame";
+                };
+                if (
+                  frame.message.type === "system" &&
+                  frame.message.subtype === "custody_held"
+                ) {
+                  const [row] = db.getInstancesByIds([message.instanceId]);
+                  if (
+                    !row ||
+                    row.machineId !== message.machineId ||
+                    (row.status !== "sleeping" && row.status !== "error") ||
+                    row.updatedAt.getTime() >= Date.now() - RESTORE_HORIZON_MS
+                  ) {
+                    break;
+                  }
+                  const hours = (
+                    (Date.now() - row.updatedAt.getTime()) /
+                    3_600_000
+                  ).toFixed(1);
+                  const note = `Held by opencode server, not re-adopted: idle for ${hours}h. Review its pending work before waking it.`;
+                  heldSessions.set(row.id, {
+                    machineId: row.machineId,
+                    since: row.updatedAt.getTime(),
+                    reason: note,
+                  });
+                  publishInstances(message.machineId);
+                  message.payload = {
+                    ...frame,
+                    message: custodyNotice(row, note),
+                  };
+                  streams.sequence(row.id, message.payload);
+                  registry.broadcastFrame(message, row.id);
+                  break;
+                }
+              }
               if (kind === "preview" && message.instanceId) {
                 const target = previewTargets.get(message.instanceId);
                 if (
@@ -5489,6 +5631,7 @@ export const createServer = ({
                   // there; `markInstanceLive` only touches the states a live
                   // process can be wrongly filed under.
                   db.markInstanceLive(message.instanceId);
+                  heldSessions.delete(message.instanceId);
                   publishInstances(message.machineId);
                 }
               }

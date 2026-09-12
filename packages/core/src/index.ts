@@ -146,6 +146,8 @@ export interface SpawnPayload {
   persistSession?: boolean;
   /** The project this session was started from, when it was started from one. */
   projectId?: string;
+  /** Existing custody only: `busy` recovers active turns; `inspect` only reports them. */
+  reattachOnly?: boolean | "busy" | "inspect";
   /**
    * Correlates the `control_result` frame the agent answers the spawn with, once
    * the session is in place.
@@ -508,6 +510,8 @@ export interface InstanceRow {
   effort?: string | null;
   /** Which harness owns {@link sessionId} — what a resume and a catalog read route on. */
   harness?: string | null;
+  /** First-hand custody on the current agent connection, never stored liveness. */
+  held?: { since: number; reason: string };
   id: string;
   /** `scratch` for a side quest; absent from a hub that predates the column. */
   kind?: string;

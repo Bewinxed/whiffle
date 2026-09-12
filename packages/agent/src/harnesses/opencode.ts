@@ -202,6 +202,8 @@ export const OPENCODE_SERVER_PROC_ID = "opencode-server";
  * direct child, and a false timeout here starts a *second* server.
  */
 export const SERVER_ANNOUNCE_TIMEOUT_MS = 30_000;
+/** Recovery cancels the actual HTTP operation, never races an abandoned promise. */
+export const RECOVERY_TIMEOUT_MS = 10_000;
 
 /**
  * How long a turn may go with no server event at all before the wait itself
@@ -665,6 +667,7 @@ const EMPTY_TOKENS = {
 };
 
 export class OpencodeSession implements HarnessSession {
+  attached?: () => void;
   readonly harness = "opencode" as const;
   sessionId: string | null;
   readonly #ctx: HarnessContext;
@@ -694,6 +697,11 @@ export class OpencodeSession implements HarnessSession {
   #providersCache: Promise<Pick<Provider, "id" | "models">[]> | undefined;
   #commandNames: Promise<Set<string>> | null = null;
   readonly #questions = new Set<string>();
+  readonly #seenGates = new Set<string>();
+  readonly #resolvedGates = new Set<string>();
+  readonly #gateFailures = new Set<string>();
+  #reconciling: Promise<void> | undefined;
+  readonly #lifetime = new AbortController();
   readonly #questionData = new Map<string, UserQuestion[]>();
   readonly #childInfo = new Map<string, { agent?: string; title?: string }>();
   readonly #childState = new Map<string, ChildState>();
@@ -746,6 +754,25 @@ export class OpencodeSession implements HarnessSession {
     // `message.part.delta` is a real event the SDK's generated union omits, so
     // switch on the string form rather than the nominal `Event` union.
     const type = event.type as string;
+    if (
+      sid === this.sessionId &&
+      (type === "permission.updated" ||
+        type === "permission.asked" ||
+        type === "question.asked" ||
+        type === "question.v2.asked")
+    ) {
+      const id = p.id as string;
+      if (this.#seenGates.has(id) || this.#resolvedGates.has(id)) {
+        return;
+      }
+      this.#seenGates.add(id);
+    }
+    if (type === "permission.replied") {
+      const id = p.requestID as string;
+      this.#resolvedGates.add(id);
+      this.#ctx.permissionResolved?.(id);
+      return;
+    }
     switch (type) {
       case "message.updated": {
         const { info } = p as { info?: Message };
@@ -932,6 +959,8 @@ export class OpencodeSession implements HarnessSession {
           return;
         }
         const settled = event.properties as unknown as { requestID: string };
+        this.#resolvedGates.add(settled.requestID);
+        this.#ctx.permissionResolved?.(settled.requestID);
         this.#questions.delete(settled.requestID);
         this.#questionData.delete(settled.requestID);
         break;
@@ -1518,7 +1547,14 @@ export class OpencodeSession implements HarnessSession {
     try {
       const result = await this.#client.session.status({
         query: { directory: this.#directory },
+        signal: AbortSignal.any([
+          this.#lifetime.signal,
+          AbortSignal.timeout(RECOVERY_TIMEOUT_MS),
+        ]),
       });
+      if (this.#lifetime.signal.aborted) {
+        return;
+      }
       const status = result.data?.[this.sessionId];
       if (!status || (status.type !== "busy" && status.type !== "retry")) {
         return;
@@ -1533,10 +1569,84 @@ export class OpencodeSession implements HarnessSession {
           "Resumed mid-turn: the provider was still working when this session was reattached. If nothing arrives, interrupt and retry.",
       });
     } catch (error) {
+      if (this.#lifetime.signal.aborted) {
+        return;
+      }
       console.warn(
         `[opencode] could not read the status of resumed session ${this.sessionId}: ${errorText(error)}`
       );
     }
+  }
+
+  get directory(): string {
+    return this.#directory;
+  }
+
+  /** Called only after SSE readiness, including every reconnect. */
+  reconcileGates(): Promise<void> {
+    if (this.#reconciling) {
+      return this.#reconciling;
+    }
+    this.#reconciling = Promise.all(
+      (
+        [
+          ["permission", "permission.asked"],
+          ["question", "question.asked"],
+        ] as const
+      )
+        // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: independent bounded retry with cancellation and one warning per endpoint failure
+        .map(async ([path, type]) => {
+          for (let attempt = 0; attempt < 3; attempt += 1) {
+            try {
+              console.info(`[opencode] ${this.instanceId}: ${path} snapshot`);
+              // biome-ignore lint/performance/noAwaitInLoops: bounded retry of this endpoint, independently of the other gate endpoint
+              const response = await fetch(
+                `${this.#serverUrl}/${path}?directory=${encodeURIComponent(this.#directory)}`,
+                {
+                  signal: AbortSignal.any([
+                    this.#lifetime.signal,
+                    AbortSignal.timeout(RECOVERY_TIMEOUT_MS),
+                  ]),
+                }
+              );
+              if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+              }
+              const pending = (await response.json()) as {
+                sessionID: string;
+              }[];
+              if (this.#lifetime.signal.aborted) {
+                return;
+              }
+              for (const ask of pending) {
+                if (ask.sessionID === this.sessionId) {
+                  this.handle({ type, properties: ask } as unknown as Event);
+                }
+              }
+              this.#gateFailures.delete(path);
+              return;
+            } catch (error) {
+              if (this.#lifetime.signal.aborted) {
+                return;
+              }
+              if (!this.#gateFailures.has(path)) {
+                this.#gateFailures.add(path);
+                console.warn(
+                  `[opencode] ${this.instanceId}: ${path} snapshot failed: ${String(error)}`
+                );
+              }
+              if (attempt < 2) {
+                await Bun.sleep(250 * 2 ** attempt);
+              }
+            }
+          }
+        })
+    )
+      .then(() => undefined)
+      .finally(() => {
+        this.#reconciling = undefined;
+      });
+    return this.#reconciling;
   }
 
   /** Any server event is progress: re-arm the stall notice while a turn is open. */
@@ -1958,7 +2068,12 @@ export class OpencodeSession implements HarnessSession {
   }
 
   resolvePermission(requestId: string, result: PermissionResult): void {
+    if (this.#resolvedGates.has(requestId)) {
+      return;
+    }
     if (this.#questions.has(requestId)) {
+      this.#resolvedGates.add(requestId);
+      this.#ctx.permissionResolved?.(requestId);
       this.#questions.delete(requestId);
       const questions = this.#questionData.get(requestId) ?? [];
       this.#questionData.delete(requestId);
@@ -2008,13 +2123,23 @@ export class OpencodeSession implements HarnessSession {
     requestId: string,
     response: "once" | "always" | "reject"
   ): void {
+    if (this.#resolvedGates.has(requestId)) {
+      return;
+    }
+    this.#resolvedGates.add(requestId);
+    this.#ctx.permissionResolved?.(requestId);
     // biome-ignore lint/complexity/noVoid: fire-and-forget: #replyPermission itself is not awaited by its callers
-    void this.#client.postSessionIdPermissionsPermissionId({
-      // biome-ignore lint/style/noNonNullAssertion: invariant: sessionId is set once in the constructor and never nulled; the interface types it nullable for other harnesses
-      path: { id: this.sessionId!, permissionID: requestId },
-      query: { directory: this.#directory },
-      body: { response },
-    });
+    void this.#client
+      .postSessionIdPermissionsPermissionId({
+        // biome-ignore lint/style/noNonNullAssertion: invariant: sessionId is set once in the constructor and never nulled; the interface types it nullable for other harnesses
+        path: { id: this.sessionId!, permissionID: requestId },
+        query: { directory: this.#directory },
+        body: { response },
+        signal: AbortSignal.timeout(RECOVERY_TIMEOUT_MS),
+      })
+      .catch((error: unknown) =>
+        console.warn(`[opencode] permission reply failed: ${String(error)}`)
+      );
   }
 
   #replyQuestion(id: string, answers: string[][]): Promise<void> {
@@ -2023,6 +2148,7 @@ export class OpencodeSession implements HarnessSession {
         `${this.#serverUrl}/question/${id}/reply?directory=${encodeURIComponent(this.#directory)}`,
         {
           method: "POST",
+          signal: AbortSignal.timeout(RECOVERY_TIMEOUT_MS),
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ answers }),
         }
@@ -2045,6 +2171,7 @@ export class OpencodeSession implements HarnessSession {
         `${this.#serverUrl}/question/${id}/reject?directory=${encodeURIComponent(this.#directory)}`,
         {
           method: "POST",
+          signal: AbortSignal.timeout(RECOVERY_TIMEOUT_MS),
         }
       )
         .then((res) => {
@@ -2068,6 +2195,7 @@ export class OpencodeSession implements HarnessSession {
   }
 
   async stop(): Promise<void> {
+    this.#lifetime.abort();
     this.#onRelease();
     this.#turnOpen = false;
     this.#clearStallTimer();
@@ -2083,6 +2211,7 @@ export class OpencodeSession implements HarnessSession {
 
   // biome-ignore lint/suspicious/useAwait: implements Harness.dispose's Promise<void> contract; this session's teardown is synchronous
   async dispose(): Promise<void> {
+    this.#lifetime.abort();
     this.#onRelease();
   }
 }
@@ -2110,6 +2239,13 @@ export class OpencodeHarness implements Harness {
   >();
   #disposed = false;
   readonly #pumpDirs = new Set<string>();
+  readonly #pumpReady = new Map<string, Promise<void>>();
+  readonly #pumpControllers = new Map<string, AbortController>();
+  #recovering = 0;
+  #recoveryHighWater = 0;
+  readonly #recoveryWaiters: (() => void)[] = [];
+  readonly #reconcileJobs = new Map<OpencodeSession, Promise<void>>();
+  readonly #reconcileAgain = new Set<OpencodeSession>();
 
   async detect(): Promise<HarnessReport> {
     const installed = resolveBin("opencode") !== undefined;
@@ -2228,15 +2364,18 @@ export class OpencodeHarness implements Harness {
   }
 
   /** Starts the directory-scoped subscription for a directory, once per unique cwd. */
-  #ensurePump(client: OpencodeClient, directory: string): void {
+  #ensurePump(client: OpencodeClient, directory: string): Promise<void> {
     // biome-ignore lint/suspicious/noUnnecessaryConditions: #disposed is set true by dispose(), a different method biome's per-method inference doesn't see
-    if (this.#disposed || this.#pumpDirs.has(directory)) {
-      return;
+    if (this.#disposed) {
+      return Promise.reject(new Error("OpenCode adapter disposed"));
     }
-    this.#pumpDirs.add(directory);
-    // biome-ignore lint/complexity/noVoid: fire-and-forget pump loop; #ensurePump must not block waiting for it
-    // biome-ignore lint/suspicious/noEmptyBlockStatements: reconnection is handled inside the loop; a final rejection here is not actionable
-    void this.#pumpDirectory(client, directory).catch(() => {});
+    if (!this.#pumpDirs.has(directory)) {
+      this.#pumpDirs.add(directory);
+      // biome-ignore lint/complexity/noVoid: the pump owns reconnection; callers await only readiness
+      void this.#pumpDirectory(client, directory).catch(console.warn);
+    }
+    // biome-ignore lint/style/noNonNullAssertion: pumpDirectory installs readiness before its first await
+    return this.#pumpReady.get(directory)!;
   }
 
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: routes every subscribed event to its owning session or child; not refactored in this pass
@@ -2247,12 +2386,37 @@ export class OpencodeHarness implements Harness {
     let delay = 1000;
     // biome-ignore lint/suspicious/noUnnecessaryConditions: #disposed is set true by dispose(), a different method biome's per-method inference doesn't see
     while (!this.#disposed) {
+      const ready = Promise.withResolvers<void>();
+      this.#pumpReady.set(directory, ready.promise);
+      // biome-ignore lint/complexity/noVoid: a reconnect need not have a caller waiting for readiness
+      void ready.promise.catch(() => undefined);
+      const controller = new AbortController();
+      this.#pumpControllers.set(directory, controller);
+      const deadline = setTimeout(
+        () => controller.abort(),
+        RECOVERY_TIMEOUT_MS
+      );
+      let connected = false;
       try {
         // biome-ignore lint/performance/noAwaitInLoops: reconnects the SSE stream after a drop; must retry sequentially with backoff
         const { stream } = await client.event.subscribe({
           query: { directory },
+          signal: controller.signal,
+          sseMaxRetryAttempts: 1,
         });
         for await (const event of stream) {
+          if (!connected) {
+            connected = true;
+            clearTimeout(deadline);
+            console.info(`[opencode] ${directory}: subscribe ready`);
+            ready.resolve();
+            for (const session of this.#sessions.values()) {
+              if (session.directory === directory) {
+                // biome-ignore lint/complexity/noVoid: snapshots must not block consumption of live gate events
+                void this.#reconcile(session);
+              }
+            }
+          }
           delay = 1000;
           if (event.type === "session.created") {
             this.#routeChildCreated(event);
@@ -2271,6 +2435,12 @@ export class OpencodeHarness implements Harness {
         }
       } catch {
         // The stream ended or dropped; reconnect below unless disposed.
+      } finally {
+        clearTimeout(deadline);
+        controller.abort();
+        ready.reject(
+          new Error(`OpenCode subscription unavailable: ${directory}`)
+        );
       }
       // biome-ignore lint/suspicious/noUnnecessaryConditions: #disposed is set true by dispose(), a different method biome's per-method inference doesn't see
       if (this.#disposed) {
@@ -2326,15 +2496,148 @@ export class OpencodeHarness implements Harness {
     return found;
   }
 
+  async #withRecovery<T>(work: () => Promise<T>): Promise<T> {
+    // Transfer a released slot directly to its waiter, so newcomers cannot
+    // race a woken recovery into a fifth concurrent operation.
+    if (this.#recovering === 4) {
+      await new Promise<void>((resolve) => this.#recoveryWaiters.push(resolve));
+    } else {
+      this.#recovering += 1;
+    }
+    if (this.#recovering > this.#recoveryHighWater) {
+      this.#recoveryHighWater = this.#recovering;
+      console.info(
+        `[opencode] recovery concurrency high-water ${this.#recoveryHighWater}`
+      );
+    }
+    try {
+      return await work();
+    } finally {
+      const next = this.#recoveryWaiters.shift();
+      if (next) {
+        next();
+      } else {
+        this.#recovering -= 1;
+      }
+    }
+  }
+
+  #reconcile(session: OpencodeSession): Promise<void> {
+    const existing = this.#reconcileJobs.get(session);
+    if (existing) {
+      this.#reconcileAgain.add(session);
+      return existing;
+    }
+    const job = this.#withRecovery(async () => {
+      if (this.#sessions.get(session.instanceId) !== session) {
+        return;
+      }
+      await Promise.all([session.watchResumedTurn(), session.reconcileGates()]);
+    }).finally(() => {
+      this.#reconcileJobs.delete(session);
+      if (
+        this.#reconcileAgain.delete(session) &&
+        this.#sessions.get(session.instanceId) === session
+      ) {
+        // biome-ignore lint/complexity/noVoid: a reconnect during a snapshot needs a fresh snapshot after it
+        void this.#reconcile(session);
+      }
+    });
+    this.#reconcileJobs.set(session, job);
+    return job;
+  }
+
+  /** A register may recover every held session, but must never spawn new work. */
+  reattach(
+    spec: SpawnPayload,
+    ctx: HarnessContext
+  ): Promise<HarnessSession | undefined> {
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: custody check, inspection-only policy and cancellation belong to one recovery transaction
+    return this.#withRecovery(async () => {
+      try {
+        const client = await SessiondClient.connect(
+          process.env.WHIFFLE_SESSIOND_ENDPOINT ?? sessiondEndpoint()
+        );
+        const held = client.procs.some(
+          (proc) => proc.procId === OPENCODE_SERVER_PROC_ID && proc.alive
+        );
+        client.close();
+        // Register reads the catalog first, which connects the adapter. Do not
+        // call #ensure here: custody disappearing must never start a new server.
+        const server = this.#client;
+        if (!(held && spec.resume && server)) {
+          return;
+        }
+        const session = await server.session.get({
+          path: { id: spec.resume.sessionKey },
+          query: { directory: ctx.cwd },
+          signal: AbortSignal.timeout(RECOVERY_TIMEOUT_MS),
+        });
+        if (session.response?.status === 404) {
+          return;
+        }
+        if (session.error || !session.data) {
+          throw new Error(
+            `Could not reattach OpenCode session ${spec.resume.sessionKey}`
+          );
+        }
+        if (spec.reattachOnly === "busy" || spec.reattachOnly === "inspect") {
+          const status = await server.session.status({
+            query: { directory: ctx.cwd },
+            signal: AbortSignal.timeout(RECOVERY_TIMEOUT_MS),
+          });
+          if (status.error) {
+            throw new Error(
+              `Could not read OpenCode session status in ${ctx.cwd}`
+            );
+          }
+          const state = status.data?.[spec.resume.sessionKey]?.type;
+          if (state !== "busy" && state !== "retry") {
+            return;
+          }
+          if (spec.reattachOnly === "inspect") {
+            // Not a session frame through ctx.frame: that folds a pulse and would
+            // turn this safety inspection into fresh activity on the old row.
+            ctx.emit({
+              verb: "frames",
+              machineId: "",
+              instanceId: ctx.instanceId,
+              payload: {
+                kind: "frame",
+                harness: "opencode",
+                message: { type: "system", subtype: "custody_held" },
+              },
+            });
+            return;
+          }
+        }
+        return await this.spawn(spec, ctx);
+      } catch (error) {
+        console.warn(
+          `[opencode] recovery ${ctx.instanceId} left sleeping: ${String(error)}`
+        );
+      }
+    });
+  }
+
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: creates/resumes/forks a session across three branches, then wires the session up; not refactored in this pass
   async spawn(
     spec: SpawnPayload,
     ctx: HarnessContext
   ): Promise<HarnessSession> {
     const client = await this.#ensure();
-    const mcp = await client.mcp.status({ query: { directory: ctx.cwd } });
+    const mcp = await client.mcp.status({
+      query: { directory: ctx.cwd },
+      signal: AbortSignal.timeout(RECOVERY_TIMEOUT_MS),
+    });
+    if (mcp.error) {
+      throw new Error(
+        `Could not read OpenCode MCP status: ${String(mcp.error)}`
+      );
+    }
     if (mcp.data?.whiffle?.status !== "connected") {
       const connected = await client.mcp.add({
+        signal: AbortSignal.timeout(RECOVERY_TIMEOUT_MS),
         query: { directory: ctx.cwd },
         body: {
           name: "whiffle",
@@ -2352,12 +2655,12 @@ export class OpencodeHarness implements Harness {
         );
       }
     }
-    this.#ensurePump(client, ctx.cwd);
     let sessionId: string;
 
     if (spec.resume?.fork) {
       assertOpencodeKey(spec.resume.sessionKey, "fork");
       const fork = await client.session.fork({
+        signal: AbortSignal.timeout(RECOVERY_TIMEOUT_MS),
         path: { id: spec.resume.sessionKey },
         query: { directory: ctx.cwd },
         body: spec.resume.atMessage ? { messageID: spec.resume.atMessage } : {},
@@ -2375,6 +2678,7 @@ export class OpencodeHarness implements Harness {
       // (noteInstanceSession trusts it), poisoning the session permanently.
       assertOpencodeKey(spec.resume.sessionKey, "resume");
       const held = await client.session.get({
+        signal: AbortSignal.timeout(RECOVERY_TIMEOUT_MS),
         path: { id: spec.resume.sessionKey },
         query: { directory: ctx.cwd },
       });
@@ -2387,6 +2691,7 @@ export class OpencodeHarness implements Harness {
       if (spec.resume.atMessage) {
         assertOpencodeKey(spec.resume.sessionKey, "revert");
         const reverted = await client.session.revert({
+          signal: AbortSignal.timeout(RECOVERY_TIMEOUT_MS),
           path: { id: spec.resume.sessionKey },
           query: { directory: ctx.cwd },
           body: { messageID: spec.resume.atMessage },
@@ -2397,6 +2702,7 @@ export class OpencodeHarness implements Harness {
       }
     } else {
       const created = await client.session.create({
+        signal: AbortSignal.timeout(RECOVERY_TIMEOUT_MS),
         query: { directory: ctx.cwd },
       });
       if (created.error || !created.data) {
@@ -2428,23 +2734,28 @@ export class OpencodeHarness implements Harness {
       },
       spec.effort
     );
-    this.#sessions.set(ctx.instanceId, session);
-    ctx.session(sessionId);
-    // The init frame the dashboard reads the model / cwd / commands off.
-    ctx.frame({
-      type: "system",
-      subtype: "init",
-      session_id: sessionId,
-      cwd: ctx.cwd,
-      ...(spec.model ? { model: spec.model } : {}),
-      ...(spec.permissionMode ? { permissionMode: spec.permissionMode } : {}),
-    });
+    session.attached = () => {
+      this.#sessions.set(ctx.instanceId, session);
+      ctx.session(sessionId);
+      // The init frame the dashboard reads the model / cwd / commands off.
+      ctx.frame({
+        type: "system",
+        subtype: "init",
+        session_id: sessionId,
+        cwd: ctx.cwd,
+        ...(spec.model ? { model: spec.model } : {}),
+        ...(spec.permissionMode ? { permissionMode: spec.permissionMode } : {}),
+      });
 
-    // A resumed session may already be mid-turn on the server; nothing else
-    // would ever tell this process so. See `watchResumedTurn`.
-    if (spec.resume) {
-      await session.watchResumedTurn();
-    }
+      // A resumed session may already be mid-turn on the server; nothing else
+      // would ever tell this process so. See `watchResumedTurn`.
+      // The supervisor owns the handle before init or any asynchronous gate work.
+      // SSE readiness precedes both snapshots; the dedupe handles their overlap.
+      // biome-ignore lint/complexity/noVoid: attached handles remain operable while reconciliation runs
+      void this.#ensurePump(client, ctx.cwd)
+        .then(() => this.#reconcile(session))
+        .catch((error: unknown) => console.warn(String(error)));
+    };
 
     // Load skills natively: send each as a /command before the first prompt.
     // The opencode server queues them in order, so skills load before work.
@@ -2452,6 +2763,7 @@ export class OpencodeHarness implements Harness {
       for (const skill of spec.skills) {
         // biome-ignore lint/performance/noAwaitInLoops: skills must load in order, before the first prompt
         await client.session.command({
+          signal: AbortSignal.timeout(RECOVERY_TIMEOUT_MS),
           path: { id: sessionId },
           query: { directory: ctx.cwd },
           body: {
@@ -2475,7 +2787,10 @@ export class OpencodeHarness implements Harness {
     const tags = await readTags();
 
     if (dir) {
-      const result = await client.session.list({ query: { directory: dir } });
+      const result = await client.session.list({
+        query: { directory: dir },
+        signal: AbortSignal.timeout(RECOVERY_TIMEOUT_MS),
+      });
       if (result.error || !result.data) {
         return [];
       }
@@ -2492,18 +2807,23 @@ export class OpencodeHarness implements Harness {
     // verified live at 1.18.19, where `?directory=/` answers []. The unscoped
     // list covers those; the per-worktree queries stay so an opencode whose
     // unscoped list is project-scoped still reports the whole machine.
-    const projects = await client.project.list();
+    const projects = await client.project.list({
+      signal: AbortSignal.timeout(RECOVERY_TIMEOUT_MS),
+    });
     if (projects.error || !projects.data) {
       return [];
     }
     const lists = await Promise.all([
       client.session
-        .list()
+        .list({ signal: AbortSignal.timeout(RECOVERY_TIMEOUT_MS) })
         .then((res) => (res.error || !res.data ? [] : (res.data as Session[])))
         .catch(() => [] as Session[]),
       ...(projects.data as Project[]).map((project) =>
         client.session
-          .list({ query: { directory: project.worktree } })
+          .list({
+            query: { directory: project.worktree },
+            signal: AbortSignal.timeout(RECOVERY_TIMEOUT_MS),
+          })
           .then((res) =>
             res.error || !res.data ? [] : (res.data as Session[])
           )
@@ -2717,6 +3037,11 @@ export class OpencodeHarness implements Harness {
   // biome-ignore lint/suspicious/useAwait: implements Harness.dispose's Promise<void> contract; this teardown is synchronous
   async dispose(): Promise<void> {
     this.#disposed = true;
+    for (const controller of this.#pumpControllers.values()) {
+      controller.abort();
+    }
+    this.#pumpControllers.clear();
+    this.#pumpReady.clear();
     this.#pumpDirs.clear();
     // The socket, not the child: a closed sessiond connection is re-dialled by
     // `sessiond()` and the held server never notices.

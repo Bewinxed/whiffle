@@ -144,6 +144,7 @@ respawned automatically (newest-first, within a horizon and a cap chosen so a re
 stampede a machine that's been down for a while), and everything outside that bound settles as
 `sleeping` with an operator-facing affordance to wake it by hand rather than being silently
 respawned.
+The cap and horizon bound fresh respawns, not reattachment to custody the daemon has verified first-hand; a sleeping or errored turn older than the horizon that the server still holds is reported, not resumed, until the operator asks.
 
 ## Who writes what
 
