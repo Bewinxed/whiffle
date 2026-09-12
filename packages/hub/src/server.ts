@@ -5518,6 +5518,21 @@ export const createServer = ({
                 } as FramePayload;
               }
               const kind = peek(message.payload, "kind");
+              if (kind === "stopped" && message.instanceId) {
+                heldSessions.delete(message.instanceId);
+                closePreview(message.instanceId).catch(console.error);
+                if (peekDiscard(message.payload)) {
+                  db.discardInstance(message.instanceId);
+                } else {
+                  db.stopInstance(message.instanceId);
+                }
+                forgetQueue(message.instanceId);
+                pulses.delete(message.instanceId);
+                touched.delete(message.instanceId);
+                escalateRoutedAsks(message.instanceId);
+                publishInstances(message.machineId);
+                break;
+              }
               if (kind === "frame" && message.instanceId) {
                 const frame = message.payload as FramePayload & {
                   kind: "frame";
@@ -5785,7 +5800,11 @@ export const createServer = ({
               }
               // An agent only frames an error about a session that failed to start
               // or died on its own, so the row records it for whoever looks later.
-              if (kind === "error" && message.instanceId) {
+              if (
+                kind === "error" &&
+                message.instanceId &&
+                peek(message.payload, "verb") !== "stop"
+              ) {
                 const reason =
                   peek(message.payload, "message") ?? "the session failed";
                 db.failInstance(message.instanceId, reason);
@@ -6039,20 +6058,8 @@ export const createServer = ({
               relaySend(message as Envelope<SendPayload>, ws);
               break;
             case "stop":
-              if (forward(message, ws) && message.instanceId) {
-                closePreview(message.instanceId).catch(console.error);
-                if (peekDiscard(message.payload)) {
-                  db.discardInstance(message.instanceId);
-                } else {
-                  db.stopInstance(message.instanceId);
-                }
-                // The stream is closing; nothing it was still holding will run,
-                // and whatever it was last seen doing, it is not doing now.
-                forgetQueue(message.instanceId);
-                pulses.delete(message.instanceId);
-                touched.delete(message.instanceId);
-                escalateRoutedAsks(message.instanceId);
-                publishInstances(message.machineId);
+              if (forward(message, ws) && message.requestId) {
+                registry.rememberRequester(message.requestId, ws);
               }
               break;
             case "control":

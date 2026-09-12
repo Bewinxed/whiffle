@@ -2547,6 +2547,47 @@ export class OpencodeHarness implements Harness {
     return job;
   }
 
+  async abortSession(sessionKey: string, dir: string): Promise<boolean> {
+    // Never start a server to discard a turn that might already be gone.
+    const client = this.#client;
+    if (!client) {
+      return false;
+    }
+    const status = await client.session.status({
+      query: { directory: dir },
+      signal: AbortSignal.timeout(RECOVERY_TIMEOUT_MS),
+    });
+    if (status.error || !status.data) {
+      throw new Error(`Could not read OpenCode session status in ${dir}`);
+    }
+    const state = status.data[sessionKey]?.type;
+    if (state !== "busy" && state !== "retry") {
+      return false;
+    }
+    const aborted = await client.session.abort({
+      path: { id: sessionKey },
+      query: { directory: dir },
+      signal: AbortSignal.timeout(RECOVERY_TIMEOUT_MS),
+    });
+    if (aborted.error || aborted.data !== true) {
+      throw new Error(`Could not abort OpenCode session ${sessionKey}`);
+    }
+    const after = await client.session.status({
+      query: { directory: dir },
+      signal: AbortSignal.timeout(RECOVERY_TIMEOUT_MS),
+    });
+    if (after.error || !after.data) {
+      throw new Error(
+        `Could not verify OpenCode session ${sessionKey} stopped`
+      );
+    }
+    const remaining = after.data[sessionKey]?.type;
+    if (remaining === "busy" || remaining === "retry") {
+      throw new Error(`OpenCode session ${sessionKey} is still ${remaining}`);
+    }
+    return true;
+  }
+
   /** A register may recover every held session, but must never spawn new work. */
   reattach(
     spec: SpawnPayload,

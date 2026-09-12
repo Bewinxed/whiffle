@@ -362,6 +362,11 @@ export class SessionSupervisor {
    */
   readonly #line = new Map<string, FrameProvenance>();
   readonly #ingested = new Map<string, IngestMark>();
+  /** Resume coordinates survive inspection even when custody is not adopted. */
+  readonly #resumable = new Map<
+    string,
+    { adapter: Harness; sessionKey: string; cwd: string }
+  >();
 
   /**
    * Per-instance pulse, folded from the frames already passing through (Part 2
@@ -743,6 +748,15 @@ export class SessionSupervisor {
       const holder: { session: HarnessSession | null } = { session: null };
       const ctx = this.#context(instanceId, workdir, adapter, holder);
 
+      if (payload.resume) {
+        this.#resumable.set(instanceId, {
+          adapter,
+          sessionKey: payload.resume.sessionKey,
+          cwd: workdir,
+        });
+      } else {
+        this.#resumable.delete(instanceId);
+      }
       const session = payload.reattachOnly
         ? await adapter.reattach?.(payload, ctx)
         : await adapter.spawn(payload, ctx);
@@ -1143,19 +1157,31 @@ export class SessionSupervisor {
   }
 
   async #stop({ instanceId, discard, requestId }: StopPayload): Promise<void> {
-    this.#forgetPulse(instanceId);
-    const session = this.#sessions.get(instanceId);
-    if (session) {
-      this.#sessions.delete(instanceId);
-      await session.stop();
-    }
-    if (!discard) {
-      return;
-    }
-
     try {
-      await this.#removeWorktree(instanceId);
-      await this.#removeQuestSession(instanceId);
+      const session = this.#sessions.get(instanceId);
+      if (session) {
+        this.#forgetPulse(instanceId);
+        this.#sessions.delete(instanceId);
+        await session.stop();
+      } else {
+        const target = this.#resumable.get(instanceId);
+        const aborted =
+          discard &&
+          target &&
+          (await target.adapter.abortSession?.(target.sessionKey, target.cwd));
+        if (!aborted) {
+          throw new Error(
+            `Nothing stopped for ${instanceId}: no live session or abortable server turn${discard ? "" : "; held turns require explicit discard"}`
+          );
+        }
+      }
+      this.#resumable.delete(instanceId);
+      this.sink({ kind: "stopped", instanceId, discard: false });
+      if (discard) {
+        await this.#removeWorktree(instanceId);
+        await this.#removeQuestSession(instanceId);
+        this.sink({ kind: "stopped", instanceId, discard: true });
+      }
       if (requestId) {
         this.sink({ kind: "control_result", instanceId, requestId, ok: true });
       }

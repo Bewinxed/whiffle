@@ -271,12 +271,12 @@ export interface HeartbeatPayload {
 
 /** `stop`: interrupt and close a live session. */
 export interface StopPayload {
-  /** Also tear down what the spawn created for a side quest — its git worktree. */
+  /** Explicitly abort unadopted custody too, then tear down side-quest resources. */
   discard?: boolean;
   /** The instance a fleet-originated stop claims as its caller; the hub honours the call only when the target is that instance's own delegate. */
   from?: string;
   instanceId: string;
-  /** Correlates the `control_result` frame a discard's teardown answers with. */
+  /** Correlates the `control_result` frame confirming stop/discard or its failure. */
   requestId?: string;
 }
 
@@ -653,6 +653,12 @@ export type FramePayload =
        */
       kind: "usage";
       limits: import("./usage").UsageLimitsReading[];
+    }
+  | {
+      /** Authoritative daemon confirmation, never merely delivery of a stop request. */
+      kind: "stopped";
+      instanceId: string;
+      discard: boolean;
     }
   | {
       /** No `instanceId` when the call it answers was machine-scoped. */

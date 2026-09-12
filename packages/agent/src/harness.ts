@@ -101,6 +101,9 @@ export interface HarnessSession {
 
 /** One harness adapter. Implemented per runtime; registered in `./harnesses`. */
 export interface Harness {
+  /** Abort a server-held turn without adopting or waking its session. */
+  // biome-ignore lint/style/useConsistentMethodSignatures: matches the other adapter methods
+  abortSession?(sessionKey: string, dir: string): Promise<boolean>;
   /** What `register` reports as this harness's auth, cached from {@link detect}. */
   auth: AuthState;
   readonly capabilities: HarnessCapabilities;
