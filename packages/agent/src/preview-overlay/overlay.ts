@@ -273,6 +273,16 @@ window.addEventListener(
   true
 );
 
+let touchCaptured = false;
+
+async function selectAt(clientX: number, clientY: number) {
+  const el = elementAt(clientX, clientY);
+  if (el) {
+    const element = describe(el);
+    post("whiffle:selected", { element, ...(await capture(el)) });
+  }
+}
+
 // While selecting, the whole press belongs to the overlay: a document-level
 // outside-click handler in the app must not dismiss the thing being pointed
 // at on pointerdown, before the click that would have selected it arrives.
@@ -288,10 +298,20 @@ for (const type of [
 ] as const) {
   window.addEventListener(
     type,
-    (event) => {
+    async (event) => {
       if (selecting) {
         event.preventDefault();
         event.stopImmediatePropagation();
+        if (event.type === "pointerdown") {
+          touchCaptured = false;
+        } else if (event.type === "touchend") {
+          const [touch] = (event as TouchEvent).changedTouches;
+          if (touch) {
+            // Compatibility clicks belong to this same, already captured press.
+            touchCaptured = true;
+            await selectAt(touch.clientX, touch.clientY);
+          }
+        }
       }
     },
     { capture: true, passive: false }
@@ -306,10 +326,8 @@ window.addEventListener(
     }
     event.preventDefault();
     event.stopImmediatePropagation();
-    const el = elementAt(event.clientX, event.clientY);
-    if (el) {
-      const element = describe(el);
-      post("whiffle:selected", { element, ...(await capture(el)) });
+    if (!touchCaptured) {
+      await selectAt(event.clientX, event.clientY);
     }
   },
   true

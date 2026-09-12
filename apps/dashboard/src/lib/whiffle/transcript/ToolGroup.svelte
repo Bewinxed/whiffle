@@ -11,7 +11,7 @@
   import { Badge } from "$lib/components/ui/badge";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte convention for a component group.
   import * as Collapsible from "$lib/components/ui/collapsible";
-  import { IconChevronRight } from "$lib/icons";
+  import { IconChevronRight, IconWindow } from "$lib/icons";
   import {
     openPreview,
     revealPreview,
@@ -150,15 +150,14 @@
       }));
 
   /**
-   * Whether the pane already shows what this row asked for. A preview open on
-   * another port under the same session is not it: the row then opens, and
-   * the pane swaps documents, instead of revealing the wrong app.
+   * Metadata belongs to its source, even when another artifact from the same
+   * session is the one currently showing.
    */
-  function showsSource(
+  function sameSource(
     preview: (typeof whiffle.previews)[string] | undefined,
     wanted: PreviewSource
   ): boolean {
-    if (preview?.state !== "open" || !preview.source) {
+    if (!preview?.source) {
       return false;
     }
     return "port" in wanted
@@ -220,7 +219,37 @@
       still={!land.fresh}
     >
       <div class="row" class:err={failed}>
-        {#if hasBody}
+        {#if SHOW_PREVIEW_TOOLS.has(m.metadata?.toolName ?? '')}
+          {@const input = m.metadata?.toolInput as PreviewSource}
+          {@const current = whiffle.previews[m.instanceId]}
+          {@const preview = sameSource(current, input) ? current : undefined}
+          {@const opened = preview?.state === 'open'}
+          <div class="preview-tool" class:closed={!opened}>
+            <button
+              aria-label={preview?.title || 'Preview'}
+              class="artifact-open"
+              onclick={() => opened ? revealPreview(m.instanceId) : openPreview(m.instanceId, input).then(() => revealPreview(m.instanceId)).catch((error) => toast.error(error.message))}
+              type="button"
+            >
+              <span class="mark"><IconWindow /></span>
+              <span class="artifact-label"
+                ><span>{preview?.title || 'Preview'}</span
+                ><span class="artifact-path"
+                  >{preview?.path || ('dir' in input ? pathLeaf(input.dir) : '')}</span
+                ></span
+              >
+            </button>
+            <div aria-hidden="true" class="artifact-thumb" inert>
+              {#if preview?.thumbnail}
+                <Shot
+                  alt="Preview"
+                  size="thumb"
+                  src={`data:image/png;base64,${preview.thumbnail}`}
+                />
+              {/if}
+            </div>
+          </div>
+        {:else if hasBody}
           <Collapsible.Root>
             <Collapsible.Trigger class="trow">
               {@render line()}
@@ -263,21 +292,6 @@
             />
           </div>
         {/if}
-        {#if SHOW_PREVIEW_TOOLS.has(m.metadata?.toolName ?? '')}
-          {@const input = m.metadata?.toolInput as PreviewSource}
-          {@const opened = showsSource(whiffle.previews[m.instanceId], input)}
-          <div class="preview-tool">
-            <span class="arg"
-              >{'port' in input ? `localhost:${input.port}` : input.dir}</span
-            >
-            <button
-              onclick={() => opened ? revealPreview(m.instanceId) : openPreview(m.instanceId, input).catch((error) => toast.error(error.message))}
-              type="button"
-            >
-              {opened ? 'Show preview' : 'Open preview'}
-            </button>
-          </div>
-        {/if}
         {#if m.metadata?.resultImages?.length}
           <div class="shots">
             {#each m.metadata.resultImages as image, i (i)}
@@ -296,25 +310,101 @@
 
 <style>
   .preview-tool {
+    position: relative;
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
     gap: var(--space-2);
-    margin: var(--space-2) 0 0 calc(15px + var(--space-2));
-  }
-  .preview-tool button {
-    min-height: 34px;
-    padding: var(--space-1) var(--space-2);
-    border: 1px solid var(--border-control);
-    border-radius: var(--radius-control);
+    max-width: 440px;
+    min-height: 80px;
+    padding: var(--space-2);
+    margin: var(--space-2) 0;
+    border: 1px solid var(--border-hairline);
+    border-radius: var(--radius-card);
     background: var(--surface-raised);
+    box-shadow: var(--shadow-tile);
+  }
+  .preview-tool.closed {
+    opacity: 0.5;
+  }
+  .artifact-open {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    padding: var(--space-2);
+    background: transparent;
     color: var(--ink-body);
-    font-size: var(--text-xs);
+    font-size: var(--text-base);
+    text-align: left;
     cursor: pointer;
   }
-  .preview-tool button:focus-visible {
+  .artifact-open::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: var(--radius-card);
+  }
+  .artifact-open:focus-visible {
+    outline: none;
+  }
+  .artifact-open:focus-visible::after {
     outline: 2px solid var(--focus-ring);
     outline-offset: 2px;
+  }
+  .artifact-label {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .artifact-label > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .artifact-path {
+    color: var(--ink-muted);
+    font: var(--text-xs) var(--font-mono);
+  }
+  .mark {
+    width: 17px;
+    height: 17px;
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    border-radius: var(--radius-mark);
+    background: var(--mark-overlay), var(--mark-6);
+    box-shadow: var(--shadow-action);
+    color: var(--mark-glyph);
+  }
+  .mark :global(svg) {
+    width: 13px;
+    height: 13px;
+  }
+  .artifact-thumb {
+    width: 90px;
+    height: 64px;
+    flex-shrink: 0;
+    overflow: hidden;
+    border: 1px solid var(--border-hairline);
+    border-radius: var(--radius-well);
+    background: var(--surface-field);
+  }
+  .artifact-thumb :global(.box) {
+    height: 64px;
+    min-height: 0;
+  }
+  .artifact-thumb :global(img) {
+    width: 100%;
+    height: 64px;
+    object-fit: cover;
+    object-position: top;
+  }
+  @media (hover: hover) {
+    .preview-tool:has(.artifact-open:hover) {
+      background: var(--surface-hover);
+    }
   }
   @media (pointer: coarse) {
     .preview-tool button {

@@ -1,0 +1,143 @@
+<script lang="ts">
+  import { IconClose, IconWindow } from "$lib/icons";
+  import { type PendingSelection, selectionLabel } from "./selection";
+
+  let {
+    selection,
+    onedit,
+    onremove,
+    anchor = $bindable(),
+  }: {
+    selection: PendingSelection;
+    onedit: () => void;
+    onremove: () => void;
+    anchor?: HTMLButtonElement;
+  } = $props();
+  const label = $derived(selectionLabel(selection.element));
+  const source = $derived(selection.element.source);
+</script>
+
+<span class="selection-chip">
+  <button
+    aria-label={`Edit selection… ${label}`}
+    class="body"
+    onclick={onedit}
+    type="button"
+    bind:this={anchor}
+  >
+    {#if selection.png}
+      <img alt="" src={`data:image/png;base64,${selection.png}`}>
+    {:else}
+      <span class="mark"><IconWindow /></span>
+    {/if}
+    <span class="lines">
+      <span class="name">{label}</span>
+      <span class:source={!selection.note}
+        >{selection.note || (source?.file ? `${source.file}:${source.line ?? '?'}` : '')}</span
+      >
+    </span>
+  </button>
+  <button
+    aria-label="Remove selection"
+    class="remove"
+    onclick={onremove}
+    type="button"
+  >
+    <IconClose />
+  </button>
+</span>
+
+<style>
+  .selection-chip {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    border: 1px solid var(--border-hairline);
+    border-radius: var(--radius-control);
+    background: var(--surface-raised);
+    box-shadow: var(--shadow-tile);
+    padding: var(--space-1) var(--space-1) var(--space-1) var(--space-2);
+  }
+  button {
+    border: 0;
+    background: transparent;
+    color: var(--ink-body);
+    cursor: pointer;
+    border-radius: var(--radius-mark);
+  }
+  .body {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 0;
+    min-width: 0;
+    text-align: left;
+  }
+  img,
+  .mark {
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
+    flex-shrink: 0;
+    border-radius: var(--radius-mark);
+  }
+  .mark {
+    display: grid;
+    place-items: center;
+    background: var(--mark-overlay), var(--mark-6);
+    color: var(--mark-glyph);
+  }
+  .mark :global(svg) {
+    width: 17px;
+    height: 17px;
+  }
+  .lines {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    max-width: 220px;
+    font-size: var(--text-sm);
+    line-height: var(--leading-ui);
+    color: var(--ink-muted);
+  }
+  .lines > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .name {
+    color: var(--ink-body);
+  }
+  .source {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+  }
+  .remove {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+  }
+  .remove :global(svg) {
+    width: 13px;
+    height: 13px;
+  }
+  button:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+  @media (hover: hover) {
+    button:hover {
+      background: var(--surface-hover);
+    }
+  }
+  @media (pointer: coarse) {
+    button {
+      min-height: 44px;
+    }
+    .remove {
+      min-width: 44px;
+    }
+  }
+</style>

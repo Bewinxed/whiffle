@@ -273,6 +273,7 @@
         paneViews[headerId] = v;
       }}
       permissionMode={session?.permissionMode ?? null}
+      previewAvailable={whiffle.previews[headerId]?.state === 'open'}
       previewOpen={whiffle.previewVisible[headerId] === true}
       seed={session?.cwd || headerCtx?.cwd || headerId}
       {showEffort}

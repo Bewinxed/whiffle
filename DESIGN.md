@@ -943,6 +943,7 @@ other state change is instantaneous.
   and drawer entry/exit; a row arriving on the transcript, where the space the
   row opens is itself the information. `transform` and `opacity` carry most of
   it because they are the cheap pair, not because the others are forbidden.
+- popover entry — the new-session popover and the selection popover share one entrance: 260ms, scale 0.92→1, 8px rise, `cubic-bezier(0.32, 0.72, 0, 1)`; exit 160ms
 - **Never:** row reflow, table sort animation, number count-ups, hover lifts on
   table rows, staggered page-load fades, bounce or elastic easing.
 - **`prefers-reduced-motion`:** all four duration tokens collapse to 0 and a global

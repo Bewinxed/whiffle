@@ -1,61 +1,68 @@
 <script lang="ts">
-  import type { PreviewElement, PreviewSource } from "@whiffle/core";
   import { env } from "$env/dynamic/public";
   import {
-    closePreview,
-    commandRecord,
-    hidePreview,
-    openPreview,
-    type SendExtras,
-    whiffle,
-  } from "../client.svelte";
-  import { previewElement, previewError, previewPng, previewUrl } from "./wire";
+    IconClose,
+    IconCursor,
+    IconExternalLink,
+    IconRefresh,
+  } from "$lib/icons";
+  import { closePreview, whiffle } from "../client.svelte";
+  import type { CapturedSelection } from "./selection";
+  import {
+    previewElement,
+    previewError,
+    previewPng,
+    previewTitle,
+    previewUrl,
+  } from "./wire";
 
   let {
     instanceId,
-    machineId,
-    onsubmit,
-    sending,
+    onselect,
+    onescape,
   }: {
     instanceId: string;
-    machineId: string | undefined;
-    onsubmit: (text: string, extras: SendExtras) => Promise<string | undefined>;
-    sending: boolean;
+    onselect: (
+      selection: CapturedSelection
+    ) => "added" | "duplicate" | "full" | undefined;
+    onescape: () => boolean;
   } = $props();
   let iframe = $state<HTMLIFrameElement>();
   let selecting = $state(false);
   let connected = $state(false);
-  let currentUrl = $state("");
-  let comment = $state("");
-  let selections = $state<{ element: PreviewElement; png: string | null }[]>(
-    []
-  );
-  let submitting = $state(false);
-  let commandId = $state<string>();
-  const record = $derived(commandId ? commandRecord(commandId) : null);
-  let port = $state<number | undefined>(5173);
+  let captured = false;
   let reload = $state(0);
-  let busy = $state(false);
   let failure = $state("");
-  /**
-   * Every preview in this browser shares one routing cookie (hub preview.ts),
-   * so a pane that loads its open URL takes the cookie from every other pane.
-   * Panes tell each other over a BroadcastChannel; the one taken over says so
-   * and offers to take it back.
-   */
   let takenOver = $state(false);
+  let well = $state<HTMLDivElement>();
   const preview = $derived(whiffle.previews[instanceId]);
   const source = $derived(preview?.source);
-  const identity = $derived.by(() => {
-    if (!source) {
-      return "";
-    }
-    return "port" in source ? `port:${source.port}` : `dir:${source.dir}`;
-  });
+  const identity = $derived(JSON.stringify(source));
   const insecure = $derived(
     !env.PUBLIC_WHIFFLE_PREVIEW_ORIGIN && location.protocol === "https:"
   );
+  const origin = $derived(
+    env.PUBLIC_WHIFFLE_PREVIEW_ORIGIN ||
+      `${location.protocol}//${location.hostname}:${preview?.previewPort}`
+  );
+  const url = $derived(preview ? `${origin}${preview.open}` : "");
+  const previewOrigin = $derived(new URL(origin).origin);
+  const title = $derived(
+    preview?.title ||
+      (connected && source && "dir" in source
+        ? source.dir.split("/").filter(Boolean).at(-1)
+        : "Preview") ||
+      "Preview"
+  );
+  const frameKey = $derived(`${identity}:${reload}`);
 
+  $effect(() => {
+    if (frameKey) {
+      connected = false;
+      captured = false;
+    }
+  });
+  // The routing cookie is shared by all preview frames in this browser.
   $effect(() => {
     const channel = new BroadcastChannel("whiffle-preview");
     channel.onmessage = (event: MessageEvent<{ instanceId: string }>) => {
@@ -63,7 +70,9 @@
     };
     return () => channel.close();
   });
-
+  function post(message: object) {
+    iframe?.contentWindow?.postMessage(message, previewOrigin);
+  }
   function announce() {
     takenOver = false;
     const channel = new BroadcastChannel("whiffle-preview");
@@ -72,96 +81,28 @@
     connected = false;
     post({ type: "whiffle:hello" });
   }
-  /**
-   * Where the frame is, in one line: the source the preview was opened on,
-   * then the path the app has navigated to inside it. The path comes from the
-   * overlay's `whiffle:ready` / `whiffle:navigated`, so a static directory or
-   * a page that has not answered yet shows the source alone.
-   */
-  const label = $derived.by(() => {
-    if (!source) {
-      return "Preview";
-    }
-    const base =
-      "port" in source
-        ? `localhost:${source.port}`
-        : source.dir.split("/").filter(Boolean).at(-1) || "/";
-    if (!currentUrl) {
-      return base;
-    }
-    const { pathname, search, hash } = new URL(currentUrl);
-    const path = `${pathname}${search}${hash}`;
-    return path === "/" ? base : `${base}${path}`;
-  });
-  const origin = $derived(
-    env.PUBLIC_WHIFFLE_PREVIEW_ORIGIN ||
-      `${location.protocol}//${location.hostname}:${preview?.previewPort}`
-  );
-  const url = $derived(preview ? `${origin}${preview.open}` : "");
-  const previewOrigin = $derived(new URL(origin).origin);
-  const SELECTIONS_MAX = 12;
-
-  /** Which document the iframe holds: the source it shows, and how often it was reloaded. */
-  const frameKey = $derived(`${identity}:${reload}`);
-
-  // A frame being replaced or reloaded has no overlay listening yet; Select
-  // waits for the new document's ready rather than posting into the gap
-  // between the old page going and the new one answering.
-  $effect(() => {
-    if (frameKey) {
-      connected = false;
-    }
-  });
-
-  function post(message: object) {
-    iframe?.contentWindow?.postMessage(message, previewOrigin);
-  }
-
   function select(on: boolean) {
     selecting = on;
     post({ type: "whiffle:mode", mode: on ? "select" : "off" });
   }
-
-  /**
-   * One click in select mode. A click that lands while a send is in flight,
-   * or after Select was left, is not a selection; the same element twice is
-   * one selection; and the list stops growing at what one turn can use.
-   */
-  function selected(message: {
-    element?: unknown;
-    png?: unknown;
-    error?: unknown;
-  }) {
-    const open =
-      selecting &&
-      !submitting &&
-      !commandId &&
-      selections.length < SELECTIONS_MAX;
-    const element = open
-      ? previewElement(message.element, previewOrigin)
-      : null;
-    if (element) {
-      const known = selections.some(
-        (entry) =>
-          entry.element.url === element.url &&
-          entry.element.selector === element.selector
-      );
-      if (!known) {
-        selections.push({ element, png: previewPng(message.png) });
-      }
+  function parentEscape(event: KeyboardEvent) {
+    if (
+      event.key !== "Escape" ||
+      event.defaultPrevented ||
+      (event.target instanceof Element && event.target.closest("dialog[open]"))
+    ) {
+      return;
     }
-    const error = previewError(message.error);
-    if (error) {
-      failure = error;
+    if (onescape()) {
+      event.preventDefault();
+      return;
+    }
+    if (selecting) {
+      select(false);
+      event.preventDefault();
     }
   }
-
-  /**
-   * Messages from the frame. The source and origin checks say which window
-   * is talking; they cannot say whether the overlay or the app sharing its
-   * window sent a message, so every payload goes through `wire.ts` before it
-   * touches state (see the note there).
-   */
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: one validated dispatch for the overlay's wire protocol.
   function receive(event: MessageEvent) {
     if (
       event.source !== iframe?.contentWindow ||
@@ -171,410 +112,328 @@
     }
     const message = event.data;
     switch (message?.type) {
-      case "whiffle:ready": {
-        // The overlay's first ready, sent before it knows who to talk to,
-        // carries no URL; the answer is a hello so it learns our origin.
-        if (message.url === undefined) {
+      case "whiffle:ready":
+      case "whiffle:navigated": {
+        if (message.type === "whiffle:ready" && message.url === undefined) {
           post({ type: "whiffle:hello" });
           return;
         }
         const at = previewUrl(message.url, previewOrigin);
-        if (at) {
+        if (!at) {
+          return;
+        }
+        const parsed = new URL(at);
+        preview.path = `${parsed.pathname}${parsed.search}${parsed.hash}`;
+        preview.title = previewTitle(message.title) ?? "";
+        if (message.type === "whiffle:ready") {
           connected = true;
-          currentUrl = at;
           select(selecting);
+          if (!captured) {
+            captured = true;
+            post({ type: "whiffle:capture" });
+          }
         }
         break;
       }
-      case "whiffle:navigated": {
-        const at = previewUrl(message.url, previewOrigin);
-        if (at) {
-          currentUrl = at;
+      case "whiffle:capture": {
+        const png = previewPng(message.png);
+        if (png) {
+          preview.thumbnail = png;
         }
-        break;
-      }
-      case "whiffle:selected":
-        selected(message);
-        break;
-      case "whiffle:escape":
-        selecting = false;
-        break;
-      case "whiffle:error": {
-        const error = previewError(message.message);
+        const error = previewError(message.error);
         if (error) {
           failure = error;
         }
         break;
       }
+      case "whiffle:selected": {
+        if (!selecting) {
+          return;
+        }
+        const element = previewElement(message.element, previewOrigin);
+        if (
+          well &&
+          element &&
+          onselect({
+            element,
+            png: previewPng(message.png),
+            note: "",
+            scale: Math.min(2, devicePixelRatio),
+          }) === "full"
+        ) {
+          const style = getComputedStyle(well);
+          well?.animate(
+            [
+              { outlineColor: style.getPropertyValue("--accent") },
+              { outlineColor: style.getPropertyValue("--focus-ring") },
+              { outlineColor: style.getPropertyValue("--accent") },
+            ],
+            {
+              duration: matchMedia("(prefers-reduced-motion: reduce)").matches
+                ? 1
+                : Number.parseFloat(style.getPropertyValue("--c-300")),
+            }
+          );
+        }
+        const error = previewError(message.error);
+        if (error) {
+          failure = error;
+        }
+        break;
+      }
+      case "whiffle:escape":
+        select(false);
+        break;
+      case "whiffle:error":
+        failure = previewError(message.message) ?? "";
+        break;
       default:
         break;
     }
   }
-
-  $effect(() => {
-    if (record?.stage === "accepted" || record?.stage === "applied") {
-      selections = [];
-      comment = "";
-      select(false);
-      commandId = undefined;
-    } else if (record?.stage === "failed") {
-      failure = record.reason || "The selection could not be sent.";
-      commandId = undefined;
-    }
-  });
-
-  async function sendSelection() {
-    submitting = true;
-    failure = "";
-    try {
-      await submitSelection();
-    } finally {
-      submitting = false;
-    }
-  }
-
-  async function submitSelection() {
-    const sections = selections.map(({ element: el }, index) => {
-      const { source: metadata } = el;
-      const location = metadata?.file
-        ? `${metadata.file}:${metadata.line ?? "?"}:${metadata.column ?? "?"} (${metadata.framework}, ${metadata.of})`
-        : `unknown (the app exposes no dev source metadata)${metadata?.component ? `; component: ${metadata.component} (${metadata.framework}, ${metadata.of})` : ""}`;
-      const style = el.styles;
-      // A fence longer than anything captured keeps app HTML inside its code block.
-      const fence = "`".repeat(
-        Math.max(
-          3,
-          ...Array.from(el.html.matchAll(/`+/g), ([match]) => match.length + 1)
-        )
-      );
-      return `## ${index + 1}. ${el.selector}\n- source: ${location}\n- url: ${el.url}\n- size: ${el.rect.width}×${el.rect.height} at (${el.page.x},${el.page.y}) in the page\n- text: ${JSON.stringify(el.text)}\n- styles: color ${style.color}; background ${style.backgroundColor}; font ${style.fontFamily} ${style.fontSize}/${style.lineHeight} ${style.fontWeight}\n\n${fence}html\n${el.html}\n${fence}`;
-    });
-    const extras: SendExtras = {
-      attachments: [
-        {
-          kind: "text",
-          name: "selection.md",
-          content: `# Selected in the preview (${currentUrl})\n\n${sections.join("\n\n")}`,
-        },
-      ],
-      images: selections.flatMap(({ png }) =>
-        png ? [{ mediaType: "image/png", data: png }] : []
-      ),
-    };
-    commandId = await onsubmit(
-      comment.trim() ||
-        `Look at the selected element${selections.length === 1 ? "" : "s"}.`,
-      extras
-    );
-  }
-
-  async function show(next: PreviewSource) {
-    busy = true;
-    failure = "";
-    try {
-      await openPreview(instanceId, next);
-    } catch (reason) {
-      failure = reason instanceof Error ? reason.message : String(reason);
-    } finally {
-      busy = false;
-    }
-  }
-
   async function close() {
-    busy = true;
-    failure = "";
     try {
       await closePreview(instanceId);
-      hidePreview(instanceId);
-    } catch (reason) {
-      failure = reason instanceof Error ? reason.message : String(reason);
-    } finally {
-      busy = false;
+    } catch (error) {
+      failure = error instanceof Error ? error.message : String(error);
     }
   }
 </script>
 
-<svelte:window onmessage={receive} />
+<svelte:window onkeydown={parentEscape} onmessage={receive} />
 
-<section aria-label="Preview" class="preview-pane">
+<section aria-label="Preview" class="preview-pane" class:selecting>
   <header>
-    <span
-      class="source"
-      title={currentUrl || (source && 'dir' in source ? source.dir : label)}
-      >{label}</span
-    >
-    {#if preview?.state === 'open'}
-      <button onclick={() => { reload += 1; }} type="button">Reload</button>
-      <a href={url} rel="noopener noreferrer" target="_blank"
-        >Open in new tab</a
+    <div class="identity">
+      <span class="title">{title}</span
+      ><span class="path"
+        >{preview?.path || (source && 'dir' in source ? source.dir.split('/').filter(Boolean).at(-1) : '')}</span
       >
-    {/if}
-    <button disabled={busy} onclick={close} type="button">Close</button>
+    </div>
+    <button
+      aria-pressed={selecting}
+      disabled={!connected}
+      onclick={() => select(!selecting)}
+      title="Select"
+      type="button"
+    >
+      <IconCursor /><span class="select-label">Select</span>
+    </button>
+    <button
+      aria-label="Reload"
+      class="other"
+      onclick={() => { reload += 1; }}
+      title="Reload"
+      type="button"
+    >
+      <IconRefresh />
+    </button>
+    <a
+      aria-label="Open in new tab"
+      class="other"
+      href={url}
+      rel="noopener noreferrer"
+      target="_blank"
+      title="Open in new tab"
+      ><IconExternalLink /></a
+    >
+    <button
+      aria-label="Close"
+      class="other"
+      onclick={close}
+      title="Close"
+      type="button"
+    >
+      <IconClose />
+    </button>
   </header>
-  {#if failure}
-    <p class="error" role="alert">{failure}</p>
-  {/if}
-  {#if preview?.state === 'open' && insecure}
-    <p class="empty">
-      This dashboard is served over HTTPS. Set PUBLIC_WHIFFLE_PREVIEW_ORIGIN to
-      an https origin that reaches the hub's preview port ({preview.previewPort}).
-    </p>
-  {:else if preview?.state === 'open' && takenOver}
-    <div class="empty">
-      <p>Another session's preview is showing in this browser.</p>
-      <button onclick={() => { reload += 1; }} type="button">Show</button>
-    </div>
-  {:else if preview?.state === 'open'}
-    <div class="mode-bar">
-      <button
-        aria-pressed={selecting}
-        disabled={!connected || submitting || !!commandId}
-        onclick={() => select(!selecting)}
-        type="button"
-      >
-        Select
-      </button>
-      <textarea
-        aria-label="What should change?"
-        disabled={submitting || !!commandId}
-        placeholder="What should change?"
-        rows="1"
-        bind:value={comment}
-      ></textarea>
-      <button
-        disabled={!machineId || sending || submitting || !!commandId || selections.length === 0}
-        onclick={sendSelection}
-        type="button"
-      >
-        Send
-      </button>
-    </div>
-    {#if selections.length}
-      <ul aria-label="Selected elements" class="selections">
-        {#each selections as selection (`${selection.element.url}:${selection.element.selector}`)}
-          {@const el = selection.element}
-          <li>
-            {#if selection.png}
-              <img alt="" src={`data:image/png;base64,${selection.png}`}>
-            {/if}
-            <span class="selection-label">
-              <span
-                class="selection-name"
-                title={`${el.tag}${el.id ? `#${el.id}` : ''}${el.classes.map(name => `.${name}`).join('')}`}
-                >{`${el.tag}${el.id ? `#${el.id}` : ''}${el.classes.length ? `.${el.classes[0]}` : ''}`}</span
-              >
-              {#if el.source?.file}
-                <span class="selection-source"
-                  >{el.source.file}:{el.source.line ?? '?'}</span
-                >
-              {/if}
-            </span>
-            <button
-              aria-label="Remove"
-              disabled={submitting || !!commandId}
-              onclick={() => { selections = selections.filter(item => item !== selection); }}
-              type="button"
-            >
-              Remove
-            </button>
-          </li>
-        {/each}
-      </ul>
+  <div class="well" bind:this={well}>
+    {#if insecure}
+      <p class="empty">Set an HTTPS preview origin to show this page.</p>
+    {:else if takenOver}
+      <div class="empty">
+        Another tab is showing a preview.
+        <button
+          onclick={() => { takenOver = false; reload += 1; }}
+          title="Show"
+          type="button"
+        >
+          Show
+        </button>
+      </div>
+    {:else}
+      {#key frameKey}
+        <!-- biome-ignore lint/a11y/noNoninteractiveElementInteractions: load announces the routing cookie and starts the overlay handshake. -->
+        <iframe
+          allow="clipboard-write"
+          onload={announce}
+          src={url}
+          title="Preview"
+          bind:this={iframe}
+          class:ready={connected}
+        ></iframe>
+      {/key}
+      <div aria-hidden="true" class="skeleton" class:ready={connected}>
+        <span></span>
+      </div>
     {/if}
-    {#key frameKey}
-      <!-- biome-ignore lint/a11y/noNoninteractiveElementInteractions: load is the moment the routing cookie landed, not user interaction. -->
-      <iframe
-        allow="clipboard-write"
-        onload={announce}
-        src={url}
-        title="Preview"
-        bind:this={iframe}
-      ></iframe>
-    {/key}
-  {:else if preview?.state === 'closed' && source}
-    <div class="empty">
-      <p>Preview closed.</p>
-      <button disabled={busy} onclick={() => show(source)} type="button">
-        Show
-      </button>
-    </div>
-  {:else}
-    <form
-      onsubmit={(event) => { event.preventDefault(); show({ port: port as number }); }}
-    >
-      <label
-        >Port
-        <input
-          max="65535"
-          min="1"
-          required
-          step="1"
-          type="number"
-          bind:value={port}
-        ></label
-      >
-      <button disabled={busy} type="submit">Show</button>
-    </form>
-  {/if}
+    {#if failure}
+      <p class="error" role="alert">{failure}</p>
+    {/if}
+  </div>
 </section>
 
 <style>
   .preview-pane {
+    container-type: inline-size;
     display: flex;
     flex-direction: column;
     min-width: 0;
     min-height: 0;
     height: 100%;
-    background: var(--surface-field);
+    padding: 0 var(--space-2) var(--space-2);
+    background: var(--surface-raised);
+    border-radius: var(--radius-panel);
+    box-shadow: var(--shadow-drawer);
   }
   header {
     display: flex;
     align-items: center;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
-    border-bottom: 1px solid var(--border-subtle);
+    gap: var(--space-1);
+    height: 44px;
+    flex-shrink: 0;
   }
-  .source {
+  .identity {
     flex: 1;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    padding-left: var(--space-1);
+  }
+  .title,
+  .path {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .title {
+    color: var(--ink-body);
+    font-size: var(--text-base);
+    font-weight: var(--weight-medium);
+  }
+  .path {
     color: var(--ink-muted);
     font: var(--text-xs) var(--font-mono);
-  }
-  button,
-  a,
-  input,
-  textarea {
-    min-height: 34px;
-    border: 1px solid var(--border-control);
-    border-radius: var(--radius-control);
-    padding: var(--space-1) var(--space-2);
-    background: var(--surface-raised);
-    color: var(--ink-body);
-    font-size: var(--text-xs);
   }
   button,
   a {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    gap: var(--space-1);
+    min-width: 30px;
+    height: 30px;
+    padding: 0 var(--space-2);
+    border: 0;
+    border-radius: var(--radius-control);
+    color: var(--ink-muted);
+    background: transparent;
     cursor: pointer;
     text-decoration: none;
+    font: inherit;
+    font-size: var(--text-sm);
+    transition:
+      background-color var(--c-100) var(--e-in),
+      color var(--c-100) var(--e-in),
+      transform var(--c-100) var(--e-in),
+      opacity var(--c-100) var(--e-toggle);
   }
-  button:disabled {
-    opacity: 0.5;
-    cursor: default;
+  button :global(svg),
+  a :global(svg) {
+    width: 17px;
+    height: 17px;
   }
   button:focus-visible,
-  a:focus-visible,
-  input:focus-visible {
+  a:focus-visible {
     outline: 2px solid var(--focus-ring);
     outline-offset: 2px;
   }
-  textarea:focus-visible {
-    outline: 2px solid var(--focus-ring);
-    outline-offset: 2px;
-  }
-  .mode-bar {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
-    border-bottom: 1px solid var(--border-subtle);
-  }
-  textarea {
-    flex: 1;
-    min-inline-size: 0;
-    resize: vertical;
-    font-family: var(--font-body);
-    caret-color: var(--ink-strong);
-  }
-  textarea::placeholder {
-    color: var(--ink-muted);
+  button:active,
+  a:active {
+    transform: scale(0.96);
   }
   button[aria-pressed="true"] {
     background: var(--surface-active);
-    border-color: var(--ink-muted);
+    color: var(--ink-strong);
   }
-  .selections {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
-    margin: 0;
-    list-style: none;
-    max-block-size: 25%;
-    overflow-y: auto;
-    flex-shrink: 0;
+  button:disabled,
+  .selecting .other {
+    opacity: 0.5;
   }
-  .selections li {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-1);
-    min-inline-size: 0;
-    max-inline-size: 100%;
-    border: 1px solid var(--border-control);
-    border-radius: var(--radius-control);
-    background: var(--surface-raised);
-  }
-  .selections img {
-    inline-size: var(--space-8);
-    block-size: var(--space-8);
-    object-fit: contain;
-    flex-shrink: 0;
-  }
-  .selections button {
-    flex-shrink: 0;
-  }
-  .selection-label {
-    min-inline-size: 0;
-    overflow-wrap: anywhere;
-    color: var(--ink-body);
-    font: var(--text-xs) var(--font-mono);
-  }
-  .selection-source {
-    display: block;
-    color: var(--ink-muted);
-  }
-  .selection-name {
-    display: block;
+  .well {
+    position: relative;
+    flex: 1;
+    min-height: 0;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    border: 1px solid var(--border-hairline);
+    border-radius: var(--radius-well);
+    background: var(--surface-field);
+    outline: 2px solid transparent;
+    transition: outline-color var(--c-100) var(--e-toggle);
+  }
+  .selecting .well {
+    outline-color: var(--accent);
+    cursor: crosshair;
   }
   iframe {
-    flex: 1;
+    display: block;
     width: 100%;
-    min-height: 0;
+    height: 100%;
     border: 0;
+    opacity: 0;
+    transition: opacity var(--c-100) var(--e-in);
   }
-  form,
+  iframe.ready {
+    opacity: 1;
+  }
+  .skeleton {
+    position: absolute;
+    inset: 0;
+    padding: var(--space-5);
+    background: var(--surface-field);
+    pointer-events: none;
+    transition: opacity var(--c-100) var(--e-in);
+  }
+  .skeleton.ready {
+    opacity: 0;
+  }
+  .skeleton span {
+    display: block;
+    width: 42%;
+    height: var(--space-3);
+    background: var(--surface-sunken);
+    border-radius: var(--radius-mark);
+  }
   .empty {
     display: flex;
     align-items: center;
-    flex-wrap: wrap;
-    gap: var(--space-3);
+    gap: var(--space-2);
     padding: var(--space-4);
     color: var(--ink-muted);
     font-size: var(--text-sm);
   }
-  label {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-  }
-  input {
-    width: 8ch;
-  }
   .error {
-    padding: var(--space-3);
+    position: absolute;
+    bottom: 0;
+    padding: var(--space-2);
+    background: var(--surface-raised);
     color: var(--data-bad);
     font-size: var(--text-sm);
+  }
+  @container (max-width: 469px) {
+    .select-label {
+      display: none;
+    }
   }
   @media (hover: hover) {
     button:hover,
@@ -584,10 +443,9 @@
   }
   @media (pointer: coarse) {
     button,
-    a,
-    input,
-    textarea {
-      min-height: 44px;
+    a {
+      min-width: 44px;
+      height: 44px;
     }
   }
 </style>

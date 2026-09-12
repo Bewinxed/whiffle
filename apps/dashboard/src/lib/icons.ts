@@ -155,6 +155,7 @@ export { default as IconTools } from "~icons/solar/sledgehammer-linear";
 export { default as IconSort } from "~icons/solar/sort-linear";
 export { default as IconUnfold } from "~icons/solar/sort-vertical-linear";
 export { default as IconExternal } from "~icons/solar/square-top-down-linear";
+export { default as IconExternalLink } from "~icons/solar/square-top-up-linear";
 export { default as IconStop } from "~icons/solar/stop-linear";
 export { default as IconSun } from "~icons/solar/sun-linear";
 export { default as IconLabDuo } from "~icons/solar/test-tube-bold-duotone";

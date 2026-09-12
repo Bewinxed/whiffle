@@ -33,12 +33,21 @@
   import * as Command from "$lib/components/ui/command";
   import { IconClose, IconPlus, IconSend, IconStop } from "$lib/icons";
   import type { SendExtras } from "../client.svelte";
+  import { newId } from "../id";
+  import SelectionChip from "../preview/SelectionChip.svelte";
+  import SelectionPopover from "../preview/SelectionPopover.svelte";
+  import type {
+    CapturedSelection,
+    PendingSelection,
+  } from "../preview/selection";
 
   let {
     value = $bindable(""),
     height = $bindable(0),
     busy = false,
     sending = false,
+    paneVisible = true,
+    previewPhone = false,
     commands = [],
     mentions = [],
     onsubmit,
@@ -63,6 +72,8 @@
      * second send from a duplicate of the first.
      */
     sending?: boolean;
+    paneVisible?: boolean;
+    previewPhone?: boolean;
     /** What this session offers behind `/`. */
     commands?: AvailableCommand[];
     /** What `@` can name — the sessions and machines in reach. */
@@ -93,6 +104,63 @@
 
   let images = $state<PendingImage[]>([]);
   let texts = $state<PendingText[]>([]);
+  // Chips belong to this session's composer and survive preview visibility changes.
+  // The outbox restores the structured notes when a submitted turn fails.
+  let selections = $state<PendingSelection[]>([]);
+  export function acceptSelections(selectionIds: string[]) {
+    selections = selections.filter(({ id }) => !selectionIds.includes(id));
+  }
+  let editing = $state<PendingSelection | null>(null);
+  let editorOpen = $state(false);
+  $effect(() => {
+    if (!paneVisible) {
+      editorOpen = false;
+    }
+  });
+  let anchors = $state<Record<string, HTMLButtonElement | undefined>>({});
+
+  export function attach(
+    selection: CapturedSelection
+  ): "added" | "duplicate" | "full" {
+    editorOpen = false;
+    if (
+      selections.some(
+        ({ element }) =>
+          element.url === selection.element.url &&
+          element.selector === selection.element.selector
+      )
+    ) {
+      return "duplicate";
+    }
+    if (selections.length === 12) {
+      return "full";
+    }
+    selections.push({ ...selection, id: newId() });
+    editing = selections.at(-1) ?? null;
+    editorOpen = true;
+    return "added";
+  }
+
+  export function closeSelectionEditor(): boolean {
+    if (!editorOpen) {
+      return false;
+    }
+    editorOpen = false;
+    if (editing) {
+      anchors[`${editing.element.url}:${editing.element.selector}`]?.focus({
+        preventScroll: true,
+      });
+    }
+    return true;
+  }
+
+  function removeSelection(selection: PendingSelection) {
+    if (editing === selection) {
+      editorOpen = false;
+      editing = null;
+    }
+    selections = selections.filter((item) => item !== selection);
+  }
   let fileInput = $state<HTMLInputElement>();
   let field = $state<HTMLTextAreaElement>();
 
@@ -103,7 +171,10 @@
   const TOKEN_WHITESPACE = /\s/;
 
   const hasContent = $derived(
-    value.trim().length > 0 || images.length > 0 || texts.length > 0
+    value.trim().length > 0 ||
+      images.length > 0 ||
+      texts.length > 0 ||
+      selections.length > 0
   );
 
   /* ---- the `/` and `@` menu ------------------------------------------- */
@@ -399,6 +470,9 @@
       return;
     }
     const extras: SendExtras = {};
+    if (selections.length) {
+      extras.selections = $state.snapshot(selections);
+    }
     if (texts.length) {
       extras.attachments = texts.map((t) => ({ ...t }));
     }
@@ -412,6 +486,8 @@
     value = "";
     images = [];
     texts = [];
+    editorOpen = false;
+    editing = null;
     dismissed = true;
     via(text, extras);
   }
@@ -431,6 +507,7 @@
    * given a name they never had.
    */
   export function restore(extras: SendExtras = {}): void {
+    selections = extras.selections ?? [];
     texts = (extras.attachments ?? []).map((attachment) => ({
       kind: "text",
       name: attachment.name,
@@ -576,8 +653,16 @@
   {#if prompts}
     <div class="prompts">{@render prompts()}</div>
   {/if}
-  {#if images.length || texts.length}
+  {#if images.length || texts.length || selections.length}
     <div class="atts">
+      {#each selections as selection (`${selection.element.url}:${selection.element.selector}`)}
+        <SelectionChip
+          onedit={() => { editing = selection; editorOpen = true; }}
+          onremove={() => removeSelection(selection)}
+          {selection}
+          bind:anchor={anchors[`${selection.element.url}:${selection.element.selector}`]}
+        />
+      {/each}
       {#each images as img, i (img.name + i)}
         <span class="att">
           <img alt="" src="data:{img.mediaType};base64,{img.data}">
@@ -604,6 +689,16 @@
         </span>
       {/each}
     </div>
+  {/if}
+
+  {#if editing}
+    <SelectionPopover
+      anchor={anchors[`${editing.element.url}:${editing.element.selector}`]}
+      onremove={() => { if (editing) { removeSelection(editing); } }}
+      phone={previewPhone}
+      selection={editing}
+      bind:open={editorOpen}
+    />
   {/if}
 
   <form
@@ -991,6 +1086,9 @@
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-2);
+    max-height: 180px;
+    overflow-y: auto;
+    padding: var(--space-1);
   }
   .att {
     display: inline-flex;

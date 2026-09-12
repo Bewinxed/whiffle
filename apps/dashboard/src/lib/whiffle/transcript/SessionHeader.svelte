@@ -80,6 +80,7 @@
     view,
     onview,
     previewOpen,
+    previewAvailable = false,
     onpreview,
     offeredModes,
     effortStops,
@@ -111,6 +112,7 @@
     onview: (v: "chat" | "flow") => void;
     /** Whether the pane beside the transcript is showing the preview. */
     previewOpen: boolean;
+    previewAvailable?: boolean;
     onpreview: () => void;
     /** Permission modes this session's harness can honour. */
     offeredModes: PermissionModeOption[];
@@ -579,16 +581,18 @@
       </ToggleGroup.Item>
     </ToggleGroup.Root>
 
-    <button
-      aria-pressed={previewOpen}
-      class="preview-toggle"
-      onclick={onpreview}
-      title="Preview"
-      type="button"
-    >
-      <IconWindow />
-      <span>Preview</span>
-    </button>
+    {#if previewAvailable}
+      <button
+        aria-pressed={previewOpen}
+        class="preview-toggle"
+        onclick={onpreview}
+        title="Preview"
+        type="button"
+      >
+        <IconWindow />
+        <span>Preview</span>
+      </button>
+    {/if}
 
     {#if narrow.current}
       <Drawer.Root bind:open>

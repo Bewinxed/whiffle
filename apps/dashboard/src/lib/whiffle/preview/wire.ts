@@ -69,6 +69,10 @@ export function previewError(value: unknown): string | null {
   return text(value, ERROR_MAX);
 }
 
+export function previewTitle(value: unknown): string | null {
+  return text(value, 300);
+}
+
 function source(value: unknown): PreviewElement["source"] {
   const raw = record(value);
   if (!raw) {

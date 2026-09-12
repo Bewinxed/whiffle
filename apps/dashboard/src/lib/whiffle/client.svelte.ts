@@ -75,6 +75,7 @@ import {
 } from "./frames";
 import { newId } from "./id";
 import { conversationHref, instanceForSession } from "./links";
+import { type PendingSelection, selectionExtras } from "./preview/selection";
 import { ingestQueued, retireQueued } from "./queue";
 import type {
   CommandRecord,
@@ -395,8 +396,16 @@ export interface SessionState {
 }
 
 const state = $state({
-  previews: {} as Record<string, Extract<FramePayload, { kind: "preview" }>>,
+  previews: {} as Record<
+    string,
+    Extract<FramePayload, { kind: "preview" }> & {
+      title?: string;
+      path?: string;
+      thumbnail?: string;
+    }
+  >,
   previewVisible: {} as Record<string, boolean>,
+  previewRequests: {} as Record<string, number>,
   status: "disconnected" as ConnectionStatus,
   /**
    * Whether a socket has ever been opened for this document. A dashboard that
@@ -1039,8 +1048,7 @@ function announceSupervisorEvent(event: SupervisorEvent): void {
     "a session";
   const open = {
     label: "Open",
-    // biome-ignore lint/complexity/noVoid: fire-and-forget — the toast dismisses on click, navigation doesn't need to be awaited
-    onClick: () => void goto(conversationHref(event.instanceId, state.instances)),
+    onClick: () => goto(conversationHref(event.instanceId, state.instances)),
   };
   if (event.verdict === "error") {
     // One toast per (session, cause) — sonner replaces by id, so a broken
@@ -1093,9 +1101,15 @@ const nameOfCall = (messages: Message[], toolId: string): string =>
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: dispatches every FramePayload kind the socket can deliver; splitting it would scatter one state machine across files
 function handleFrame(frame: FramePayload): void {
   if (frame.kind === "preview") {
-    state.previews[frame.instanceId] = frame;
-    if (frame.state === "open") {
-      state.previewVisible[frame.instanceId] = true;
+    const previous = state.previews[frame.instanceId];
+    const sameSource =
+      JSON.stringify(previous?.source) === JSON.stringify(frame.source);
+    state.previews[frame.instanceId] = {
+      ...(sameSource ? previous : {}),
+      ...frame,
+    };
+    if (frame.state === "open" && (previous?.state !== "open" || !sameSource)) {
+      revealPreview(frame.instanceId);
     }
     return;
   }
@@ -1111,7 +1125,10 @@ function handleFrame(frame: FramePayload): void {
       }
       for (const preview of frame.previews) {
         if (state.previews[preview.instanceId]?.state === "open") {
-          state.previews[preview.instanceId] = preview;
+          state.previews[preview.instanceId] = {
+            ...state.previews[preview.instanceId],
+            ...preview,
+          };
         } else {
           handleFrame(preview);
         }
@@ -1932,7 +1949,11 @@ function wirePayload<K extends CommandKind>(
   switch (kind) {
     case "send": {
       const { text, extras } = intent as CommandIntents["send"];
-      return { instanceId, message: userMessage(text), ...(extras ?? {}) };
+      return {
+        instanceId,
+        message: userMessage(text),
+        ...selectionExtras(extras),
+      };
     }
     case "permission.answer": {
       const { requestId, result } =
@@ -2190,6 +2211,19 @@ interface OutboxEntry {
  * base64 image data alive.
  */
 const sendOutbox = new Map<string, OutboxEntry>();
+const selectionSends = $state<
+  Record<string, { instanceId: string; selectionIds: string[]; at: number }>
+>({});
+
+export function selectionCommands(instanceId: string) {
+  return Object.entries(selectionSends)
+    .filter(([, entry]) => entry.instanceId === instanceId)
+    .map(([commandId, entry]) => ({
+      commandId,
+      selectionIds: entry.selectionIds,
+      stage: commandRecord(commandId)?.stage,
+    }));
+}
 
 /**
  * Bumped on every mutation of the Map above, and read by {@link canResend}.
@@ -2230,6 +2264,13 @@ function rememberSend(
     extras,
     at: Date.now(),
   });
+  if (extras.selections?.length) {
+    selectionSends[commandId] = {
+      instanceId,
+      selectionIds: extras.selections.map(({ id }) => id),
+      at: Date.now(),
+    };
+  }
   outboxVersion += 1;
   pruneOutbox();
 }
@@ -2244,6 +2285,17 @@ function rememberSend(
 function pruneOutbox(): void {
   const before = sendOutbox.size;
   const now = Date.now();
+  const selections = Object.entries(selectionSends).sort(
+    (a, b) => b[1].at - a[1].at
+  );
+  for (const [index, [commandId, entry]] of selections.entries()) {
+    if (
+      index >= SETTLED_COMMAND_LIMIT ||
+      now - entry.at >= SETTLED_COMMAND_TTL_MS
+    ) {
+      delete selectionSends[commandId];
+    }
+  }
   for (const [commandId, entry] of sendOutbox) {
     const record = streamState.commands[commandId];
     const stale = now - entry.at >= SETTLED_COMMAND_TTL_MS;
@@ -2959,8 +3011,7 @@ export function resumeSession({
     existing.machineId ||= live.machineId;
     existing.cwd ||= live.cwd;
     existing.sessionId = sessionId;
-    // biome-ignore lint/suspicious/noUnnecessaryConditions: the cast doesn't make the field non-nullish at runtime — older rows really can lack a harness
-    existing.harness = (live.harness as HarnessKind) ?? harness;
+    existing.harness = (live.harness as HarnessKind | undefined) ?? harness;
     return live.id;
   }
 
@@ -3019,7 +3070,9 @@ export function forkSession({
 }
 
 /** What a turn carries besides its typed text — pastes turned into chips, images. */
-export type SendExtras = Pick<SendPayload, "attachments" | "images">;
+export type SendExtras = Pick<SendPayload, "attachments" | "images"> & {
+  selections?: PendingSelection[];
+};
 
 export function sendText(
   instanceId: string,
@@ -3032,7 +3085,7 @@ export function sendText(
   const payload: SendPayload = {
     instanceId,
     message: userMessage(text),
-    ...extras,
+    ...selectionExtras(extras),
   };
   // Optimistic, and marked as such. If the session was busy the daemon answers
   // with `message_queued` and this copy is retired in favour of the queue's own
@@ -3069,7 +3122,7 @@ function noteSendSubmitted(
   commandId?: string
 ): void {
   const target = session(instanceId);
-  const echo = localUserMessage(instanceId, text, extras);
+  const echo = localUserMessage(instanceId, text, selectionExtras(extras));
   target.messages.push({
     ...echo,
     metadata: {
@@ -3323,10 +3376,14 @@ function control(
  */
 export function revealPreview(instanceId: string): void {
   state.previewVisible[instanceId] = true;
+  state.previewRequests[instanceId] =
+    (state.previewRequests[instanceId] ?? 0) + 1;
 }
 
 export function hidePreview(instanceId: string): void {
   state.previewVisible[instanceId] = false;
+  state.previewRequests[instanceId] =
+    (state.previewRequests[instanceId] ?? 0) + 1;
 }
 
 export async function loadPreview(instanceId: string): Promise<void> {
@@ -5114,6 +5171,9 @@ export const whiffle = {
   },
   get previewVisible() {
     return state.previewVisible;
+  },
+  get previewRequests() {
+    return state.previewRequests;
   },
   get runningInstances() {
     return state.instances.filter(isLive);

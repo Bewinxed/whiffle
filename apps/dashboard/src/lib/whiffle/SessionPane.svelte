@@ -17,6 +17,8 @@
   import type { TransitionConfig } from "svelte/transition";
   import { page } from "$app/state";
   import FlowView from "$lib/components/features/flow/FlowView.svelte";
+  // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte component group.
+  import * as Resizable from "$lib/components/ui/resizable";
   import AutopilotToggle from "./AutopilotToggle.svelte";
   import {
     blankSession,
@@ -38,6 +40,7 @@
     revealPreview,
     type SendExtras,
     type SessionState,
+    selectionCommands,
     sendFailureNotice,
     streamCapable,
     streamHistory,
@@ -50,6 +53,7 @@
   import { describingRow, ensureModels, models } from "./models.svelte";
   import { PERMISSION_MODES } from "./permission-modes";
   import PreviewPane from "./preview/PreviewPane.svelte";
+  import PreviewSheet from "./preview/PreviewSheet.svelte";
   import { sessionName } from "./session-name";
   // StaticTail removed — virtua's ssrCount renders the tail directly.
   import Composer, { type Mention } from "./transcript/Composer.svelte";
@@ -108,6 +112,66 @@
   } = $props();
 
   const previewVisible = $derived(whiffle.previewVisible[viewId] === true);
+  let paneWidth = $state(0);
+  let content = $state<HTMLDivElement>();
+  let previewPane = $state<ReturnType<typeof Resizable.Pane>>();
+  let savedWidth = 45;
+  let resizing = $state(false);
+  const phone = $derived(paneWidth > 0 && paneWidth < 900);
+  const previewOpen = $derived(whiffle.previews[viewId]?.state === "open");
+  const desktopPreview = $derived(
+    previewOpen && previewVisible && !phone && visible
+  );
+  let previewMounted = $state(false);
+  let sheetMounted = $state(false);
+  $effect(() => {
+    if (phone && previewOpen && visible) {
+      sheetMounted = true;
+      return;
+    }
+    const timer = setTimeout(
+      () => {
+        sheetMounted = false;
+      },
+      reduceMotionQuery?.matches ? 1 : 300
+    );
+    return () => clearTimeout(timer);
+  });
+
+  $effect(() => {
+    const id = viewId;
+    const stored = Number(localStorage.getItem(`whiffle.preview.width.${id}`));
+    savedWidth = stored > 0 ? Math.min(70, stored) : 45;
+  });
+  $effect(() => {
+    const open = desktopPreview;
+    const pane = previewPane;
+    if (!pane) {
+      return;
+    }
+    if (open) {
+      previewMounted = true;
+    }
+    const frame = requestAnimationFrame(() => {
+      if (open) {
+        pane.resize(Math.max(savedWidth, (320 / paneWidth) * 100));
+      } else {
+        pane.collapse();
+      }
+    });
+    const timer = open
+      ? undefined
+      : setTimeout(
+          () => {
+            previewMounted = false;
+          },
+          reduceMotionQuery?.matches ? 1 : 300
+        );
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(timer);
+    };
+  });
   $effect(() => {
     const id = viewId;
     const connected = whiffle.status === "connected";
@@ -586,6 +650,14 @@
   /** The composer instance, for the one thing a binding cannot hand back. */
   let composer = $state<ReturnType<typeof Composer> | null>(null);
 
+  $effect(() => {
+    for (const { selectionIds, stage } of selectionCommands(viewId)) {
+      if (stage === "accepted" || stage === "applied") {
+        untrack(() => composer?.acceptSelections(selectionIds));
+      }
+    }
+  });
+
   /** What the live region says, when a send of this session's has failed. */
   const sendFailure = $derived(sendFailureNotice(viewId));
 
@@ -772,7 +844,7 @@
   }
 </script>
 
-<div class="pane">
+<div class="pane" bind:clientWidth={paneWidth}>
   {#if session}
     {#if !hideHeader}
       <SessionHeader
@@ -794,6 +866,7 @@
         {onpreview}
         {onview}
         permissionMode={session.permissionMode}
+        previewAvailable={previewOpen}
         previewOpen={previewVisible}
         seed={session.cwd || browsingCwd || viewId}
         {showEffort}
@@ -806,102 +879,146 @@
       />
     {/if}
 
-    <div class="session-content" class:with-preview={previewVisible}>
-      <div
-        class="body"
-        style="--composer-clearance: calc({composerHeight}px + var(--space-4) + var(--space-4))"
-      >
-        <!-- The transcript area. Movement between conversations is owned by the
+    <div
+      class="session-content"
+      bind:this={content}
+      class:preview-shown={desktopPreview}
+      class:resizing={resizing}
+    >
+      <Resizable.PaneGroup class="preview-group" direction="horizontal">
+        <Resizable.Pane class="transcript-pane" defaultSize={100} minSize={30}>
+          <div
+            class="body"
+            style="--composer-clearance: calc({composerHeight + (phone && previewOpen ? 106 : 0)}px + var(--space-4) + var(--space-4))"
+          >
+            <!-- The transcript area. Movement between conversations is owned by the
            pane above this one, so nothing here animates on a switch — this is
            the surface a swipe carries, not the thing that carries it. -->
-        <div class="transcript-slide">
-          {#if fault}
-            <div class="stateful">
-              <h2>
-                {fault.reason === 'offline'
+            <div class="transcript-slide">
+              {#if fault}
+                <div class="stateful">
+                  <h2>
+                    {fault.reason === 'offline'
                 ? 'This machine is offline'
                 : "This transcript couldn't be read"}
-              </h2>
-              <p>{fault.message}</p>
-              <button onclick={retry} type="button">Try again</button>
-            </div>
-          {:else if unaddressable}
-            <div class="stateful">
-              <h2>This session isn't reachable from here</h2>
-              <p>
-                The hub has no record of <code>{viewId}</code>, and no machine
-                it can reach has a transcript filed under it. It may live on a
-                machine that is offline, or it may have been deleted.
-              </p>
-              <a href="/session">Back to the fleet</a>
-            </div>
-          {:else if empty && session.messages.length === 0}
-            <div class="stateful">
-              <h2>Nothing has been said here yet</h2>
-              <p>The transcript was found, and it has no turns in it.</p>
-            </div>
-          {:else if !session.initialized && session.messages.length === 0}
-            <TranscriptSkeleton />
-          {:else if view === 'flow'}
-            <FlowView
-              instanceId={viewId}
-              messages={session.messages}
-              streamingToolId={session.currentTool?.toolId}
-              subagents={flowSubagents}
-              totalCostUsd={session.totalCost}
-            />
-          {:else}
-            <Transcript
-              {agentName}
-              cwd={session.cwd || browsingCwd}
-              {focused}
-              {machineName}
-              {session}
-              {visible}
-            />
-          {/if}
-        </div>
-
-        <!-- Composer stays outside the slide — it's shared structure. -->
-        {#if !fault && (unaddressable || readOnly)}
-          <p class="readonly">
-            This transcript is stored; the session isn't reachable from here.
-          </p>
-        {:else if !fault}
-          <Composer
-            busy={session.busy}
-            {commands}
-            {mentions}
-            {oninterruptsend}
-            {onstop}
-            {onsubmit}
-            {sending}
-            bind:this={composer}
-            bind:height={composerHeight}
-            bind:value={draft}
-          >
-            {#snippet leading()}
-              <AutopilotToggle instance={instanceRow} instanceId={viewId} />
-            {/snippet}
-            {#snippet prompts()}
-              {#each parked as request (request.requestId)}
-                <div class="parked" out:promptExit>
-                  <Prompt
-                    onanswer={(result) => onanswer(request, result)}
-                    {request}
-                  />
+                  </h2>
+                  <p>{fault.message}</p>
+                  <button onclick={retry} type="button">Try again</button>
                 </div>
-              {/each}
-            {/snippet}
-          </Composer>
-        {/if}
+              {:else if unaddressable}
+                <div class="stateful">
+                  <h2>This session isn't reachable from here</h2>
+                  <p>
+                    The hub has no record of <code>{viewId}</code>, and no
+                    machine it can reach has a transcript filed under it. It may
+                    live on a machine that is offline, or it may have been
+                    deleted.
+                  </p>
+                  <a href="/session">Back to the fleet</a>
+                </div>
+              {:else if empty && session.messages.length === 0}
+                <div class="stateful">
+                  <h2>Nothing has been said here yet</h2>
+                  <p>The transcript was found, and it has no turns in it.</p>
+                </div>
+              {:else if !session.initialized && session.messages.length === 0}
+                <TranscriptSkeleton />
+              {:else if view === 'flow'}
+                <FlowView
+                  instanceId={viewId}
+                  messages={session.messages}
+                  streamingToolId={session.currentTool?.toolId}
+                  subagents={flowSubagents}
+                  totalCostUsd={session.totalCost}
+                />
+              {:else}
+                <Transcript
+                  {agentName}
+                  cwd={session.cwd || browsingCwd}
+                  {focused}
+                  {machineName}
+                  {session}
+                  {visible}
+                />
+              {/if}
+            </div>
 
-        <p aria-live="polite" class="announce" role="status">{sendFailure}</p>
-      </div>
-      {#if previewVisible}
-        <div class="preview-column">
-          <PreviewPane instanceId={viewId} {machineId} {onsubmit} {sending} />
-        </div>
+            <!-- Composer stays outside the slide — it's shared structure. -->
+            {#if !fault && (unaddressable || readOnly)}
+              <p class="readonly">
+                This transcript is stored; the session isn't reachable from
+                here.
+              </p>
+            {:else if !fault}
+              <Composer
+                busy={session.busy}
+                {commands}
+                {mentions}
+                {oninterruptsend}
+                {onstop}
+                {onsubmit}
+                paneVisible={visible}
+                previewPhone={phone}
+                {sending}
+                bind:this={composer}
+                bind:height={composerHeight}
+                bind:value={draft}
+              >
+                {#snippet leading()}
+                  <AutopilotToggle instance={instanceRow} instanceId={viewId} />
+                {/snippet}
+                {#snippet prompts()}
+                  {#each parked as request (request.requestId)}
+                    <div class="parked" out:promptExit>
+                      <Prompt
+                        onanswer={(result) => onanswer(request, result)}
+                        {request}
+                      />
+                    </div>
+                  {/each}
+                {/snippet}
+              </Composer>
+            {/if}
+
+            <p aria-live="polite" class="announce" role="status">
+              {sendFailure}
+            </p>
+          </div>
+        </Resizable.Pane>
+        <Resizable.Handle
+          class={desktopPreview ? 'preview-divider' : 'preview-divider hidden'}
+          onDraggingChange={(dragging) => { resizing = dragging; }}
+        />
+        <Resizable.Pane
+          class="artifact-pane"
+          collapsedSize={0}
+          collapsible
+          defaultSize={0}
+          maxSize={70}
+          minSize={paneWidth ? Math.min(70, 320 / paneWidth * 100) : 30}
+          onResize={(size) => { if (size > 0 && desktopPreview) { savedWidth = size; localStorage.setItem(`whiffle.preview.width.${viewId}`, String(size)); } }}
+          bind:this={previewPane}
+        >
+          {#if previewMounted && !phone}
+            <div class="artifact-surface" class:shown={desktopPreview}>
+              <PreviewPane
+                instanceId={viewId}
+                onescape={() => composer?.closeSelectionEditor() ?? false}
+                onselect={(selection) => composer?.attach(selection)}
+              />
+            </div>
+          {/if}
+        </Resizable.Pane>
+      </Resizable.PaneGroup>
+      {#if sheetMounted && phone && visible}
+        <PreviewSheet
+          {composerHeight}
+          {content}
+          instanceId={viewId}
+          onescape={() => composer?.closeSelectionEditor() ?? false}
+          onselect={(selection) => composer?.attach(selection)}
+          open={previewOpen}
+        />
       {/if}
     </div>
   {:else}
@@ -913,36 +1030,68 @@
 
 <style>
   .session-content {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
+    display: flex;
     flex: 1;
     min-height: 0;
     min-width: 0;
   }
-  .session-content.with-preview {
-    grid-template-columns: minmax(0, 1fr) minmax(360px, 45%);
-  }
-  .preview-column {
-    min-height: 0;
+  .session-content :global(.transcript-pane),
+  .session-content :global(.artifact-pane) {
+    display: flex;
     min-width: 0;
-    border-left: 1px solid var(--border-subtle);
+    min-height: 0;
+    transition: flex-grow var(--c-300) var(--e-out);
+  }
+  .preview-shown :global(.transcript-pane),
+  .preview-shown :global(.artifact-pane) {
+    transition-timing-function: var(--e-in);
+  }
+  .resizing :global(.transcript-pane),
+  .resizing :global(.artifact-pane) {
+    transition: none;
+  }
+  .artifact-surface {
+    width: 100%;
+    min-width: 320px;
+    padding: var(--space-3);
+    opacity: 0;
+    transform: translateX(var(--space-7));
+    transition:
+      opacity var(--c-300) var(--e-out),
+      transform var(--c-300) var(--e-out);
+  }
+  .artifact-surface.shown {
+    opacity: 1;
+    transform: translateX(0);
+    transition-timing-function: var(--e-in);
+  }
+  @starting-style {
+    .artifact-surface.shown {
+      opacity: 0;
+      transform: translateX(var(--space-7));
+    }
+  }
+  .session-content :global(.preview-divider) {
+    z-index: 2;
+    background: var(--border-hairline);
+    transition: background-color var(--c-100) var(--e-in);
+  }
+  .session-content :global(.preview-divider.hidden) {
+    display: none;
+  }
+  .resizing :global(iframe) {
+    pointer-events: none;
+  }
+  .session-content :global(.preview-divider[data-active]) {
+    background: var(--ink-muted);
+  }
+  @media (hover: hover) {
+    .session-content :global(.preview-divider:hover) {
+      background: var(--border-control);
+    }
   }
   .body {
     min-width: 0;
-  }
-  /* Too narrow to stand side by side: the preview stands in for the transcript
-     while it is open, and the header's toggle is how the operator gets back. */
-  @container (max-width: 899px) {
-    .session-content.with-preview {
-      grid-template-columns: minmax(0, 1fr);
-    }
-    .with-preview > .body {
-      display: none;
-    }
-    .preview-column {
-      grid-row: 1;
-      border-left: 0;
-    }
   }
   /* Announced, never drawn: the live region carries the failure to a screen
      reader while the row itself carries it to everyone else. */
