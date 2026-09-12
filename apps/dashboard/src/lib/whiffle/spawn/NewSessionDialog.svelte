@@ -209,6 +209,7 @@
   let busy = $state(false);
   let error = $state("");
   let unreadable = $state(false);
+  let missingMachines = $state<string[]>([]);
   let verifiedLocation = $state("");
   let popover = $state<"machines" | "project" | null>(null);
   let menuOpen = $state(false);
@@ -354,6 +355,13 @@
     if (unreadable) {
       return `That directory can't be read on ${machine?.hostname ?? machineId}. Check the path and try again.`;
     }
+    if (!locationUnverified && missingMachines.length) {
+      const names = missingMachines.map(
+        (id) =>
+          whiffle.machines.find((row) => row.machineId === id)?.hostname ?? id
+      );
+      return `This folder doesn't exist on ${names.join(", ")}. It will be created when the session starts.`;
+    }
     return machine && machine.status !== "online"
       ? `${machine.hostname} is offline. Pick another machine, or start when it returns.`
       : "";
@@ -362,6 +370,13 @@
     whiffle.hub === "connected"
       ? error || locationReading || (locationUnverified ? "Reading…" : "")
       : "No spawn while the hub is unreachable. Reconnect to continue."
+  );
+  const locationInformational = $derived(
+    Boolean(
+      !(error || locationUnverified || unreadable) &&
+        missingMachines.length &&
+        whiffle.hub === "connected"
+    )
   );
   const cantStart = $derived(
     busy ||
@@ -518,26 +533,22 @@
   }
   $effect(() => {
     const ids = machineIds;
-    const path = cwd;
+    const path = cwd.trim();
     const key = locationKey;
+    if (verifiedLocation === key) {
+      return;
+    }
     unreadable = false;
-    if (
-      !(open && ids.length && path) ||
-      machine?.status !== "online" ||
-      verifiedLocation === key
-    ) {
+    missingMachines = [];
+    if (!(open && ids.length && path) || machine?.status !== "online") {
       return;
     }
     let stale = false;
     const timer = setTimeout(() => {
-      Promise.all(
-        ids.flatMap((id) => [
-          inspectMachine(id, path),
-          machineFs(id, "list", path),
-        ])
-      )
-        .then(() => {
+      Promise.all(ids.map((id) => inspectLocation(id, path)))
+        .then((missing) => {
           if (!stale) {
+            missingMachines = ids.filter((_, index) => missing[index]);
             verifiedLocation = key;
           }
         })
@@ -669,16 +680,28 @@
       })),
     ];
   }
+  async function inspectLocation(id: string, path: string): Promise<boolean> {
+    const [, missing] = await Promise.all([
+      inspectMachine(id, path),
+      machineFs(id, "list", path).then(
+        () => false,
+        (cause: unknown) => {
+          if (cause instanceof Error && cause.message.startsWith("ENOENT:")) {
+            return true;
+          }
+          throw cause;
+        }
+      ),
+    ]);
+    return missing;
+  }
   async function verifyBeforeSpawn(
     id: string,
     path: string,
     current: () => boolean
   ) {
     try {
-      await Promise.all([
-        inspectMachine(id, path),
-        machineFs(id, "list", path),
-      ]);
+      await inspectLocation(id, path);
       return current();
     } catch {
       if (!current()) {
@@ -932,6 +955,7 @@
       <div class="sec" style="--delay:60ms">
         <LocationSection
           dir={cwd}
+          informational={locationInformational}
           {locked}
           {machineId}
           machineName={machine?.hostname ?? ""}

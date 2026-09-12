@@ -29,6 +29,7 @@
     machineId,
     machineName,
     reading,
+    informational = false,
   }: {
     mode: "dir" | "repo";
     onmode: (mode: "dir" | "repo") => void;
@@ -42,6 +43,7 @@
     machineName: string;
     /** Validation line under the field; empty when nothing to say. */
     reading: string;
+    informational?: boolean;
   } = $props();
   let browsing = $state(false);
   let path = $state("~");
@@ -139,7 +141,7 @@
     <div class="row">
       <FolderOpen class="lead" />
       <input
-        aria-invalid={reading ? true : undefined}
+        aria-invalid={reading && !informational ? true : undefined}
         aria-label="Directory"
         autocapitalize="off"
         id="session-dir"
@@ -285,7 +287,9 @@
       </div>
     </div>
   </div>
-  <p aria-live="polite" class="reading" title={reading}>{reading || " "}</p>
+  <p aria-live="polite" class="reading" title={reading} class:informational>
+    {reading || " "}
+  </p>
 </section>
 
 <style>
@@ -370,7 +374,8 @@
     border: 1px solid var(--fai-border);
     background: var(--fai-recess);
     box-shadow:
-      inset 0 0 0 1px var(--fai-grey-400), var(--fai-shadow-raised);
+      inset 0 0 0 1px var(--fai-grey-400),
+      var(--fai-shadow-raised);
     border-radius: var(--fai-radius-sm);
     font: 500 13px / 1 var(--fai-font-sans);
     color: var(--fai-text);
@@ -597,6 +602,9 @@
     overflow: hidden;
     text-overflow: ellipsis;
     min-height: 16px;
+  }
+  .reading.informational {
+    color: var(--fai-text-muted);
   }
   @media (max-width: 640px) {
     .crumbs {
