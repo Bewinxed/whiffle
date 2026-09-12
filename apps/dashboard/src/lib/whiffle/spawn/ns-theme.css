@@ -49,7 +49,12 @@
   --fai-hover: var(--fai-grey-50);
   --fai-text: var(--ink-strong);
   --fai-text-muted: var(--ink-muted);
-  /* The selected fill sets the 4.5:1 floor for secondary text. */
+  /* The selected fill sets the 4.5:1 floor for secondary text. These are the
+     weakest passing mixes: 15.2% light / 33.3% dark. Do not nudge lighter:
+     15.3% / 33.4% fail at 4.4946:1 / 4.4943:1 respectively.
+     Verified only on modal/popover backgrounds, --fai-fill, --fai-hover and
+     --fai-recess. Unused here today, dark --fai-raised and light
+     --fai-recess-deep fail 4.5:1; re-measure before using subtle text there. */
   --fai-text-subtle: color-mix(
     in oklab,
     var(--neutral-8) 15.2%,
