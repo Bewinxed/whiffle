@@ -3,7 +3,7 @@
   import { tick, untrack } from "svelte";
   import { Drawer } from "vaul-svelte";
   import { IconWindow } from "$lib/icons";
-  import { lightbox } from "../transcript/lightbox.svelte";
+  import { lightbox } from "../transcript/lightbox-state.svelte";
   import { NOTE_MAX, type PendingSelection, selectionLabel } from "./selection";
 
   let {

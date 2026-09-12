@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
   import { IconClose } from "$lib/icons";
-  import { lightbox } from "./lightbox.svelte";
+  import { lightbox } from "./lightbox-state.svelte";
 
   // biome-ignore lint/suspicious/noUnassignedVariables: assigned by Svelte bind:this before effects run.
   let dialog: HTMLDialogElement;

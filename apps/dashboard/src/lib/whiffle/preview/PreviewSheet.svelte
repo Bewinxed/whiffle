@@ -3,7 +3,7 @@
   import { tick, untrack } from "svelte";
   import { Drawer } from "vaul-svelte";
   import { hidePreview, whiffle } from "../client.svelte";
-  import { lightbox } from "../transcript/lightbox.svelte";
+  import { lightbox } from "../transcript/lightbox-state.svelte";
   import PreviewPane from "./PreviewPane.svelte";
   import type { CapturedSelection } from "./selection";
 

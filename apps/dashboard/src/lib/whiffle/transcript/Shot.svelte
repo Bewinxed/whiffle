@@ -1,6 +1,6 @@
 <script lang="ts">
   import Reveal from "$lib/whiffle/motion/Reveal.svelte";
-  import { lightbox } from "./lightbox.svelte";
+  import { lightbox } from "./lightbox-state.svelte";
 
   let {
     src,
