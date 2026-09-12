@@ -7,7 +7,7 @@
  * as neutral messages, with the harness's `raw` event riding along.
  */
 
-import { stat } from "node:fs/promises";
+import { mkdir, stat } from "node:fs/promises";
 import type {
   ControlPayload,
   Envelope,
@@ -697,6 +697,9 @@ export class SessionSupervisor {
     const adapter = this.#adapter(kind);
     try {
       let workdir = bootstrap ? await this.#clone(bootstrap) : expandHome(cwd);
+      if (!bootstrap) {
+        await mkdir(workdir, { recursive: true });
+      }
       if (!(await isDirectory(workdir))) {
         throw new Error(`working directory does not exist: ${workdir}`);
       }
