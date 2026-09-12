@@ -290,7 +290,7 @@
     {/each}
   </div>
 
-  <div class="search" class:focus={searchFocus}>
+  <label class="search" class:focus={searchFocus}>
     <Search class="lead" />
     <input
       aria-controls="session-models"
@@ -316,7 +316,7 @@
         <Clear />
       </button>
     {/if}
-  </div>
+  </label>
 
   <div
     aria-label={`${harnessName(listHarness)} models`}
@@ -518,6 +518,7 @@
   }
   .search input {
     flex: 1;
+    height: 100%;
     min-width: 0;
     border: 0;
     outline: none;

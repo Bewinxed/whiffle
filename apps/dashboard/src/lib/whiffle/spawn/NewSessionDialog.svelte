@@ -1209,6 +1209,11 @@
       border-radius: var(--fai-radius-pill);
       touch-action: none;
     }
+    /* Keep the expanded drag area inside the full-height sheet's top edge. */
+    :global(.session-handle [data-vaul-handle-hitarea]) {
+      top: -11px;
+      transform: translateX(-50%);
+    }
     .head {
       touch-action: none;
     }
