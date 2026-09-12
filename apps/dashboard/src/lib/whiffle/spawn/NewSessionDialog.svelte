@@ -457,7 +457,6 @@
     });
     return () => {
       submission += 1;
-      opener?.focus();
     };
   });
   // The fleet arrives over the websocket, so the dialog can open before any
@@ -794,11 +793,12 @@
     if (!current()) {
       return;
     }
+    const panel = card;
     close();
     await tick();
     const request = submission;
     await Promise.allSettled(
-      card?.getAnimations().map((animation) => animation.finished) ?? []
+      panel?.getAnimations().map((animation) => animation.finished) ?? []
     );
     if (open || request !== submission) {
       return;
@@ -1202,7 +1202,7 @@
     :global(.session-scrim[data-vaul-overlay][data-state="closed"]) {
       animation-fill-mode: forwards;
     }
-    :global(.session-handle) {
+    :global(.session-handle[data-vaul-handle]) {
       flex: none;
       margin: 4px auto 10px;
       background: var(--fai-grey-400);
