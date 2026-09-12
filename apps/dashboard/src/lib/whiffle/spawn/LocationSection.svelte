@@ -368,7 +368,9 @@
     height: 30px;
     padding: 0 10px;
     border: 1px solid var(--fai-border);
-    background: var(--fai-surface);
+    background: var(--fai-recess);
+    box-shadow:
+      inset 0 0 0 1px var(--fai-grey-400), var(--fai-shadow-raised);
     border-radius: var(--fai-radius-sm);
     font: 500 13px / 1 var(--fai-font-sans);
     color: var(--fai-text);
@@ -376,6 +378,7 @@
     white-space: nowrap;
   }
   .browse:disabled {
+    animation: none;
     cursor: not-allowed;
   }
   .browse :global(svg) {
