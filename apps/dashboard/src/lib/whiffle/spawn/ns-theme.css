@@ -39,7 +39,7 @@
    * lifts with white, which only reads in light: the `--fai-grey-*` ramp
    * descends from the surface in light and climbs past it in dark, so every
    * groove, thumb, selected row and hover tint painted straight off the ramp
-   * came out the same colour as what it sat on. These four carry the polarity
+   * came out the same colour as what it sat on. These five carry the polarity
    * instead, and dark flips them in one place below.
    */
   --fai-recess: var(--fai-grey-100);
@@ -49,7 +49,7 @@
   --fai-hover: var(--fai-grey-50);
   --fai-text: var(--ink-strong);
   --fai-text-muted: var(--ink-muted);
-  --fai-text-subtle: var(--fai-grey-500);
+  --fai-text-subtle: var(--ink-muted);
   --fai-text-inverse: var(--on-brand);
   --fai-border: var(--border-control);
   --fai-border-subtle: var(--border-hairline);
@@ -135,12 +135,12 @@
   /* Inverted polarity: a groove goes below the card, a lift goes above it. */
   --fai-recess: var(--neutral-2);
   --fai-recess-deep: var(--neutral-1);
-  --fai-raised: var(--neutral-5);
+  --fai-raised: var(--neutral-6);
   --fai-fill: var(--neutral-5);
   --fai-hover: var(--neutral-4);
   /* A black drop shadow says nothing under a pill that is already lighter
      than its groove; the raised edge does the lifting instead. */
-  --fai-shadow-raised: inset 0 0 0 1px oklch(from var(--neutral-6) l c h / 0.7);
+  --fai-shadow-raised: inset 0 0 0 1px oklch(from var(--neutral-7) l c h / 0.7);
 }
 
 .ns-theme *,

@@ -284,7 +284,7 @@
     text-overflow: ellipsis;
   }
   .hint {
-    color: var(--fai-grey-400);
+    color: var(--fai-text-subtle);
   }
   .editor :global(.ns-chip) {
     display: inline-flex;
