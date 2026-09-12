@@ -49,7 +49,12 @@
   --fai-hover: var(--fai-grey-50);
   --fai-text: var(--ink-strong);
   --fai-text-muted: var(--ink-muted);
-  --fai-text-subtle: var(--ink-muted);
+  /* The selected fill sets the 4.5:1 floor for secondary text. */
+  --fai-text-subtle: color-mix(
+    in oklab,
+    var(--neutral-8) 15.2%,
+    var(--neutral-11)
+  );
   --fai-text-inverse: var(--on-brand);
   --fai-border: var(--border-control);
   --fai-border-subtle: var(--border-hairline);
@@ -131,6 +136,11 @@
 .dark .ns-theme {
   --fai-ink: oklch(from var(--ink-strong) calc(l + 0.05) c h);
   --fai-scrim: oklch(from var(--neutral-1) l c h / 0.72);
+  --fai-text-subtle: color-mix(
+    in oklab,
+    var(--neutral-8) 33.3%,
+    var(--neutral-11)
+  );
 
   /* Inverted polarity: a groove goes below the card, a lift goes above it. */
   --fai-recess: var(--neutral-2);
