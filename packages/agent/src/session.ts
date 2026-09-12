@@ -697,7 +697,7 @@ export class SessionSupervisor {
     const adapter = this.#adapter(kind);
     try {
       let workdir = bootstrap ? await this.#clone(bootstrap) : expandHome(cwd);
-      if (!bootstrap) {
+      if (!(bootstrap || payload.reattachOnly)) {
         await mkdir(workdir, { recursive: true });
       }
       if (!(await isDirectory(workdir))) {
