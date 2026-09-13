@@ -1256,6 +1256,68 @@ const isQuerySend = (payload: unknown): boolean => {
   return message?.shouldQuery !== false;
 };
 
+/**
+ * Put a relay send's `message` into the one shape every adapter reads
+ * ({@link NeutralUserMessage}), or say why it cannot be — IN PLACE, because
+ * the body is forwarded to the agent verbatim.
+ *
+ * This exists because the failure it replaces was silent and total. `message`
+ * travels from here to the agent's `#send`, into the claude adapter's input
+ * stream, and out to the CLI as one stream-json line. A bare string survives
+ * every one of those hops — it is valid JSON — and dies at the far end, where
+ * the CLI reads a JSON *string* where a message envelope belongs and drops it
+ * without a word. Nothing upstream can tell: the POST answers 200, the agent
+ * pushes what it was given, and the session sits at `running` forever with no
+ * transcript, no frames and no error on any machine. It costs hours to find,
+ * and the caller's intent was never in doubt.
+ *
+ * So: text is wrapped (the caller plainly meant to say it), an envelope that
+ * only forgot its `type` is completed, and anything else is refused loudly
+ * rather than forwarded to hang. The one outcome no longer possible is the
+ * one that was happening.
+ */
+export const normalizeRelayMessage = (body: unknown): string | undefined => {
+  const needsEnvelope =
+    "relay send needs a message: either plain text, or a {type:'user',message:{role:'user',content:…}} envelope";
+  if (typeof body !== "object" || body === null) {
+    return needsEnvelope;
+  }
+  const holder = body as { message?: unknown };
+  const { message } = holder;
+  if (typeof message === "string") {
+    holder.message = {
+      type: "user",
+      message: { role: "user", content: message },
+    };
+    return;
+  }
+  if (typeof message !== "object" || message === null) {
+    return needsEnvelope;
+  }
+  const envelope = message as { type?: unknown; message?: unknown };
+  const inner = envelope.message as {
+    role?: unknown;
+    content?: unknown;
+  } | null;
+  if (typeof inner !== "object" || inner === null) {
+    return needsEnvelope;
+  }
+  if (inner.role !== "user") {
+    return "relay send message.message.role must be 'user'";
+  }
+  if (typeof inner.content !== "string" && !Array.isArray(inner.content)) {
+    return "relay send message.message.content must be text or a block array";
+  }
+  // The only field a well-formed caller tends to omit, and the one every
+  // reader downstream keys off (`userTurnText`, `isQuerySend`).
+  if (envelope.type === undefined) {
+    envelope.type = "user";
+  }
+  if (envelope.type !== "user") {
+    return "relay send message.type must be 'user'";
+  }
+};
+
 export const createServer = ({
   registry,
   db,
@@ -4837,6 +4899,12 @@ export const createServer = ({
             400,
             "relay send needs the target session's instanceId"
           );
+        }
+        // Before anything else reads `message`: a shape the far end would
+        // drop in silence is refused here, where the caller can still see it.
+        const malformed = normalizeRelayMessage(body);
+        if (malformed) {
+          return status(400, malformed);
         }
         const rows = db.listInstances();
         const machineId = resolveRelayMachine(
