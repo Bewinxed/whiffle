@@ -819,25 +819,47 @@ export class OpencodeSession implements HarnessSession {
         if (!props.delta) {
           break;
         }
-        this.#closeThinking();
-        this.#ctx.frame({
-          type: "stream_event",
-          session_id: this.sessionId ?? undefined,
-          event: {
+        // A delta event carries no part type, so the kind is whatever the
+        // part's `message.part.updated` already established — opencode opens a
+        // reasoning part with an empty-text update and then streams its trace
+        // over these `field: "text"` deltas. Routing them blindly as prose is
+        // what made a reasoning trace appear as message text while streaming.
+        const pending = this.#pendingOf(props.messageID ?? "");
+        const existing = props.partID
+          ? pending.parts.get(props.partID)
+          : undefined;
+        const held = existing?.kind === "thinking" ? "thinking" : "text";
+        if (held === "thinking" && props.partID) {
+          if (this.#openThinking !== props.partID) {
+            this.#closeThinking();
+            this.#openThinking = props.partID;
+            this.#thinkingFrame({
+              type: "content_block_start",
+              content_block: { type: "thinking", thinking: "" },
+            });
+          }
+          this.#thinkingFrame({
             type: "content_block_delta",
-            delta: { type: "text_delta", text: props.delta },
-          },
-        });
+            delta: { type: "thinking_delta", thinking: props.delta },
+          });
+        } else {
+          this.#closeThinking();
+          this.#ctx.frame({
+            type: "stream_event",
+            session_id: this.sessionId ?? undefined,
+            event: {
+              type: "content_block_delta",
+              delta: { type: "text_delta", text: props.delta },
+            },
+          });
+        }
         // `message.part.delta` is the streaming chunks, and the full stream they
         // carry is the authoritative text — `part.text` on `message.part.updated`
         // is capped at 4000 chars, and a part longer than the transport's buffer
         // never lands at all. The accumulated deltas are the truth either way.
         if (props.partID) {
-          const pending = this.#pendingOf(props.messageID ?? "");
-          const existing = pending.parts.get(props.partID);
-          const acc =
-            (existing?.kind === "text" ? existing.text : "") + props.delta;
-          pending.parts.set(props.partID, { kind: "text", text: acc });
+          const acc = (existing?.text ?? "") + props.delta;
+          pending.parts.set(props.partID, { kind: held, text: acc });
         }
         break;
       }
@@ -1044,24 +1066,31 @@ export class OpencodeSession implements HarnessSession {
         // what grew past the last one. A rewrite that does not extend it says
         // nothing rather than replaying the block.
         const sent = stored?.kind === "thinking" ? stored.text : "";
-        if (this.#openThinking !== part.id) {
-          this.#closeThinking();
-          this.#openThinking = part.id;
-          this.#thinkingFrame({
-            type: "content_block_start",
-            content_block: { type: "thinking", thinking: "" },
-          });
-        }
-        if (part.text.length > sent.length && part.text.startsWith(sent)) {
+        // `part.text` is capped at 4000 chars, so an update that arrives
+        // shorter than what the deltas already accumulated is the capped view
+        // of the same trace, not a rewrite: the longer one wins.
+        const settled =
+          stored?.kind === "thinking" && stored.text.length >= part.text.length
+            ? stored.text
+            : part.text;
+        if (settled.length > sent.length && settled.startsWith(sent)) {
+          if (this.#openThinking !== part.id) {
+            this.#closeThinking();
+            this.#openThinking = part.id;
+            this.#thinkingFrame({
+              type: "content_block_start",
+              content_block: { type: "thinking", thinking: "" },
+            });
+          }
           this.#thinkingFrame({
             type: "content_block_delta",
             delta: {
               type: "thinking_delta",
-              thinking: part.text.slice(sent.length),
+              thinking: settled.slice(sent.length),
             },
           });
         }
-        pending.parts.set(part.id, { kind: "thinking", text: part.text });
+        pending.parts.set(part.id, { kind: "thinking", text: settled });
         break;
       }
       case "tool": {
@@ -1214,6 +1243,7 @@ export class OpencodeSession implements HarnessSession {
   }
 
   /** Routes a child-session event through the parent's frame stream under `callID`. */
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: the child event union's per-type routing switch; not refactored in this pass
   handleChild(event: Event, callID: string): void {
     const state = this.#childStateOf(callID);
     const type = event.type as string;
@@ -1251,14 +1281,23 @@ export class OpencodeSession implements HarnessSession {
         if (!props.delta) {
           break;
         }
+        // Same untyped delta event as the parent path: the kind is whatever the
+        // part's `message.part.updated` established. A child's reasoning is
+        // buffered and settled at flush — it has no live thinking block — so a
+        // thinking part accumulates without streaming as prose.
+        const pending = this.#pendingChild(state, props.messageID ?? "");
+        const existing = props.partID
+          ? pending.parts.get(props.partID)
+          : undefined;
+        const held = existing?.kind === "thinking" ? "thinking" : "text";
         if (props.partID) {
-          const pending = this.#pendingChild(state, props.messageID ?? "");
-          const existing = pending.parts.get(props.partID);
           pending.parts.set(props.partID, {
-            kind: "text",
-            text:
-              (existing?.kind === "text" ? existing.text : "") + props.delta,
+            kind: held,
+            text: (existing?.text ?? "") + props.delta,
           });
+        }
+        if (held === "thinking") {
+          break;
         }
         this.#ctx.frame({
           type: "stream_event",
@@ -1341,10 +1380,18 @@ export class OpencodeSession implements HarnessSession {
         if (role !== "assistant") {
           return;
         }
-        this.#pendingChild(state, part.messageID).parts.set(part.id, {
-          kind: "thinking",
-          text: part.text,
-        });
+        {
+          const pending = this.#pendingChild(state, part.messageID);
+          const stored = pending.parts.get(part.id);
+          // `part.text` is capped at 4000 chars; the accumulated deltas win
+          // when they are longer.
+          const settled =
+            stored?.kind === "thinking" &&
+            stored.text.length >= part.text.length
+              ? stored.text
+              : part.text;
+          pending.parts.set(part.id, { kind: "thinking", text: settled });
+        }
         break;
       case "tool": {
         const { status } = part.state;
