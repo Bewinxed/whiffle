@@ -2330,7 +2330,31 @@ export class OpencodeHarness implements Harness {
           },
         });
         this.#serverUrl = url;
-        const client = createOpencodeClient({ baseUrl: url });
+        // A connection failure here means the server this client was built for
+        // is gone — crashed, OOM-killed, or stopped out from under sessiond —
+        // and nothing else ever notices: `#ensure()` above returns `#client`
+        // straight from cache, so every later call kept re-throwing the same
+        // dead connection forever (the live symptom: `listSessions on opencode
+        // failed: TypeError: Unable to connect`, repeating with no recovery).
+        // This is the one place that sees the raw fetch failure, so it is the
+        // one place that can clear the cache — the NEXT call then goes through
+        // `attachOpencodeServer` again, which finds the proc dead via sessiond
+        // and respawns it, instead of repeating this exact failure forever.
+        const client = createOpencodeClient({
+          baseUrl: url,
+          fetch: async (request) => {
+            try {
+              return await fetch(request);
+            } catch (error) {
+              if (this.#client === client) {
+                this.#client = null;
+                this.#ready = null;
+                this.#serverUrl = null;
+              }
+              throw error;
+            }
+          },
+        });
         this.#client = client;
         return client;
       })().catch((error) => {
