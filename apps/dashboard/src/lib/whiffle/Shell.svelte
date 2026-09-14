@@ -27,6 +27,7 @@
   import JumpPalette from "./JumpPalette.svelte";
   import Sidebar from "./Sidebar.svelte";
   import UsageMeter from "./UsageMeter.svelte";
+  import UsageRail from "./UsageRail.svelte";
   import PaneTabs from "./workspace/PaneTabs.svelte";
   import { type WorkspaceV1, workspace } from "./workspace/workspace.svelte";
 
@@ -425,14 +426,7 @@
             </span>
             {#if limits.spendLimit !== null && limits.spendLimit > 0}
               {@const pct = Math.min(100, ((limits.spendUsed ?? 0) / limits.spendLimit) * 100)}
-              <span class="desk-budget-bar">
-                <span
-                  class="desk-budget-fill"
-                  style="width: {pct}%"
-                  class:critical={pct >= 90}
-                  class:warn={pct >= 70 && pct < 90}
-                ></span>
-              </span>
+              <UsageRail compact label="Spend" value={pct} />
             {/if}
           </span>
         {/if}
@@ -718,27 +712,6 @@
   }
   .desk-budget-cap {
     color: var(--ink-faint);
-  }
-  .desk-budget-bar {
-    display: block;
-    width: 48px;
-    height: 4px;
-    border-radius: var(--radius-pill);
-    background: var(--surface-field);
-    overflow: hidden;
-  }
-  .desk-budget-fill {
-    display: block;
-    height: 100%;
-    border-radius: var(--radius-pill);
-    background: var(--data-ok);
-    transition: width var(--motion-fast) var(--e-toggle);
-  }
-  .desk-budget-fill.warn {
-    background: var(--data-warn);
-  }
-  .desk-budget-fill.critical {
-    background: var(--data-bad);
   }
   .desk-machines {
     font-size: var(--text-xs);

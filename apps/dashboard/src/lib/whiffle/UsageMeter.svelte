@@ -3,8 +3,12 @@
   /**
    * How full the machine's Claude limits are, on the dock next to ContextMeter.
    * The two answer the same "am I about to hit a wall?" question for the same
-   * session, so this pill reads as its sibling: two stacked hairlines and a
-   * number at rest, colour only when it matters, Popover on click.
+   * session, so this reads as its sibling — but where ContextMeter is one bar
+   * for one window, this is a segmented rail per window: the 5-hour, the weekly,
+   * and each scoped weekly window (the model scopes) ride their own strip, each
+   * strip filling green → amber → red down its own length. That structure is what
+   * separates it from a sidebar row: segmented, severity-hued, and never one
+   * collapsed number.
    *
    * The limits arrive live over the socket (the hub's `kind: 'usage'` frame),
    * folded into `whiffle.usageLimitsFor` — no polling. The opencode spend is
@@ -17,8 +21,9 @@
   import * as Popover from "$lib/components/ui/popover";
   import IconClock from "~icons/solar/clock-circle-linear";
   import IconDollar from "~icons/solar/dollar-linear";
-  import IconHourglass from "~icons/solar/hourglass-line-duotone";
   import { whiffle } from "./client.svelte";
+  import UsageRail from "./UsageRail.svelte";
+  import { band, resetsIn, usd } from "./usage";
 
   const DEFAULT_CLAUDE_TIER_PREFIX = /^default_claude_/;
   const UNDERSCORE = /_/g;
@@ -40,70 +45,37 @@
     machineId ? whiffle.usageLimitsFor(machineId) : whiffle.usageLimitsAny()
   );
 
-  /** The three bands, identical thresholds to ContextMeter so the two read as one system. */
-  const FILL: Record<string, string> = {
-    calm: "bg-muted-foreground/60",
-    warn: "bg-warning",
-    critical: "bg-destructive",
-  };
+  /** Value ink: colour only where the band earns it. */
   const TEXT: Record<string, string> = {
     calm: "text-muted-foreground",
     warn: "text-warning",
     critical: "text-destructive",
   };
-  const band = (pct: number): "calm" | "warn" | "critical" => {
-    if (pct >= 90) {
-      return "critical";
-    }
-    return pct >= 70 ? "warn" : "calm";
-  };
 
   const windows = $derived(limits?.windows ?? []);
-  /** The 5-hour hairline: the session window. */
-  const sessionWindow = $derived(
-    windows.find((w) => w.group === "session") ?? null
-  );
-  /** The weekly hairline: the active weekly window, else the fullest one. */
-  const weeklyWindow = $derived(
-    windows.find((w) => w.group === "weekly" && w.isActive) ??
-      windows
-        .filter((w) => w.group === "weekly")
-        .reduce<LimitWindow | null>(
-          (best, w) => (best === null || w.percent > best.percent ? w : best),
-          null
-        )
-  );
-
-  const fivePct = $derived(sessionWindow?.percent ?? null);
-  const weekPct = $derived(weeklyWindow?.percent ?? null);
-
-  const _label = $derived.by(() => {
-    if (fivePct !== null && weekPct !== null) {
-      return `${Math.round(fivePct)}% · ${Math.round(weekPct)}%`;
-    }
-    if (fivePct !== null) {
-      return `${Math.round(fivePct)}%`;
-    }
-    if (weekPct !== null) {
-      return `${Math.round(weekPct)}%`;
-    }
-    return "—";
-  });
 
   /**
-   * The dock shows ONE number: the window that will stop you first. Two
-   * percentages side by side in a composer read as arithmetic nobody asked for,
-   * and colouring them both by the worse of the two says a 4% window is urgent
-   * when it is not. The full set is one tap away, where it has room to be read.
+   * What the compact surface shows: the windows that will stop you first,
+   * fullest down. Everything else is one tap away in the popover.
    */
-  const binding = $derived.by(() => {
+  const visible = $derived.by(() => {
     const scored = windows.filter((w) => typeof w.percent === "number");
-    if (scored.length === 0) {
-      return null;
-    }
-    return scored.reduce((worst, w) => (w.percent > worst.percent ? w : worst));
+    return scored
+      .sort((a, b) => (b.percent ?? 0) - (a.percent ?? 0))
+      .slice(0, 3);
   });
-  const bindingPct = $derived(binding?.percent ?? null);
+  const hiddenCount = $derived(windows.length - visible.length);
+
+  /** Short strip labels: 5h / Wk / the scope name. */
+  const compactLabel = (w: LimitWindow): string => {
+    if (w.group === "session") {
+      return "5h";
+    }
+    if (w.group === "weekly") {
+      return w.scopeLabel ?? "Wk";
+    }
+    return w.kind;
+  };
 
   /** Why there is nothing to meter — a normal state, never a fake 0%. */
   const emptyReason = $derived.by(() => {
@@ -143,36 +115,6 @@
     return () => clearInterval(timer);
   });
 
-  function resetsIn(resetsAt: string | null, at: number): string {
-    if (!resetsAt) {
-      return "";
-    }
-    const diff = new Date(resetsAt).getTime() - at;
-    if (diff <= 0) {
-      return "resetting now";
-    }
-    const totalMin = Math.floor(diff / 60_000);
-    const h = Math.floor(totalMin / 60);
-    const m = totalMin % 60;
-    if (h > 0) {
-      return `resets in ${h}h ${m}m`;
-    }
-    if (m > 0) {
-      return `resets in ${m}m`;
-    }
-    return "resets in <1m";
-  }
-
-  function windowLabel(w: LimitWindow): string {
-    if (w.group === "session") {
-      return "5-hour";
-    }
-    if (w.group === "weekly") {
-      return w.scopeLabel ? `Weekly · ${w.scopeLabel}` : "Weekly";
-    }
-    return w.kind;
-  }
-
   const planLabel = (tier: string | null): string | null => {
     if (!tier) {
       return null;
@@ -182,8 +124,6 @@
       .replace(UNDERSCORE, " ")
       .replace(WORD_START, (c) => c.toUpperCase());
   };
-
-  const usd = (n: number): string => `$${n.toFixed(2)}`;
 
   /** The opencode spend, fetched on open — real dollars, never a guess. */
   let spend = $state<{ today: number; total: number } | null>(null);
@@ -209,7 +149,7 @@
         today: todayRes?.totals?.costUsd ?? 0,
       };
     } catch {
-      // Keep the last reading; the pill is a glance, not a report.
+      // Keep the last reading; the meter is a glance, not a report.
     }
   }
 </script>
@@ -223,34 +163,42 @@
   }}
 >
   <Popover.Trigger
-    aria-label={hasReading && binding
-      ? `Claude limits. ${windowLabel(binding)} window ${Math.round(binding.percent)} percent used, the fullest of ${windows.length}. Show them all.${staleNote ? ` ${staleNote}.` : ''}`
-      : `Claude usage limits. ${emptyReason}`}
-    class="flex h-7 shrink-0 items-center gap-1.5 rounded-[var(--radius-control)] px-1.5
+    aria-label={hasReading
+        ? `Claude limits. ${visible
+            .map((w) => `${compactLabel(w)} ${Math.round(w.percent)} percent`)
+            .join(", ")}${
+            hiddenCount > 0 ? `, ${hiddenCount} more` : ""
+          }. Show them all.${staleNote ? ` ${staleNote}.` : ''}`
+        : `Claude usage limits. ${emptyReason}`}
+    class="flex min-w-0 flex-col gap-0.5 rounded-[var(--radius-control)] px-1.5 py-1
            text-micro tabular-nums
            hover:bg-muted
            focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring
-           transition-[background-color,color] duration-150 ease-out
-           {hasReading && bindingPct !== null
-      ? TEXT[band(bindingPct)]
-      : 'text-muted-foreground'}"
-    title={hasReading && binding
-      ? `${windowLabel(binding)} limit — ${Math.round(binding.percent)}% used, ${resetsIn(binding.resetsAt, now)}${staleNote ? ` · ${staleNote}` : ''}`
-      : 'Claude usage limits'}
+           transition-[background-color] duration-150 ease-out"
+    title={hasReading
+        ? `${visible[0]
+          ? `${compactLabel(visible[0])} limit — ${Math.round(visible[0].percent)}% used, ${
+            resetsIn(visible[0].resetsAt, now)
+          }`
+          : "Claude limits"}${
+          staleNote ? ` · ${staleNote}` : ""
+        }`
+        : "Claude usage limits"}
   >
-    {#if hasReading && binding}
-      <!-- An hourglass, because this meter is about a window that refills —
-           and because a bare bar beside the context meter's bare bar would be
-           two identical readings of two different things. -->
-      <IconHourglass aria-hidden="true" class="size-3.5 shrink-0" />
-      <span
-        aria-label="{windowLabel(binding)} limit"
-        aria-valuemax={100}
-        aria-valuemin={0}
-        aria-valuenow={Math.round(binding.percent)}
-        role="progressbar"
-        >{Math.round(binding.percent)}%</span
-      >
+    {#if hasReading}
+      {#each visible as window (window.kind)}
+        <span class="flex min-w-0 items-center gap-1.5">
+          <span
+            aria-hidden="true"
+            class="shrink-0 font-medium {TEXT[band(window.percent)]}"
+            >{compactLabel(window)}</span
+          >
+          <UsageRail compact label="Usage" value={window.percent} />
+          <span class="shrink-0 {TEXT[band(window.percent)]}"
+            >{Math.round(window.percent)}%</span
+          >
+        </span>
+      {/each}
     {:else}
       <span class="text-muted-foreground">—</span>
     {/if}
@@ -287,7 +235,7 @@
           <li class="flex flex-col gap-1 py-1.5">
             <div class="flex items-center gap-1.5">
               <span class="min-w-0 truncate text-micro font-medium"
-                >{windowLabel(window)}</span
+                >{compactLabel(window)}</span
               >
               {#if window.isActive}
                 <span
@@ -297,21 +245,8 @@
                 </span>
               {/if}
             </div>
-            <div class="flex items-center gap-2">
-              <span
-                aria-label="{windowLabel(window)} limit"
-                aria-valuemax={100}
-                aria-valuemin={0}
-                aria-valuenow={window.percent}
-                class="relative h-1 flex-1 overflow-hidden rounded-full bg-muted"
-                role="progressbar"
-              >
-                <span
-                  class="absolute inset-y-0 left-0 rounded-full {FILL[band(window.percent)]}
-                         transition-[width,background-color] duration-500 ease-out"
-                  style="width: {window.percent}%"
-                ></span>
-              </span>
+            <div class="flex min-w-0 items-center gap-2">
+              <UsageRail label="Usage" value={window.percent} />
               <span
                 class="shrink-0 text-micro tabular-nums {TEXT[band(window.percent)]}"
               >
