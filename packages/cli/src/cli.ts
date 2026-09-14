@@ -408,7 +408,9 @@ const up = async (args: Args): Promise<number> => {
 
   // The daemon reads its hub from the environment, so this is the handoff.
   process.env[WHIFFLE_ENV.hubUrl] = hub.wsUrl;
-  const { runDaemon, watchDeployment } = await import("@whiffle/agent");
+  const { currentBusy, runDaemon, watchDeployment } = await import(
+    "@whiffle/agent"
+  );
   runDaemon(auth);
   // The git-pull path is DEVELOPER MODE now, and off unless asked for.
   //
@@ -424,7 +426,11 @@ const up = async (args: Args): Promise<number> => {
   // checkout is genuinely how this gets developed. It simply has to be chosen:
   // WHIFFLE_DEPLOY_POLL=1, or a clone that says so in its own marker.
   if (readEnv(WHIFFLE_ENV.deployPoll) === "1") {
-    watchDeployment({ root: CHECKOUT_ROOT });
+    // `busy` is this same process's own supervisor, read in-process — see
+    // `currentBusy`. Without it, a pull that lands mid-turn would restart
+    // the agent onto it blind; with it, the restart waits for `currentBusy()`
+    // to read 0 and is retried on every 60s tick until it does.
+    watchDeployment({ busy: currentBusy, root: CHECKOUT_ROOT });
   }
   return 0;
 };

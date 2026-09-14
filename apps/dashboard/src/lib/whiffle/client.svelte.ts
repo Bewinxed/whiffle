@@ -77,6 +77,7 @@ import { newId } from "./id";
 import { conversationHref, instanceForSession } from "./links";
 import { type PendingSelection, selectionExtras } from "./preview/selection";
 import { ingestQueued, retireQueued } from "./queue";
+import { checkRestartToast } from "./restart-toast";
 import type {
   CommandRecord,
   SettleStage,
@@ -1137,6 +1138,7 @@ function handleFrame(frame: FramePayload): void {
     // The machines ride along so a daemon registering — the moment its auth
     // state is decided — reaches the rail without a re-fetch.
     state.machines = frame.agents;
+    checkRestartToast(frame.agents);
     // The hub's own record of what each session is carrying. Kept there rather
     // than learnt by watching, so it is the same on every device and survives a
     // reload — a hand-off only this tab saw is one your phone never knows about.

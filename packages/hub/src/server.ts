@@ -877,6 +877,18 @@ const peekDeploy = (payload: unknown): DeployInfo | undefined => {
 };
 
 /**
+ * `register`'s word that this daemon just came up because the deploy
+ * poller's idle-gated restart fired — see `restarts` above for why the hub
+ * treats this as an event rather than a row field.
+ */
+const peekRestarted = (payload: unknown): boolean => {
+  if (typeof payload !== "object" || payload === null) {
+    return false;
+  }
+  return (payload as { restarted?: unknown }).restarted === true;
+};
+
+/**
  * Whether two deploy verdicts say the same thing. Compared field by field
  * rather than by identity: every beat arrives as a fresh object, and
  * republishing the whole board four times a minute per machine because the
@@ -1403,6 +1415,19 @@ export const createServer = ({
    * all, exactly as a daemon that predates the channel does.
    */
   const deploys = new Map<string, DeployInfo>();
+
+  /**
+   * A machine's word, on its *next* register, that it just restarted because
+   * the deploy poller's idle-gated restart fired (update.ts's
+   * `restartAgentNow`/`consumeRestartMarker`). Unlike `deploys` above, this is
+   * not a live-fact cache to hold for as long as the socket stands — it is an
+   * EVENT, true for exactly one {@link instancesFrame} broadcast and never
+   * again, which is why {@link withPresence} deletes the entry the moment it
+   * reads it rather than leaving it for the next reader to find still there.
+   * A dashboard that opens ten minutes later must not be told "just
+   * restarted" about a machine that has been running quietly since.
+   */
+  const restarts = new Map<string, true>();
 
   /**
    * What this hub was built from, for the frame. `buildInfo()` is async and
@@ -2014,15 +2039,22 @@ export const createServer = ({
    * and are deliberately left alone.
    */
   const withPresence = (rows: AgentRow[]): AgentRow[] =>
-    rows.map((row) => ({
-      ...row,
-      status: registry.agent(row.machineId) ? "online" : "offline",
-      // Additive and live, like `status` above: present only for a machine that
-      // has actually reported one on this connection.
-      ...(deploys.get(row.machineId)
-        ? { deploy: deploys.get(row.machineId) }
-        : {}),
-    }));
+    rows.map((row) => {
+      // Consumed, not read: gone the instant this frame is built, so the
+      // very next broadcast — for this machine or any other — finds nothing
+      // here and says nothing about it. See `restarts` above.
+      const justRestarted = restarts.delete(row.machineId);
+      return {
+        ...row,
+        status: registry.agent(row.machineId) ? "online" : "offline",
+        // Additive and live, like `status` above: present only for a machine that
+        // has actually reported one on this connection.
+        ...(deploys.get(row.machineId)
+          ? { deploy: deploys.get(row.machineId) }
+          : {}),
+        ...(justRestarted ? { restarted: true } : {}),
+      };
+    });
 
   /**
    * The same law, applied to sessions — the instance of it the codebase was
@@ -5255,6 +5287,9 @@ export const createServer = ({
               if (registered) {
                 deploys.set(message.machineId, registered);
               }
+              if (peekRestarted(message.payload)) {
+                restarts.set(message.machineId, true);
+              }
               // A question parked by a process that is gone cannot be answered:
               // the reply would arrive at a daemon with no such session. Drop them
               // with the sessions they belonged to, or they replay to every
@@ -6045,6 +6080,9 @@ export const createServer = ({
           // Its deploy verdict was true of a checkout this hub can no longer ask
           // about; keeping it would be the stale-column defect in a Map.
           deploys.delete(machineId);
+          // An unconsumed restart event belonged to the connection that just
+          // ended; the next one to hold this machineId did not just restart.
+          restarts.delete(machineId);
           // The daemon holding these queues is gone; whatever it had not started
           // did not survive it, so the rows go with the sessions.
           for (const row of db.listInstances()) {

@@ -22,7 +22,7 @@ import { Data, Duration, Effect, Fiber, Schedule } from "effect";
 import { buildInfo } from "./build";
 import { readConfig } from "./config";
 import { convergeDeniedTools } from "./denied-tools";
-import { latestDeploy } from "./deploy";
+import { deployRoot, latestDeploy } from "./deploy";
 import { rediscoverHub, toWsUrl } from "./discovery";
 import { harnesses } from "./harnesses";
 import { OPENCODE_SERVER_PROC_ID } from "./harnesses/opencode";
@@ -33,6 +33,7 @@ import { TranscriptSearchService } from "./search";
 import { resumableSessions, SessionSupervisor } from "./session";
 import { SessiondClient } from "./sessiond-client";
 import { probeTools } from "./tools";
+import { consumeRestartMarker } from "./update";
 import { UsageScanner } from "./usage/scanner";
 
 const DEFAULT_HUB_URL = `ws://localhost:${WHIFFLE_HUB_PORT}/ws`;
@@ -80,6 +81,15 @@ export interface RegisterPayload extends MachineIdentity {
    */
   harnesses?: HarnessReport[];
   instances: string[];
+  /**
+   * True on exactly one register: the first one this process ever sends,
+   * and only when it came up because the deploy poller's idle-gated restart
+   * (`DeployWatcher#drainPendingRestart`, update.ts) fired it — never for a
+   * manual `service restart`, a crash, or a plain machine boot. What the
+   * dashboard toasts on; see `consumeRestartMarker`, which is what makes this
+   * exactly-once rather than "every register until someone reconnects".
+   */
+  restarted?: true;
   /**
    * The sessions this machine could resume, so the rows the daemon no
    * longer carries settle as sleeping or as lost rather than all alike. Absent
@@ -147,6 +157,23 @@ export const reconnect = Schedule.min([
  * loop in {@link reconnecting} rather than a schedule combinator.
  */
 export const HEALTHY_CONNECTION = Duration.seconds(60);
+
+/**
+ * The one supervisor a daemon process ever runs, for {@link currentBusy} to
+ * read — set the moment `startDaemon` constructs it, cleared on its release.
+ * Same module-level-latch idiom as {@link latestDeploy}'s `latest`: a fact
+ * that changes without anyone reconnecting, read by something in the same
+ * process rather than carried over a socket to itself.
+ */
+let activeSupervisor: SessionSupervisor | undefined;
+
+/**
+ * How many sessions this daemon is carrying mid-turn, right now — `0` before
+ * the supervisor exists (nothing has been asked yet, so nothing can be busy).
+ * This is what lets the deploy poller (deploy.ts) hold a restart until idle
+ * without asking the hub a question the daemon can answer about itself.
+ */
+export const currentBusy = (): number => activeSupervisor?.busyCount ?? 0;
 
 /**
  * How many consecutive failures against the pinned URL, and how much wall
@@ -412,6 +439,17 @@ const attach = (
       }
     });
     const catalog = yield* Effect.promise(() => resumableSessions());
+    const build = yield* Effect.promise(() => buildInfo());
+    // Consumed, not just read: true only the first register after THIS
+    // process came up because a deploy restarted it onto `build.commit`, and
+    // never again for the life of this connection — see `restartAgentNow` /
+    // `consumeRestartMarker` in update.ts for why a file beats a live send
+    // here (the process that wrote the marker was about to die).
+    const restarted = yield* Effect.promise(() =>
+      build.commit
+        ? consumeRestartMarker(deployRoot(), build.commit)
+        : Promise.resolve(false)
+    );
     const payload: RegisterPayload = {
       ...identity,
       instances: supervisor.instanceIds,
@@ -428,8 +466,9 @@ const attach = (
         Promise.all(harnesses().map((adapter) => adapter.detect()))
       ),
       tools: yield* Effect.promise(() => probeTools()),
-      build: yield* Effect.promise(() => buildInfo()),
+      build,
       ...(latestDeploy() ? { deploy: latestDeploy() } : {}),
+      ...(restarted ? { restarted: true } : {}),
     };
     send(socket, { verb: "register", machineId: identity.machineId, payload });
     yield* Effect.logInfo(`registered with ${url}`);
@@ -727,13 +766,27 @@ export const startDaemon = (auth?: AuthState) =>
 
     // Outlives any one connection: a hub restart must not kill running sessions.
     const supervisor = yield* Effect.acquireRelease(
-      Effect.sync(() => new SessionSupervisor()),
+      Effect.sync(() => {
+        const created = new SessionSupervisor();
+        // See {@link currentBusy}: the deploy poller's in-process read of it.
+        activeSupervisor = created;
+        return created;
+      }),
       (running) =>
         // Detached, not drained: the sessions outlive this daemon in sessiond,
         // and the next one reattaches to them. See `SessionSupervisor.detach`.
         Effect.logInfo(
           `detaching ${running.instanceIds.length} session(s)`
-        ).pipe(Effect.andThen(Effect.sync(() => running.detach())))
+        ).pipe(
+          Effect.andThen(
+            Effect.sync(() => {
+              running.detach();
+              if (activeSupervisor === running) {
+                activeSupervisor = undefined;
+              }
+            })
+          )
+        )
     );
 
     // The usage scanner outlives connections too: its dedup set is rebuilt only

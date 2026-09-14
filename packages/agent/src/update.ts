@@ -155,6 +155,77 @@ const scheduleRestart = (id: "agent" | "hub"): void => {
   }).unref();
 };
 
+/** Where "an agent restart is owed for commit X" lives, next to the deploy marker it complements. */
+const restartMarkerPath = (root: string): string =>
+  join(root, ".whiffle-restart-pending.json");
+
+/**
+ * Written by the process about to restart itself, right before it does —
+ * read back by the process that comes up in its place ({@link
+ * consumeRestartMarker}, called from the fresh daemon's own startup). A live
+ * socket send here would race the `exec` that kills this process: the next
+ * heartbeat carrying it might be up to `HEARTBEAT_INTERVAL` away, and this
+ * process will not live that long. A file the next process reads at its own
+ * `register` cannot lose that race — there is no clock to beat.
+ */
+const writeRestartMarker = (root: string, commit: string): Promise<number> =>
+  Bun.write(
+    restartMarkerPath(root),
+    JSON.stringify({ commit, at: Date.now() })
+  );
+
+/** How long a marker is trusted before it reads as stale leftover from some earlier, unrelated restart rather than this one. */
+const RESTART_MARKER_FRESH_MS = 2 * 60_000;
+
+/**
+ * Consumed exactly once, by the process that just came up: `true` only when
+ * this process's own build commit matches the one the marker names, and the
+ * marker is fresh enough to be THIS restart rather than a stale leftover.
+ * Deletes the marker either way, so a later restart of the same commit — a
+ * crash, a manual `service restart` — never re-announces one that already
+ * happened.
+ */
+export const consumeRestartMarker = async (
+  root: string,
+  commit: string
+): Promise<boolean> => {
+  const path = restartMarkerPath(root);
+  const marker = (await Bun.file(path)
+    .json()
+    .catch(() => undefined)) as { at?: number; commit?: string } | undefined;
+  await Bun.file(path)
+    .delete()
+    .catch(() => {
+      // best effort: nothing to consume
+    });
+  return (
+    marker?.commit === commit &&
+    typeof marker.at === "number" &&
+    Date.now() - marker.at < RESTART_MARKER_FRESH_MS
+  );
+};
+
+/**
+ * The idle-gated half of the deploy channel (unifying C8 with the CLI's own
+ * `--when-idle` restart, `packages/cli/src/service.ts`): called by the deploy
+ * poller only once IT has already established the machine is idle enough to
+ * interrupt. This function itself never checks busy — it is exactly as safe,
+ * and exactly as blunt, as `restartStack`'s own `scheduleRestart("agent")`
+ * call — the busy gate is the caller's job precisely so it can be asked again
+ * on the next tick instead of asked once and given up on.
+ */
+export const restartAgentNow = async (
+  root: string,
+  commit: string
+): Promise<boolean> => {
+  if (!(await isInstalled("agent"))) {
+    return false;
+  }
+  await writeRestartMarker(root, commit);
+  scheduleRestart("agent");
+  return true;
+};
+
 /** What the dashboard service serves, and the sign that this machine builds it. */
 const dashboardBuild = (root: string): string =>
   join(root, "apps", "dashboard", "build", "index.js");
@@ -336,10 +407,16 @@ export const restartStack = async (
  * what. Kept here rather than in `deploy.ts` so that module stays a pure
  * observer — it can be read, and tested, without the ability to pull anything.
  *
- * `restartAgent: true` is the point of the whole channel. A daemon that pulled
- * a new commit and kept running the old one has not deployed; and post-cutover
- * the daemon's restart is free by construction, because the harness children
- * live in sessiond's cgroup and not in the agent's (PLAN.md C7/D4).
+ * A daemon that pulled a new commit and kept running the old one has not
+ * deployed — but `restartAgent: false`, always, is deliberate: this call
+ * always ran with `restartAgent: true` and no busy count, so a push always
+ * force-restarted the agent mid-turn, busy or not, and the comment here used
+ * to call that "free by construction" because the harness children live in
+ * sessiond's cgroup rather than the agent's. Free for the *session* — custody
+ * survives it — is not free for whoever was mid-stream on it. `deploy.ts`
+ * (`DeployWatcher#drainPendingRestart`) now owns that decision instead, with
+ * the real busy count and a retry every tick until idle, rather than a
+ * one-shot check against a number this call never even asked for.
  */
 export const deployUpdate = (state: DeployState): Promise<UpdateReport> => {
   if (state.kind !== "behind") {
@@ -350,7 +427,7 @@ export const deployUpdate = (state: DeployState): Promise<UpdateReport> => {
   return updateCheckout({
     root: state.root,
     branch: DEPLOY_BRANCH,
-    restartAgent: true,
+    restartAgent: false,
   });
 };
 
@@ -369,7 +446,13 @@ export type DeployWatchOptions = Partial<
  */
 export const watchDeployment = (
   options: DeployWatchOptions = {}
-): DeployPoller => startDeployPoller({ ...options, update: deployUpdate });
+): DeployPoller =>
+  startDeployPoller({
+    // The real idle-gated restart, unless a caller (the tests) names its own.
+    restartAgent: restartAgentNow,
+    ...options,
+    update: deployUpdate,
+  });
 
 /**
  * Where this machine stands against the deployment branch, asked once. What

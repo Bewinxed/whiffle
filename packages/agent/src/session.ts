@@ -467,6 +467,16 @@ export class SessionSupervisor {
     return [...this.#sessions.keys()];
   }
 
+  /**
+   * How many sessions are mid-turn right now. Same number {@link AGENT_BUSY}
+   * answers over the wire, but read in-process: the deploy poller runs in this
+   * same daemon and asking its own supervisor through the hub it is itself
+   * connected to would be a round trip to learn a fact already held in memory.
+   */
+  get busyCount(): number {
+    return this.#busy.size;
+  }
+
   /** The pulse as it stands, computed from the parts rather than stored. */
   #buildPulse(instanceId: string): SessionPulse {
     const blocked = (this.#pulseBlocked.get(instanceId) ?? 0) > 0;

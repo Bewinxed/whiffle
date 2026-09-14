@@ -4,6 +4,7 @@ export { buildInfo } from "./build";
 export { type CliConfig, CONFIG_PATH, readConfig, writeConfig } from "./config";
 export {
   ConnectionLost,
+  currentBusy,
   type RegisterPayload,
   runDaemon,
   startDaemon,

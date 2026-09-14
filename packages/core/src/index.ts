@@ -372,6 +372,17 @@ export interface AgentRow {
   lastSeenAt: string | number | Date | null;
   machineId: string;
   os: string;
+  /**
+   * True on exactly the one `instances` frame that follows this machine's
+   * daemon coming back up because the deploy poller's idle-gated restart
+   * fired (update.ts's `restartAgentNow`) — never for a manual restart, a
+   * crash, or a plain boot. The hub deletes its own record of this the
+   * instant it is read, so it never rides a later, unrelated broadcast: a
+   * reader that was not subscribed for that one frame simply never learns
+   * about it, the same as anyone who was not looking at the terminal when it
+   * happened. What the dashboard's per-machine toast is keyed on.
+   */
+  restarted?: true;
   status: string;
   /**
    * Last-known workflow-tool status by tool id (NEW.md §10).
