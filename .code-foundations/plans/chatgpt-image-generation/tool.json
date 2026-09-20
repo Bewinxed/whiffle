@@ -1,0 +1,43 @@
+{
+  "name": "generate_image",
+  "description": "Generate one PNG image or a reference-guided edit using the owner's ChatGPT subscription, regardless of the calling model or harness. Use for requested photos, illustrations, textures, and raster assets. Pass previous images as reference_images and describe what to preserve or change. Saves on the calling session's machine; returns the absolute path and actual dimensions. Display it with show_image. Requires that machine's OpenCode ChatGPT OAuth login; never uses API-key billing or another provider. Does not expose an image-model selector. For SVGs, icons, or code-native graphics, edit source instead.",
+  "input_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["prompt", "output_path"],
+    "properties": {
+      "prompt": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Describe intended use, subject, framing/layout, style, lighting/materials, and exclusions. Quote exact text and specify its placement/typography. For complex briefs use Scene/Subject/Details/Constraints. For edits say 'Change only X; preserve Y' and name identity, geometry, lighting, and labels to retain. Number reference roles. Iterate one change at a time with the previous output as input. Set size/quality separately."
+      },
+      "output_path": {
+        "type": "string",
+        "minLength": 1,
+        "description": "New .png file to create on the calling session's machine. Relative paths resolve from the session working directory; absolute paths are accepted. Existing files are not overwritten."
+      },
+      "reference_images": {
+        "type": "array",
+        "items": { "type": "string", "minLength": 1 },
+        "description": "Ordered local PNG/JPEG/WebP/GIF paths. Assign each a role in the prompt, e.g. 'Image 1: person to preserve; Image 2: clothing to apply.' For follow-up edits, attach the previous output and restate preservation constraints. Limit: 50 MiB per image, 100 MiB combined."
+      },
+      "size": {
+        "type": "string",
+        "default": "auto",
+        "description": "Requested image size: auto or WIDTHxHEIGHT, such as 1024x1536. Dimensions must be multiples of 16, no side above 3840, aspect ratio at most 3:1, and total pixels between 655360 and 8294400. The backend may choose different dimensions."
+      },
+      "quality": {
+        "type": "string",
+        "enum": ["auto", "low", "medium", "high"],
+        "default": "auto",
+        "description": "Requested quality; defaults to auto. Use low for drafts; consider high for dense text, diagrams, or fine detail. Increase only when the result falls short; higher is not always better. This subscription tool exposes auto/low/medium/high, not xhigh/max."
+      }
+    }
+  },
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true
+  }
+}

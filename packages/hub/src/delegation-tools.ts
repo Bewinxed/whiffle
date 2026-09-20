@@ -1,3 +1,5 @@
+import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
+import { IMAGE_GENERATION_DESCRIPTION } from "@whiffle/core";
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import {
@@ -10,13 +12,15 @@ function tool<T extends z.ZodRawShape>(
   name: string,
   description: string,
   input: T,
-  handler: (args: z.infer<z.ZodObject<T>>) => Promise<unknown>
+  handler: (args: z.infer<z.ZodObject<T>>) => Promise<unknown>,
+  annotations?: ToolAnnotations
 ) {
   const schema = z.object(input);
   return {
     name,
     description,
     inputSchema: zodToJsonSchema(schema),
+    ...(annotations ? { annotations } : {}),
     handler: (args: unknown) => handler(schema.parse(args)),
   };
 }
@@ -54,6 +58,56 @@ const delegateTypeLine = (types: HandoffDeps["delegateTypes"]): string =>
 export function handoffTools(deps: HandoffDeps) {
   const actions = handoffActions(deps);
   const all = [
+    tool(
+      "generate_image",
+      IMAGE_GENERATION_DESCRIPTION,
+      {
+        prompt: z
+          .string()
+          .trim()
+          .min(1)
+          .describe(
+            "Describe intended use, subject, framing/layout, style, lighting/materials, and exclusions. Quote exact text and specify its placement/typography. For complex briefs use Scene/Subject/Details/Constraints. For edits say 'Change only X; preserve Y' and name identity, geometry, lighting, and labels to retain. Number reference roles. Iterate one change at a time with the previous output as input. Set size/quality separately."
+          ),
+        output_path: z
+          .string()
+          .min(1)
+          .describe(
+            "New .png path on the calling session's machine. Relative paths resolve from its working directory; existing files are not overwritten."
+          ),
+        reference_images: z
+          .array(z.string().min(1))
+          .optional()
+          .describe(
+            "Ordered local PNG/JPEG/WebP/GIF paths. Assign each a role in the prompt, e.g. 'Image 1: person to preserve; Image 2: clothing to apply.' For follow-up edits, attach the previous output and restate preservation constraints. Limit: 50 MiB per image, 100 MiB combined."
+          ),
+        size: z
+          .string()
+          .optional()
+          .describe(
+            "Requested auto or WIDTHxHEIGHT (e.g. 1024x1536): multiples of 16, max edge 3840, max aspect 3:1, 655360–8294400 pixels. Actual dimensions may differ."
+          ),
+        quality: z
+          .enum(["auto", "low", "medium", "high"])
+          .optional()
+          .describe(
+            "Requested quality; defaults to auto. Use low for drafts; consider high for dense text, diagrams, or fine detail. Increase only when the result falls short; higher is not always better. This subscription tool exposes auto/low/medium/high, not xhigh/max."
+          ),
+      },
+      async (request) => {
+        const image = await actions.generateImage(request);
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify(image) }],
+          structuredContent: image,
+        };
+      },
+      {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      }
+    ),
     tool(
       "list_delegate_types",
       "Read the live fleet delegate catalog: each type's task description, harness, model, effort, skills, denied tools, and permission to delegate further. " +
@@ -448,8 +502,10 @@ export function handoffTools(deps: HandoffDeps) {
 }
 
 export function handoffInstructions(deps: HandoffDeps): string {
+  const images =
+    "Whiffle can generate images regardless of your model: use generate_image (Claude: mcp__whiffle__generate_image; OpenCode: whiffle_generate_image). It uses the machine's ChatGPT subscription login only. Pass reference_images for edits or visual guidance, then show the returned path with show_image. Discover deferred tools before claiming image generation is unavailable. Do not delegate image generation to a different model.";
   if (deps.canDelegate === false) {
-    return "This session is a leaf delegate. Do the assigned work yourself; delegate and start_session are unavailable. Use mcp__whiffle__handoff to reach your parent or a session that already owns related work.";
+    return `This session is a leaf delegate. Do the assigned work yourself; delegate and start_session are unavailable. Use mcp__whiffle__handoff to reach your parent or a session that already owns related work.\n\n${images}`;
   }
   let catalog = deps.delegateTypes?.length
     ? delegateTypeLine(deps.delegateTypes).trim()
@@ -458,6 +514,7 @@ export function handoffInstructions(deps: HandoffDeps): string {
     catalog = `${deps.delegateTypesError}. The catalog is unavailable, not empty. A delegate call naming a known type retries the fetch; if no type is known, report the catalog blocker rather than guessing a model.`;
   }
   return [
+    images,
     "Use Whiffle's delegate tool for bounded fleet work that must report back to its parent. Native harness subagents are a separate mechanism and do not resolve Whiffle presets.",
     'Call list_delegate_types for current model/effort mappings. Claude names these tools mcp__whiffle__list_delegate_types and mcp__whiffle__delegate; if deferred, use ToolSearch(query="select:mcp__whiffle__delegate"). OpenCode names them whiffle_list_delegate_types and whiffle_delegate. These are tools, not MCP resources. list_sessions lists running sessions, not configured types.',
     "Before repository exploration, bulk file reads, search sweeps, or log triage, delegate a bounded brief using the appropriate configured type. Keep intent, decisions, and acceptance with the parent; return evidence and conclusions rather than file dumps.",

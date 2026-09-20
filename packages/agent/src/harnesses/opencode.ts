@@ -78,6 +78,7 @@ import {
   CONTROL_SET_PERMISSION_MODE,
   CONTROL_SUPPORTED_COMMANDS,
   CONTROL_SUPPORTED_MODELS,
+  IMAGE_GENERATION_TIMEOUT_MS,
   isInjected,
 } from "@whiffle/core";
 // The protocol subpath, never the `@whiffle/core` barrel: `sessiond.ts` reaches
@@ -3110,7 +3111,7 @@ export class OpencodeHarness implements Harness {
             // Verification failed — treat as unknown baseline; the watcher
             // will schedule convergence.
             this.#appliedHash = null;
-            this.#configState = "idle";
+            this.#configState = "pending";
             console.warn(
               `[opencode] config convergence: fresh spawn verification failed, scheduling convergence: ${String(error)}`
             );
@@ -3119,11 +3120,11 @@ export class OpencodeHarness implements Harness {
           // Unknown baseline: the watcher will detect desired !== applied
           // and schedule a convergence cycle.
           this.#appliedHash = null;
-          this.#configState = "idle";
+          this.#configState = "pending";
           console.log(
             JSON.stringify({
               type: "config-convergence",
-              state: "idle",
+              state: "pending",
               detail:
                 "adopted server, baseline unknown — convergence scheduled",
               at: Date.now(),
@@ -3154,6 +3155,7 @@ export class OpencodeHarness implements Harness {
         whiffle: {
           type: "remote",
           url: `${delegationHubUrl()}/mcp/whiffle`,
+          timeout: IMAGE_GENERATION_TIMEOUT_MS + 60_000,
           enabled: true,
           oauth: false,
         },
@@ -3492,6 +3494,7 @@ export class OpencodeHarness implements Harness {
           config: {
             type: "remote",
             url: `${delegationHubUrl()}/mcp/whiffle`,
+            timeout: IMAGE_GENERATION_TIMEOUT_MS + 60_000,
             enabled: true,
             oauth: false,
           },

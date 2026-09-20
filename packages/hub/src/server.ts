@@ -50,9 +50,11 @@ import {
   deriveTitleFromFirstMessage,
   FLEET_STATUS,
   FLEET_SYNC,
+  GENERATE_IMAGE,
   HARNESSES,
   HOOK_TEMPLATES,
   hookProblem,
+  IMAGE_GENERATION_TIMEOUT_MS,
   INSPECT_CONFIG,
   identifyBlocks,
   MESSAGE_DEQUEUED,
@@ -1703,6 +1705,7 @@ export const createServer = ({
    * against but this.
    */
   const waiting = new Map<string, (frame: ControlResult) => void>();
+  const waitingMachines = new Map<string, string>();
 
   /**
    * Where each conversation lives, once somebody has had to find out.
@@ -1740,20 +1743,24 @@ export const createServer = ({
       args,
       ...(harness && { harness }),
     };
-    agent.send({
-      verb: "control",
-      machineId,
-      payload,
-    } satisfies Envelope<ControlPayload>);
     return new Promise((resolve) => {
       const timer = setTimeout(() => {
         waiting.delete(requestId);
+        waitingMachines.delete(requestId);
         resolve("timeout");
       }, timeoutMs);
+      waitingMachines.set(requestId, machineId);
       waiting.set(requestId, (frame) => {
         clearTimeout(timer);
+        waiting.delete(requestId);
+        waitingMachines.delete(requestId);
         resolve(frame);
       });
+      agent.send({
+        verb: "control",
+        machineId,
+        payload,
+      } satisfies Envelope<ControlPayload>);
     });
   };
 
@@ -3034,18 +3041,23 @@ export const createServer = ({
     new Elysia()
       .use(websocket())
       .use(delegateTypesRoutes(delegateTypes))
-      .all("/mcp/whiffle", ({ request, body }) =>
-        delegationMcp.handle(request, body)
-      )
+      .all("/mcp/whiffle", ({ request, body, server }) => {
+        // Tool deadlines govern long calls; the HTTP idle timer must not cut them short.
+        server?.timeout(request, 0);
+        return delegationMcp.handle(request, body);
+      })
       .get("/api/delegation/tools", () => delegationMcp.list())
       .post(
         "/api/delegation/call/:instanceId",
         { body: t.Any() },
-        ({ params, body }) => {
+        ({ params, body, request, server }) => {
           const input = body as {
             name: string;
             arguments?: Record<string, unknown>;
           };
+          if (input.name === "generate_image") {
+            server?.timeout(request, 0);
+          }
           return delegationMcp.call(
             params.instanceId,
             input.name,
@@ -3061,6 +3073,41 @@ export const createServer = ({
         build: await buildInfo(),
       }))
       .get("/api/agents", () => withPresence(db.listAgents()))
+      .post(
+        "/api/instances/:id/generate-image",
+        { body: t.Any() },
+        async ({ params, body, status, request, server }) => {
+          const row = db
+            .listInstances()
+            .find((instance) => instance.id === params.id);
+          if (!row) {
+            return status(404, "Unknown calling session.");
+          }
+          server?.timeout(request, 0);
+          const answer = await callAgent(
+            row.machineId,
+            GENERATE_IMAGE,
+            [row.id, row.cwd, body],
+            IMAGE_GENERATION_TIMEOUT_MS + 30_000
+          );
+          if (answer === "offline") {
+            return status(
+              503,
+              "The session's machine is offline; image generation was not started."
+            );
+          }
+          if (answer === "timeout") {
+            return status(
+              504,
+              "Image generation did not finish in time. Check the output path before retrying; do not submit a duplicate automatically."
+            );
+          }
+          if (!answer.ok) {
+            return status(422, answer.error ?? "Image generation failed.");
+          }
+          return answer.result;
+        }
+      )
       .get("/api/instances/:id/preview", ({ params, status }) => {
         const target = previewTargets.get(params.id);
         return target
@@ -6055,6 +6102,17 @@ export const createServer = ({
           const machineId = registry.dropAgent(ws.id);
           if (!machineId) {
             return;
+          }
+          for (const [requestId, machine] of waitingMachines) {
+            if (machine === machineId) {
+              waiting.get(requestId)?.({
+                kind: "control_result",
+                requestId,
+                ok: false,
+                error:
+                  "The machine disconnected during this request. Completion is unknown; check the output before retrying. No automatic retry was submitted.",
+              });
+            }
           }
           for (const [instanceId, target] of previewTargets) {
             if (target.machineId === machineId) {

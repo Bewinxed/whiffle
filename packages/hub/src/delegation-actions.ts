@@ -12,6 +12,8 @@
 import type {
   DelegateType,
   Envelope,
+  GeneratedImage,
+  ImageGenerationRequest,
   InstanceRow,
   PermissionResult,
   PreviewSource,
@@ -20,6 +22,7 @@ import type {
 } from "@whiffle/core";
 import {
   delegateTypeProblem,
+  IMAGE_GENERATION_TIMEOUT_MS,
   QUESTION_DISMISSED,
   WHIFFLE_ENV,
   WHIFFLE_HUB_PORT,
@@ -338,6 +341,9 @@ export interface HandoffActions {
       canDelegate?: boolean;
     }
   ): Promise<HandoffResult>;
+  readonly generateImage: (
+    request: ImageGenerationRequest
+  ) => Promise<GeneratedImage>;
   // biome-ignore lint/style/useConsistentMethodSignatures: implemented below; property-style would change parameter variance against that implementation
   handoff(target: string, message: string, urgent?: boolean): Promise<string>;
   // biome-ignore lint/style/useConsistentMethodSignatures: implemented below; property-style would change parameter variance against that implementation
@@ -400,6 +406,21 @@ export const handoffActions = ({
   harness: callerHarness,
   emit,
 }: HandoffDeps): HandoffActions => ({
+  async generateImage(request) {
+    const response = await fetch(
+      `${hubHttpUrl()}/api/instances/${encodeURIComponent(instanceId)}/generate-image`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(request),
+        signal: AbortSignal.timeout(IMAGE_GENERATION_TIMEOUT_MS + 60_000),
+      }
+    );
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+    return (await response.json()) as GeneratedImage;
+  },
   async showPreview(source) {
     const response = await fetch(
       `${hubHttpUrl()}/api/instances/${encodeURIComponent(instanceId)}/preview`,

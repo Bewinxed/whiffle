@@ -36,6 +36,7 @@ import {
   alreadyIngested,
   FLEET_STATUS,
   FLEET_SYNC,
+  GENERATE_IMAGE,
   PREVIEW_START,
   PREVIEW_STOP,
   RESOLVE_PERMISSION,
@@ -50,6 +51,7 @@ import { Effect } from "effect";
 import { expandHome, runFs } from "./fs";
 import type { Harness, HarnessContext, HarnessSession } from "./harness";
 import { harnesses, harness as harnessOf } from "./harnesses";
+import { generateImage } from "./image-generation";
 import { startPreview, stopPreview, stopPreviews } from "./preview";
 import { installTool, probeTools } from "./tools";
 import { type UpdateOptions, updateCheckout } from "./update";
@@ -345,6 +347,7 @@ export class SessionSupervisor {
   readonly #queues = new Map<string, Promise<void>>();
   /** The sessions with a turn in flight — from the `send` that starts one until the turn ends. */
   readonly #busy = new Set<string>();
+  readonly #imageRequests = new Map<string, string>();
 
   /**
    * THE AGENT'S HALF OF THE INGEST LEDGER (design §7).
@@ -385,12 +388,17 @@ export class SessionSupervisor {
   readonly #pulseTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   readonly #daemonFunctions: Record<string, ControlMethod> = {
+    [GENERATE_IMAGE]: (_instanceId, cwd, input) =>
+      generateImage(cwd as string, input),
     [PREVIEW_START]: (options) =>
       startPreview(options as Parameters<typeof startPreview>[0]),
     [PREVIEW_STOP]: (options) => stopPreview(options as { instanceId: string }),
-    [AGENT_BUSY]: () => ({ busy: this.#busy.size, instances: [...this.#busy] }),
+    [AGENT_BUSY]: () => ({
+      busy: this.busyCount,
+      instances: this.busyInstanceIds,
+    }),
     [UPDATE_WHIFFLE]: (options) =>
-      updateCheckout({ ...(options as UpdateOptions), busy: this.#busy.size }),
+      updateCheckout({ ...(options as UpdateOptions), busy: this.busyCount }),
   };
 
   /** Register a machine-scoped control method, callable without an instanceId. */
@@ -433,7 +441,19 @@ export class SessionSupervisor {
   }
 
   dispatch(envelope: Envelope): void {
-    const key = envelope.instanceId ?? "";
+    const control =
+      envelope.verb === "control"
+        ? (envelope.payload as ControlPayload)
+        : undefined;
+    const imageRequest =
+      control?.method === GENERATE_IMAGE ? control.requestId : undefined;
+    // A slow image request must not block machine busy probes or other controls.
+    const key = imageRequest
+      ? `image:${imageRequest}`
+      : (envelope.instanceId ?? "");
+    if (imageRequest) {
+      this.#imageRequests.set(imageRequest, String(control?.args?.[0]));
+    }
     const queue = (this.#queues.get(key) ?? Promise.resolve())
       .then(() => this.#route(envelope))
       .catch((error: unknown) => {
@@ -456,6 +476,9 @@ export class SessionSupervisor {
     this.#queues.set(key, queue);
     // biome-ignore lint/complexity/noVoid: fire-and-forget cleanup; dispatch() itself is synchronous and does not wait on the queue draining
     void queue.then(() => {
+      if (imageRequest) {
+        this.#imageRequests.delete(imageRequest);
+      }
       if (this.#queues.get(key) === queue) {
         this.#queues.delete(key);
       }
@@ -474,7 +497,11 @@ export class SessionSupervisor {
    * connected to would be a round trip to learn a fact already held in memory.
    */
   get busyCount(): number {
-    return this.#busy.size;
+    return this.busyInstanceIds.length;
+  }
+
+  get busyInstanceIds(): string[] {
+    return [...new Set([...this.#busy, ...this.#imageRequests.values()])];
   }
 
   /** The pulse as it stands, computed from the parts rather than stored. */
@@ -548,6 +575,7 @@ export class SessionSupervisor {
 
   /** Drops every trace of an instance's pulse — the session is gone. */
   #forgetPulse(instanceId: string): void {
+    this.#busy.delete(instanceId);
     if (stopPreview({ instanceId })) {
       this.sink({
         kind: "preview",

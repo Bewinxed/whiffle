@@ -1,4 +1,9 @@
-import { readEnv, WHIFFLE_ENV, WHIFFLE_HUB_PORT } from "@whiffle/core";
+import {
+  IMAGE_GENERATION_TIMEOUT_MS,
+  readEnv,
+  WHIFFLE_ENV,
+  WHIFFLE_HUB_PORT,
+} from "@whiffle/core";
 
 export const MCP_SERVER_NAME = "whiffle";
 const WS_SCHEME = /^ws/;
@@ -18,6 +23,8 @@ export const delegationMcp = (instanceId: string) => ({
   // alternative (`ENABLE_TOOL_SEARCH=false`) would load all 133 and reintroduce
   // the context cost this exists to avoid.
   alwaysLoad: true,
+  // Claude's HTTP first-response timeout is otherwise 60s, shorter than image generation.
+  timeout: IMAGE_GENERATION_TIMEOUT_MS + 60_000,
 });
 
 export async function delegationTools() {
@@ -51,7 +58,11 @@ export async function callDelegationTool(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, arguments: args }),
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(
+        name === "generate_image"
+          ? IMAGE_GENERATION_TIMEOUT_MS + 60_000
+          : 30_000
+      ),
     }
   );
   if (!response.ok) {

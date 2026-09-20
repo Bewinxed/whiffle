@@ -266,7 +266,8 @@ export function createDelegationMcp(options: {
     );
     const transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: () => crypto.randomUUID(),
-      enableJsonResponse: true,
+      // Send headers immediately; image generation must not sit behind HTTP first-byte deadlines.
+      enableJsonResponse: false,
       onsessioninitialized: (sessionId) => {
         sessions.set(sessionId, { transport, server, binding });
       },
@@ -275,15 +276,43 @@ export function createDelegationMcp(options: {
       },
     });
     server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: describe().map(({ name, description, inputSchema }) => ({
+      tools: describe().map(({ name, description, inputSchema, ...entry }) => ({
         name,
         description,
         inputSchema: inputSchema as { type: "object" },
+        ...("annotations" in entry ? { annotations: entry.annotations } : {}),
       })),
     }));
-    server.setRequestHandler(CallToolRequestSchema, (message) =>
-      call(binding, message.params.name, message.params.arguments ?? {})
-    );
+    server.setRequestHandler(CallToolRequestSchema, async (message, extra) => {
+      const token = message.params._meta?.progressToken;
+      let elapsed = 0;
+      const heartbeat =
+        message.params.name === "generate_image" && token !== undefined
+          ? setInterval(() => {
+              elapsed += 15;
+              // biome-ignore lint/complexity/noVoid: progress is fire-and-forget; a disconnected client cannot receive it.
+              void extra
+                .sendNotification({
+                  method: "notifications/progress",
+                  params: {
+                    progressToken: token,
+                    progress: elapsed,
+                    message: `Generating image through ChatGPT (${elapsed}s elapsed).`,
+                  },
+                })
+                .catch(() => undefined);
+            }, 15_000)
+          : undefined;
+      try {
+        return await call(
+          binding,
+          message.params.name,
+          message.params.arguments ?? {}
+        );
+      } finally {
+        clearInterval(heartbeat);
+      }
+    });
     await server.connect(transport);
     return transport.handleRequest(request, { parsedBody: body });
   };
@@ -296,10 +325,11 @@ export function createDelegationMcp(options: {
     sessions.clear();
   };
   const list = () => ({
-    tools: describe().map(({ name, description, inputSchema }) => ({
+    tools: describe().map(({ name, description, inputSchema, ...entry }) => ({
       name,
       description,
       inputSchema,
+      ...("annotations" in entry ? { annotations: entry.annotations } : {}),
     })),
   });
   return { handle, call, replaceTools, close, list };
