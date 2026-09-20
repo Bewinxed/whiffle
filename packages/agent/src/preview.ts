@@ -121,6 +121,22 @@ export async function startPreview(options: {
         if (headers.has("origin")) {
           headers.set("origin", `http://localhost:${source.port}`);
         }
+        if (headers.has("referer")) {
+          try {
+            const ref = new URL(headers.get("referer")!);
+            const stripped = ref.pathname.replace(
+              /^\/preview\/[^/]+\//,
+              "/",
+            );
+            headers.set(
+              "referer",
+              `http://localhost:${source.port}${stripped}${ref.search}`,
+            );
+          } catch {
+            // malformed Referer — drop it rather than forward a dashboard URL
+            headers.delete("referer");
+          }
+        }
         headers.set("accept-encoding", "identity");
         const target = `127.0.0.1:${source.port}${url.pathname}${url.search}`;
         if (request.headers.get("upgrade")?.toLowerCase() === "websocket") {
