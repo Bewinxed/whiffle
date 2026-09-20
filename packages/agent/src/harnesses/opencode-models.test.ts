@@ -33,7 +33,8 @@ const sessionWithProviders = (
       },
       () => {
         /* release handling is unused by these model tests */
-      }
+      },
+      () => false
     ),
   };
 };

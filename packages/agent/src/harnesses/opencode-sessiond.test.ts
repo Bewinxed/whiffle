@@ -153,7 +153,7 @@ test("the server is spawned through sessiond, its port read from the ring, and o
   const client = await SessiondClient.connect(endpoint);
   cleanups.push(() => client.close());
 
-  const url = await attachOpencodeServer({
+  const { url } = await attachOpencodeServer({
     sessiond: client,
     spec: serverSpec(dir),
   });
@@ -187,7 +187,7 @@ test("the server is spawned through sessiond, its port read from the ring, and o
     sessiond: client,
     spec: serverSpec(dir),
   });
-  expect(again).toBe(url);
+  expect(again.url).toBe(url);
   const stillHeld = (await client.list()).procs.filter(
     (proc) => proc.procId === OPENCODE_SERVER_PROC_ID
   );
@@ -202,7 +202,7 @@ test("a torn-down agent side rebuilds onto the still-running server and re-subsc
 
   // ---- first life -------------------------------------------------------
   const first = await SessiondClient.connect(endpoint);
-  const url = await attachOpencodeServer({
+  const { url } = await attachOpencodeServer({
     sessiond: first,
     spec: serverSpec(dir),
   });
@@ -236,7 +236,8 @@ test("a torn-down agent side rebuilds onto the still-running server and re-subsc
     spec: serverSpec(dir),
   });
   // Same server, same process: no restart, no second server, no lost sessions.
-  expect(rebuilt).toBe(url);
+  expect(rebuilt.url).toBe(url);
+  expect(rebuilt.freshlySpawned).toBe(false);
   const after = (await second.list()).procs.find(
     (proc) => proc.procId === OPENCODE_SERVER_PROC_ID
   );
@@ -247,7 +248,7 @@ test("a torn-down agent side rebuilds onto the still-running server and re-subsc
   // And the SSE pump re-subscribes: a SECOND, distinct subscription lands on
   // the same server — the thing `#pumpDirectory` does per directory after a
   // supervisor rebuild.
-  const secondClient = createOpencodeClient({ baseUrl: rebuilt });
+  const secondClient = createOpencodeClient({ baseUrl: rebuilt.url });
   expect(await firstEvent(secondClient, dir)).toBeTruthy();
   const counted = (await (await fetch(`${url}/subscriptions`)).json()) as {
     subscriptions: number;

@@ -132,7 +132,8 @@ const build = () => {
     },
     () => {
       /* onRelease unused by these tests */
-    }
+    },
+    () => false
   );
   return { session, frames };
 };

@@ -43,6 +43,7 @@ test.each([undefined, "low", "medium", "high", "xhigh", "max"] as const)(
       server.url.toString(),
       noop,
       noop,
+      () => false,
       effort
     );
     try {

@@ -95,7 +95,8 @@ const drive = (): { session: OpencodeSession; frames: Frames } => {
     },
     () => {
       /* onRelease unused by these tests */
-    }
+    },
+    () => false
   );
   return { session, frames };
 };

@@ -22,6 +22,7 @@
  * `error_during_execution`), so a busy session is never left hung.
  */
 
+import { createHash } from "node:crypto";
 import { readdir, rename } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -120,6 +121,33 @@ const OPENCODE_MEMORY = join(OPENCODE_DIR, "AGENTS.md");
 const OPENCODE_CONFIG = join(OPENCODE_DIR, "opencode.json");
 const OPENCODE_SIDECAR = join(OPENCODE_DIR, "whiffle-fleet.json");
 const OPENCODE_PLUGINS = join(OPENCODE_DIR, "plugins");
+
+/**
+ * The static permission/tools policy passed via OPENCODE_CONFIG_CONTENT at
+ * server spawn time. Single source of truth shared by {@link #ensure} (which
+ * builds the env var) and {@link #hashConfig} (which includes it in the
+ * convergence fingerprint). Changes here require a server restart, not just
+ * a dispose reload.
+ */
+const STATIC_POLICY = {
+  permission: { bash: "ask", edit: "ask", webfetch: "deny" },
+  tools: { websearch: false },
+} as const;
+
+/**
+ * The config keys the convergence system fingerprints and verifies against
+ * the server's resolved state. Keyed by the opencode.json field name.
+ * `mcp` is excluded — it's verified authoritatively via `mcp.status()`.
+ */
+const CONTROLLED_CONFIG_FIELDS = [
+  "agent",
+  "disabled_providers",
+  "enabled_providers",
+  "model",
+  "plugin",
+  "provider",
+  "small_model",
+] as const;
 
 /** Retire the pre-rename generated plugin so OpenCode registers each fleet tool once. */
 export async function retireLegacyHandoffPlugin(
@@ -222,6 +250,29 @@ export const STALLED_TURN_MS = 3 * 60_000;
  * refused here, loudly, and never sent: two sessions once went unrevivable
  * because the hub resumed them under their instance uuids.
  */
+/**
+ * Deterministic JSON serialization: sorts object keys at every level so that
+ * logically identical configs always produce the same hash regardless of key
+ * insertion order.
+ */
+const canonicalizeJson = (value: unknown): string => {
+  if (value === null || value === undefined) {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map(canonicalizeJson).join(",")}]`;
+  }
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    const keys = Object.keys(obj).sort();
+    const entries = keys
+      .filter((k) => obj[k] !== undefined)
+      .map((k) => `${JSON.stringify(k)}:${canonicalizeJson(obj[k])}`);
+    return `{${entries.join(",")}}`;
+  }
+  return JSON.stringify(value);
+};
+
 const OPENCODE_SESSION_ID = /^ses_/;
 
 const assertOpencodeKey = (key: string, what: string): void => {
@@ -276,7 +327,7 @@ export const attachOpencodeServer = async (options: {
   spec: ProcSpec;
   procId?: string;
   timeoutMs?: number;
-}): Promise<string> => {
+}): Promise<{ url: string; freshlySpawned: boolean }> => {
   const procId = options.procId ?? OPENCODE_SERVER_PROC_ID;
   const timeoutMs = options.timeoutMs ?? SERVER_ANNOUNCE_TIMEOUT_MS;
   const client = options.sessiond;
@@ -286,11 +337,12 @@ export const attachOpencodeServer = async (options: {
   const held = (await client.list()).procs.find(
     (proc) => proc.procId === procId
   );
-  if (!held?.alive) {
+  const freshlySpawned = !held?.alive;
+  if (freshlySpawned) {
     await client.spawnProc(procId, options.spec);
   }
 
-  return await new Promise<string>((resolve, reject) => {
+  const url = await new Promise<string>((resolve, reject) => {
     let settled = false;
     const settle = (finish: () => void): void => {
       if (settled) {
@@ -319,9 +371,9 @@ export const attachOpencodeServer = async (options: {
       procId,
       {
         line: (event) => {
-          const url = parseServerAnnouncement(event.data);
-          if (url) {
-            settle(() => resolve(url));
+          const announced = parseServerAnnouncement(event.data);
+          if (announced) {
+            settle(() => resolve(announced));
           }
         },
         exit: (exitCode) =>
@@ -347,6 +399,7 @@ export const attachOpencodeServer = async (options: {
       0
     );
   });
+  return { url, freshlySpawned };
 };
 
 /** Supplies caller identity to the hub-owned MCP tools. It defines no tools. */
@@ -670,8 +723,17 @@ export class OpencodeSession implements HarnessSession {
   attached?: () => void;
   readonly harness = "opencode" as const;
   sessionId: string | null;
+  /**
+   * Whether this session is mid-turn or awaiting an answer — the harness's own
+   * knowledge, not the server's (the server may have gone away already). Used by
+   * the config convergence gate so a reload never interrupts active work.
+   */
+  get active(): boolean {
+    // biome-ignore lint/suspicious/noUnnecessaryConditions: #busy is reassigned elsewhere in the class; biome's per-method inference doesn't see that
+    return this.#busy || this.#questions.size > 0;
+  }
   readonly #ctx: HarnessContext;
-  readonly #client: OpencodeClient;
+  #client: OpencodeClient;
   readonly #directory: string;
   #model: string | undefined;
   #effort: EffortLevel | undefined;
@@ -706,10 +768,15 @@ export class OpencodeSession implements HarnessSession {
   readonly #childInfo = new Map<string, { agent?: string; title?: string }>();
   readonly #childState = new Map<string, ChildState>();
   readonly #boundCalls = new Set<string>();
-  readonly #serverUrl: string;
+  #serverUrl: string;
   readonly #registerChild: (childId: string, callID: string) => void;
   readonly #onRelease: () => void;
   readonly instanceId: string;
+  /**
+   * Returns true when the harness's config gate is held. Injected by the
+   * harness so sessions can queue dispatches without a back-reference.
+   */
+  readonly #isConfigGateHeld: () => boolean;
 
   constructor(
     instanceId: string,
@@ -722,6 +789,7 @@ export class OpencodeSession implements HarnessSession {
     serverUrl: string,
     registerChild: (childId: string, callID: string) => void,
     onRelease: () => void,
+    isConfigGateHeld: () => boolean,
     effort?: EffortLevel
   ) {
     this.instanceId = instanceId;
@@ -735,6 +803,26 @@ export class OpencodeSession implements HarnessSession {
     this.#serverUrl = serverUrl;
     this.#registerChild = registerChild;
     this.#onRelease = onRelease;
+    this.#isConfigGateHeld = isConfigGateHeld;
+  }
+
+  /**
+   * Called by the harness after a config reload completes. Drains any messages
+   * that were queued because the config gate was held.
+   */
+  configGateLifted(): void {
+    this.#drainQueue();
+  }
+
+  /**
+   * Rebind this session to a new server after a process restart.
+   * Called by the harness when the opencode server is SIGTERM'd and
+   * respawned — the session retains its id/history but needs the new
+   * client and server URL.
+   */
+  rebindClient(client: OpencodeClient, serverUrl: string): void {
+    this.#client = client;
+    this.#serverUrl = serverUrl;
   }
 
   /** Routes one opencode event into neutral frames for this session. */
@@ -1780,6 +1868,20 @@ export class OpencodeSession implements HarnessSession {
 
     const model = this.#model ? splitModel(this.#model) : undefined;
 
+    // Config convergence gate: queue everything while a reload is in progress.
+    // Active turns are allowed to finish (events still route), but no NEW work
+    // may start — the server is being stopped and restarted.
+    if (this.#isConfigGateHeld()) {
+      this.#queue.push({ parts, ...(model ? { model } : {}) });
+      if (isInjected(message.origin)) {
+        this.#ctx.frame({
+          ...message,
+          session_id: this.sessionId ?? undefined,
+        });
+      }
+      return;
+    }
+
     if (urgent) {
       // biome-ignore lint/complexity/noVoid: fire-and-forget: send() itself is not awaited by its callers
       void this.#client.session
@@ -1874,6 +1976,12 @@ export class OpencodeSession implements HarnessSession {
    */
   #drainQueue(): void {
     if (this.#queue.length === 0) {
+      return;
+    }
+    // Do not start new work while the config gate is held — the server is
+    // mid-dispose. The queue stays intact; configGateLifted() will call us
+    // again once the gate drops.
+    if (this.#isConfigGateHeld()) {
       return;
     }
     const queued = this.#queue.splice(0);
@@ -1972,6 +2080,14 @@ export class OpencodeSession implements HarnessSession {
 
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: dispatches the harness control verbs to their independent handlers
   async control(method: string, args: unknown[]): Promise<unknown> {
+    // Config convergence gate: MCP mutations must not race with a dispose
+    // cycle. Reads, interrupt, and local-only setters are always allowed.
+    if (
+      this.#isConfigGateHeld() &&
+      (method === CONTROL_MCP_RECONNECT || method === CONTROL_MCP_TOGGLE)
+    ) {
+      throw new Error(`${method} blocked: config reload in progress`);
+    }
     switch (method) {
       case CONTROL_INTERRUPT:
         await this.#client.session.abort({
@@ -2294,6 +2410,574 @@ export class OpencodeHarness implements Harness {
   readonly #reconcileJobs = new Map<OpencodeSession, Promise<void>>();
   readonly #reconcileAgain = new Set<OpencodeSession>();
 
+  // ---------------------------------------------------- config convergence
+
+  /**
+   * State of the config convergence subsystem:
+   *
+   * - `desiredHash`: hash of the relevant opencode.json on disk, last read.
+   * - `appliedHash`: hash that the running server was last started with. `null`
+   *   when the server was adopted (not started by us) and the baseline is unknown.
+   * - `configState`: observable via fleetStatus / logs.
+   * - `configError`: what went wrong, when state is "error".
+   *
+   * Only the LATEST desired revision matters — earlier ones are coalesced away.
+   */
+  #desiredHash: string | null = null;
+  #appliedHash: string | null = null;
+  #configState: "idle" | "pending" | "applying" | "applied" | "error" = "idle";
+  #configError: string | null = null;
+  #configWatchTimer: ReturnType<typeof setInterval> | null = null;
+
+  /**
+   * Lock held while a config change is being applied. When non-null, spawn and
+   * send must queue their work until the lock resolves.
+   */
+  #applyGate: { promise: Promise<void>; resolve: () => void } | null = null;
+  readonly #pendingSpawns: {
+    resolve: (session: HarnessSession) => void;
+    reject: (error: Error) => void;
+    spec: SpawnPayload;
+    ctx: HarnessContext;
+  }[] = [];
+
+  // ---------------------------------------------- config convergence methods
+
+  /**
+   * Hash the config sections that matter for the running server: plugin, mcp,
+   * provider, agent, plus the permission/tools policy passed via env var.
+   * Theme/keybinds/tui don't affect the agent backend.
+   * Returns null if the file is missing or malformed.
+   */
+  async #hashConfig(): Promise<string | null> {
+    try {
+      const config = await readJson<Record<string, unknown>>(OPENCODE_CONFIG);
+      if (!config) {
+        return null;
+      }
+      // Extract only the sections the running server cares about.
+      const relevant: Record<string, unknown> = {
+        agent: config.agent ?? config.mode,
+        disabled_providers: config.disabled_providers,
+        enabled_providers: config.enabled_providers,
+        mcp: config.mcp,
+        model: config.model,
+        plugin: config.plugin,
+        provider: config.provider,
+        small_model: config.small_model,
+      };
+      // Include the permission/tools policy passed via OPENCODE_CONFIG_CONTENT
+      // env var at server spawn time. This is the static policy the harness
+      // builds in #ensure() — changes here also require a restart.
+      relevant._policy = STATIC_POLICY;
+      return createHash("sha256")
+        .update(canonicalizeJson(relevant))
+        .digest("hex");
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Start watching opencode.json for changes. Called once from #ensure when the
+   * server is first attached. Polls every 2s — safe for atomic writes, no
+   * inotify edge cases.
+   */
+  #startConfigWatcher(): void {
+    if (this.#configWatchTimer) {
+      return;
+    }
+    this.#configWatchTimer = setInterval(() => {
+      // biome-ignore lint/complexity/noVoid: fire-and-forget tick; errors logged, not thrown
+      void this.#configTick();
+    }, 2000);
+  }
+
+  #stopConfigWatcher(): void {
+    if (this.#configWatchTimer) {
+      clearInterval(this.#configWatchTimer);
+      this.#configWatchTimer = null;
+    }
+  }
+
+  /**
+   * One tick of the config watcher. Reads the hash, compares to applied,
+   * and if different, records the desired revision and attempts to apply.
+   */
+  async #configTick(): Promise<void> {
+    const hash = await this.#hashConfig();
+    if (hash === null) {
+      // Malformed or missing config — surface the error but don't stop the
+      // healthy backend.
+      if (
+        this.#configState !== "error" ||
+        this.#configError !== "malformed config"
+      ) {
+        this.#configState = "error";
+        this.#configError = "malformed config";
+        console.log(
+          JSON.stringify({
+            type: "config-convergence",
+            state: "error",
+            detail: "malformed or missing opencode.json",
+            at: Date.now(),
+          })
+        );
+      }
+      return;
+    }
+    if (hash === this.#desiredHash) {
+      // No change since last read. But if we're pending (a prior attempt was
+      // blocked by busy sessions), retry the apply — the sessions may be idle now.
+      if (this.#configState === "pending") {
+        // biome-ignore lint/complexity/noVoid: fire-and-forget; the attempt manages its own errors
+        void this.#attemptConfigApply();
+      }
+      return;
+    }
+    this.#desiredHash = hash;
+    if (hash === this.#appliedHash) {
+      // Desired matches what's running; clear any pending state.
+      if (this.#configState === "pending") {
+        this.#configState = "applied";
+        console.log(
+          JSON.stringify({
+            type: "config-convergence",
+            state: "applied",
+            detail: "desired matches running revision",
+            at: Date.now(),
+          })
+        );
+      }
+      return;
+    }
+    // New desired revision differs from applied: coalesce and attempt.
+    this.#configState = "pending";
+    this.#configError = null;
+    console.log(
+      JSON.stringify({
+        type: "config-convergence",
+        state: "pending",
+        detail: `new revision ${hash.slice(0, 8)}… vs applied ${this.#appliedHash?.slice(0, 8) ?? "unknown"}`,
+        at: Date.now(),
+      })
+    );
+    // biome-ignore lint/complexity/noVoid: fire-and-forget; the attempt manages its own errors
+    void this.#attemptConfigApply();
+  }
+
+  /**
+   * Whether any opencode session owned by this harness is mid-turn or awaiting
+   * an answer. Also queries the server for sessions not tracked by the harness
+   * (e.g. sessions started by other clients against the same server).
+   */
+  async #isOpencodeBusy(): Promise<boolean> {
+    // Local knowledge: any session the harness owns that is active.
+    for (const session of this.#sessions.values()) {
+      if (session.active) {
+        return true;
+      }
+    }
+    // Server knowledge: the server may have sessions started by other clients
+    // that the harness doesn't track. Check via the status API.
+    const client = this.#client;
+    if (!client) {
+      return false;
+    }
+    try {
+      // Status without a directory query returns all sessions.
+      const status = await client.session.status({
+        signal: AbortSignal.timeout(5000),
+      });
+      if (status.error || !status.data) {
+        // Can't determine server state; conservatively say busy.
+        return true;
+      }
+      for (const [, state] of Object.entries(
+        status.data as Record<string, { type: string }>
+      )) {
+        if (state.type === "busy" || state.type === "retry") {
+          return true;
+        }
+      }
+    } catch {
+      // Server unreachable; treat as busy to be safe.
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Attempt to apply the latest desired config revision. Waits for all
+   * opencode sessions to be idle, then SIGTERM's the server process via
+   * sessiond, waits for exit, respawns via {@link attachOpencodeServer},
+   * rebinds retained sessions to the new client, reconnects SSE pumps,
+   * and verifies the runtime config matches the desired revision.
+   *
+   * Global config (~/.config/opencode/opencode.json) is only read at
+   * server startup — `instance.dispose()` re-reads project config but
+   * NOT global. A full process restart is the only reliable path.
+   *
+   * Only one apply attempt runs at a time. New changes arriving mid-apply
+   * remain as the next desired revision — the watcher will trigger another
+   * attempt after the current one completes.
+   */
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: sequential idle-wait → SIGTERM → respawn → rebind → verify lifecycle with structured error recovery; splitting loses the gate/finally invariant
+  async #attemptConfigApply(): Promise<void> {
+    if (this.#applyGate) {
+      return;
+    }
+    if (!this.#client) {
+      return;
+    }
+    if (this.#desiredHash === this.#appliedHash) {
+      this.#configState = "applied";
+      return;
+    }
+
+    // Validate config before killing a working server.
+    const preCheck = await readJson<Record<string, unknown>>(OPENCODE_CONFIG);
+    if (!preCheck) {
+      this.#configState = "error";
+      this.#configError = "malformed config — will not stop working server";
+      console.log(
+        JSON.stringify({
+          type: "config-convergence",
+          state: "error",
+          detail: "malformed or missing opencode.json — refusing restart",
+          at: Date.now(),
+        })
+      );
+      return;
+    }
+
+    let gateResolve!: () => void;
+    const gatePromise = new Promise<void>((resolve) => {
+      gateResolve = resolve;
+    });
+    this.#applyGate = { promise: gatePromise, resolve: gateResolve };
+
+    try {
+      // 1. Wait for idle: active turns finish, gate blocks new dispatches.
+      const maxWaitMs = 300_000;
+      const started = Date.now();
+      // biome-ignore lint/performance/noAwaitInLoops: sequential polling for busy→idle transition; must check and sleep in order
+      while (await this.#isOpencodeBusy()) {
+        if (Date.now() - started > maxWaitMs) {
+          this.#configState = "error";
+          this.#configError = "timed out waiting for idle sessions";
+          console.log(
+            JSON.stringify({
+              type: "config-convergence",
+              state: "error",
+              detail: "timed out waiting for idle sessions",
+              at: Date.now(),
+            })
+          );
+          return;
+        }
+        await Bun.sleep(500);
+      }
+
+      if (this.#desiredHash === this.#appliedHash) {
+        this.#configState = "applied";
+        return;
+      }
+      const targetHash = this.#desiredHash;
+
+      this.#configState = "applying";
+      console.log(
+        JSON.stringify({
+          type: "config-convergence",
+          state: "applying",
+          detail: `target ${targetHash?.slice(0, 8)}…, restarting server`,
+          at: Date.now(),
+        })
+      );
+
+      // Re-read config: it may have changed during idle wait.
+      const diskHash = await this.#hashConfig();
+      if (targetHash && diskHash !== targetHash) {
+        // Config changed during idle wait — coalesce to latest.
+        this.#desiredHash = diskHash;
+        this.#configState = "pending";
+        return;
+      }
+
+      // 2. Collect active directories before killing the server.
+      const dirs = new Set<string>(this.#pumpDirs);
+      for (const session of this.#sessions.values()) {
+        dirs.add(session.directory);
+      }
+
+      // 3. Abort all SSE pumps (the server we're about to kill owns them).
+      for (const controller of this.#pumpControllers.values()) {
+        controller.abort();
+      }
+      this.#pumpControllers.clear();
+      this.#pumpReady.clear();
+      this.#pumpDirs.clear();
+
+      // 4. SIGTERM the server via sessiond and wait for exit.
+      const sessiond = await this.sessiond();
+      try {
+        await sessiond.signal(OPENCODE_SERVER_PROC_ID, "SIGTERM");
+      } catch {
+        // Already dead — that's fine, we're respawning.
+      }
+      const exitDeadline = Date.now() + 15_000;
+      while (Date.now() < exitDeadline) {
+        // biome-ignore lint/performance/noAwaitInLoops: polling for process exit after SIGTERM
+        const procs = await sessiond.list();
+        const held = procs.procs.find(
+          (p) => p.procId === OPENCODE_SERVER_PROC_ID
+        );
+        if (!held?.alive) {
+          break;
+        }
+        await Bun.sleep(200);
+      }
+      // Verify exit — if still alive after 15s, error out (no SIGKILL).
+      const finalCheck = await sessiond.list();
+      const stillAlive = finalCheck.procs.find(
+        (p) => p.procId === OPENCODE_SERVER_PROC_ID && p.alive
+      );
+      if (stillAlive) {
+        throw new Error(
+          "server did not exit within 15s after SIGTERM — refusing SIGKILL"
+        );
+      }
+
+      // 5. Clear old client state.
+      this.#client = null;
+      this.#ready = null;
+      this.#serverUrl = null;
+
+      // 6. Respawn via the existing attach helper. This reads global config
+      //    at startup — the whole point of a process restart.
+      const config = STATIC_POLICY;
+      const { url: newUrl } = await attachOpencodeServer({
+        sessiond,
+        spec: {
+          command: resolveBin("opencode") ?? "opencode",
+          args: ["serve", "--hostname=127.0.0.1", "--port=0"],
+          env: { OPENCODE_CONFIG_CONTENT: JSON.stringify(config) },
+        },
+      });
+      this.#serverUrl = newUrl;
+      const newClient = createOpencodeClient({
+        baseUrl: newUrl,
+        fetch: async (request) => {
+          try {
+            return await fetch(request);
+          } catch (error) {
+            if (this.#client === newClient) {
+              this.#client = null;
+              this.#ready = null;
+              this.#serverUrl = null;
+            }
+            throw error;
+          }
+        },
+      });
+      this.#client = newClient;
+
+      // 7. Rebind retained sessions to the new client + server URL.
+      for (const session of this.#sessions.values()) {
+        session.rebindClient(newClient, newUrl);
+      }
+
+      // 8. Reconnect SSE pumps for all active directories.
+      for (const dir of dirs) {
+        // biome-ignore lint/complexity/noVoid: fire-and-forget pump restart
+        void this.#ensurePump(newClient, dir).catch(console.warn);
+      }
+
+      // 9. Verify: runtime config matches desired.
+      await this.#verifyApply(newClient, targetHash);
+
+      // 10. Mark applied — only after verification passes.
+      this.#appliedHash = targetHash;
+      this.#configError = null;
+
+      if (this.#desiredHash === targetHash) {
+        this.#configState = "applied";
+        console.log(
+          JSON.stringify({
+            type: "config-convergence",
+            state: "applied",
+            detail: `revision ${targetHash?.slice(0, 8)}… applied via process restart`,
+            at: Date.now(),
+          })
+        );
+      } else {
+        this.#configState = "pending";
+        console.log(
+          JSON.stringify({
+            type: "config-convergence",
+            state: "pending",
+            detail: `desired changed during restart (${this.#desiredHash?.slice(0, 8)}… vs applied ${targetHash?.slice(0, 8)}…)`,
+            at: Date.now(),
+          })
+        );
+      }
+    } catch (error) {
+      this.#configState = "error";
+      this.#configError = String(error);
+      console.error(
+        `[opencode] config convergence: apply failed: ${String(error)}`
+      );
+      console.log(
+        JSON.stringify({
+          type: "config-convergence",
+          state: "error",
+          detail: String(error),
+          at: Date.now(),
+        })
+      );
+    } finally {
+      this.#applyGate = null;
+      gateResolve();
+      for (const session of this.#sessions.values()) {
+        session.configGateLifted();
+      }
+      this.#drainPendingSpawns();
+    }
+  }
+
+  /**
+   * Drain queued spawn requests that accumulated while the config gate was held.
+   */
+  #drainPendingSpawns(): void {
+    const pending = this.#pendingSpawns.splice(0);
+    for (const { resolve, reject, spec, ctx } of pending) {
+      this.spawn(spec, ctx).then(resolve, reject);
+    }
+  }
+
+  /**
+   * Verify the server's resolved state for a specific directory matches
+   * the desired config after a dispose or fresh spawn. Two authoritative
+   * checks:
+   *
+   * 1. **Runtime leaf comparison** — read the server's resolved config via
+   *    `config.get()` for this directory, extract controlled fields, and
+   * Verify the running server's config matches the desired global config.
+   *
+   * After a process restart, the new server reads global config at startup.
+   * This method confirms that the runtime config.get() reflects the desired
+   * controlled fields, and that MCP servers match expected state.
+   *
+   * Does NOT check per-directory project configs — project overlays are the
+   * user's business. Only verifies controlled fields from global config.
+   */
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: disk provenance + runtime leaf + MCP status verification; each layer independent with own logging
+  async #verifyApply(
+    client: OpencodeClient,
+    targetHash: string | null
+  ): Promise<void> {
+    // ---- 1. Disk provenance (concurrent-edit detection) --------------------
+    const diskHash = await this.#hashConfig();
+    if (targetHash && diskHash !== targetHash) {
+      throw new Error(
+        `config verification failed: disk hash ${diskHash?.slice(0, 8) ?? "null"}… differs from target ${targetHash.slice(0, 8)}… — concurrent modification`
+      );
+    }
+
+    // ---- 2. Runtime leaf comparison ----------------------------------------
+    const desiredRaw = await readJson<Record<string, unknown>>(OPENCODE_CONFIG);
+    const liveResult = await client.config.get({
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!liveResult.data) {
+      throw new Error(
+        "config verification failed: config.get() returned no data"
+      );
+    }
+    const liveConfig = liveResult.data as Record<string, unknown>;
+    const fieldProblems: string[] = [];
+    if (desiredRaw) {
+      for (const field of CONTROLLED_CONFIG_FIELDS) {
+        const desired = desiredRaw[field];
+        if (desired === undefined) {
+          continue;
+        }
+        const resolved =
+          field === "agent"
+            ? (liveConfig.agent ?? liveConfig.mode)
+            : liveConfig[field];
+        if (canonicalizeJson(desired) !== canonicalizeJson(resolved)) {
+          fieldProblems.push(field);
+        }
+      }
+    }
+    console.log(
+      JSON.stringify({
+        type: "config-convergence",
+        event: "runtime-verify",
+        fields: CONTROLLED_CONFIG_FIELDS,
+        mismatched: fieldProblems,
+        at: Date.now(),
+      })
+    );
+    if (fieldProblems.length > 0) {
+      throw new Error(
+        `config verification failed: runtime config diverges on: ${fieldProblems.join(", ")}`
+      );
+    }
+
+    // ---- 3. MCP status (authoritative runtime check) -----------------------
+    const expectedMcp = new Set(
+      desiredRaw?.mcp
+        ? Object.keys(desiredRaw.mcp as Record<string, unknown>)
+        : []
+    );
+    const mcpStatus = await client.mcp.status({
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (mcpStatus.data) {
+      const statuses = mcpStatus.data as Record<string, { status: string }>;
+      const statusMap = Object.fromEntries(
+        Object.entries(statuses).map(([n, s]) => [n, s.status])
+      );
+      const mcpProblems: string[] = [];
+      for (const name of expectedMcp) {
+        // After process restart, the server reads MCP config from disk.
+        // The server registers the MCP server entry — it may be "connected",
+        // "connecting", or "failed" (unreachable endpoint). All of these
+        // mean the config was applied. Only "missing" (not in statusMap)
+        // is a real problem.
+        if (!(name in statusMap)) {
+          mcpProblems.push(`${name}=missing`);
+        }
+      }
+      for (const name of Object.keys(statusMap)) {
+        if (!expectedMcp.has(name)) {
+          mcpProblems.push(`${name}=unexpected`);
+        }
+      }
+      console.log(
+        JSON.stringify({
+          type: "config-convergence",
+          event: "mcp-status",
+          servers: statusMap,
+          expected: [...expectedMcp],
+          problems: mcpProblems,
+          at: Date.now(),
+        })
+      );
+      if (mcpProblems.length > 0) {
+        throw new Error(
+          `config verification failed: MCP state mismatch: ${mcpProblems.join(", ")}`
+        );
+      }
+    } else if (expectedMcp.size > 0) {
+      throw new Error(
+        `config verification failed: MCP status returned no data; expected ${expectedMcp.size} server(s)`
+      );
+    }
+  }
+
   async detect(): Promise<HarnessReport> {
     const installed = resolveBin("opencode") !== undefined;
     let version: string | undefined;
@@ -2353,19 +3037,16 @@ export class OpencodeHarness implements Harness {
         // trip, so no permission key is set for them here. `webfetch` is the
         // exception: fleet policy is the firecrawl MCP, and a `deny` publishes
         // no permission event at all, so it never reaches {@link autoAllows}.
-        const config = {
-          permission: { edit: "ask", bash: "ask", webfetch: "deny" },
-          // Fleet policy: search is the Exa MCP. `webfetch: 'deny'` above
-          // removes the fetch built-in; `websearch` has no permission key,
-          // so the tool itself is switched off.
-          tools: { websearch: false },
-        };
+        // Fleet policy: search is the Exa MCP. `webfetch: 'deny'` above
+        // removes the fetch built-in; `websearch` has no permission key,
+        // so the tool itself is switched off.
+        const config = STATIC_POLICY;
         // Not `createOpencode`: that spawns the server as THIS process's child,
         // so every agent restart took the machine's opencode sessions with it.
         // The server goes under sessiond instead and we attach as a client —
         // the same client the bundled pair would have handed us.
         const sessiond = await this.sessiond();
-        const url = await attachOpencodeServer({
+        const { url, freshlySpawned } = await attachOpencodeServer({
           sessiond,
           spec: {
             // The SDK builds this exact command line
@@ -2403,6 +3084,54 @@ export class OpencodeHarness implements Harness {
           },
         });
         this.#client = client;
+
+        // Record the baseline config hash. For a freshly spawned server,
+        // verify the runtime actually loaded what we expect before marking
+        // applied — there's a startup race where the disk hash is read
+        // before the server finishes initialization.
+        const initialHash = await this.#hashConfig();
+        this.#desiredHash = initialHash;
+        if (freshlySpawned && initialHash) {
+          try {
+            // At startup no directory is initialized yet; verify
+            // against the global resolved config (no directory query).
+            await this.#verifyApply(client, initialHash);
+            this.#appliedHash = initialHash;
+            this.#configState = "applied";
+            console.log(
+              JSON.stringify({
+                type: "config-convergence",
+                state: "applied",
+                detail: `freshly spawned, verified baseline ${initialHash.slice(0, 8)}…`,
+                at: Date.now(),
+              })
+            );
+          } catch (error) {
+            // Verification failed — treat as unknown baseline; the watcher
+            // will schedule convergence.
+            this.#appliedHash = null;
+            this.#configState = "idle";
+            console.warn(
+              `[opencode] config convergence: fresh spawn verification failed, scheduling convergence: ${String(error)}`
+            );
+          }
+        } else {
+          // Unknown baseline: the watcher will detect desired !== applied
+          // and schedule a convergence cycle.
+          this.#appliedHash = null;
+          this.#configState = "idle";
+          console.log(
+            JSON.stringify({
+              type: "config-convergence",
+              state: "idle",
+              detail:
+                "adopted server, baseline unknown — convergence scheduled",
+              at: Date.now(),
+            })
+          );
+        }
+        this.#startConfigWatcher();
+
         return client;
       })().catch((error) => {
         this.#ready = null;
@@ -2737,6 +3466,13 @@ export class OpencodeHarness implements Harness {
     spec: SpawnPayload,
     ctx: HarnessContext
   ): Promise<HarnessSession> {
+    // Config convergence gate: if a reload is in progress, queue this spawn
+    // and deliver it when the gate lifts.
+    if (this.#applyGate) {
+      return new Promise<HarnessSession>((resolve, reject) => {
+        this.#pendingSpawns.push({ resolve, reject, spec, ctx });
+      });
+    }
     const client = await this.#ensure();
     const mcp = await client.mcp.status({
       query: { directory: ctx.cwd },
@@ -2844,6 +3580,7 @@ export class OpencodeHarness implements Harness {
           }
         }
       },
+      () => this.#applyGate !== null,
       spec.effort
     );
     session.attached = () => {
@@ -3149,6 +3886,7 @@ export class OpencodeHarness implements Harness {
   // biome-ignore lint/suspicious/useAwait: implements Harness.dispose's Promise<void> contract; this teardown is synchronous
   async dispose(): Promise<void> {
     this.#disposed = true;
+    this.#stopConfigWatcher();
     for (const controller of this.#pumpControllers.values()) {
       controller.abort();
     }
@@ -3191,6 +3929,13 @@ export class OpencodeHarness implements Harness {
       await syncMemory(OPENCODE_MEMORY, null, sidecar.memory, report);
     }
     await writeJson(OPENCODE_SIDECAR, { mcp });
+
+    // Poke the config watcher: syncFleet just wrote opencode.json, so the disk
+    // hash will have changed. An immediate tick avoids the up-to-2s polling
+    // delay before the convergence system notices.
+    // biome-ignore lint/complexity/noVoid: fire-and-forget; the tick manages its own errors
+    void this.#configTick();
+
     return report;
   }
 

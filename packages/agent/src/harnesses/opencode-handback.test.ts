@@ -84,7 +84,8 @@ test("an idle hand-back wakes the session into one real turn", () => {
     },
     () => {
       /* onRelease unused by these tests */
-    }
+    },
+    () => false
   );
 
   session.send(handback("worker report"), {});
@@ -108,7 +109,8 @@ test("a busy hand-back queues, and the idle drain coalesces into one turn", () =
     },
     () => {
       /* onRelease unused by these tests */
-    }
+    },
+    () => false
   );
 
   session.handle({
