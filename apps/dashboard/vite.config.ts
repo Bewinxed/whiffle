@@ -113,8 +113,47 @@ const lookbehindShims = (): Plugin => {
   };
 };
 
+const PREVIEW_PREFIX = /^\/preview\/([^/]+)\//;
+
 /**
- * Proxies the dashboard's `/ws` upgrade to the hub, by hand.
+ * Extract a preview instance id from a path or Referer header. Returns
+ * `{ id, stripped, viaReferer }` or null.
+ */
+function previewMatch(req: http.IncomingMessage): {
+  id: string;
+  stripped: string;
+  viaReferer: boolean;
+} | null {
+  const url = req.url ?? "";
+  const match = url.match(PREVIEW_PREFIX);
+  if (match) {
+    return {
+      id: decodeURIComponent(match[1]),
+      stripped: url.slice(match[0].length - 1),
+      viaReferer: false,
+    };
+  }
+  const { referer } = req.headers;
+  if (referer) {
+    try {
+      const refUrl = new URL(referer);
+      const refMatch = refUrl.pathname.match(PREVIEW_PREFIX);
+      if (refMatch) {
+        return {
+          id: decodeURIComponent(refMatch[1]),
+          stripped: url,
+          viaReferer: true,
+        };
+      }
+    } catch {
+      // malformed referer
+    }
+  }
+  return null;
+}
+
+/**
+ * Proxies the dashboard's `/ws` upgrade and `/preview/` paths to the hub.
  *
  * Vite's built-in `server.proxy['/ws'] { ws: true }` stopped upgrading the
  * socket under rolldown-vite — the handshake returns 404/no-101 and the
@@ -124,18 +163,67 @@ const lookbehindShims = (): Plugin => {
  * two raw sockets together. HMR (a different path / the `vite-hmr` protocol) is
  * never `/ws`, so returning early leaves it entirely to Vite.
  *
+ * Preview requests (`/preview/<id>/…` and Referer-routed root-absolute fetches)
+ * are forwarded to the hub's preview listener on `WHIFFLE_PREVIEW_PORT`.
+ *
  * Also the whole fix for a stray upgrade killing the dev server: `http.Server`
  * drops a socket's error handling the moment it emits `upgrade`, so an upgrade
  * no listener claims is left with no `error` handler and the eventual reset is a
  * process-level throw. Attaching an error listener to every upgrade socket keeps
  * that reset from taking the server (and every dashboard socket) down with it.
  */
-const hubWsProxy = (): Plugin => ({
-  name: "whiffle:hub-ws-proxy",
+const hubProxy = (): Plugin => ({
+  name: "whiffle:hub-proxy",
   configureServer(server) {
-    const target = new URL(
-      process.env.WHIFFLE_HUB_URL || "http://localhost:3456"
-    );
+    const hub = new URL(process.env.WHIFFLE_HUB_URL || "http://localhost:3456");
+    const hubPort = Number(hub.port || 80);
+    const pvPort = Number(process.env.WHIFFLE_PREVIEW_PORT || hubPort + 1);
+
+    // HTTP middleware: intercept preview requests before Vite/SvelteKit.
+    server.middlewares.use((req, res, next) => {
+      const info = previewMatch(req);
+      if (!info) {
+        return next();
+      }
+      // A Referer-routed navigation gets a 302 back under the prefix.
+      if (
+        info.viaReferer &&
+        (req.headers["sec-fetch-mode"] === "navigate" ||
+          req.headers["sec-fetch-dest"] === "document")
+      ) {
+        const prefix = `/preview/${encodeURIComponent(info.id)}`;
+        res.writeHead(302, { location: `${prefix}${req.url}` });
+        res.end();
+        return;
+      }
+      const options: http.RequestOptions = {
+        hostname: hub.hostname,
+        port: pvPort,
+        path: info.stripped,
+        method: req.method,
+        headers: {
+          ...req.headers,
+          host: `${hub.hostname}:${pvPort}`,
+          "x-whiffle-preview": info.id,
+        },
+      };
+      const proxyReq = http.request(options, (proxyRes) => {
+        res.writeHead(proxyRes.statusCode ?? 502, proxyRes.headers);
+        proxyRes.pipe(res);
+      });
+      proxyReq.on("error", (error: NodeJS.ErrnoException) => {
+        server.config.logger.warn(
+          `[whiffle] preview proxy error for ${info.id}: ${error.code ?? error.message}`,
+          { timestamp: true }
+        );
+        if (!res.headersSent) {
+          res.writeHead(502);
+        }
+        res.end();
+      });
+      req.pipe(proxyReq);
+    });
+
     server.httpServer?.on("upgrade", (req, socket, head) => {
       socket.on("error", (error: NodeJS.ErrnoException) => {
         server.config.logger.warn(
@@ -143,13 +231,57 @@ const hubWsProxy = (): Plugin => ({
           { timestamp: true }
         );
       });
+
+      // Preview WebSocket: /preview/<id>/…
+      const info = previewMatch(req);
+      if (info) {
+        const proxyReq = http.request({
+          host: hub.hostname,
+          port: pvPort,
+          path: info.stripped,
+          method: req.method,
+          headers: {
+            ...req.headers,
+            host: `${hub.hostname}:${pvPort}`,
+            "x-whiffle-preview": info.id,
+          },
+        });
+        proxyReq.on("upgrade", (proxyRes, proxySocket, proxyHead) => {
+          const lines = ["HTTP/1.1 101 Switching Protocols"];
+          for (let i = 0; i < proxyRes.rawHeaders.length; i += 2) {
+            lines.push(
+              `${proxyRes.rawHeaders[i]}: ${proxyRes.rawHeaders[i + 1]}`
+            );
+          }
+          socket.write(`${lines.join("\r\n")}\r\n\r\n`);
+          if (proxyHead?.length) {
+            socket.write(proxyHead);
+          }
+          if (head?.length) {
+            proxySocket.write(head);
+          }
+          proxySocket.pipe(socket).pipe(proxySocket);
+          proxySocket.on("error", () => socket.destroy());
+          socket.on("error", () => proxySocket.destroy());
+        });
+        proxyReq.on("error", (error: NodeJS.ErrnoException) => {
+          server.config.logger.warn(
+            `[whiffle] preview ws proxy error for ${info.id}: ${error.code ?? error.message}`,
+            { timestamp: true }
+          );
+          socket.destroy();
+        });
+        proxyReq.end();
+        return;
+      }
+
       // Only /ws is ours; HMR's upgrade is left for Vite to answer.
       if (!req.url?.startsWith("/ws")) {
         return;
       }
       const proxyReq = http.request({
-        host: target.hostname,
-        port: target.port,
+        host: hub.hostname,
+        port: hub.port,
         path: req.url,
         method: req.method,
         headers: req.headers,
@@ -174,7 +306,7 @@ const hubWsProxy = (): Plugin => ({
       });
       proxyReq.on("error", (error: NodeJS.ErrnoException) => {
         server.config.logger.warn(
-          `[whiffle] hub ws proxy could not reach ${target.host}: ${error.code ?? error.message}`,
+          `[whiffle] hub ws proxy could not reach ${hub.host}: ${error.code ?? error.message}`,
           { timestamp: true }
         );
         socket.destroy();
@@ -187,7 +319,7 @@ const hubWsProxy = (): Plugin => ({
 export default defineConfig({
   plugins: [
     lookbehindShims(),
-    hubWsProxy(),
+    hubProxy(),
     tailwindcss(),
     sveltekit(),
     Icons({ compiler: "svelte" }),

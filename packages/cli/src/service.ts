@@ -390,7 +390,13 @@ const servicesFor = (layout: Layout): Record<ServiceId, ServiceSpec> => {
       mode: "prod",
       description: "Whiffle dashboard",
       command: [process.execPath, DASHBOARD_ENTRY],
-      environment: { PORT: DASHBOARD_PORT, HOST: DASHBOARD_HOST },
+      environment: {
+        PORT: DASHBOARD_PORT,
+        HOST: DASHBOARD_HOST,
+        [WHIFFLE_ENV.previewPort]:
+          readEnv(WHIFFLE_ENV.previewPort) ??
+          String(Number(readEnv(WHIFFLE_ENV.hubPort) ?? WHIFFLE_HUB_PORT) + 1),
+      },
       workingDirectory: LAYOUT_ROOT,
       after: [unitName("hub")],
       wants: [unitName("hub")],

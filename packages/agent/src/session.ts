@@ -553,8 +553,7 @@ export class SessionSupervisor {
         kind: "preview",
         instanceId,
         state: "closed",
-        previewPort: 0,
-        open: "",
+        path: "",
       });
     }
     this.#line.delete(instanceId);

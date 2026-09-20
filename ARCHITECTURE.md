@@ -193,6 +193,12 @@ What follows from that, concretely, and what must stay true:
   operator's deliberate choice ("push to main IS the fleet deploy"), and it is the reason
   the marker is the only thing that licenses a pull: an unmarked checkout does not even
   fetch (`deploy.ts` `checkDeploy`, which returns `unmarked` before any git command runs).
+- **The preview is same-origin with the dashboard.** A page an agent wrote is
+  served through the dashboard's own origin at `/preview/<id>/`, not on a second
+  port or hostname. The tailnet/Access perimeter is the control: anything that
+  page can do in the dashboard, a shell on its own machine can already do through
+  the hub. A second origin would cost every operator a second hostname for no
+  security gain.
 - **Generated unit files carry no secrets.** The only `Environment=` lines
   `packages/cli/src/service.ts` writes are `PATH`, `WHIFFLE_DB_PATH`, `PORT` and `HOST`, and
   the units are written `0600` outside the clone.

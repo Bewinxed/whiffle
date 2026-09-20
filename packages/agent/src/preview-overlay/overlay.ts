@@ -8,6 +8,73 @@ const INSPECTOR_PATH = /^(.*):(\d+):(\d+)$/;
 const PNG_PREFIX = /^data:image\/png;base64,/;
 let origin = (document.currentScript as HTMLScriptElement).dataset.origin || "";
 let selecting = false;
+
+/**
+ * The `/preview/<id>/` prefix this page lives under. Derived from the current
+ * path at load time — the overlay script is the first thing in <head>, so
+ * location.pathname is the iframe's initial URL before any SPA navigation.
+ */
+const prefix = location.pathname.match(/^\/preview\/[^/]+\//)?.[0] ?? "";
+
+/**
+ * Patch history.pushState/replaceState: a root-absolute `url` argument (starts
+ * with `/` but not with the prefix) gets the prefix prepended so the iframe URL
+ * stays under the routing prefix and Referer routing keeps working.
+ */
+for (const method of ["pushState", "replaceState"] as const) {
+  const original = history[method];
+  history[method] = function (...args: Parameters<History[typeof method]>) {
+    if (prefix && typeof args[2] === "string") {
+      const [, , u] = args;
+      if (u.startsWith("/") && !u.startsWith(prefix)) {
+        args[2] = `${prefix}${u.slice(1)}`;
+      }
+    }
+    original.apply(this, args);
+    navigated();
+  };
+}
+
+/**
+ * Patch WebSocket: a same-origin URL whose path does not start with the prefix
+ * gets the prefix inserted. Vite's HMR client connects to `wss://host/` — this
+ * makes it go through the dashboard's preview proxy instead of missing.
+ */
+if (prefix) {
+  const OriginalWebSocket = window.WebSocket;
+  const PatchedWebSocket = function (
+    this: WebSocket,
+    url: string | URL,
+    protocols?: string | string[]
+  ): WebSocket {
+    let resolved = typeof url === "string" ? url : url.toString();
+    try {
+      const parsed = new URL(resolved, location.href);
+      if (
+        parsed.host === location.host &&
+        !parsed.pathname.startsWith(prefix)
+      ) {
+        parsed.pathname = `${prefix}${parsed.pathname.slice(1)}`;
+        resolved = parsed.toString();
+      }
+    } catch {
+      // leave as-is if URL parsing fails
+    }
+    if (protocols !== undefined) {
+      return new OriginalWebSocket(resolved, protocols);
+    }
+    return new OriginalWebSocket(resolved);
+  } as unknown as typeof WebSocket;
+  Object.defineProperties(PatchedWebSocket, {
+    prototype: { value: OriginalWebSocket.prototype },
+    CONNECTING: { value: OriginalWebSocket.CONNECTING },
+    OPEN: { value: OriginalWebSocket.OPEN },
+    CLOSING: { value: OriginalWebSocket.CLOSING },
+    CLOSED: { value: OriginalWebSocket.CLOSED },
+  });
+  window.WebSocket = PatchedWebSocket;
+}
+
 const host = document.createElement("whiffle-overlay");
 host.style.cssText =
   "all:initial!important;position:fixed!important;inset:0!important;z-index:2147483647!important;pointer-events:none!important";
@@ -31,14 +98,40 @@ label.hidden = true;
 shadow.append(sheet, layer, highlight, label);
 document.documentElement.append(host);
 
-function post(type: string, payload: object = {}) {
-  if (origin) {
-    window.parent.postMessage({ type, ...payload }, origin);
+/** Strip the preview prefix from a URL so the pane shows the app's own path. */
+function stripPrefix(href: string): string {
+  if (!prefix) {
+    return href;
+  }
+  try {
+    const u = new URL(href);
+    if (u.pathname.startsWith(prefix)) {
+      u.pathname = `/${u.pathname.slice(prefix.length)}`;
+    }
+    return u.toString();
+  } catch {
+    return href;
   }
 }
 
+function post(type: string, payload: object = {}) {
+  // Same origin: pin to location.origin.
+  const target = origin || location.origin;
+  window.parent.postMessage({ type, ...payload }, target);
+}
+
 function ready() {
-  post("whiffle:ready", { url: location.href, title: document.title });
+  post("whiffle:ready", {
+    url: stripPrefix(location.href),
+    title: document.title,
+  });
+}
+
+function navigated() {
+  post("whiffle:navigated", {
+    url: stripPrefix(location.href),
+    title: document.title,
+  });
 }
 
 function mode(on: boolean) {
@@ -226,7 +319,7 @@ function describe(el: Element): PreviewElement {
     page: { x: x + scrollX, y: y + scrollY },
     styles,
     source: sourceOf(el),
-    url: location.href,
+    url: stripPrefix(location.href),
   };
 }
 
@@ -347,7 +440,11 @@ window.addEventListener(
 );
 
 window.addEventListener("message", async (event) => {
-  if (event.source !== window.parent || (origin && event.origin !== origin)) {
+  if (event.source !== window.parent) {
+    return;
+  }
+  // Same-origin: accept messages from our origin.
+  if (origin && event.origin !== origin) {
     return;
   }
   const message = event.data;
@@ -361,17 +458,6 @@ window.addEventListener("message", async (event) => {
   }
 });
 
-function navigated() {
-  post("whiffle:navigated", { url: location.href, title: document.title });
-}
-
-for (const method of ["pushState", "replaceState"] as const) {
-  const original = history[method];
-  history[method] = function (...args: Parameters<History[typeof method]>) {
-    original.apply(this, args);
-    navigated();
-  };
-}
 window.addEventListener("popstate", navigated);
 window.addEventListener("hashchange", navigated);
 if (origin) {

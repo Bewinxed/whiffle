@@ -11,7 +11,8 @@ import type { Server } from "bun";
 
 const previews = new Map<string, Server<PreviewSocket>>();
 const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
-const HEAD = /<\/head\s*>/i;
+const HEAD_OPEN = /<head(\s[^>]*)?\s*>/i;
+const HEAD_CLOSE = /<\/head\s*>/i;
 const BODY = /<\/body\s*>/i;
 let overlay: Promise<string> | undefined;
 
@@ -121,15 +122,6 @@ export async function startPreview(options: {
           headers.set("origin", `http://localhost:${source.port}`);
         }
         headers.set("accept-encoding", "identity");
-        const cookie = (headers.get("cookie") ?? "")
-          .split(";")
-          .filter((part) => part.trim().split("=", 1)[0] !== "whiffle_preview")
-          .join(";");
-        if (cookie.trim()) {
-          headers.set("cookie", cookie);
-        } else {
-          headers.delete("cookie");
-        }
         const target = `127.0.0.1:${source.port}${url.pathname}${url.search}`;
         if (request.headers.get("upgrade")?.toLowerCase() === "websocket") {
           return upgradePreview(request, server, `ws://${target}`, headers)
@@ -200,10 +192,17 @@ export async function startPreview(options: {
         response.body
       ) {
         const html = await response.text();
-        const closing = HEAD.test(html) ? HEAD : BODY;
-        body = closing.test(html)
-          ? html.replace(closing, (match) => script + match)
-          : html + script;
+        // Inject as the first child of <head> so it executes before Vite's
+        // deferred /@vite/client module. Fall back to before </head> or </body>.
+        if (HEAD_OPEN.test(html)) {
+          body = html.replace(HEAD_OPEN, (match) => match + script);
+        } else if (HEAD_CLOSE.test(html)) {
+          body = html.replace(HEAD_CLOSE, (match) => script + match);
+        } else if (BODY.test(html)) {
+          body = html.replace(BODY, (match) => script + match);
+        } else {
+          body = html + script;
+        }
         headers.delete("content-length");
         headers.delete("content-encoding");
       }

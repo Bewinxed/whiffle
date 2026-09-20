@@ -625,8 +625,8 @@ export type FramePayload =
       kind: "preview";
       instanceId: string;
       state: "open" | "closed";
-      previewPort: number;
-      open: string;
+      /** The path on the dashboard's own origin, e.g. `/preview/<id>/`. */
+      path: string;
       source?: PreviewSource;
     }
   | {
