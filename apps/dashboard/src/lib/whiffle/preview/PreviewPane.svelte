@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { env } from "$env/dynamic/public";
   import {
     IconClose,
     IconCursor,
@@ -33,20 +32,19 @@
   let captured = false;
   let reload = $state(0);
   let failure = $state("");
-  let takenOver = $state(false);
   let well = $state<HTMLDivElement>();
   const preview = $derived(whiffle.previews[instanceId]);
   const source = $derived(preview?.source);
   const identity = $derived(JSON.stringify(source));
-  const insecure = $derived(
-    !env.PUBLIC_WHIFFLE_PREVIEW_ORIGIN && location.protocol === "https:"
+  /** The base preview URL (always under /preview/<id>/). */
+  const previewBase = $derived(
+    whiffle.previews[instanceId]
+      ? `/preview/${encodeURIComponent(instanceId)}/`
+      : ""
   );
-  const origin = $derived(
-    env.PUBLIC_WHIFFLE_PREVIEW_ORIGIN ||
-      `${location.protocol}//${location.hostname}:${preview?.previewPort}`
-  );
-  const url = $derived(preview ? `${origin}${preview.open}` : "");
-  const previewOrigin = $derived(new URL(origin).origin);
+  /** Iframe src uses the base; the header shows the app's own path. */
+  const url = $derived(previewBase);
+  let displayPath = $state("");
   const title = $derived(
     preview?.title ||
       (connected && source && "dir" in source
@@ -62,22 +60,10 @@
       captured = false;
     }
   });
-  // The routing cookie is shared by all preview frames in this browser.
-  $effect(() => {
-    const channel = new BroadcastChannel("whiffle-preview");
-    channel.onmessage = (event: MessageEvent<{ instanceId: string }>) => {
-      takenOver = event.data.instanceId !== instanceId;
-    };
-    return () => channel.close();
-  });
   function post(message: object) {
-    iframe?.contentWindow?.postMessage(message, previewOrigin);
+    iframe?.contentWindow?.postMessage(message, location.origin);
   }
   function announce() {
-    takenOver = false;
-    const channel = new BroadcastChannel("whiffle-preview");
-    channel.postMessage({ instanceId });
-    channel.close();
     connected = false;
     post({ type: "whiffle:hello" });
   }
@@ -106,7 +92,7 @@
   function receive(event: MessageEvent) {
     if (
       event.source !== iframe?.contentWindow ||
-      event.origin !== previewOrigin
+      event.origin !== location.origin
     ) {
       return;
     }
@@ -118,12 +104,12 @@
           post({ type: "whiffle:hello" });
           return;
         }
-        const at = previewUrl(message.url, previewOrigin);
+        const at = previewUrl(message.url, location.origin);
         if (!at) {
           return;
         }
         const parsed = new URL(at);
-        preview.path = `${parsed.pathname}${parsed.search}${parsed.hash}`;
+        displayPath = `${parsed.pathname}${parsed.search}${parsed.hash}`;
         preview.title = previewTitle(message.title) ?? "";
         if (message.type === "whiffle:ready") {
           connected = true;
@@ -150,7 +136,7 @@
         if (!selecting) {
           return;
         }
-        const element = previewElement(message.element, previewOrigin);
+        const element = previewElement(message.element, location.origin);
         if (
           well &&
           element &&
@@ -207,7 +193,7 @@
     <div class="identity">
       <span class="title">{title}</span
       ><span class="path"
-        >{preview?.path || (source && 'dir' in source ? source.dir.split('/').filter(Boolean).at(-1) : '')}</span
+        >{displayPath || (source && 'dir' in source ? source.dir.split('/').filter(Boolean).at(-1) : '')}</span
       >
     </div>
     <button
@@ -248,35 +234,20 @@
     </button>
   </header>
   <div class="well" bind:this={well}>
-    {#if insecure}
-      <p class="empty">Set an HTTPS preview origin to show this page.</p>
-    {:else if takenOver}
-      <div class="empty">
-        Another tab is showing a preview.
-        <button
-          onclick={() => { takenOver = false; reload += 1; }}
-          title="Show"
-          type="button"
-        >
-          Show
-        </button>
-      </div>
-    {:else}
-      {#key frameKey}
-        <!-- biome-ignore lint/a11y/noNoninteractiveElementInteractions: load announces the routing cookie and starts the overlay handshake. -->
-        <iframe
-          allow="clipboard-write"
-          onload={announce}
-          src={url}
-          title="Preview"
-          bind:this={iframe}
-          class:ready={connected}
-        ></iframe>
-      {/key}
-      <div aria-hidden="true" class="skeleton" class:ready={connected}>
-        <span></span>
-      </div>
-    {/if}
+    {#key frameKey}
+      <!-- biome-ignore lint/a11y/noNoninteractiveElementInteractions: load starts the overlay handshake. -->
+      <iframe
+        allow="clipboard-write"
+        onload={announce}
+        src={url}
+        title="Preview"
+        bind:this={iframe}
+        class:ready={connected}
+      ></iframe>
+    {/key}
+    <div aria-hidden="true" class="skeleton" class:ready={connected}>
+      <span></span>
+    </div>
     {#if failure}
       <p class="error" role="alert">{failure}</p>
     {/if}

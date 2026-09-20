@@ -18,6 +18,13 @@
  * anyway: the request line and headers are re-issued verbatim over a plain TCP
  * connection and the hub's own 101 passes straight back. Nothing here has to
  * agree with a runtime about what an upgrade is.
+ *
+ * Preview routing: `/preview/<id>/…` is forwarded to the hub's preview
+ * listener. Requests whose path does NOT start with `/preview/<id>/` but whose
+ * `Referer` does (root-absolute fetches from inside the iframe — `/assets/x.js`,
+ * `/@vite/client`, `/src/App.svelte?t=…`) are also forwarded. A Referer-routed
+ * request that is a navigation (`Sec-Fetch-Mode: navigate`) gets a 302 back
+ * under the prefix so the iframe URL stays correct.
  */
 import http from "node:http";
 import net from "node:net";
@@ -27,8 +34,92 @@ const PORT = Number(process.env.PORT ?? 3000);
 const HOST = process.env.HOST ?? "0.0.0.0";
 const target = new URL(process.env.WHIFFLE_HUB_URL || "http://localhost:3456");
 const targetPort = Number(target.port || 80);
+const previewPort = Number(process.env.WHIFFLE_PREVIEW_PORT || targetPort + 1);
 
-const server = http.createServer(handler);
+const PREVIEW_PREFIX = /^\/preview\/([^/]+)\//;
+/**
+ * Extract preview instance id from a path or Referer. Returns
+ * `{ id, stripped }` where `stripped` is the path with the prefix removed
+ * (for path-matched requests) or the original path (for Referer-matched).
+ * Returns null if no match.
+ */
+function previewMatch(req) {
+  const match = req.url?.match(PREVIEW_PREFIX);
+  if (match) {
+    const id = decodeURIComponent(match[1]);
+    const stripped = req.url.slice(match[0].length - 1); // keep leading /
+    return { id, stripped, viaReferer: false };
+  }
+  const { referer } = req.headers;
+  if (referer) {
+    try {
+      const refUrl = new URL(referer);
+      const refMatch = refUrl.pathname.match(PREVIEW_PREFIX);
+      if (refMatch) {
+        const id = decodeURIComponent(refMatch[1]);
+        return { id, stripped: req.url, viaReferer: true };
+      }
+    } catch {
+      // malformed referer — not a preview request
+    }
+  }
+  return null;
+}
+
+function proxyPreviewHttp(req, res, info) {
+  // A Referer-routed navigation gets a 302 back under the prefix.
+  if (
+    info.viaReferer &&
+    (req.headers["sec-fetch-mode"] === "navigate" ||
+      req.headers["sec-fetch-dest"] === "document")
+  ) {
+    const prefix = `/preview/${encodeURIComponent(info.id)}`;
+    res.writeHead(302, { location: `${prefix}${req.url}` });
+    res.end();
+    return;
+  }
+  const options = {
+    hostname: target.hostname,
+    port: previewPort,
+    path: info.stripped,
+    method: req.method,
+    headers: {
+      ...req.headers,
+      host: `${target.hostname}:${previewPort}`,
+      "x-whiffle-preview": info.id,
+    },
+  };
+  const prefix = `/preview/${encodeURIComponent(info.id)}`;
+  const proxyReq = http.request(options, (proxyRes) => {
+    // A root-absolute Location must stay under the prefix so the browser
+    // does not leave /preview/<id>/ on a redirect.
+    const { location } = proxyRes.headers;
+    if (location?.startsWith("/") && !location.startsWith(prefix)) {
+      proxyRes.headers.location = `${prefix}${location}`;
+    }
+    res.writeHead(proxyRes.statusCode, proxyRes.headers);
+    proxyRes.pipe(res);
+  });
+  proxyReq.on("error", (error) => {
+    console.warn(
+      `[whiffle] preview proxy error for ${info.id}: ${error.code ?? error.message}`
+    );
+    if (!res.headersSent) {
+      res.writeHead(502);
+    }
+    res.end();
+  });
+  req.pipe(proxyReq);
+}
+
+const server = http.createServer((req, res) => {
+  const info = previewMatch(req);
+  if (info) {
+    proxyPreviewHttp(req, res, info);
+    return;
+  }
+  handler(req, res);
+});
 
 server.on("upgrade", (req, socket, head) => {
   // `http.Server` drops a socket's error handling the moment it emits
@@ -40,6 +131,39 @@ server.on("upgrade", (req, socket, head) => {
       `[whiffle] websocket socket error on ${req.url}: ${error.code ?? error.message}`
     );
   });
+
+  // Preview WebSocket: /preview/<id>/…
+  const info = previewMatch(req);
+  if (info) {
+    const upstream = net.connect(previewPort, target.hostname, () => {
+      const lines = [`${req.method} ${info.stripped} HTTP/1.1`];
+      for (let i = 0; i < req.rawHeaders.length; i += 2) {
+        const lower = req.rawHeaders[i].toLowerCase();
+        if (lower === "host") {
+          continue;
+        }
+        lines.push(`${req.rawHeaders[i]}: ${req.rawHeaders[i + 1]}`);
+      }
+      lines.push(`Host: ${target.hostname}:${previewPort}`);
+      lines.push(`X-Whiffle-Preview: ${info.id}`);
+      upstream.write(`${lines.join("\r\n")}\r\n\r\n`);
+      if (head?.length) {
+        upstream.write(head);
+      }
+      upstream.pipe(socket);
+      socket.pipe(upstream);
+    });
+    upstream.on("error", (error) => {
+      console.warn(
+        `[whiffle] preview ws proxy error for ${info.id}: ${error.code ?? error.message}`
+      );
+      socket.destroy();
+    });
+    socket.on("close", () => upstream.destroy());
+    upstream.on("close", () => socket.destroy());
+    return;
+  }
+
   if (!req.url?.startsWith("/ws")) {
     return socket.destroy();
   }

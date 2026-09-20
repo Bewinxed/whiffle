@@ -8,12 +8,10 @@ import {
 import { PREVIEW_PORT } from "./config";
 
 /**
- * The preview listener is one origin for every preview, and the browser picks
- * which one it sees with a single `whiffle_preview` cookie. Cookies are shared
- * across ports on a host, so that is one active preview per browser: opening a
- * second session's preview points every open preview iframe in that browser at
- * the second app until one of them is shown again. The pane says so when it
- * happens (PreviewPane.svelte, `BroadcastChannel("whiffle-preview")`).
+ * Each preview target maps an instance id to the daemon address and port that
+ * serves its content. The dashboard routes `/preview/<id>/…` here via the
+ * `x-whiffle-preview` header, so there is no per-browser limitation — every
+ * tab can show a different preview simultaneously.
  */
 export const previewTargets = new Map<
   string,
@@ -34,8 +32,7 @@ export function previewFrame(
     kind: "preview",
     instanceId,
     state,
-    previewPort: PREVIEW_PORT,
-    open: `/__whiffle/open/${encodeURIComponent(instanceId)}`,
+    path: `/preview/${encodeURIComponent(instanceId)}/`,
     source,
   };
 }
@@ -46,39 +43,12 @@ export function startPreviewListener(hostname: string) {
     port: PREVIEW_PORT,
     websocket: previewWebSocket,
     async fetch(request, server) {
-      const url = new URL(request.url);
-      if (
-        request.method === "GET" &&
-        url.pathname.startsWith("/__whiffle/open/")
-      ) {
-        const instanceId = decodeURIComponent(
-          url.pathname.slice("/__whiffle/open/".length)
-        );
-        if (!previewTargets.has(instanceId)) {
-          return new Response("No preview for this session.", { status: 404 });
-        }
-        return new Response(null, {
-          status: 302,
-          headers: {
-            "set-cookie": `whiffle_preview=${encodeURIComponent(instanceId)}; Path=/; SameSite=Lax; HttpOnly`,
-            location: "/",
-            "cache-control": "no-store",
-          },
-        });
-      }
-      const cookie = request.headers
-        .get("cookie")
-        ?.split(";")
-        .map((part) => part.trim())
-        .find((part) => part.startsWith("whiffle_preview="));
-      const target = cookie
-        ? previewTargets.get(
-            decodeURIComponent(cookie.slice("whiffle_preview=".length))
-          )
-        : undefined;
+      const instanceId = request.headers.get("x-whiffle-preview");
+      const target = instanceId ? previewTargets.get(instanceId) : undefined;
       if (!target) {
         return new Response("No preview selected.", { status: 404 });
       }
+      const url = new URL(request.url);
       const address = target.address.includes(":")
         ? `[${target.address}]`
         : target.address;
