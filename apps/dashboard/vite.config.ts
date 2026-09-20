@@ -207,7 +207,18 @@ const hubProxy = (): Plugin => ({
           "x-whiffle-preview": info.id,
         },
       };
+      const pvPrefix = `/preview/${encodeURIComponent(info.id)}`;
       const proxyReq = http.request(options, (proxyRes) => {
+        // A root-absolute Location must stay under the prefix so the browser
+        // does not leave /preview/<id>/ on a redirect.
+        const { location } = proxyRes.headers;
+        if (
+          typeof location === "string" &&
+          location.startsWith("/") &&
+          !location.startsWith(pvPrefix)
+        ) {
+          proxyRes.headers.location = `${pvPrefix}${location}`;
+        }
         res.writeHead(proxyRes.statusCode ?? 502, proxyRes.headers);
         proxyRes.pipe(res);
       });
