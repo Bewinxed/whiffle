@@ -393,7 +393,12 @@ export function handoffTools(deps: HandoffDeps) {
     ),
     tool(
       "show_preview",
-      "Show a web app or a directory of HTML from this machine in a preview pane beside this session's transcript. Pass the local port of a dev server you started, or the absolute path of a directory whose index.html the user should see. Use it whenever the user should look at a running page rather than read about it.",
+      "Show a running page beside this session's transcript so the operator sees your work. " +
+        "Call it when: you started or found a dev server; you wrote or changed an HTML/CSS/Svelte/React/Vue file " +
+        'the user will look at; the user asked to "see", "look at", "show me", or "how does it look"; ' +
+        "you are about to say a UI change is done. Pass `port` for a running dev server, or `dir` for a directory " +
+        "with an index.html. The operator gets the page inline beside your transcript and can click any element " +
+        "to send you exact file:line feedback with notes — use that to edit precisely what they pointed at.",
       {
         port: z.number().int().min(1).max(65_535).optional(),
         dir: z.string().startsWith("/").optional(),
