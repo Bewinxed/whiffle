@@ -146,6 +146,7 @@ export { default as IconScissors } from "~icons/solar/scissors-linear";
 export { default as IconServerDuo } from "~icons/solar/server-2-bold-duotone";
 export { default as IconServer } from "~icons/solar/server-2-linear";
 export { default as IconSettings } from "~icons/solar/settings-linear";
+export { default as IconWorkflow } from "~icons/solar/share-circle-bold-duotone";
 /** Rules: a standing guard over what sessions say, distinct from bare `shield`. */
 export { default as IconRules } from "~icons/solar/shield-check-linear";
 export { default as IconShield } from "~icons/solar/shield-linear";

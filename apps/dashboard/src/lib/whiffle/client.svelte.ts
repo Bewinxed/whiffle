@@ -32,6 +32,7 @@ import type {
   StopPayload,
   SupervisorEvent,
   UsageLimitsReading,
+  WorkflowFrame,
 } from "@whiffle/core";
 import {
   CONTROL_RELOAD_SKILLS,
@@ -109,6 +110,11 @@ import {
   TASK_LEDGER_TOOLS,
 } from "./tasks.svelte";
 import type { DelegateAskEvent, DelegateEvent, Message } from "./types";
+import {
+  acceptWorkflowFrame,
+  refreshWorkflows,
+  workflowState,
+} from "./workflow-state.svelte";
 import { workingSet } from "./working-set.svelte";
 
 export type ConnectionStatus =
@@ -881,6 +887,8 @@ function usageLimitReadings(
 
 /** Registry reads: on connect and again after every reconnect. */
 async function refresh(): Promise<void> {
+  // Registry hydration also recovers workflow transitions missed while disconnected.
+  refreshWorkflows();
   const [machines, instances, projects, pending, handoffs, queues, usage] =
     await Promise.all([
       load<Machine[]>("/api/agents"),
@@ -1104,7 +1112,15 @@ const nameOfCall = (messages: Message[], toolId: string): string =>
     ?.toolName ?? "";
 
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: dispatches every FramePayload kind the socket can deliver; splitting it would scatter one state machine across files
-function handleFrame(frame: FramePayload): void {
+function handleFrame(frame: FramePayload | WorkflowFrame): void {
+  if (frame.kind === "permission_request" && "workflowRunId" in frame) {
+    // Workflow questions are represented once, by their authoritative waiting run.
+    return;
+  }
+  if (frame.kind === "workflow") {
+    acceptWorkflowFrame(frame);
+    return;
+  }
   if (frame.kind === "preview") {
     const previous = state.previews[frame.instanceId];
     const sameSource =
@@ -5397,6 +5413,11 @@ export const whiffle = {
     return blockedRequests();
   },
   get blockedCount(): number {
-    return blockedRequests().length;
+    return (
+      blockedRequests().length +
+      Object.values(workflowState.runs).filter(
+        (run) => run.status === "waiting"
+      ).length
+    );
   },
 };

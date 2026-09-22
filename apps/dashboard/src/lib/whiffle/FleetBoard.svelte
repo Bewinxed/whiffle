@@ -15,6 +15,7 @@
    */
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
+  import WorkflowStatus from "$lib/components/features/workflows/WorkflowStatus.svelte";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte component-group convention
@@ -42,6 +43,7 @@
   import MachineCard from "$lib/whiffle/MachineCard.svelte";
   import StatTile from "$lib/whiffle/StatTile.svelte";
   import NewSessionDialog from "$lib/whiffle/spawn/NewSessionDialog.svelte";
+  import { workflowState } from "$lib/whiffle/workflow-state.svelte";
   import {
     type InstanceRow,
     isFailed,
@@ -434,7 +436,7 @@
            all-clear — the one failure the Switch interview names by hand. -->
       <button
         aria-label={hubLive
-          ? `Needs you: ${whiffle.blocked.length}. Show only sessions that need you.`
+          ? `Needs you: ${whiffle.blockedCount}. Show sessions and workflow runs that need you.`
           : 'Needs you: unknown while reconnecting. Show only sessions that need you.'}
         aria-pressed={stateFilter === 'attn'}
         class="attn-tile"
@@ -448,7 +450,7 @@
           label="Needs you"
           tone="attn"
           unit={hubLive ? undefined : 'unknown while reconnecting'}
-          value={hubLive ? String(whiffle.blocked.length) : '—'}
+          value={hubLive ? String(whiffle.blockedCount) : '—'}
         />
       </button>
 
@@ -486,6 +488,16 @@
          away when nothing is waiting. -->
     <div class="queue">
       <AttentionQueue />
+      {#each Object.values(workflowState.runs).filter((run) => run.status === 'waiting') as run (run.id)}
+        <a
+          class="flex min-h-11 flex-wrap items-center justify-between gap-3 rounded-[var(--radius-control)] bg-[var(--surface-raised)] p-3"
+          href="/workflows/{run.workflowId}/runs/{run.id}"
+          ><span
+            >{workflowState.workflows.find((entry) => entry.id === run.workflowId)?.name ?? 'Workflow'}
+            · run {run.id.slice(0, 8)}</span
+          ><WorkflowStatus status={run.status} /></a
+        >
+      {/each}
     </div>
 
     <!-- Asleep and unreachable rows never reach the roster below (it is
