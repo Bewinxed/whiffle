@@ -97,12 +97,19 @@
                     <option>{option}</option>
                   {/each}
                 </select>
-              {:else}
+              {:else if input.type === 'path'}
                 <input
                   id="launch-{input.name}"
                   required={input.required}
                   bind:value={inputs[input.name]}
                 >
+              {:else}
+                <textarea
+                  id="launch-{input.name}"
+                  required={input.required}
+                  rows="2"
+                  bind:value={inputs[input.name]}
+                ></textarea>
               {/if}</label
             >
           {/each}
@@ -134,8 +141,13 @@
               {/each}
             </select></label
           >
-          <label>Directory<input required bind:value={workspace}></label>
-          <p class="wf-mono">{workspace}</p>
+          <label
+            >Directory<input
+              class="wf-mono"
+              required
+              bind:value={workspace}
+            ></label
+          >
           {#if online}
             <DirectoryPicker
               {machineId}
@@ -178,4 +190,8 @@
     </div></Dialog.Content
   ></Dialog.Root
 >
-<style>.wf-launch :global(button) { min-height: 44px; }</style>
+<style>
+  .wf-launch :global(button) {
+    min-height: 44px;
+  }
+</style>

@@ -34,7 +34,16 @@
   let other = $state("");
   let note = $state("");
   let sessionCosts = $state<Record<string, number>>({});
-  const costs = $derived(Object.fromEntries(whiffle.instances.filter((entry) => entry.sessionId && sessionCosts[entry.sessionId] !== undefined).map((entry) => [entry.id, sessionCosts[entry.sessionId as string]])));
+  const costs = $derived(
+    Object.fromEntries(
+      whiffle.instances
+        .filter(
+          (entry) =>
+            entry.sessionId && sessionCosts[entry.sessionId] !== undefined
+        )
+        .map((entry) => [entry.id, sessionCosts[entry.sessionId as string]])
+    )
+  );
   let scope = $state("root");
   const run = $derived(workflowState.details[runId]);
   const workflow = $derived(
@@ -89,7 +98,9 @@
     });
   });
   $effect(() => {
-    if (run?.status === "done" && !selectedEnd) {
+    // Narrow shows the drawer as a modal sheet; opening one unasked on arrival
+    // would bury the run behind a dialog the operator never opened.
+    if (run?.status === "done" && !(selectedEnd || narrow.current)) {
       selectedEnd = true;
       selected = run.steps.find(
         (entry) => entry.kind === "end" && entry.status === "passed"
@@ -104,7 +115,9 @@
   });
   $effect(() => {
     const current = run;
-    if (current) { untrack(refreshCosts); }
+    if (current) {
+      untrack(refreshCosts);
+    }
   });
   function refreshCosts() {
     fetch("/api/usage/summary?groupBy=session")
@@ -196,17 +209,23 @@
         <WorkflowStatus status={step.status} />
       </div>
       <p class="wf-muted">
-        Attempt
-        {attempts.at(-1)?.number ?? 0}/{node?.kind === 'step' ? (node.retries ?? 2) + 1 : 1}
-        · {duration(step.startedAt, step.endedAt, now)} ·
-        {step.instanceId && costs[step.instanceId] !== undefined ? `$${costs[step.instanceId].toFixed(4)}` : 'Cost unreported'}
+        {#if node?.kind === 'step'}
+          Attempt
+          {attempts.at(-1)?.number ?? 0}/{(node.retries ?? 2) + 1}
+          ·
+          {duration(step.startedAt, step.endedAt, now)}
+          ·
+          {step.instanceId && costs[step.instanceId] !== undefined ? `$${costs[step.instanceId].toFixed(4)}` : 'Cost unreported'}
+        {:else}
+          {duration(step.startedAt, step.endedAt, now)}
+        {/if}
       </p>
-      <section class="wf-stack">
-        <h3>Told</h3>
-        <pre
-          class="wf-well"
-        >{attempts.at(-1)?.renderedPrompt ?? 'This node routes in code; no model prompt.'}</pre>
-      </section>
+      {#if attempts.at(-1)?.renderedPrompt}
+        <section class="wf-stack">
+          <h3>Told</h3>
+          <pre class="wf-well">{attempts.at(-1)?.renderedPrompt}</pre>
+        </section>
+      {/if}
       <section class="wf-stack">
         <h3>Returned</h3>
         {#if step.failure}
@@ -229,7 +248,9 @@
           >
         </div>
       {/if}
-      <h3>Attempts</h3>
+      {#if attempts.length}
+        <h3>Attempts</h3>
+      {/if}
       {#each attempts as attempt (attempt.id)}
         <details class="wf-well">
           <summary>
@@ -377,22 +398,32 @@
     {/if}
     <div class="run-body">
       {#if !narrow.current || tab === 'steps'}
-        <aside class="steps" class:collapsed={!stepsOpen && !narrow.current}>
-          <button type="button" class="wf-btn" aria-expanded={stepsOpen} onclick={() => { stepsOpen = !stepsOpen; }}>Steps</button>
-          {#if stepsOpen || narrow.current}
-          {#each sorted as entry (entry.id)}
+        <aside class="steps" class:collapsed={!(stepsOpen || narrow.current)}>
+          {#if !narrow.current}
             <button
-              class="step-row"
-              onclick={() => { selected = entry.id; }}
+              aria-expanded={stepsOpen}
+              class="wf-btn"
+              onclick={() => { stepsOpen = !stepsOpen; }}
               type="button"
-              class:chosen={entry.id === selected}
             >
-              <span
-                >{run.graph.nodes.find((item) => item.id === entry.nodeId)?.title ?? entry.nodeId}{entry.mapIndex === null ? '' : ` [${entry.mapIndex}]`}</span
-              ><WorkflowStatus status={entry.status} />
-              <small>{duration(entry.startedAt, entry.endedAt, now)}</small>
+              Steps
             </button>
-          {/each}{/if}
+          {/if}
+          {#if stepsOpen || narrow.current}
+            {#each sorted as entry (entry.id)}
+              <button
+                class="step-row"
+                onclick={() => { selected = entry.id; }}
+                type="button"
+                class:chosen={entry.id === selected}
+              >
+                <span
+                  >{run.graph.nodes.find((item) => item.id === entry.nodeId)?.title ?? entry.nodeId}{entry.mapIndex === null ? '' : ` [${entry.mapIndex}]`}</span
+                ><WorkflowStatus status={entry.status} />
+                <small>{duration(entry.startedAt, entry.endedAt, now)}</small>
+              </button>
+            {/each}
+          {/if}
         </aside>
       {/if}
       {#if graph && (!narrow.current || tab === 'canvas')}
@@ -447,7 +478,11 @@
     padding: var(--space-4) var(--space-5);
     border-bottom: 1px solid var(--border-divider);
   }
-  header a { display: inline-flex; min-height: 24px; align-items: center; }
+  header a {
+    display: inline-flex;
+    min-height: 24px;
+    align-items: center;
+  }
   .run-body {
     display: flex;
     flex: 1;
@@ -463,7 +498,9 @@
   .steps h2 {
     padding: var(--space-2);
   }
-  .steps.collapsed { width: 86px; }
+  .steps.collapsed {
+    width: 86px;
+  }
   .step-row {
     width: 100%;
     display: grid;
