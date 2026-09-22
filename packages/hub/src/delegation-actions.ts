@@ -19,6 +19,7 @@ import type {
   PreviewSource,
   SendPayload,
   SpawnPayload,
+  WorkflowAction,
 } from "@whiffle/core";
 import {
   delegateTypeProblem,
@@ -267,6 +268,9 @@ function resolve(peers: Peer[], target: string): Peer {
  * toolset). Fixed for the session's life, so the prompt cache is unaffected.
  */
 export const SPAWNING_TOOLS: ReadonlySet<string> = new Set([
+  "run_workflow",
+  "steer_workflow",
+  "list_workflows",
   "start_session",
   "delegate",
   "stop_delegate",
@@ -294,6 +298,7 @@ export interface HandoffDeps {
   readonly harness?: "claude" | "opencode" | "pi";
   /** The session doing the handing over. */
   readonly instanceId: string;
+  readonly workflowStepId?: string;
 }
 
 /** The three hand-off actions, each answering with the text the tool returns. */
@@ -351,6 +356,12 @@ export interface HandoffActions {
   readonly listDelegateTypes: () => Promise<{ types: DelegateType[] }>;
   // biome-ignore lint/style/useConsistentMethodSignatures: implemented below; property-style would change parameter variance against that implementation
   listSessions(): Promise<string>;
+  readonly listWorkflows: () => Promise<unknown>;
+  readonly runWorkflow: (
+    name: string,
+    inputs: Record<string, unknown>,
+    options?: { workspace?: { path: string; machineId: string } }
+  ) => Promise<{ runId: string }>;
   /** Pushes a note to the owner's Telegram — no peer, no ask, fire-and-forget. */
   // biome-ignore lint/style/useConsistentMethodSignatures: implemented below; property-style would change parameter variance against that implementation
   sendToUser(message: string, attachments?: string[]): Promise<string>;
@@ -362,8 +373,13 @@ export interface HandoffActions {
     sideQuest?: boolean,
     model?: string
   ): Promise<HandoffResult>;
+  readonly steerWorkflow: (
+    runId: string,
+    action: WorkflowAction
+  ) => Promise<unknown>;
   // biome-ignore lint/style/useConsistentMethodSignatures: implemented below; property-style would change parameter variance against that implementation
   stopDelegate(target: string): Promise<string>;
+  readonly submitResult: (result: unknown) => Promise<string>;
 }
 
 /** The structured result of startSession / delegate — the id, title, and the model-facing prose. */
@@ -402,10 +418,64 @@ function resolveDelegate(
 
 export const handoffActions = ({
   instanceId,
+  workflowStepId,
   cwd,
   harness: callerHarness,
   emit,
 }: HandoffDeps): HandoffActions => ({
+  async submitResult(result) {
+    if (!workflowStepId) {
+      throw new Error("submit_result is available only to workflow steps.");
+    }
+    const response = await fetch(
+      `${hubHttpUrl()}/api/workflow-steps/${encodeURIComponent(workflowStepId)}/result`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ instanceId, result }),
+      }
+    );
+    return response.text();
+  },
+  async runWorkflow(name, inputs, options) {
+    const response = await fetch(
+      `${hubHttpUrl()}/api/workflows/${encodeURIComponent(name)}/runs`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          instanceId,
+          inputs,
+          workspace: options?.workspace,
+        }),
+      }
+    );
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+    return (await response.json()) as { runId: string };
+  },
+  async steerWorkflow(runId, action) {
+    const response = await fetch(
+      `${hubHttpUrl()}/api/workflow-runs/${encodeURIComponent(runId)}/steer`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ instanceId, action }),
+      }
+    );
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+    return response.json();
+  },
+  async listWorkflows() {
+    const response = await fetch(`${hubHttpUrl()}/api/workflows`);
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+    return response.json();
+  },
   async generateImage(request) {
     const response = await fetch(
       `${hubHttpUrl()}/api/instances/${encodeURIComponent(instanceId)}/generate-image`,

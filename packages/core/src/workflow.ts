@@ -145,7 +145,10 @@ export interface WorkflowGraph {
     concurrency?: number;
     defaultProject?: string;
     defaultMachine?: string;
-    defaultSupervisor?: { delegateType: string } | { instanceId: string };
+    defaultSupervisor?:
+      | { delegateType: string }
+      | { instanceId: string }
+      | null;
   };
 }
 export interface Problem {
@@ -539,6 +542,12 @@ export function validateWorkflow(
         }
       }
     } else if (node.kind === "ask") {
+      if (
+        node.waitFor !== undefined &&
+        (!Number.isFinite(node.waitFor) || node.waitFor <= 0)
+      ) {
+        add("Ask expiry must be a positive number of hours.", node.id);
+      }
       templates.push(
         node.question,
         ...node.options.map((option) => option.label)
@@ -548,7 +557,7 @@ export function validateWorkflow(
       }
       if (
         node.answeredBy === "supervisor" &&
-        !(options.supervised || graph.settings?.defaultSupervisor)
+        !(options.supervised ?? !!graph.settings?.defaultSupervisor)
       ) {
         add("This Ask requires a supervisor.", node.id);
       }

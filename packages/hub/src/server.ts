@@ -63,6 +63,7 @@ import {
   PREVIEW_START,
   PREVIEW_STOP,
   parseAgentFrontMatter,
+  QUESTION_DISMISSED,
   READ_MEMORY_FILE,
   READ_SKILL_FILES,
   RESOLVE_PERMISSION,
@@ -83,9 +84,11 @@ import { HUB_VERSION } from "./config";
 import type { AgentAuth, DbShape, DelegateEvent, InstanceKind } from "./db";
 import { usageBucketFromRow } from "./db";
 import { delegateTypesRoutes, makeDelegateTypes } from "./delegate-types";
+import { hubHttpUrl } from "./delegation-actions";
 import { createDelegationMcp } from "./delegation-mcp";
 import { probe } from "./llm";
 import type { PendingShape } from "./pending";
+import { answerWorkflow, onWorkflowAnswer } from "./pending";
 import { resolveMarketplacePlugins } from "./plugins";
 import { previewFrame, previewTargets } from "./preview";
 import type { HubSocket, RegistryShape } from "./registry";
@@ -94,6 +97,8 @@ import { hashFiles, resolveSkill } from "./skills";
 import { createStreamHub, HUB_CAPABILITIES } from "./stream";
 import { SupervisorEngine, type SupervisorStatusSignal } from "./supervisor";
 import type { TelegramBridge } from "./telegram";
+import { createWorkflowEngine } from "./workflows/engine";
+import { workflowRoutes } from "./workflows/routes";
 
 /** The frame a forwarded `control` comes back as, whoever asked for it. */
 type ControlResult = Extract<FramePayload, { kind: "control_result" }>;
@@ -759,6 +764,9 @@ export const instanceSpecs = (
     permissionMode?: string | null;
     model?: string | null;
     effort?: string | null;
+    workflowRunId?: string | null;
+    workflowStepId?: string | null;
+    canDelegate?: boolean | null;
   }[],
   machineId: string
 ): Record<string, InstanceSpec> => {
@@ -768,6 +776,9 @@ export const instanceSpecs = (
       continue;
     }
     const spec: InstanceSpec = {
+      ...(row.workflowRunId ? { workflowRunId: row.workflowRunId } : {}),
+      ...(row.workflowStepId ? { workflowStepId: row.workflowStepId } : {}),
+      ...(row.canDelegate === false ? { canDelegate: false } : {}),
       ...(row.permissionMode ? { permissionMode: row.permissionMode } : {}),
       ...(row.model ? { model: row.model } : {}),
       ...(row.effort ? { effort: row.effort } : {}),
@@ -1970,6 +1981,13 @@ export const createServer = ({
     const payload: SpawnPayload = {
       instanceId: row.id,
       cwd: row.cwd,
+      ...(row.workflowStepId
+        ? {
+            workflowRunId: row.workflowRunId ?? undefined,
+            workflowStepId: row.workflowStepId,
+            ...workflowEngine.specFor(row.workflowStepId),
+          }
+        : {}),
       ...(reattachOnly ? { reattachOnly } : {}),
       ...(row.sessionId ? { resume: { sessionKey: row.sessionId } } : {}),
       ...(row.harness
@@ -2013,8 +2031,15 @@ export const createServer = ({
   };
 
   /** {@link instanceSpecs} over this hub's rows — the ack's half of the relaunch. */
-  const specsFor = (machineId: string): Record<string, InstanceSpec> =>
-    instanceSpecs(db.listInstances(), machineId);
+  const specsFor = (machineId: string): Record<string, InstanceSpec> => {
+    const specs = instanceSpecs(db.listInstances(), machineId);
+    for (const spec of Object.values(specs)) {
+      if (spec.workflowStepId) {
+        Object.assign(spec, workflowEngine.specFor(spec.workflowStepId));
+      }
+    }
+    return specs;
+  };
 
   /**
    * Presence is the registry's; history is the database's.
@@ -2972,6 +2997,17 @@ export const createServer = ({
     dashboard: HubSocket,
     remember = true
   ): boolean => {
+    const workflowAnswer = peekAnswer(message.payload);
+    if (
+      workflowAnswer &&
+      answerWorkflow(
+        pending,
+        workflowAnswer.requestId,
+        workflowAnswer.result as import("@whiffle/core").PermissionResult
+      )
+    ) {
+      return true;
+    }
     if (!(forward(message, dashboard) && message.requestId)) {
       return false;
     }
@@ -3033,6 +3069,145 @@ export const createServer = ({
   // route group, mounted rather than folded into the routes below — see
   // delegate-types.ts for why it keeps its own connection.
   const delegateTypes = makeDelegateTypes();
+  const workflowEngine = createWorkflowEngine({
+    db,
+    online: (machineId) => !!registry.agent(machineId),
+    emit: (envelope) => {
+      const agent = registry.agent(envelope.machineId);
+      if (!agent) {
+        throw new Error(`Machine ${envelope.machineId} is not connected.`);
+      }
+      agent.send(envelope);
+    },
+    spawn: async (machineId, payload) => {
+      const response = await fetch(`${hubHttpUrl()}/api/relay/spawn`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ...payload, machineId }),
+      });
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+    },
+    halt: (machineId, instanceId) =>
+      new Promise<void>((resolve, reject) => {
+        const agent = registry.agent(machineId);
+        if (!agent) {
+          reject(new Error(`Machine ${machineId} is not connected.`));
+          return;
+        }
+        const requestId = crypto.randomUUID();
+        const timer = setTimeout(() => {
+          waiting.delete(requestId);
+          waitingMachines.delete(requestId);
+          reject(new Error("Timed out stopping workflow attempt."));
+        }, 30_000);
+        waitingMachines.set(requestId, machineId);
+        waiting.set(requestId, (frame) => {
+          clearTimeout(timer);
+          waiting.delete(requestId);
+          waitingMachines.delete(requestId);
+          if (frame.ok) {
+            resolve();
+          } else {
+            reject(
+              new Error(frame.error ?? "Could not stop workflow attempt.")
+            );
+          }
+        });
+        agent.send({
+          verb: "stop",
+          machineId,
+          instanceId,
+          requestId,
+          payload: { instanceId, requestId },
+        });
+      }),
+    command: async (machineId, cwd, cmd) => {
+      const response = await callAgent(
+        machineId,
+        "runCommand",
+        [cwd, cmd],
+        310_000
+      );
+      if (typeof response === "string") {
+        throw new Error(`Command refused: machine ${response}.`);
+      }
+      if (response.error) {
+        throw new Error(String(response.error));
+      }
+      return response.result as { exitCode: number; output: string };
+    },
+    park: (envelope) => {
+      if (!envelope.requestId) {
+        throw new Error("Workflow question has no request id.");
+      }
+      const existed = pending.get(envelope.requestId);
+      pending.remember(envelope.requestId, envelope);
+      registry.broadcast(envelope);
+      if (
+        !existed &&
+        (envelope.payload as { routedTo?: string }).routedTo !== "parent"
+      ) {
+        telegram?.onAsk(envelope);
+      }
+    },
+    settle: (id) => {
+      pending.resolve(id);
+      telegram?.onSettled(id);
+    },
+    broadcast: (frame) =>
+      registry.broadcast({
+        verb: "frames",
+        machineId: frame.run.machineId,
+        payload: { kind: "workflow", ...frame },
+      }),
+    supervisor: async (type, cwd, machineId, prompt) => {
+      const preset = delegateTypes.list().find((entry) => entry.name === type);
+      if (!preset) {
+        throw new Error(`No delegate type ${type}.`);
+      }
+      const instanceId = crypto.randomUUID();
+      const response = await fetch(`${hubHttpUrl()}/api/relay/spawn`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ...preset,
+          instanceId,
+          cwd,
+          machineId,
+          canDelegate: true,
+          permissionMode: "bypassPermissions",
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+      registry.agent(machineId)?.send({
+        verb: "send",
+        machineId,
+        instanceId,
+        payload: {
+          instanceId,
+          message: {
+            type: "user",
+            message: { role: "user", content: prompt },
+            parent_tool_use_id: null,
+            origin: {
+              kind: "peer",
+              from: instanceId,
+              name: "workflow",
+              fromSession: instanceId,
+            },
+          },
+        },
+      });
+      return instanceId;
+    },
+  });
+  onWorkflowAnswer(pending, (id, result) =>
+    workflowEngine.settleQuestion(id, result)
+  );
   const delegationMcp = createDelegationMcp({
     instances: () => db.listInstances(),
   });
@@ -3041,12 +3216,23 @@ export const createServer = ({
     new Elysia()
       .use(websocket())
       .use(delegateTypesRoutes(delegateTypes))
+      .use(
+        workflowRoutes(
+          db,
+          workflowEngine,
+          (id) => withSessionPresence(db.getInstancesByIds([id]))[0]?.status
+        )
+      )
       .all("/mcp/whiffle", ({ request, body, server }) => {
         // Tool deadlines govern long calls; the HTTP idle timer must not cut them short.
         server?.timeout(request, 0);
         return delegationMcp.handle(request, body);
       })
-      .get("/api/delegation/tools", () => delegationMcp.list())
+      .get("/api/delegation/tools", ({ query }) =>
+        delegationMcp.list(
+          typeof query.instanceId === "string" ? query.instanceId : undefined
+        )
+      )
       .post(
         "/api/delegation/call/:instanceId",
         { body: t.Any() },
@@ -4959,6 +5145,8 @@ export const createServer = ({
           model: peek(body, "model"),
           effort: peek(body, "effort"),
           canDelegate: peekCanDelegate(body),
+          workflowRunId: peek(body, "workflowRunId"),
+          workflowStepId: peek(body, "workflowStepId"),
           ...peekParent(body),
         });
         // A conversation that starts here: its first turn is its name.
@@ -5080,6 +5268,19 @@ export const createServer = ({
         return { ok: true };
       })
       .post("/api/relay/answer", { body: t.Any() }, ({ body, status }) => {
+        const workflowRequestId = peek(body, "requestId");
+        if (
+          workflowRequestId &&
+          pending.get(workflowRequestId) &&
+          answerWorkflow(
+            pending,
+            workflowRequestId,
+            (body as { result: import("@whiffle/core").PermissionResult })
+              .result
+          )
+        ) {
+          return { ok: true };
+        }
         const instanceId = peek(body, "instanceId");
         const from = peek(body, "from");
         const requestId = peek(body, "requestId");
@@ -5392,7 +5593,10 @@ export const createServer = ({
                 )
                 .filter((orphan) => orphan.row.updatedAt.getTime() >= cutoff)
                 .slice(0, RESTORE_MAX);
-              const revivable = [...held, ...fresh];
+              const revivable = [
+                ...held,
+                ...fresh.filter(({ row }) => !row.workflowStepId),
+              ];
               for (const orphan of revivable) {
                 restore(ws, orphan.row, heldRows.has(orphan.row.id));
               }
@@ -5405,6 +5609,7 @@ export const createServer = ({
                 for (const row of db.listInstances()) {
                   if (
                     row.machineId === message.machineId &&
+                    !row.workflowStepId &&
                     row.harness === "opencode" &&
                     row.sessionId &&
                     (row.status === "sleeping" || row.status === "error")
@@ -5449,6 +5654,7 @@ export const createServer = ({
                   specsFor(message.machineId)
                 )
               );
+              workflowEngine.recover(message.machineId);
               break;
             }
             case "heartbeat": {
@@ -5646,6 +5852,8 @@ export const createServer = ({
                   model: peek(message.payload, "model"),
                   effort: peek(message.payload, "effort"),
                   canDelegate: peekCanDelegate(message.payload),
+                  workflowRunId: peek(message.payload, "workflowRunId"),
+                  workflowStepId: peek(message.payload, "workflowStepId"),
                   ...peekParent(message.payload),
                 });
                 // A conversation that starts here: its first turn is its name.
@@ -5763,6 +5971,30 @@ export const createServer = ({
                   ? db.listInstances().find((r) => r.id === message.instanceId)
                   : undefined;
                 const parentId = sender?.parentInstanceId;
+                if (
+                  sender?.workflowStepId &&
+                  !parentId &&
+                  (message.payload as { requestKind?: string }).requestKind ===
+                    "question"
+                ) {
+                  registry.agent(message.machineId)?.send({
+                    verb: "control",
+                    machineId: message.machineId,
+                    instanceId: sender.id,
+                    requestId: message.requestId,
+                    payload: {
+                      instanceId: sender.id,
+                      requestId: message.requestId,
+                      method: RESOLVE_PERMISSION,
+                      args: [
+                        message.requestId,
+                        { behavior: "deny", message: QUESTION_DISMISSED },
+                      ],
+                    },
+                  });
+                  pending.resolve(message.requestId);
+                  break;
+                }
                 const parent =
                   parentId && parentId !== message.instanceId
                     ? db.listInstances().find((r) => r.id === parentId)
@@ -5796,6 +6028,7 @@ export const createServer = ({
                   // there; `markInstanceLive` only touches the states a live
                   // process can be wrongly filed under.
                   db.markInstanceLive(message.instanceId);
+                  workflowEngine.instanceLive(message.instanceId);
                   heldSessions.delete(message.instanceId);
                   publishInstances(message.machineId);
                 }
@@ -5884,8 +6117,19 @@ export const createServer = ({
                     .listInstances()
                     .find((r) => r.id === message.instanceId);
                   const parentId = row?.parentInstanceId;
+                  if (row?.workflowStepId) {
+                    const workflowFailure = neutral.errors?.length
+                      ? neutral.errors.join("\n")
+                      : (neutral.result ??
+                        `Harness error (${neutral.subtype}).`);
+                    workflowEngine.observe(
+                      row.id,
+                      neutral.is_error ? workflowFailure : undefined
+                    );
+                  }
                   if (
                     row &&
+                    !row.workflowStepId &&
                     parentId &&
                     parentId !== message.instanceId &&
                     neutral.subtype !== "aborted"
@@ -5958,6 +6202,7 @@ export const createServer = ({
                 const reason =
                   peek(message.payload, "message") ?? "the session failed";
                 db.failInstance(message.instanceId, reason);
+                workflowEngine.observe(message.instanceId, reason);
                 forgetPending(message.instanceId);
                 escalateRoutedAsks(message.instanceId);
                 telegram?.onError(message.instanceId, reason);

@@ -32,11 +32,12 @@ export function createDelegationMcp(options: {
   let admin = adminTools();
   let adminNames = new Set(admin.map((t) => t.name));
 
-  const describe = (canDelegate?: boolean) => [
+  const describe = (canDelegate?: boolean, workflowStepId?: string) => [
     ...tools({
       instanceId: "",
       cwd: "",
       canDelegate,
+      workflowStepId,
       emit: () => {
         throw new Error("Discovery cannot execute tools");
       },
@@ -192,6 +193,7 @@ export function createDelegationMcp(options: {
         cwd: actor.cwd,
         harness: actor.harness as "claude" | "opencode" | "pi",
         canDelegate: actor.canDelegate ?? undefined,
+        workflowStepId: actor.workflowStepId ?? undefined,
         emit: (envelope) => emitted.push(envelope),
       }).find((tool) => tool.name === name);
       if (!entry) {
@@ -283,7 +285,7 @@ export function createDelegationMcp(options: {
       },
     });
     server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: describe(canDelegate).map(
+      tools: describe(canDelegate, bound?.workflowStepId ?? undefined).map(
         ({ name, description, inputSchema, ...entry }) => ({
           name,
           description,
@@ -333,13 +335,21 @@ export function createDelegationMcp(options: {
     );
     sessions.clear();
   };
-  const list = () => ({
-    tools: describe().map(({ name, description, inputSchema, ...entry }) => ({
-      name,
-      description,
-      inputSchema,
-      ...("annotations" in entry ? { annotations: entry.annotations } : {}),
-    })),
-  });
+  const list = (instanceId?: string) => {
+    const actor = instanceId
+      ? options.instances().find((row) => row.id === instanceId)
+      : undefined;
+    return {
+      tools: describe(
+        actor?.canDelegate ?? undefined,
+        actor?.workflowStepId ?? undefined
+      ).map(({ name, description, inputSchema, ...entry }) => ({
+        name,
+        description,
+        inputSchema,
+        ...("annotations" in entry ? { annotations: entry.annotations } : {}),
+      })),
+    };
+  };
   return { handle, call, replaceTools, close, list };
 }

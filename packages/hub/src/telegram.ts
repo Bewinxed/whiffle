@@ -516,6 +516,10 @@ export const createTelegramBridge = ({
     result: PermissionResult
   ): boolean => {
     const request = envelope.payload as PermissionRequest;
+    if (answerWorkflow(pending, requestId, result)) {
+      settledHere.add(requestId);
+      return true;
+    }
     const payload: ControlPayload = {
       instanceId: request.instanceId,
       requestId,
@@ -950,3 +954,5 @@ export const createTelegramBridge = ({
     },
   };
 };
+
+import { answerWorkflow } from "./pending";

@@ -1,4 +1,4 @@
-import type { Envelope } from "@whiffle/core";
+import type { Envelope, PermissionResult } from "@whiffle/core";
 import { Context, Effect, Layer } from "effect";
 
 /**
@@ -18,6 +18,20 @@ export interface PendingShape {
 export class Pending extends Context.Service<Pending, PendingShape>()(
   "Pending"
 ) {}
+
+const workflowAnswers = new WeakMap<
+  PendingShape,
+  (id: string, result: PermissionResult) => boolean
+>();
+export const onWorkflowAnswer = (
+  pending: PendingShape,
+  handler: (id: string, result: PermissionResult) => boolean
+) => workflowAnswers.set(pending, handler);
+export const answerWorkflow = (
+  pending: PendingShape,
+  id: string,
+  result: PermissionResult
+): boolean => workflowAnswers.get(pending)?.(id, result) ?? false;
 
 const make = (): PendingShape => {
   const requests = new Map<string, Envelope>();

@@ -59,6 +59,76 @@ export function handoffTools(deps: HandoffDeps) {
   const actions = handoffActions(deps);
   const all = [
     tool(
+      "submit_result",
+      "Call exactly once with an object matching the schema in your instructions, then end your turn. The hub's validation message is returned verbatim on failure.",
+      { result: z.record(z.unknown()) },
+      async ({ result }) => ({
+        content: [
+          { type: "text" as const, text: await actions.submitResult(result) },
+        ],
+      })
+    ),
+    tool(
+      "run_workflow",
+      "Run a saved workflow by name or slug. You become its supervisor and receive step reports and its final outcome as queued peer messages.",
+      {
+        name: z.string(),
+        inputs: z.record(z.unknown()),
+        workspace: z
+          .object({ path: z.string(), machineId: z.string() })
+          .optional(),
+      },
+      async ({ name, inputs, workspace }) => ({
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(
+              await actions.runWorkflow(name, inputs, { workspace })
+            ),
+          },
+        ],
+      })
+    ),
+    tool(
+      "steer_workflow",
+      "Steer a workflow you supervise: note for the next step, retry a failed step, answer a supervisor question, or cancel. Routing remains controlled by the saved graph.",
+      {
+        runId: z.string(),
+        action: z.discriminatedUnion("type", [
+          z.object({ type: z.literal("note"), text: z.string() }),
+          z.object({ type: z.literal("retry"), stepId: z.string() }),
+          z.object({
+            type: z.literal("answer"),
+            stepId: z.string(),
+            choice: z.string(),
+            note: z.string().optional(),
+          }),
+          z.object({ type: z.literal("cancel") }),
+        ]),
+      },
+      async ({ runId, action }) => ({
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(await actions.steerWorkflow(runId, action)),
+          },
+        ],
+      })
+    ),
+    tool(
+      "list_workflows",
+      "List the fleet's saved workflows, their input definitions, and graphs before choosing one to run.",
+      {},
+      async () => ({
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(await actions.listWorkflows()),
+          },
+        ],
+      })
+    ),
+    tool(
       "generate_image",
       IMAGE_GENERATION_DESCRIPTION,
       {
@@ -496,9 +566,11 @@ export function handoffTools(deps: HandoffDeps) {
       })
     ),
   ];
-  return deps.canDelegate === false
-    ? all.filter((entry) => !SPAWNING_TOOLS.has(entry.name))
-    : all;
+  return all.filter(
+    (entry) =>
+      (entry.name !== "submit_result" || !!deps.workflowStepId) &&
+      (deps.canDelegate !== false || !SPAWNING_TOOLS.has(entry.name))
+  );
 }
 
 export function handoffInstructions(deps: HandoffDeps): string {

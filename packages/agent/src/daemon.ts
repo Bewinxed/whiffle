@@ -35,6 +35,7 @@ import { SessiondClient } from "./sessiond-client";
 import { probeTools } from "./tools";
 import { consumeRestartMarker } from "./update";
 import { UsageScanner } from "./usage/scanner";
+import { runWorkflowCommand } from "./workflow-command";
 
 const DEFAULT_HUB_URL = `ws://localhost:${WHIFFLE_HUB_PORT}/ws`;
 const HEARTBEAT_INTERVAL = Duration.seconds(15);
@@ -799,6 +800,7 @@ export const startDaemon = (auth?: AuthState) =>
       TranscriptSearchService.create()
     );
     search.start();
+    supervisor.registerDaemonFunction("runCommand", runWorkflowCommand);
     supervisor.registerDaemonFunction(
       CONTROL_SEARCH_TRANSCRIPTS,
       (query, options) =>

@@ -142,7 +142,7 @@ const modelIdOf = (model: Model<any>): string =>
 
 /** Thin adapter over the same hub-owned definitions and handlers as MCP. */
 const piHandoffTools = async (instanceId: string): Promise<ToolDefinition[]> =>
-  (await delegationTools()).map((tool) =>
+  (await delegationTools(instanceId)).map((tool) =>
     defineTool({
       name: tool.name,
       label: tool.name,
@@ -315,21 +315,26 @@ class PiSession implements HarnessSession {
         break;
       }
       case "agent_end": {
+        const willRetry = (event as { willRetry?: boolean }).willRetry === true;
+        if (willRetry) {
+          break;
+        }
         this.#streamedText = "";
         this.#streamedThinking = "";
         this.#ctx.busy(false);
         this.#busy = false;
-        const willRetry = (event as { willRetry?: boolean }).willRetry === true;
-        const failed = (
-          event as { messages?: { role?: string; errorMessage?: string }[] }
-        ).messages?.some(
-          (m) => typeof m.errorMessage === "string" && m.errorMessage
-        );
+        const errors =
+          (
+            event as { messages?: { role?: string; errorMessage?: string }[] }
+          ).messages?.flatMap((message) =>
+            message.errorMessage ? [message.errorMessage] : []
+          ) ?? [];
+        const failed = errors.length > 0;
         this.#ctx.frame({
           type: "result",
-          subtype: willRetry || failed ? "error_during_execution" : "success",
-          is_error: willRetry === true || failed === true,
-          ...(failed ? { errors: ["pi reported an error"] } : {}),
+          subtype: failed ? "error_during_execution" : "success",
+          is_error: failed,
+          ...(failed ? { errors } : {}),
         });
         break;
       }
@@ -490,18 +495,29 @@ export class PiHarness implements Harness {
   ): Promise<HarnessSession> {
     const runtime = await PiHarness.runtime();
     const model = spec.model ? await this.#resolveModel(spec.model) : undefined;
+    if (spec.model && !model) {
+      throw new Error(
+        `pi cannot use model ${spec.model}: it is not available with the configured provider credentials.`
+      );
+    }
 
     let sessionManager: SessionManager | undefined;
     if (spec.resume?.fork) {
       const source = await this.#sessionPath(spec.resume.sessionKey, ctx.cwd);
-      if (source) {
-        sessionManager = SessionManager.forkFrom(source, ctx.cwd);
+      if (!source) {
+        throw new Error(
+          `pi cannot fork missing session ${spec.resume.sessionKey}.`
+        );
       }
+      sessionManager = SessionManager.forkFrom(source, ctx.cwd);
     } else if (spec.resume) {
       const source = await this.#sessionPath(spec.resume.sessionKey, ctx.cwd);
-      if (source) {
-        sessionManager = SessionManager.open(source, undefined, ctx.cwd);
+      if (!source) {
+        throw new Error(
+          `pi cannot resume missing session ${spec.resume.sessionKey}.`
+        );
       }
+      sessionManager = SessionManager.open(source, undefined, ctx.cwd);
     }
 
     const { session } = await createAgentSession({

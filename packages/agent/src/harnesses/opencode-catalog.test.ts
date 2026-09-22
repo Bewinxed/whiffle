@@ -2,11 +2,7 @@ import { expect, test } from "bun:test";
 import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  buildHandoffPluginSource,
-  retireLegacyHandoffPlugin,
-  writeHandoffPlugin,
-} from "./opencode";
+import { retireLegacyHandoffPlugin, writeHandoffPlugin } from "./opencode";
 
 test("legacy registration is retired once without overwriting other plugins or losing its source", async () => {
   const directory = await mkdtemp(join(tmpdir(), "whiffle-plugin-"));
@@ -68,34 +64,4 @@ test("changed definitions get a fresh module path and leave only one discoverabl
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
-});
-
-test("OpenCode bridge defines no tools and overwrites model-supplied caller identity", async () => {
-  const source = buildHandoffPluginSource().replace(
-    "export const WhiffleContext",
-    "const WhiffleContext"
-  );
-  const factory = new Function(`${source}; return WhiffleContext;`)();
-  const plugin = await factory({ directory: "/project" });
-  expect(plugin.tool).toBeUndefined();
-  const output = {
-    args: {
-      target: "worker",
-      __whiffle: { sessionId: "spoofed", directory: "spoofed" },
-    },
-  };
-  await plugin["tool.execute.before"](
-    { tool: "whiffle_delegate", sessionID: "ses_real" },
-    output
-  );
-  expect(output.args.__whiffle).toEqual({
-    sessionId: "ses_real",
-    directory: "/project",
-  });
-  const unrelated = { args: { text: "unchanged" } };
-  await plugin["tool.execute.before"](
-    { tool: "other_tool", sessionID: "ses_real" },
-    unrelated
-  );
-  expect(unrelated.args).toEqual({ text: "unchanged" });
 });

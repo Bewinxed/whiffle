@@ -1075,6 +1075,11 @@ export class SessionSupervisor {
               instanceId,
               cwd: row.cwd,
               harness: "claude",
+              workflowRunId: spec.workflowRunId,
+              workflowStepId: spec.workflowStepId,
+              canDelegate: spec.canDelegate,
+              skills: spec.skills,
+              denyTools: spec.denyTools,
               ...(sessionId ? { resume: { sessionKey: sessionId } } : {}),
               // How it was configured to run, not how a fresh spawn would be.
               // The row's own fields when the hub named it in a restore, the

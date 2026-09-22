@@ -447,9 +447,28 @@ export const attachOpencodeServer = async (options: {
   return { url, freshlySpawned };
 };
 
-/** Supplies caller identity to the hub-owned MCP tools. It defines no tools. */
+/** Supplies MCP caller identity and the workflow-only tool enabled by each session's tool mask. */
 export const buildHandoffPluginSource =
-  (): string => `export const WhiffleContext = async ({ directory }) => ({
+  (): string => `import { tool } from "@opencode-ai/plugin";
+export const WhiffleContext = async ({ directory }) => ({
+  tool: {
+    whiffle_submit_result: tool({
+      description: "Call exactly once with an object matching the schema in your instructions, then end your turn. The hub's validation message is returned verbatim on failure.",
+      args: { result: tool.schema.record(tool.schema.string(), tool.schema.unknown()) },
+      async execute({ result }, context) {
+        const base = ${JSON.stringify(delegationHubUrl())};
+        const response = await fetch(base + "/api/instances");
+        if (!response.ok) throw new Error(await response.text());
+        const rows = await response.json();
+        const actor = rows.find(row => row.sessionId === context.sessionID && row.cwd === directory && row.workflowStepId);
+        if (!actor) throw new Error("submit_result is available only to workflow steps.");
+        const recorded = await fetch(base + "/api/workflow-steps/" + encodeURIComponent(actor.workflowStepId) + "/result", {
+          method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ instanceId: actor.id, result })
+        });
+        return recorded.text();
+      }
+    })
+  },
   "tool.execute.before": async (input, output) => {
     if (input.tool.startsWith("whiffle_")) {
       output.args.__whiffle = { sessionId: input.sessionID, directory };
@@ -829,6 +848,8 @@ export class OpencodeSession implements HarnessSession {
    * harness so sessions can queue dispatches without a back-reference.
    */
   readonly #isConfigGateHeld: () => boolean;
+  readonly #workflowStepId?: string;
+  readonly #canDelegate?: boolean;
 
   constructor(
     instanceId: string,
@@ -842,7 +863,9 @@ export class OpencodeSession implements HarnessSession {
     registerChild: (childId: string, callID: string) => void,
     onRelease: () => void,
     isConfigGateHeld: () => boolean,
-    effort?: EffortLevel
+    effort?: EffortLevel,
+    workflowStepId?: string,
+    canDelegate?: boolean
   ) {
     this.instanceId = instanceId;
     this.#ctx = ctx;
@@ -856,6 +879,8 @@ export class OpencodeSession implements HarnessSession {
     this.#registerChild = registerChild;
     this.#onRelease = onRelease;
     this.#isConfigGateHeld = isConfigGateHeld;
+    this.#workflowStepId = workflowStepId;
+    this.#canDelegate = canDelegate;
   }
 
   /**
@@ -1990,6 +2015,21 @@ export class OpencodeSession implements HarnessSession {
         query: { directory: this.#directory },
         body: {
           parts: parts as never,
+          tools: {
+            whiffle_submit_result: !!this.#workflowStepId,
+            ...Object.fromEntries(
+              [
+                "start_session",
+                "delegate",
+                "stop_delegate",
+                "interrupt_delegate",
+                "answer_delegate",
+                "run_workflow",
+                "steer_workflow",
+                "list_workflows",
+              ].map((name) => [`whiffle_${name}`, this.#canDelegate !== false])
+            ),
+          },
           ...(this.#effort ? { variant: this.#effort } : {}),
           // A bare model id (no provider) is left to opencode's default; never send `providerID: ''`.
           ...(model?.providerID && model.modelID
@@ -3649,7 +3689,9 @@ export class OpencodeHarness implements Harness {
         }
       },
       () => this.#applyGate !== null,
-      spec.effort
+      spec.effort,
+      spec.workflowStepId,
+      spec.canDelegate
     );
     session.attached = () => {
       this.#sessions.set(ctx.instanceId, session);

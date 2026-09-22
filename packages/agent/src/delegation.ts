@@ -27,10 +27,13 @@ export const delegationMcp = (instanceId: string) => ({
   timeout: IMAGE_GENERATION_TIMEOUT_MS + 60_000,
 });
 
-export async function delegationTools() {
-  const response = await fetch(`${delegationHubUrl()}/api/delegation/tools`, {
-    signal: AbortSignal.timeout(5000),
-  });
+export async function delegationTools(instanceId?: string) {
+  const response = await fetch(
+    `${delegationHubUrl()}/api/delegation/tools${instanceId ? `?instanceId=${encodeURIComponent(instanceId)}` : ""}`,
+    {
+      signal: AbortSignal.timeout(5000),
+    }
+  );
   if (!response.ok) {
     throw new Error(
       `Could not discover Whiffle tools: HTTP ${response.status}`
