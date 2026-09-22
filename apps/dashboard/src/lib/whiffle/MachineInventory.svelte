@@ -168,7 +168,7 @@
                 <ul
                   class="flex flex-col rounded-[var(--radius-card)] border border-border"
                 >
-                  {#each rows as row (`${row.scope}:${row.name}`)}
+                  {#each rows as row ('path' in row ? row.path : `${row.scope}:${row.name}`)}
                     {@const key = keyOf(machine.machineId, row.scope, row.name)}
                     <li
                       class="flex flex-wrap items-start gap-x-[var(--space-3)] gap-y-[var(--space-1)] border-t border-border px-[var(--space-3)] py-[var(--space-2)] first:border-t-0"
