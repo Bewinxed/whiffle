@@ -138,9 +138,24 @@
       .map((value) => value.trim())
       .filter(Boolean);
   function connect(port: string, target: string) {
-    if (!(node && target)) { return; }
-    const cycle = target === node.id || upstream(graph, node.id).some((entry) => entry.id === target);
-    onchange({ ...graph, edges: [...graph.edges, { id: newId(), from: { node: node.id, port }, to: { node: target }, ...(cycle ? { maxIterations: 3 } : {}) }] });
+    if (!(node && target)) {
+      return;
+    }
+    const cycle =
+      target === node.id ||
+      upstream(graph, node.id).some((entry) => entry.id === target);
+    onchange({
+      ...graph,
+      edges: [
+        ...graph.edges,
+        {
+          id: newId(),
+          from: { node: node.id, port },
+          to: { node: target },
+          ...(cycle ? { maxIterations: 3 } : {}),
+        },
+      ],
+    });
   }
 </script>
 <section aria-label="Workflow inspector" class="wf wf-stack inspector">
@@ -576,10 +591,33 @@
       </button>
     {/if}
     {#if workflowPorts(node).length}
-      <section class="wf-stack" aria-label="Connections"><h3>Connections</h3>
-        {#each workflowPorts(node) as port (port)}<div class="wf-well"><label>Connect {port} to<select value="" onchange={(event) => { connect(port, event.currentTarget.value); event.currentTarget.value = ''; }}><option value="">Choose a node</option>{#each graph.nodes.filter((entry) => entry.kind !== 'start') as target (target.id)}<option value={target.id}>{target.title}</option>{/each}</select></label>
-          {#each graph.edges.filter((entry) => entry.from.node === node?.id && entry.from.port === port) as connection (connection.id)}<button type="button" class="wf-btn" onclick={() => onselect(connection.id)}>{graph.nodes.find((entry) => entry.id === connection.to.node)?.title} {connection.maxIterations ? `×${connection.maxIterations}` : ''}</button>{/each}
-        </div>{/each}
+      <section aria-label="Connections" class="wf-stack">
+        <h3>Connections</h3>
+        {#each workflowPorts(node) as port (port)}
+          <div class="wf-well">
+            <label
+              >Connect {port} to<select
+                onchange={(event) => { connect(port, event.currentTarget.value); event.currentTarget.value = ''; }}
+                value=""
+              >
+                <option value="">Choose a node</option>
+                {#each graph.nodes.filter((entry) => entry.kind !== 'start') as target (target.id)}
+                  <option value={target.id}>{target.title}</option>
+                {/each}
+              </select></label
+            >
+            {#each graph.edges.filter((entry) => entry.from.node === node?.id && entry.from.port === port) as connection (connection.id)}
+              <button
+                class="wf-btn"
+                onclick={() => onselect(connection.id)}
+                type="button"
+              >
+                {graph.nodes.find((entry) => entry.id === connection.to.node)?.title}
+                {connection.maxIterations ? `×${connection.maxIterations}` : ''}
+              </button>
+            {/each}
+          </div>
+        {/each}
       </section>
       <details>
         <summary>Unwired ports</summary>

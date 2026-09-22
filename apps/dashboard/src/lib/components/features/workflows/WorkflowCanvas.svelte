@@ -143,7 +143,11 @@
             port: connection.sourceHandle ?? "out",
           },
           to: { node: connection.target },
-          ...(upstream(graph, connection.source).some((node) => node.id === connection.target) ? { maxIterations: 3 } : {}),
+          ...(upstream(graph, connection.source).some(
+            (node) => node.id === connection.target
+          )
+            ? { maxIterations: 3 }
+            : {}),
         },
       ],
     });
@@ -216,5 +220,9 @@
   .canvas :global(.svelte-flow__attribution) {
     font-size: var(--text-xs);
   }
-  .canvas :global(.svelte-flow__attribution a) { display: inline-flex; align-items: center; min-height: 24px; }
+  .canvas :global(.svelte-flow__attribution a) {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+  }
 </style>

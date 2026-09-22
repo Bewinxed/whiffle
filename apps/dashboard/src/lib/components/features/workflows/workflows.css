@@ -146,7 +146,9 @@
   }
 }
 @media (max-width: 1023px), (pointer: coarse) {
-  .wf .wf-fields { grid-template-columns: minmax(0, 1fr); }
+  .wf .wf-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .wf .wf-btn {
     min-height: 44px;
     min-width: 44px;

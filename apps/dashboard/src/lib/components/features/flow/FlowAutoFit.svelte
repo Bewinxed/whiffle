@@ -16,7 +16,8 @@
 
   let { nodeCount, nodes, mode = "follow" }: Props = $props();
 
-  const { setViewport, getViewport, screenToFlowPosition, fitView } = useSvelteFlow();
+  const { setViewport, getViewport, screenToFlowPosition, fitView } =
+    useSvelteFlow();
 
   // Track previous count to detect new nodes
   let prevCount = $state(0);
@@ -126,7 +127,10 @@
 
   onMount(() => {
     if (mode === "fit") {
-      const timer = setTimeout(() => fitView({ padding: 0.2, maxZoom: 1 }), INITIAL_PAN_DELAY);
+      const timer = setTimeout(
+        () => fitView({ padding: 0.2, maxZoom: 1 }),
+        INITIAL_PAN_DELAY
+      );
       return () => clearTimeout(timer);
     }
     hasInitialized = false;
@@ -161,7 +165,10 @@
     if (mode === "fit") {
       const count = nodeCount;
       if (count) {
-        const timer = setTimeout(() => fitView({ padding: 0.2, maxZoom: 1 }), 50);
+        const timer = setTimeout(
+          () => fitView({ padding: 0.2, maxZoom: 1 }),
+          50
+        );
         return () => clearTimeout(timer);
       }
       return;

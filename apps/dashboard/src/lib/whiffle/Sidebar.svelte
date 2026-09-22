@@ -648,7 +648,7 @@
         >
         <Sidebar.Menu class={MENU}>
           {#each Object.values(workflowState.runs).filter((run) => !run.parentRunId).sort((a, b) => +new Date(b.startedAt) - +new Date(a.startedAt)) as run (run.id)}
-            <WorkflowRail {run} {activeSession} />
+            <WorkflowRail {activeSession} {run} />
           {/each}
         </Sidebar.Menu>
       </Sidebar.Group>
