@@ -16,6 +16,7 @@ import {
 } from "@whiffle/core";
 import type { DbShape } from "./db";
 import type { PendingShape } from "./pending";
+import { answerWorkflow } from "./pending";
 import type { RegistryShape } from "./registry";
 import type { Intake, TelegramMedia } from "./telegram-media";
 import { carriesMedia, createMediaIntake } from "./telegram-media";
@@ -954,5 +955,3 @@ export const createTelegramBridge = ({
     },
   };
 };
-
-import { answerWorkflow } from "./pending";
