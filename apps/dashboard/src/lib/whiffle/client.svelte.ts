@@ -34,6 +34,8 @@ import type {
   UsageLimitsReading,
 } from "@whiffle/core";
 import {
+  CONTROL_RELOAD_SKILLS,
+  CONTROL_SUPPORTED_COMMANDS,
   classifyCommand,
   RESOLVE_PERMISSION,
   WHIFFLE_SCRATCH_TAG,
@@ -240,6 +242,8 @@ export interface ContextUsage {
  * installed and a session only ever offers its own.
  */
 export interface CommandState {
+  /** When the session last answered — the refresh throttle reads this. */
+  at: number;
   /** Descriptions and argument hints, `null` until something has asked. */
   detailed: Map<string, SlashCommand> | null;
   /** Names as the session lists them, without the leading slash. */
@@ -599,7 +603,7 @@ export function blankSession(instanceId: string): SessionState {
     scratch: false,
     context: null,
     contextPending: false,
-    commands: { names: [], skills: [], detailed: null },
+    commands: { names: [], skills: [], detailed: null, at: 0 },
     commandsPending: false,
     mcp: null,
     mcpPending: false,
@@ -1486,6 +1490,13 @@ function handleFrame(frame: FramePayload): void {
           ...target.commands,
           names: mapping.commands.map((command) => command.name),
           detailed: detailsOf(mapping.commands),
+          ...(mapping.commands.some((command) => command.kind)
+            ? {
+                skills: mapping.commands
+                  .filter((command) => command.kind === "skill")
+                  .map((command) => command.name),
+              }
+            : {}),
         };
       }
 
@@ -4465,47 +4476,57 @@ const detailsOf = (commands: SlashCommand[]): Map<string, SlashCommand> =>
   new Map(commands.map((command) => [command.name, command]));
 
 /**
- * What each of this session's commands does. `supportedCommands` is a `Query`
- * method, so only a live session can answer — and only the prose is at stake:
- * the names come free on every init, so a session that cannot answer still has
- * a menu. Asked once, the first time somebody opens it; a `commands_changed`
- * push replaces the answer.
+ * The menu asks the session what it has every time the reader opens it,
+ * throttled to once per three seconds. Init and `commands_changed` are the
+ * free prefill.
  */
-export async function loadCommands(
+export async function refreshCommands(
   instanceId: string,
   machineId: string
 ): Promise<void> {
   const target = session(instanceId);
-  if (target.commands.detailed || target.commandsPending) {
+  if (target.commandsPending || Date.now() - target.commands.at < 3000) {
     return;
   }
   target.commandsPending = true;
 
-  const requestId = newId();
-  const payload: ControlPayload = {
-    instanceId,
-    requestId,
-    method: "supportedCommands",
-    args: [],
+  const request = <T>(method: string): Promise<T> => {
+    const requestId = newId();
+    const payload: ControlPayload = {
+      instanceId,
+      requestId,
+      method,
+      args: [],
+    };
+    return ask<T>(requestId, method, CONTROL_TIMEOUT_MS, () =>
+      send({ verb: "control", machineId, instanceId, requestId, payload })
+    );
   };
   try {
-    const commands = await ask<SlashCommand[]>(
-      requestId,
-      "supportedCommands",
-      CONTROL_TIMEOUT_MS,
-      () => send({ verb: "control", machineId, instanceId, requestId, payload })
-    );
-    target.commands = { ...target.commands, detailed: detailsOf(commands) };
-  } catch (error) {
-    // The menu is still every name the init frame listed, undescribed, and the
-    // next opening asks again — nothing the reader needs to act on.
-    if (!isCustodyRefusal(error)) {
+    const [supported, reloaded] = await Promise.allSettled([
+      request<SlashCommand[]>(CONTROL_SUPPORTED_COMMANDS),
+      request<{ skills: SlashCommand[] } | undefined>(CONTROL_RELOAD_SKILLS),
+    ]);
+    if (supported.status === "fulfilled") {
+      const commands = supported.value;
+      target.commands.names = commands.map((command) => command.name);
+      target.commands.detailed = detailsOf(commands);
+      if (commands.some((command) => command.kind)) {
+        target.commands.skills = commands
+          .filter((command) => command.kind === "skill")
+          .map((command) => command.name);
+      }
+    } else if (!isCustodyRefusal(supported.reason)) {
       console.error(
         `[whiffle] supportedCommands on ${instanceId} failed:`,
-        error
+        supported.reason
       );
     }
+    if (reloaded.status === "fulfilled" && reloaded.value?.skills) {
+      target.commands.skills = reloaded.value.skills.map((skill) => skill.name);
+    }
   } finally {
+    target.commands.at = Date.now();
     target.commandsPending = false;
   }
 }
@@ -5076,7 +5097,7 @@ function availableCommands({
         // Both are required strings to the SDK, which sends '' for "none".
         description: known?.description || undefined,
         argumentHint: known?.argumentHint || undefined,
-        type: classifyCommand(name, skills),
+        type: classifyCommand(known ?? { name }, skills),
         source: sourceOf(name),
       };
     })

@@ -73,6 +73,7 @@ import {
   CONTROL_MCP_RECONNECT,
   CONTROL_MCP_STATUS,
   CONTROL_MCP_TOGGLE,
+  CONTROL_RELOAD_SKILLS,
   CONTROL_SET_EFFORT,
   CONTROL_SET_MODEL,
   CONTROL_SET_PERMISSION_MODE,
@@ -615,6 +616,12 @@ const syncOpencodeMcp = async (
 
 const EFFORT_LEVELS: EffortLevel[] = ["low", "medium", "high", "xhigh", "max"];
 
+const COMMAND_KINDS: Partial<Record<string, SlashCommand["kind"]>> = {
+  skill: "skill",
+  mcp: "mcp",
+  command: "custom",
+};
+
 export const OPENCODE_CAPABILITIES: HarnessCapabilities = {
   interrupt: true,
   permissionModes: ["default", "acceptEdits", "plan", "bypassPermissions"],
@@ -623,6 +630,7 @@ export const OPENCODE_CAPABILITIES: HarnessCapabilities = {
   contextUsage: true,
   supportedModels: true,
   supportedCommands: true,
+  reloadSkills: true,
   mcpStatus: true,
   mcpControl: true,
   listSessions: true,
@@ -2122,6 +2130,25 @@ export class OpencodeSession implements HarnessSession {
     return 200_000;
   }
 
+  /** The server's command list as neutral commands, tagged with what opencode says each one is. */
+  async #commands(): Promise<SlashCommand[]> {
+    const result = await this.#client.command.list({
+      query: { directory: this.#directory },
+    });
+    if (result.error) {
+      return [];
+    }
+    // The server supplies source; the installed SDK's Command type omits it.
+    return (result.data as (Command & { source?: string })[]).map(
+      (command): SlashCommand => ({
+        name: command.name,
+        description: command.description ?? "",
+        argumentHint: "",
+        kind: COMMAND_KINDS[command.source ?? ""] ?? "custom",
+      })
+    );
+  }
+
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: dispatches the harness control verbs to their independent handlers
   async control(method: string, args: unknown[]): Promise<unknown> {
     // Config convergence gate: MCP mutations must not race with a dispose
@@ -2213,21 +2240,16 @@ export class OpencodeSession implements HarnessSession {
         }
         return models;
       }
-      case CONTROL_SUPPORTED_COMMANDS: {
-        const result = await this.#client.command.list({
-          query: { directory: this.#directory },
-        });
-        if (result.error) {
-          return [];
-        }
-        return (result.data as Command[]).map(
-          (command): SlashCommand => ({
-            name: command.name,
-            description: command.description ?? "",
-            argumentHint: "",
-          })
-        );
-      }
+      case CONTROL_SUPPORTED_COMMANDS:
+        return await this.#commands();
+      case CONTROL_RELOAD_SKILLS:
+        // The server caches commands and skills at startup: this answers what
+        // the server knows. Disk additions appear only after a server restart.
+        return {
+          skills: (await this.#commands()).filter(
+            (command) => command.kind === "skill"
+          ),
+        };
       case CONTROL_MCP_STATUS: {
         const result = await this.#client.mcp.status({
           query: { directory: this.#directory },
@@ -3641,6 +3663,24 @@ export class OpencodeHarness implements Harness {
         ...(spec.model ? { model: spec.model } : {}),
         ...(spec.permissionMode ? { permissionMode: spec.permissionMode } : {}),
       });
+
+      // biome-ignore lint/complexity/noVoid: the command prefill must not block attachment
+      void session
+        .control(CONTROL_SUPPORTED_COMMANDS, [])
+        .then((answer) => {
+          const commands = answer as SlashCommand[];
+          if (commands.length) {
+            ctx.frame({
+              type: "system",
+              subtype: "commands_changed",
+              session_id: sessionId,
+              commands,
+            });
+          }
+        })
+        .catch((error: unknown) =>
+          console.warn(`[opencode] command list: ${String(error)}`)
+        );
 
       // A resumed session may already be mid-turn on the server; nothing else
       // would ever tell this process so. See `watchResumedTurn`.

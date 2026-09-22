@@ -95,9 +95,13 @@ test("an init frame carries the whole `/` menu, and which of it is skills", () =
   expect(metadata?.skills).toEqual(["my-plugin:greet"]);
   // The store classifies from exactly these two, and the palette from that.
   // biome-ignore lint/style/noNonNullAssertion: the expect above just asserted metadata.skills is set
-  expect(classifyCommand("compact", metadata!.skills!)).toBe("builtin");
+  expect(classifyCommand({ name: "compact" }, metadata!.skills!)).toBe(
+    "builtin"
+  );
   // biome-ignore lint/style/noNonNullAssertion: the expect above just asserted metadata.skills is set
-  expect(classifyCommand("my-plugin:greet", metadata!.skills!)).toBe("skill");
+  expect(classifyCommand({ name: "my-plugin:greet" }, metadata!.skills!)).toBe(
+    "skill"
+  );
 });
 
 test("a mid-session change hands over the whole list, and says nothing in the transcript", () => {

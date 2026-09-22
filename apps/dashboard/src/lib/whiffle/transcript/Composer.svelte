@@ -28,7 +28,7 @@
    * driven from the textarea's own keyboard so focus never leaves the message
    * being written.
    */
-  import type { Snippet } from "svelte";
+  import { type Snippet, untrack } from "svelte";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte convention for a component group.
   import * as Command from "$lib/components/ui/command";
   import { IconClose, IconPlus, IconSend, IconStop } from "$lib/icons";
@@ -52,6 +52,7 @@
     mentions = [],
     onsubmit,
     oninterruptsend,
+    onmenu,
     onstop,
     prompts,
     leading,
@@ -85,6 +86,8 @@
      * plain send, which on an idle surface is the same thing.
      */
     oninterruptsend?: (text: string, extras: SendExtras) => void;
+    /** Fired when the `/` menu opens, so the session can be re-asked what it has. */
+    onmenu?: () => void;
     onstop: () => void;
     prompts?: Snippet;
     /** Controls rendered before the attach button in the composer row. */
@@ -315,6 +318,16 @@
       return { sigil, query, from: start };
     }
   );
+
+  let slashMenuOpen = false;
+  $effect(() => {
+    const open = token?.sigil === "/";
+    const rising = open && !slashMenuOpen;
+    slashMenuOpen = open;
+    if (rising) {
+      untrack(() => onmenu?.());
+    }
+  });
 
   const entries = $derived.by((): Entry[] => {
     const active = token;

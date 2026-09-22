@@ -30,12 +30,12 @@
     hidePreview,
     interrupt,
     latestCommandFor,
-    loadCommands,
     loadMcpServers,
     loadPreview,
     openSession,
     type PendingPermission,
     pendingRestore,
+    refreshCommands,
     relaunchSession,
     revealPreview,
     type SendExtras,
@@ -493,7 +493,7 @@
       // biome-ignore lint/complexity/noVoid: fire-and-forget inside untrack — each loader tracks its own pending guard
       void loadMcpServers(id, mid);
       // biome-ignore lint/complexity/noVoid: fire-and-forget inside untrack — each loader tracks its own pending guard
-      void loadCommands(id, mid);
+      void refreshCommands(id, mid);
     });
   });
 
@@ -955,6 +955,12 @@
                 {commands}
                 {mentions}
                 {oninterruptsend}
+                onmenu={() => {
+                  if (machineId) {
+                    // biome-ignore lint/complexity/noVoid: fire-and-forget command menu refresh
+                    void refreshCommands(viewId, machineId);
+                  }
+                }}
                 {onstop}
                 {onsubmit}
                 paneVisible={visible}

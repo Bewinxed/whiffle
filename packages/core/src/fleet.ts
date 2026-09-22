@@ -653,15 +653,20 @@ export interface AvailableCommand {
 }
 
 /**
- * The SDK's `SlashCommand` carries no kind, so the palette's four-way look is
- * derived: MCP prompts wear their `mcp__` prefix, the init frame's `skills`
+ * Harness tags determine the palette's four-way look. For a harness that does
+ * not tag its commands, derivation is the fallback: MCP prompts wear their
+ * `mcp__` prefix, the session's `skills`
  * list names the skills, a namespaced leftover (`plugin:command`) is a plugin
  * command, and what remains is built in.
  */
 export const classifyCommand = (
-  name: string,
+  command: { kind?: AvailableCommand["type"]; name: string },
   skills: readonly string[]
 ): AvailableCommand["type"] => {
+  if (command.kind) {
+    return command.kind;
+  }
+  const { name } = command;
   if (name.startsWith("mcp__")) {
     return "mcp";
   }

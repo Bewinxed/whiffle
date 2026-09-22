@@ -49,6 +49,7 @@ import {
   CONTROL_CONTEXT_USAGE,
   CONTROL_INTERRUPT,
   CONTROL_MCP_STATUS,
+  CONTROL_RELOAD_SKILLS,
   CONTROL_SET_EFFORT,
   CONTROL_SUPPORTED_COMMANDS,
   CONTROL_SUPPORTED_MODELS,
@@ -332,6 +333,7 @@ export const CLAUDE_CAPABILITIES: HarnessCapabilities = {
   contextUsage: true,
   supportedModels: true,
   supportedCommands: true,
+  reloadSkills: true,
   mcpStatus: true,
   mcpControl: true,
   listSessions: true,
@@ -1257,6 +1259,7 @@ const RING_START = 0;
  * the SDK's own method name, asked by the dashboard verbatim.
  */
 const READ_ONLY_CONTROLS: ReadonlySet<string> = new Set([
+  CONTROL_RELOAD_SKILLS,
   CONTROL_SUPPORTED_MODELS,
   CONTROL_SUPPORTED_COMMANDS,
   CONTROL_MCP_STATUS,

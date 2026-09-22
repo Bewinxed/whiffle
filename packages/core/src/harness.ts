@@ -125,6 +125,8 @@ export interface SlashCommand {
   aliases?: string[];
   argumentHint: string;
   description: string;
+  /** What the harness says this is, when it knows. Absent → derived from the name and the session's skill list. */
+  kind?: "builtin" | "custom" | "skill" | "mcp";
   name: string;
 }
 
@@ -573,6 +575,8 @@ export interface HarnessCapabilities {
   mcpStatus: boolean;
   permissionModes: PermissionMode[];
   plugins: boolean;
+  /** Answers `{ skills: SlashCommand[] }`. */
+  reloadSkills: boolean;
   renameSession: boolean;
   /** Rewind / resume-at-message. */
   rewind: boolean;
@@ -623,6 +627,7 @@ export const CAPABILITIES_NONE: HarnessCapabilities = {
   contextUsage: false,
   supportedModels: false,
   supportedCommands: false,
+  reloadSkills: false,
   mcpStatus: false,
   mcpControl: false,
   listSessions: false,
@@ -665,6 +670,7 @@ export const CONTROL_SET_EFFORT = "setEffort";
 export const CONTROL_CONTEXT_USAGE = "getContextUsage";
 export const CONTROL_SUPPORTED_MODELS = "supportedModels";
 export const CONTROL_SUPPORTED_COMMANDS = "supportedCommands";
+export const CONTROL_RELOAD_SKILLS = "reloadSkills";
 export const CONTROL_MCP_STATUS = "mcpServerStatus";
 export const CONTROL_MCP_RECONNECT = "reconnectMcpServer";
 export const CONTROL_MCP_TOGGLE = "toggleMcpServer";

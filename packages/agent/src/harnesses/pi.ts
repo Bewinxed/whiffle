@@ -75,6 +75,7 @@ export const PI_CAPABILITIES: HarnessCapabilities = {
   contextUsage: true,
   supportedModels: true,
   supportedCommands: false,
+  reloadSkills: false,
   mcpStatus: false,
   mcpControl: false,
   listSessions: true,
