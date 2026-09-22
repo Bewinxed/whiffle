@@ -268,6 +268,9 @@ workflows          id, name, slug, description, graph(json), source(text|null: t
                    imported/exported markdown, §8.3), createdAt, updatedAt
 workflow_runs      id, workflowId, graph(json pinned), inputs(json), workspace, machineId,
                    supervisorInstanceId|null,
+                   runtime(json: the scheduler's durable state — fired edges, per-edge loop
+                   counts, map bodies' progress, the supervisor's unconsumed note; written in
+                   the same transaction as every step/attempt transition, never read by the UI),
                    status running|waiting|done|failed|cancelled, result(json|null),
                    failure|null, startedAt, endedAt, rerunOfRunId|null,
                    launchedBy dashboard|agent:<id>|skill:<machine>
