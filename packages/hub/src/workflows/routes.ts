@@ -72,6 +72,14 @@ export function workflowRoutes(
               }
             : db.getWorkflow(target),
       });
+      // A call cycle is the one graph problem that cannot be left for launch:
+      // it is a property of the fleet's saved graphs, not of this one.
+      const cycle = problems.find((problem) =>
+        problem.message.startsWith("Workflow call cycle:")
+      );
+      if (cycle) {
+        return Response.json({ problems: [cycle] }, { status: 400 });
+      }
       ({ program } = compileWorkflow(input.graph));
     } else {
       const fatal = typecheckProgram(program);

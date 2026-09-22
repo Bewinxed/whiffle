@@ -924,7 +924,9 @@ export function createWorkflowRuntime(deps: WorkflowRuntimeDeps) {
       finish(
         run,
         "failed",
-        `nondeterministic: effect ${message.seq} was ${journaled.kind} on the first run and is ${message.kind} now.`
+        journaled.kind === message.kind
+          ? `nondeterministic: effect ${message.seq} is the same ${message.kind} call with different arguments than the journal records.`
+          : `nondeterministic: effect ${message.seq} was ${journaled.kind} on the first run and is ${message.kind} now.`
       );
       return {};
     }
