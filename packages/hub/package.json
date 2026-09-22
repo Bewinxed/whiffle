@@ -13,10 +13,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.25.2",
     "@ai-sdk/openai-compatible": "^3.0.41",
+    "@modelcontextprotocol/sdk": "1.25.2",
     "@whiffle/core": "workspace:*",
     "ai": "^7.0.87",
+    "ajv": "^8.20.0",
     "bonjour-service": "^1.4.4",
     "drizzle-orm": "^0.44.0",
     "effect": "beta",
@@ -28,6 +29,7 @@
     "zod-to-json-schema": "3.25.1"
   },
   "devDependencies": {
+    "@libsql/client": "^0.18.0",
     "@types/bun": "latest",
     "drizzle-kit": "^0.31.0",
     "typescript": "^5.9.3"

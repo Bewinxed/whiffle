@@ -16,6 +16,9 @@ import type {
   RuleWatch,
   SkillFile,
   ToolStatus,
+  WorkflowGraph,
+  WorkflowRunStatus,
+  WorkflowStepStatus,
 } from "@whiffle/core";
 import {
   index,
@@ -26,6 +29,78 @@ import {
 } from "drizzle-orm/sqlite-core";
 
 const timestamp = (column: string) => integer(column, { mode: "timestamp_ms" });
+
+export const workflows = sqliteTable("workflows", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  description: text("description").notNull().default(""),
+  graph: text("graph", { mode: "json" }).$type<WorkflowGraph>().notNull(),
+  source: text("source"),
+  createdAt: timestamp("created_at")
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: timestamp("updated_at")
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+export const workflowRuns = sqliteTable("workflow_runs", {
+  parentRunId: text("parent_run_id"),
+  parentStepId: text("parent_step_id"),
+  id: text("id").primaryKey(),
+  workflowId: text("workflow_id")
+    .notNull()
+    .references(() => workflows.id),
+  graph: text("graph", { mode: "json" }).$type<WorkflowGraph>().notNull(),
+  inputs: text("inputs", { mode: "json" })
+    .$type<Record<string, unknown>>()
+    .notNull(),
+  workspace: text("workspace").notNull(),
+  machineId: text("machine_id").notNull(),
+  supervisorInstanceId: text("supervisor_instance_id"),
+  status: text("status").$type<WorkflowRunStatus>().notNull(),
+  result: text("result", { mode: "json" }).$type<unknown>(),
+  failure: text("failure"),
+  runtime: text("runtime", { mode: "json" })
+    .$type<Record<string, unknown>>()
+    .notNull(),
+  startedAt: timestamp("started_at")
+    .notNull()
+    .$defaultFn(() => new Date()),
+  endedAt: timestamp("ended_at"),
+  rerunOfRunId: text("rerun_of_run_id"),
+  launchedBy: text("launched_by").notNull(),
+});
+export const workflowSteps = sqliteTable("workflow_steps", {
+  childRunId: text("child_run_id"),
+  id: text("id").primaryKey(),
+  runId: text("run_id")
+    .notNull()
+    .references(() => workflowRuns.id),
+  nodeId: text("node_id").notNull(),
+  kind: text("kind").$type<WorkflowGraph["nodes"][number]["kind"]>().notNull(),
+  status: text("status").$type<WorkflowStepStatus>().notNull(),
+  instanceId: text("instance_id"),
+  result: text("result", { mode: "json" }).$type<unknown>(),
+  failure: text("failure"),
+  mapIndex: integer("map_index"),
+  startedAt: timestamp("started_at"),
+  endedAt: timestamp("ended_at"),
+});
+export const workflowAttempts = sqliteTable("workflow_attempts", {
+  id: text("id").primaryKey(),
+  stepId: text("step_id")
+    .notNull()
+    .references(() => workflowSteps.id),
+  number: integer("number").notNull(),
+  renderedPrompt: text("rendered_prompt").notNull(),
+  result: text("result", { mode: "json" }).$type<unknown>(),
+  failure: text("failure"),
+  startedAt: timestamp("started_at")
+    .notNull()
+    .$defaultFn(() => new Date()),
+  endedAt: timestamp("ended_at"),
+});
 
 /** Machines running an agent daemon, keyed by their stable hardware fingerprint. */
 export const agents = sqliteTable("agents", {
@@ -83,6 +158,8 @@ export const projects = sqliteTable("projects", {
 
 /** A running or resumable `query()`. Messages live in SDK session storage, not here. */
 export const instances = sqliteTable("instances", {
+  workflowRunId: text("workflow_run_id"),
+  workflowStepId: text("workflow_step_id"),
   id: text("id").primaryKey(),
   machineId: text("machine_id")
     .notNull()

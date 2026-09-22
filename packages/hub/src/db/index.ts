@@ -72,6 +72,10 @@ import {
   usageBuckets,
   usageLimitHistory,
   usageLimits,
+  workflowAttempts,
+  workflowRuns,
+  workflowSteps,
+  workflows,
 } from "./schema";
 
 /** Shipped with the package so a fresh boot never needs a drizzle-kit step. */
@@ -80,6 +84,10 @@ const MIGRATIONS_DIR = Bun.fileURLToPath(
 );
 
 export type InstanceKind = (typeof instances.$inferSelect)["kind"];
+export type WorkflowRow = typeof workflows.$inferSelect;
+export type WorkflowRunRow = typeof workflowRuns.$inferSelect;
+export type WorkflowStepRow = typeof workflowSteps.$inferSelect;
+export type WorkflowAttemptRow = typeof workflowAttempts.$inferSelect;
 
 /**
  * A session the returning daemon no longer carries. `resumes` is the whole
@@ -221,6 +229,7 @@ export interface DbShape {
   /** Removes the rule and every session's standing with it. */
   readonly deleteRule: (id: string) => void;
   readonly deleteSkill: (name: string) => void;
+  readonly deleteWorkflow: (id: string) => void;
   /** A side quest thrown away: stopped, and gone from every live listing. */
   readonly discardInstance: (id: string) => void;
   /** The agent reported the session dead: what killed it, kept for late readers. */
@@ -270,6 +279,9 @@ export interface DbShape {
         updatedAt: Date;
       }
     | undefined;
+  readonly getWorkflow: (id: string) => WorkflowRow | undefined;
+  readonly getWorkflowRun: (id: string) => WorkflowRunRow | undefined;
+  readonly getWorkflowStep: (id: string) => WorkflowStepRow | undefined;
   /** Look up a single non-discarded instance by its harness sessionId. */
   readonly instanceBySessionId: (
     sessionId: string
@@ -334,6 +346,10 @@ export interface DbShape {
   }) => UsageBucketRow[];
   /** Every machine's latest limit reading. */
   readonly listUsageLimits: () => UsageLimitRow[];
+  readonly listWorkflowAttempts: (stepId: string) => WorkflowAttemptRow[];
+  readonly listWorkflowRuns: (workflowId?: string) => WorkflowRunRow[];
+  readonly listWorkflowSteps: (runId: string) => WorkflowStepRow[];
+  readonly listWorkflows: () => WorkflowRow[];
   readonly markAgentOffline: (machineId: string) => void;
   /**
    * Every row back to `offline`, for the one moment it is unconditionally true:
@@ -404,6 +420,8 @@ export interface DbShape {
     effort?: string;
     /** `false` makes the row a leaf delegate; absent leaves the column alone. */
     canDelegate?: boolean;
+    workflowRunId?: string;
+    workflowStepId?: string;
   }) => void;
   /**
    * The fields a dashboard may move on a live row: "Keep" — a side quest that
@@ -495,6 +513,7 @@ export interface DbShape {
   readonly putUsageBuckets: (machineId: string, buckets: UsageBucket[]) => void;
   /** Stores the machine's latest limit reading; one row per machine. */
   readonly putUsageLimits: (machineId: string, limits: ClaudeLimits) => void;
+  readonly putWorkflow: (row: typeof workflows.$inferInsert) => WorkflowRow;
   /**
    * The daemon's own word, arriving every 15s: `liveIds` is exactly what its
    * supervisor is carrying right now (`HeartbeatPayload.instances`).
@@ -713,6 +732,12 @@ export interface DbShape {
     machineId?: string;
     groupBy: UsageGroupBy;
   }) => UsageSummary;
+  readonly workflowTransition: (
+    run: typeof workflowRuns.$inferInsert,
+    step?: typeof workflowSteps.$inferInsert,
+    attempt?: typeof workflowAttempts.$inferInsert,
+    steps?: WorkflowStepRow[]
+  ) => void;
 }
 
 export class Db extends Context.Service<Db, DbShape>()("Db") {}
@@ -1056,6 +1081,98 @@ const make = (path: string): DbShape => {
   };
 
   return {
+    listWorkflows: () =>
+      db.select().from(workflows).orderBy(desc(workflows.updatedAt)).all(),
+    getWorkflow: (id) =>
+      db
+        .select()
+        .from(workflows)
+        .where(
+          or(
+            eq(workflows.id, id),
+            eq(workflows.slug, id),
+            eq(workflows.name, id)
+          )
+        )
+        .get(),
+    putWorkflow: (row) =>
+      db
+        .insert(workflows)
+        .values(row)
+        .onConflictDoUpdate({
+          target: workflows.id,
+          set: { ...row, updatedAt: new Date() },
+        })
+        .returning()
+        .get(),
+    deleteWorkflow: (id) =>
+      db.transaction((tx) => {
+        for (const run of tx
+          .select()
+          .from(workflowRuns)
+          .where(eq(workflowRuns.workflowId, id))
+          .all()) {
+          tx.update(instances)
+            .set({ workflowRunId: null, workflowStepId: null })
+            .where(eq(instances.workflowRunId, run.id))
+            .run();
+          for (const step of tx
+            .select()
+            .from(workflowSteps)
+            .where(eq(workflowSteps.runId, run.id))
+            .all()) {
+            tx.delete(workflowAttempts)
+              .where(eq(workflowAttempts.stepId, step.id))
+              .run();
+          }
+          tx.delete(workflowSteps).where(eq(workflowSteps.runId, run.id)).run();
+        }
+        tx.delete(workflowRuns).where(eq(workflowRuns.workflowId, id)).run();
+        tx.delete(workflows).where(eq(workflows.id, id)).run();
+      }),
+    listWorkflowRuns: (workflowId) =>
+      db
+        .select()
+        .from(workflowRuns)
+        .where(workflowId ? eq(workflowRuns.workflowId, workflowId) : undefined)
+        .orderBy(desc(workflowRuns.startedAt))
+        .all(),
+    getWorkflowRun: (id) =>
+      db.select().from(workflowRuns).where(eq(workflowRuns.id, id)).get(),
+    listWorkflowSteps: (runId) =>
+      db
+        .select()
+        .from(workflowSteps)
+        .where(eq(workflowSteps.runId, runId))
+        .all(),
+    getWorkflowStep: (id) =>
+      db.select().from(workflowSteps).where(eq(workflowSteps.id, id)).get(),
+    listWorkflowAttempts: (stepId) =>
+      db
+        .select()
+        .from(workflowAttempts)
+        .where(eq(workflowAttempts.stepId, stepId))
+        .orderBy(workflowAttempts.number)
+        .all(),
+    workflowTransition: (run, step, attempt, steps = []) =>
+      db.transaction((tx) => {
+        tx.insert(workflowRuns)
+          .values(run)
+          .onConflictDoUpdate({ target: workflowRuns.id, set: run })
+          .run();
+        for (const changed of [...(step ? [step] : []), ...steps]) {
+          tx.insert(workflowSteps)
+            .values(changed)
+            .onConflictDoUpdate({ target: workflowSteps.id, set: changed })
+            .run();
+        }
+        if (attempt) {
+          tx.insert(workflowAttempts)
+            .values(attempt)
+            .onConflictDoUpdate({ target: workflowAttempts.id, set: attempt })
+            .run();
+        }
+      }),
     upsertAgent: ({ machineId, hostname, os, auth, build, harnesses }) => {
       const lastSeenAt = new Date();
       db.insert(agents)
@@ -1115,6 +1232,8 @@ const make = (path: string): DbShape => {
       model,
       effort,
       canDelegate,
+      workflowRunId,
+      workflowStepId,
       // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: opens (or reuses) the one live row for a conversation across every optional field a spawn can carry — see the "one conversation, one live row" invariant below.
     }) => {
       const now = new Date();
@@ -1162,6 +1281,8 @@ const make = (path: string): DbShape => {
           model,
           effort,
           canDelegate,
+          workflowRunId,
+          workflowStepId,
           // `starting`, not `running` — this row is written when a spawn is
           // *issued*, and issuing a spawn is not evidence that a process exists.
           // Writing `running` here is the original sin behind the 178-vs-42
@@ -1185,6 +1306,8 @@ const make = (path: string): DbShape => {
             ...(effort ? { effort } : {}),
             // Presence, not truth: a leaf's `false` has to land.
             ...(canDelegate === undefined ? {} : { canDelegate }),
+            ...(workflowRunId ? { workflowRunId } : {}),
+            ...(workflowStepId ? { workflowStepId } : {}),
             // `updatedAt` deliberately absent: a restore or relaunch re-issues
             // an existing session, so its last-activity time is whatever it
             // already was; stamping it here dated every restored session to the

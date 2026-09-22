@@ -239,6 +239,20 @@
       "when": 1790060682312,
       "tag": "0033_thankful_gambit",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "6",
+      "when": 1790065692955,
+      "tag": "0034_lumpy_killmonger",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "6",
+      "when": 1790066614912,
+      "tag": "0035_worried_ozymandias",
+      "breakpoints": true
     }
   ]
 }
