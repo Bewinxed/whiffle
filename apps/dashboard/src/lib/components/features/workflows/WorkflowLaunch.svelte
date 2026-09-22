@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { DelegateType, Workflow } from "@whiffle/core";
+  import type { DelegateType } from "@whiffle/core";
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
   import DirectoryPicker from "$lib/components/features/DirectoryPicker.svelte";
@@ -7,9 +7,9 @@
   import * as Dialog from "$lib/components/ui/dialog";
   import { whiffle } from "$lib/whiffle/client.svelte";
   import { loadDelegateTypes, message } from "$lib/whiffle/delegate-types";
-  import { launchWorkflow } from "$lib/whiffle/workflows";
+  import { launchWorkflow, type WorkflowRecord } from "$lib/whiffle/workflows";
 
-  let { workflow, onclose }: { workflow: Workflow; onclose: () => void } =
+  let { workflow, onclose }: { onclose: () => void; workflow: WorkflowRecord } =
     $props();
   let machineId = $state("");
   let workspace = $state("");
@@ -20,6 +20,11 @@
   let busy = $state(false);
   const start = $derived(
     workflow.graph?.nodes.find((node) => node.kind === "start")
+  );
+  // The Start node for a graph; for a program, the `inputs` zod export the hub
+  // evaluated at save. One list either way.
+  const fields = $derived(
+    start?.kind === "start" ? start.inputs : workflow.inputs
   );
   const online = $derived(
     whiffle.onlineMachines.some((machine) => machine.machineId === machineId)
@@ -37,9 +42,7 @@
         ? defaults.defaultSupervisor.delegateType
         : "";
     inputs = Object.fromEntries(
-      start?.kind === "start"
-        ? start.inputs.map((input) => [input.name, input.default ?? ""])
-        : []
+      fields.map((input) => [input.name, input.default ?? ""])
     );
     loadDelegateTypes()
       .then((data) => {
@@ -81,8 +84,8 @@
         ></Dialog.Header
       >
       <form class="wf-stack" onsubmit={launch}>
-        {#if start?.kind === 'start'}
-          {#each start.inputs as input (input.name)}
+        {#if fields.length}
+          {#each fields as input (input.name)}
             <label for="launch-{input.name}"
               >{input.label}
               {input.required ? ' (required)' : ''}

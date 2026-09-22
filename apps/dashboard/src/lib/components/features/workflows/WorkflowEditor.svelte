@@ -1,6 +1,7 @@
 <script lang="ts">
   import type {
     DelegateType,
+    Problem,
     WorkflowGraph,
     WorkflowNode,
   } from "@whiffle/core";
@@ -8,6 +9,7 @@
   import { onMount } from "svelte";
   import { MediaQuery } from "svelte/reactivity";
   import { beforeNavigate, goto } from "$app/navigation";
+  import { page } from "$app/state";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte component group
   import * as Dialog from "$lib/components/ui/dialog";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte component group
@@ -23,10 +25,12 @@
     loadWorkflow,
     saveWorkflow,
     type WorkflowDetail,
+    WorkflowProblems,
   } from "$lib/whiffle/workflows";
   import WorkflowCanvas from "./WorkflowCanvas.svelte";
   import WorkflowInspector from "./WorkflowInspector.svelte";
   import WorkflowLaunch from "./WorkflowLaunch.svelte";
+  import WorkflowProgram from "./WorkflowProgram.svelte";
   import WorkflowRunView from "./WorkflowRunView.svelte";
   import WorkflowStatus from "./WorkflowStatus.svelte";
   import { duration, kinds, newNode } from "./workflow-ui";
@@ -52,7 +56,16 @@
   let panelWidth = $state(940);
   let palettePane = $state<{ collapse: () => void; expand: () => void }>();
   let launch = $state(false);
-  let tab = $state("editor");
+  let program = $state("");
+  /**
+   * What the hub said about the last save: the compiler's and the
+   * typechecker's diagnostics, which carry the node or the line they belong
+   * to. They outlive the request so they can be pinned where the mistake is.
+   */
+  let hubProblems = $state<Problem[]>([]);
+  let tab = $state(
+    page.url.searchParams.get("tab") === "program" ? "program" : "editor"
+  );
   let filter = $state("all");
   let runId = $state<string>();
   let history = $state<string[]>([]);
@@ -67,20 +80,45 @@
     }
     return current;
   });
+  const origin = $derived(workflow?.origin ?? "editor");
   const node = $derived(graph.nodes.find((entry) => entry.id === selected));
   const edge = $derived(graph.edges.find((entry) => entry.id === selected));
-  const serial = $derived(JSON.stringify({ name, description, graph: root }));
+  const serial = $derived(
+    JSON.stringify(
+      origin === "code"
+        ? { name, description, program }
+        : { name, description, graph: root }
+    )
+  );
   const dirty = $derived(serial !== saved);
   const live = $derived(whiffle.hub === "connected");
-  const problems = $derived(
-    validateWorkflow(root, {
-      workflowId: id,
-      resolveWorkflow: (key) =>
-        key === id
-          ? { id, name, graph: root }
-          : workflowState.workflows.find((entry) => entry.id === key),
-    })
+  /** The hub refused exactly what is on screen, with diagnostics to show. */
+  const refused = $derived(serial === failedPayload && hubProblems.length > 0);
+  const localProblems = $derived(
+    origin === "code"
+      ? []
+      : validateWorkflow(root, {
+          workflowId: id,
+          resolveWorkflow: (key) =>
+            key === id
+              ? { id, name, graph: root }
+              : workflowState.workflows.find((entry) => entry.id === key),
+        })
   );
+  // What the editor can see as it is typed, plus what the hub said when it
+  // last compiled — the compiler's diagnostics are the half no client can
+  // derive, and they carry the node they belong to.
+  const problems = $derived.by(() => {
+    const seen = new Set<string>();
+    return [...localProblems, ...hubProblems].filter((problem) => {
+      const key = `${problem.nodeId ?? problem.edgeId ?? ""}|${problem.message}`;
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+  });
   const runs = $derived(
     Object.values(workflowState.runs)
       .filter(
@@ -93,10 +131,19 @@
     Promise.all([loadWorkflow(id), loadDelegateTypes(), refreshWorkflows()])
       .then(([value, presets]) => {
         workflow = value;
-        ({ name, description } = value);
+        ({ name, description, program } = value);
         root = value.graph ?? root;
+        hubProblems = value.problems;
+        // A code-origin workflow has no canvas: the program is the editor.
+        if (value.origin === "code") {
+          tab = "program";
+        }
         ({ types } = presets);
-        saved = JSON.stringify({ name, description, graph: root });
+        saved = JSON.stringify(
+          value.origin === "code"
+            ? { name, description, program }
+            : { name, description, graph: root }
+        );
         savedAt = Date.now();
       })
       .catch((caught) => {
@@ -140,13 +187,19 @@
       saved = payload;
       savedAt = Date.now();
       errorMessage = "";
+      hubProblems = value.problems;
       workflowState.workflows = [
         ...workflowState.workflows.filter((entry) => entry.id !== id),
         value,
       ];
     } catch (caught) {
       failedPayload = payload;
-      errorMessage = message(caught);
+      if (caught instanceof WorkflowProblems) {
+        hubProblems = caught.problems;
+        errorMessage = "";
+      } else {
+        errorMessage = message(caught);
+      }
     } finally {
       saving = false;
     }
@@ -395,13 +448,23 @@
     </div>
     <div class="wf-row wf-spread">
       <div class="wf-row">
+        {#if origin === 'editor'}
+          <button
+            aria-pressed={tab === 'editor'}
+            class="wf-btn"
+            onclick={() => { tab = 'editor'; }}
+            type="button"
+          >
+            Editor
+          </button>
+        {/if}
         <button
-          aria-pressed={tab === 'editor'}
+          aria-pressed={tab === 'program'}
           class="wf-btn"
-          onclick={() => { tab = 'editor'; }}
+          onclick={() => { tab = 'program'; }}
           type="button"
         >
-          Editor
+          Program
         </button><button
           aria-pressed={tab === 'runs'}
           class="wf-btn"
@@ -429,6 +492,9 @@
       <span class="wf-muted" role="status"
         >{#if saving}
           Saving…
+        {:else if refused}
+          Not saved · {problems.length}
+          {problems.length === 1 ? 'problem' : 'problems'}
         {:else if dirty}
           Unsaved changes
         {:else if savedAt}
@@ -457,6 +523,14 @@
       <div class="wf-skeleton"></div>
       <div class="wf-skeleton"></div>
     </div>
+  {:else if tab === 'program'}
+    <WorkflowProgram
+      {live}
+      onchange={(value) => { program = value; }}
+      {origin}
+      {problems}
+      {program}
+    />
   {:else if tab === 'editor'}
     {#if narrow.current}
       {@render canvas()}
@@ -528,7 +602,7 @@
       <div class="run-preview">
         {#if runId}
           {#key runId}
-            <WorkflowRunView {runId} />
+            <WorkflowRunView onprogram={() => { tab = 'program'; }} {runId} />
           {/key}
         {:else}
           <p class="wf-muted">Select a workflow run to inspect its steps.</p>
@@ -683,6 +757,11 @@
   .run-preview {
     min-width: 0;
     flex: 1;
+  }
+  @media (pointer: coarse) {
+    .breadcrumb a {
+      min-height: 44px;
+    }
   }
   @media (max-width: 1023px) {
     header {

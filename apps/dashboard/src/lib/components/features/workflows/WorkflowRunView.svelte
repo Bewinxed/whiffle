@@ -10,6 +10,7 @@
   import { message } from "$lib/whiffle/delegate-types";
   import type { UsageSummary } from "$lib/whiffle/usage";
   import {
+    refreshWorkflowEffects,
     refreshWorkflowRun,
     workflowState,
   } from "$lib/whiffle/workflow-state.svelte";
@@ -18,11 +19,19 @@
     cancelWorkflowRun,
     rerunWorkflow,
   } from "$lib/whiffle/workflows";
+  import {
+    type JournalCheckpoint,
+    journalCheckpoints,
+    journalGraph,
+    journalLog,
+    journalStateTouches,
+  } from "./journal-graph";
   import WorkflowCanvas from "./WorkflowCanvas.svelte";
   import WorkflowStatus from "./WorkflowStatus.svelte";
   import { duration } from "./workflow-ui";
 
-  let { runId }: { runId: string } = $props();
+  let { runId, onprogram }: { onprogram?: () => void; runId: string } =
+    $props();
   const narrow = new MediaQuery("(max-width: 1023px)");
   let selected = $state<string>();
   let selectedEnd = $state(false);
@@ -45,9 +54,35 @@
     )
   );
   let scope = $state("root");
+  let logOpen = $state(false);
   const run = $derived(workflowState.details[runId]);
   const workflow = $derived(
     workflowState.workflows.find((entry) => entry.id === run?.workflowId)
+  );
+  const origin = $derived(workflow?.origin ?? "editor");
+  const effects = $derived(workflowState.effects[runId] ?? []);
+  // A code-origin run has no graph to paint: the shape comes from the journal.
+  const journal = $derived(
+    origin === "code" ? journalGraph(effects) : undefined
+  );
+  const journalNodes = $derived(
+    new Map((journal?.nodes ?? []).map((entry) => [entry.id, entry]))
+  );
+  const checkpoints = $derived(journalCheckpoints(effects));
+  const pinned = $derived.by(() => {
+    const byNode: Record<string, JournalCheckpoint[]> = {};
+    for (const mark of checkpoints) {
+      if (mark.nodeId) {
+        byNode[mark.nodeId] ??= [];
+        byNode[mark.nodeId].push(mark);
+      }
+    }
+    return byNode;
+  });
+  const logLines = $derived(journalLog(effects));
+  const stateTouches = $derived(journalStateTouches(effects));
+  const slots = $derived(
+    Object.entries((run?.state.slots ?? {}) as Record<string, unknown>)
   );
   const sorted = $derived(
     run
@@ -60,8 +95,32 @@
   );
   const step = $derived(run?.steps.find((entry) => entry.id === selected));
   const node = $derived(
-    run?.graph?.nodes.find((entry) => entry.id === step?.nodeId)
+    run?.graph?.nodes.find((entry) => entry.id === step?.nodeId) ??
+      (step ? journalNodes.get(step.nodeId)?.node : undefined)
   );
+  const titleOf = (nodeId: string) =>
+    run?.graph?.nodes.find((entry) => entry.id === nodeId)?.title ??
+    journalNodes.get(nodeId)?.title ??
+    nodeId;
+  /** Steps and checkpoint markers in one schedule order. */
+  const timeline = $derived.by(() => {
+    const at = (value: Date | string | null) =>
+      value ? +new Date(value) : Number.MAX_SAFE_INTEGER;
+    return [
+      ...sorted.map((entry) => ({
+        key: entry.id,
+        at: at(entry.startedAt),
+        step: entry,
+        mark: undefined as JournalCheckpoint | undefined,
+      })),
+      ...checkpoints.map((mark) => ({
+        key: `checkpoint-${mark.seq}`,
+        at: at(mark.at),
+        step: undefined,
+        mark,
+      })),
+    ].sort((a, b) => a.at - b.at);
+  });
   const attempts = $derived(
     run?.attempts
       .filter((entry) => entry.stepId === step?.id)
@@ -96,6 +155,16 @@
     refreshWorkflowRun(id).catch((caught) => {
       errorMessage = message(caught);
     });
+  });
+  // The journal is re-read whenever the run moves: a checkpoint, a log line or
+  // a new call arrives as a frame without a step row of its own.
+  $effect(() => {
+    const moved = run;
+    if (moved) {
+      refreshWorkflowEffects(runId).catch((caught) => {
+        errorMessage = message(caught);
+      });
+    }
   });
   $effect(() => {
     // Narrow shows the drawer as a modal sheet; opening one unasked on arrival
@@ -174,10 +243,7 @@
   async function cancel() {
     const names = sorted
       .filter((entry) => entry.status === "running" && entry.instanceId)
-      .map(
-        (entry) =>
-          `${run?.graph?.nodes.find((item) => item.id === entry.nodeId)?.title ?? entry.nodeId} (${entry.instanceId})`
-      );
+      .map((entry) => `${titleOf(entry.nodeId)} (${entry.instanceId})`);
     if (
       await confirm({
         title: "Cancel workflow run?",
@@ -236,6 +302,44 @@
           >{JSON.stringify(step.kind === 'end' ? run.result : step.result, null, 2) ?? 'No result reported.'}</pre>
         {/if}
       </section>
+      {#if pinned[step.nodeId]?.length}
+        <section class="wf-stack">
+          <h3>Checkpoints</h3>
+          {#each pinned[step.nodeId] as mark (mark.seq)}
+            <div class="wf-well">
+              <div class="wf-row wf-spread">
+                <strong>{mark.label}</strong
+                ><span class="wf-muted"
+                  >{new Date(mark.at).toLocaleTimeString()}</span
+                >
+              </div>
+              {#if mark.data !== null}
+                <pre>{JSON.stringify(mark.data, null, 2)}</pre>
+              {/if}
+            </div>
+          {/each}
+        </section>
+      {/if}
+      {#if stateTouches[step.nodeId]}
+        {@const touch = stateTouches[step.nodeId]}
+        <section class="wf-stack">
+          <h3>State</h3>
+          <p class="wf-muted">
+            {touch.reads}
+            {touch.reads === 1 ? 'read' : 'reads'}
+            ·
+            {touch.writes}
+            {touch.writes === 1 ? 'write' : 'writes'}
+            while this step was the program's latest call.
+          </p>
+          {#each slots as [slot, value] (slot)}
+            <div class="wf-well">
+              <strong>{slot}</strong>
+              <pre>{JSON.stringify(value, null, 2)}</pre>
+            </div>
+          {/each}
+        </section>
+      {/if}
       {#if step.instanceId}
         <a class="wf-btn" href="/session/{step.instanceId}">Open session</a>
       {/if}
@@ -302,9 +406,13 @@
     <header class="wf-stack">
       <div class="wf-row wf-spread">
         <div>
-          <a class="wf-muted" href="/workflows/{run.workflowId}"
-            >{workflow?.name ?? 'Workflow'}</a
-          >
+          <p class="wf-muted origin">
+            <a href="/workflows/{run.workflowId}"
+              >{workflow?.name ?? 'Workflow'}</a
+            ><span class="origin-word"
+              >{origin === 'code' ? 'program' : 'editor'}</span
+            >
+          </p>
           <h1>Workflow run {run.id.slice(0, 8)}</h1>
         </div>
         <WorkflowStatus status={run.status} />
@@ -320,6 +428,15 @@
             >
               Cancel run
             </button>
+          {/if}
+          {#if onprogram}
+            <button class="wf-btn" onclick={onprogram} type="button">
+              View program
+            </button>
+          {:else}
+            <a class="wf-btn" href="/workflows/{run.workflowId}?tab=program"
+              >View program</a
+            >
           {/if}
           <span class="wf-muted"
             >{run.steps.filter((entry) => entry.status === 'passed').length}/{run.steps.length}
@@ -337,6 +454,19 @@
       <p class="wf-band">
         Hub {whiffle.hub}. Showing the last reported state; reconnect to act.
       </p>
+    {/if}
+    {#if logLines.length}
+      <details class="log" bind:open={logOpen}>
+        <summary>Log · {logLines.length}</summary>
+        <ol>
+          {#each logLines as line (line.seq)}
+            <li>
+              <time>{new Date(line.at).toLocaleTimeString()}</time
+              ><span>{line.text}</span>
+            </li>
+          {/each}
+        </ol>
+      </details>
     {/if}
     {#if run.failure}
       <p class="wf-error">Workflow run failed: {run.failure}</p>
@@ -377,6 +507,15 @@
             </div>
           {/if}
         </section>
+      {:else}
+        <section class="answer wf-stack">
+          <h2>Answer</h2>
+          <p class="wf-muted">
+            This run is waiting on a human choice. A program's question is
+            delivered as a permission request and is not kept on the run, so it
+            is answered from the Telegram prompt rather than here.
+          </p>
+        </section>
       {/if}
     {/each}
     {#if narrow.current}
@@ -412,34 +551,49 @@
             </button>
           {/if}
           {#if stepsOpen || narrow.current}
-            {#each sorted as entry (entry.id)}
-              <button
-                class="step-row"
-                onclick={() => { selected = entry.id; }}
-                type="button"
-                class:chosen={entry.id === selected}
-              >
-                <span
-                  >{run.graph?.nodes.find((item) => item.id === entry.nodeId)?.title ?? entry.nodeId}{entry.mapIndex === null ? '' : ` [${entry.mapIndex}]`}</span
-                ><WorkflowStatus status={entry.status} />
-                <small>{duration(entry.startedAt, entry.endedAt, now)}</small>
-              </button>
+            {#each timeline as row (row.key)}
+              {#if row.step}
+                {@const entry = row.step}
+                <button
+                  class="step-row"
+                  onclick={() => { selected = entry.id; }}
+                  type="button"
+                  class:chosen={entry.id === selected}
+                >
+                  <span
+                    >{titleOf(entry.nodeId)}
+                    {entry.mapIndex === null ? '' : ` [${entry.mapIndex}]`}</span
+                  ><WorkflowStatus status={entry.status} />
+                  <small>{duration(entry.startedAt, entry.endedAt, now)}</small>
+                </button>
+              {:else if row.mark}
+                <p class="checkpoint-row">
+                  <span aria-hidden="true" class="mark"></span
+                  ><span>{row.mark.label}</span
+                  ><small>{new Date(row.mark.at).toLocaleTimeString()}</small>
+                </p>
+              {/if}
             {/each}
           {/if}
         </aside>
       {/if}
-      {#if graph && (!narrow.current || tab === 'canvas')}
+      {#if (graph || journal) && (!narrow.current || tab === 'canvas')}
         <div class="graph">
-          <label class="scope"
-            >Scope<select bind:value={scope}>
-              {#each Object.keys(run.edges) as key (key)}
-                <option>{key}</option>
-              {/each}
-            </select></label
-          ><WorkflowCanvas
+          {#if Object.keys(run.edges).length > 1}
+            <label class="scope"
+              >Scope<select bind:value={scope}>
+                {#each Object.keys(run.edges) as key (key)}
+                  <option>{key}</option>
+                {/each}
+              </select></label
+            >
+          {/if}
+          <WorkflowCanvas
+            checkpoints={pinned}
             {costs}
             executionScope={scope}
-            {graph}
+            graph={graph ?? { nodes: [], edges: [] }}
+            {journal}
             {now}
             onselect={(id) => { selected = scopedSteps.find((entry) => entry.nodeId === id)?.id; }}
             readonly
@@ -525,6 +679,72 @@
   .chosen {
     background: var(--surface-hover);
   }
+  /* A checkpoint is a marker in the schedule, not a step: no chip, no target. */
+  .checkpoint-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2);
+    color: var(--ink-label);
+    font-size: var(--text-sm);
+  }
+  .checkpoint-row .mark {
+    width: 6px;
+    height: 6px;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--neutral-8);
+  }
+  .checkpoint-row small {
+    color: var(--ink-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .origin {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .origin a {
+    color: inherit;
+  }
+  /* Every workflow in the fleet is named with a middle dot, so a bare word
+     after one more dot reads as part of the name. The origin gets an edge. */
+  .origin-word {
+    padding: 1px var(--space-2);
+    border: 1px solid var(--border-hairline);
+    border-radius: var(--radius-pill);
+    background: var(--surface-field);
+  }
+  .log {
+    padding: var(--space-3) var(--space-5);
+    border-bottom: 1px solid var(--border-divider);
+  }
+  /* Left as a list-item so the native disclosure marker survives: a flex
+     summary silently loses the triangle, and then nothing says it opens. */
+  .log summary {
+    padding-block: var(--space-2);
+    cursor: pointer;
+    font-size: var(--text-sm);
+    color: var(--ink-label);
+  }
+  .log ol {
+    display: grid;
+    gap: var(--space-2);
+    padding-top: var(--space-2);
+    max-height: 30dvh;
+    overflow-y: auto;
+  }
+  .log li {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--space-3);
+    font-size: var(--text-sm);
+    overflow-wrap: anywhere;
+  }
+  .log time {
+    color: var(--ink-muted);
+    font-variant-numeric: tabular-nums;
+  }
   .graph {
     position: relative;
     flex: 1;
@@ -578,6 +798,18 @@
   .tabs,
   .loading {
     padding: var(--space-4);
+  }
+  /* DESIGN.md: every affordance reaches 44px under a coarse pointer, at any
+     width. The summary grows by padding so it keeps its disclosure marker. */
+  @media (pointer: coarse) {
+    .log summary {
+      padding-block: var(--space-4);
+    }
+    .origin a {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+    }
   }
   @media (max-width: 1023px) {
     .steps {

@@ -3,12 +3,37 @@ import type {
   Workflow,
   WorkflowAction,
   WorkflowAttempt,
+  WorkflowEffect,
   WorkflowGraph,
+  WorkflowInput,
   WorkflowRun,
   WorkflowStep,
 } from "@whiffle/core";
 
-export type WorkflowDetail = Workflow & { problems: Problem[] };
+/**
+ * The hub evaluates `inputs` from the program's zod export at save and stores
+ * it on the row, which is what the launch dialog reads when there is no graph
+ * to read a Start node from.
+ */
+export type WorkflowRecord = Workflow & { inputs: WorkflowInput[] };
+export type WorkflowDetail = WorkflowRecord & { problems: Problem[] };
+
+/**
+ * A save the hub refused with diagnostics rather than a sentence: a compile or
+ * typecheck failure, whose problems carry the node or the line they belong to.
+ * They are pinned on the canvas and listed under Problems, so the refusal is
+ * readable where the mistake is rather than only in a banner.
+ */
+export class WorkflowProblems extends Error {
+  readonly problems: Problem[];
+  constructor(problems: Problem[]) {
+    super(
+      problems[0]?.message ?? "The hub refused the save without saying why."
+    );
+    this.name = "WorkflowProblems";
+    this.problems = problems;
+  }
+}
 export type WorkflowRunDetail = WorkflowRun & {
   steps: WorkflowStep[];
   attempts: WorkflowAttempt[];
@@ -35,20 +60,38 @@ async function request<T>(
   });
   if (!response.ok) {
     const text = await response.text();
+    const problems = diagnostics(text);
+    if (problems) {
+      throw new WorkflowProblems(problems);
+    }
     throw new Error(text || `The hub answered ${response.status}.`);
   }
   return response.json() as Promise<T>;
 }
+/** The `{ problems }` body a refused compile or typecheck answers with. */
+function diagnostics(text: string): Problem[] | undefined {
+  try {
+    const body = JSON.parse(text) as { problems?: Problem[] };
+    return Array.isArray(body.problems) && body.problems.length
+      ? body.problems
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
 const id = encodeURIComponent;
+
+/** A workflow is authored either as a graph or as a program, never both. */
+export type WorkflowSource = { graph: WorkflowGraph } | { program: string };
 export const loadWorkflows = () =>
-  request<{ workflows: Workflow[] }>("workflows");
+  request<{ workflows: WorkflowRecord[] }>("workflows");
 export const loadWorkflow = (key: string) =>
   request<WorkflowDetail>(`workflows/${id(key)}`);
-export const createWorkflow = (body: { name: string; graph: WorkflowGraph }) =>
+export const createWorkflow = (body: { name: string } & WorkflowSource) =>
   request<WorkflowDetail>("workflows", "POST", body);
 export const saveWorkflow = (
   key: string,
-  body: { name: string; description: string; graph: WorkflowGraph }
+  body: { name: string; description: string } & WorkflowSource
 ) => request<WorkflowDetail>(`workflows/${id(key)}`, "PUT", body);
 export const deleteWorkflow = (key: string) =>
   request<{ ok: boolean }>(`workflows/${id(key)}`, "DELETE");
@@ -56,6 +99,8 @@ export const loadWorkflowRuns = (key: string) =>
   request<{ runs: WorkflowRun[] }>(`workflows/${id(key)}/runs`);
 export const launchWorkflow = (key: string, body: WorkflowLaunch) =>
   request<{ runId: string }>(`workflows/${id(key)}/runs`, "POST", body);
+export const loadWorkflowEffects = (key: string) =>
+  request<{ effects: WorkflowEffect[] }>(`workflow-runs/${id(key)}/effects`);
 export const loadWorkflowRun = (key: string) =>
   request<WorkflowRunDetail>(`workflow-runs/${id(key)}`);
 export const cancelWorkflowRun = (key: string) =>

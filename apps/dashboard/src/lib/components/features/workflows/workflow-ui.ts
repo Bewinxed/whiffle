@@ -70,6 +70,28 @@ export const kinds = [
   },
 ] as const;
 
+/**
+ * What a **New program** starts from: the two exports the hub requires and
+ * nothing else, so the first thing the operator does is write the first step
+ * rather than delete a sample.
+ */
+export const STARTER_PROGRAM = `import { z } from "zod";
+
+export const inputs = z.object({});
+
+export default async function (w: Workflow<typeof inputs>) {
+  // Add a step with w.run({ title, harness, model, prompt, output }).
+  return {};
+}
+`;
+
+const LINE_PREFIX = /^Line \d+:\s*/;
+/**
+ * The hub prefixes a typecheck diagnostic with its line number. The gutter and
+ * the Problems chip both already say the line, so the prose drops it.
+ */
+export const withoutLine = (text: string) => text.replace(LINE_PREFIX, "");
+
 export function newNode(
   kind: WorkflowNode["kind"],
   position = { x: 80, y: 120 }

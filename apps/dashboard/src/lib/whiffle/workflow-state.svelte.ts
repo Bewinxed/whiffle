@@ -1,15 +1,19 @@
-import type { Workflow, WorkflowFrame, WorkflowRun } from "@whiffle/core";
+import type { WorkflowEffect, WorkflowFrame, WorkflowRun } from "@whiffle/core";
 import {
+  loadWorkflowEffects,
   loadWorkflowRun,
   loadWorkflowRuns,
   loadWorkflows,
+  type WorkflowRecord,
   type WorkflowRunDetail,
 } from "./workflows";
 
 export const workflowState = $state({
-  workflows: [] as Workflow[],
+  workflows: [] as WorkflowRecord[],
   runs: {} as Record<string, WorkflowRun>,
   details: {} as Record<string, WorkflowRunDetail>,
+  /** The effect journal per run: the code-origin graph, checkpoints and log. */
+  effects: {} as Record<string, WorkflowEffect[]>,
   error: "",
 });
 const revisions = new Map<string, number>();
@@ -48,6 +52,11 @@ export async function refreshWorkflowRun(runId: string) {
   workflowState.details[runId] = detail;
   workflowState.runs[runId] = detail;
   return detail;
+}
+export async function refreshWorkflowEffects(runId: string) {
+  const { effects } = await loadWorkflowEffects(runId);
+  workflowState.effects[runId] = effects;
+  return effects;
 }
 export async function refreshWorkflows() {
   try {

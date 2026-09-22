@@ -2,18 +2,54 @@
   import type { WorkflowNode, WorkflowRun, WorkflowStep } from "@whiffle/core";
   import { workflowPorts } from "@whiffle/core";
   import { Handle, type NodeProps, Position } from "@xyflow/svelte";
+  import {
+    IconCpuDuo,
+    IconToolQuestion,
+    IconToolTodo,
+    IconWorkflow,
+  } from "$lib/icons";
+  import type { JournalCheckpoint, JournalNode } from "./journal-graph";
   import WorkflowStatus from "./WorkflowStatus.svelte";
   import { kinds } from "./workflow-ui";
 
   let { data, selected }: NodeProps = $props();
-  const node = $derived(data.node as WorkflowNode);
+  /** Present for an authored node, and for the journal's `run`/`spawn` steps. */
+  const node = $derived(data.node as WorkflowNode | undefined);
+  /** Present only on a code-origin run, where the journal is the graph. */
+  const journal = $derived(data.journal as JournalNode | undefined);
+  const checkpoints = $derived((data.checkpoints ?? []) as JournalCheckpoint[]);
+  /** A call the journal records but no authored node stands behind. */
+  const effectGlyphs = {
+    run: IconCpuDuo,
+    spawn: IconCpuDuo,
+    ask: IconToolQuestion,
+    exec: IconToolTodo,
+    exists: IconToolTodo,
+    workflow: IconWorkflow,
+  } as const;
   const step = $derived(data.step as WorkflowStep | undefined);
   const child = $derived(data.child as WorkflowRun | undefined);
-  const ports = $derived(workflowPorts(node));
+  // A journal node has no authored ports — the journal records calls, not a
+  // wiring the operator drew — so it carries one plain out handle.
+  const ports = $derived(journal || !node ? [] : workflowPorts(node));
+  const title = $derived(node?.title ?? journal?.title ?? "");
+  const modelled = $derived(
+    node?.kind === "step" ||
+      journal?.kind === "run" ||
+      journal?.kind === "spawn"
+  );
   const Glyph = $derived(
-    kinds.find((entry) => entry.kind === node.kind)?.icon ?? kinds[0].icon
+    node
+      ? (kinds.find((entry) => entry.kind === node.kind)?.icon ?? kinds[0].icon)
+      : (effectGlyphs[journal?.kind as keyof typeof effectGlyphs] ??
+          kinds[0].icon)
   );
   const summary = $derived.by(() => {
+    if (!node) {
+      return journal?.kind === "workflow"
+        ? String(data.childName ?? "Child workflow")
+        : (journal?.lines.join(" · ") ?? "");
+    }
     switch (node.kind) {
       case "start":
         return node.inputs.map((input) => input.name).join(", ") || "No inputs";
@@ -38,39 +74,45 @@
 </script>
 <article
   class="wf-node"
-  class:map={node.kind === 'map'}
+  class:map={node?.kind === 'map'}
   class:running={step?.status === 'running'}
   class:selected={selected}
 >
-  {#if node.kind !== 'start'}
+  {#if node?.kind !== 'start'}
     <Handle
-      aria-label="Input for {node.title}"
+      aria-label="Input for {title}"
       position={Position.Left}
       type="target"
     />
   {/if}
   <header>
-    <span class="glyph" class:filled={node.kind === 'step'}
+    <span class="glyph" class:filled={modelled}
       ><Glyph aria-hidden="true" class="size-4" /></span
-    ><strong>{node.title}</strong>
+    ><strong>{title}</strong>
     {#if step}
       <WorkflowStatus status={step.status} />
     {/if}
   </header>
   <div class="body">
-    {#if node.kind === 'step'}
+    {#if node?.kind === 'step'}
       <p class="meta">{node.harness} · {node.model || 'Choose a model'}</p>
     {/if}
     <p class="summary">{summary}</p>
-    {#if node.kind === 'step' && node.context.mode === 'continue'}
+    {#if node?.kind === 'step' && node.context.mode === 'continue'}
       <p class="meta">continues {node.context.from}</p>
     {/if}
-    {#if node.kind === 'map'}
+    {#if node?.kind === 'map'}
       <p class="group">{node.body.nodes.length} nodes in body</p>
     {/if}
-    {#if step && node.kind === 'step'}
+    {#if step && node?.kind === 'step'}
       <p class="meta">{String(data.duration)} · {String(data.cost)}</p>
     {/if}
+    {#each checkpoints as mark (mark.seq)}
+      <p class="checkpoint">
+        <span aria-hidden="true" class="mark"></span>{mark.label}
+        <time>{new Date(mark.at).toLocaleTimeString()}</time>
+      </p>
+    {/each}
     {#if child}
       <div class="child nodrag">
         <WorkflowStatus status={child.status} />
@@ -91,7 +133,7 @@
         <div class="port">
           {port}
           <Handle
-            aria-label="{node.title}: {port}"
+            aria-label="{title}: {port}"
             id={port}
             position={Position.Right}
             type="source"
@@ -101,11 +143,13 @@
     </div>
   {:else if ports[0]}
     <Handle
-      aria-label="{node.title}: {ports[0]}"
+      aria-label="{title}: {ports[0]}"
       id={ports[0]}
       position={Position.Right}
       type="source"
     />
+  {:else if journal}
+    <Handle aria-label="{title}: out" position={Position.Right} type="source" />
   {/if}
 </article>
 <style>
@@ -179,6 +223,32 @@
     display: grid;
     gap: var(--space-1);
     font-size: var(--text-sm);
+  }
+  /* A checkpoint is a marker, not a status: the word and the time, on the
+     step the program had just finished when it marked. No hue. */
+  .checkpoint {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-sm);
+    color: var(--ink-label);
+    background: var(--surface-field);
+    border-radius: var(--radius-pill);
+    padding: 3px var(--space-3) 3px var(--space-2);
+    overflow-wrap: anywhere;
+  }
+  .checkpoint .mark {
+    width: 6px;
+    height: 6px;
+    flex-shrink: 0;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--neutral-8);
+  }
+  .checkpoint time {
+    margin-inline-start: auto;
+    color: var(--ink-muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
   }
   .group {
     border: 1px dashed var(--neutral-8);

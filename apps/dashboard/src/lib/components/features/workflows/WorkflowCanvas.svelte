@@ -23,6 +23,7 @@
   import { copyToClipboard } from "$lib/whiffle/copy";
   import { newId } from "$lib/whiffle/id";
   import { workflowState } from "$lib/whiffle/workflow-state.svelte";
+  import type { JournalCheckpoint, JournalGraph } from "./journal-graph";
   import WorkflowCanvasTools from "./WorkflowCanvasTools.svelte";
   import WorkflowEdge from "./WorkflowEdge.svelte";
   import WorkflowNodeCard from "./WorkflowNodeCard.svelte";
@@ -30,6 +31,8 @@
 
   let {
     graph,
+    journal,
+    checkpoints = {},
     selection,
     problems = [],
     readonly = false,
@@ -46,6 +49,9 @@
     canRedo = false,
   }: {
     graph: WorkflowGraph;
+    /** A code-origin run: the shape read back out of the effect journal. */
+    journal?: JournalGraph;
+    checkpoints?: Record<string, JournalCheckpoint[]>;
     selection?: string;
     problems?: Problem[];
     readonly?: boolean;
@@ -72,33 +78,67 @@
   onMount(() => {
     mounted = true;
   });
+  /** What every node card shows about the step that ran on it, either origin. */
+  function progress(id: string) {
+    const step = steps.findLast((item) => item.nodeId === id);
+    const child = step?.childRunId
+      ? workflowState.runs[step.childRunId]
+      : undefined;
+    return {
+      step,
+      child,
+      checkpoints: checkpoints[id],
+      duration: step ? duration(step.startedAt, step.endedAt, now) : "",
+      cost:
+        step?.instanceId && costs[step.instanceId] !== undefined
+          ? `$${costs[step.instanceId].toFixed(4)}`
+          : "cost unreported",
+    };
+  }
+  const nameOf = (key: string | undefined) =>
+    workflowState.workflows.find((entry) => entry.id === key)?.name;
   $effect(() => {
+    if (journal) {
+      nodes = journal.nodes.map((entry) => {
+        const state = progress(entry.id);
+        return {
+          id: entry.id,
+          type: "workflow",
+          position: entry.position,
+          selected: selection === entry.id,
+          data: {
+            ...state,
+            node: entry.node,
+            journal: entry,
+            childName: nameOf(state.child?.workflowId),
+          },
+        };
+      });
+      edges = journal.edges.map((edge) => ({
+        id: edge.id,
+        type: "workflow",
+        source: edge.from,
+        target: edge.to,
+        data: { fired: true, label: "" },
+      }));
+      return;
+    }
     nodes = graph.nodes.map((node) => {
-      const step = steps.findLast((item) => item.nodeId === node.id);
+      const state = progress(node.id);
       return {
         id: node.id,
         type: "workflow",
         position: node.position,
         selected: selection === node.id,
         data: {
+          ...state,
           node,
-          step,
           problem: problems.find((problem) => problem.nodeId === node.id)
             ?.message,
-          child: step?.childRunId
-            ? workflowState.runs[step.childRunId]
-            : undefined,
           childName:
             node.kind === "workflow"
-              ? workflowState.workflows.find(
-                  (entry) => entry.id === node.workflowId
-                )?.name
-              : undefined,
-          duration: step ? duration(step.startedAt, step.endedAt, now) : "",
-          cost:
-            step?.instanceId && costs[step.instanceId] !== undefined
-              ? `$${costs[step.instanceId].toFixed(4)}`
-              : "cost unreported",
+              ? nameOf(node.workflowId)
+              : nameOf(state.child?.workflowId),
         },
       };
     });

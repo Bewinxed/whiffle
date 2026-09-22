@@ -4,7 +4,12 @@
   import { goto } from "$app/navigation";
   import WorkflowLaunch from "$lib/components/features/workflows/WorkflowLaunch.svelte";
   import WorkflowStatus from "$lib/components/features/workflows/WorkflowStatus.svelte";
-  import { newNode } from "$lib/components/features/workflows/workflow-ui";
+  import {
+    newNode,
+    STARTER_PROGRAM,
+  } from "$lib/components/features/workflows/workflow-ui";
+  // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte component group
+  import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import { formatDistanceToNow } from "$lib/utils/time";
   import { whiffle } from "$lib/whiffle/client.svelte";
   import { message } from "$lib/whiffle/delegate-types";
@@ -33,13 +38,20 @@
       loading = false;
     });
   });
-  async function create() {
+  const GRAPH = { graph: { nodes: [newNode("start")], edges: [] } };
+  const PROGRAM = { program: STARTER_PROGRAM };
+  /**
+   * The two ways a workflow is authored (§13.4): a graph the editor compiles,
+   * or a program written by hand. The origin is fixed at creation because
+   * there is no decompiler back the other way.
+   */
+  async function create(source: typeof GRAPH | typeof PROGRAM) {
     busy = true;
     errorMessage = "";
     try {
       const workflow = await createWorkflow({
-        name: "Untitled workflow",
-        graph: { nodes: [newNode("start")], edges: [] },
+        name: "program" in source ? "Untitled program" : "Untitled workflow",
+        ...source,
       });
       await goto(`/workflows/${workflow.id}`);
     } catch (caught) {
@@ -50,22 +62,35 @@
   }
 </script>
 <svelte:head><title>Workflows · Whiffle</title></svelte:head>
+{#snippet newMenu(inEmptyState: boolean)}
+  <DropdownMenu.Root>
+    <DropdownMenu.Trigger disabled={!live || busy}>
+      {#snippet child({ props })}
+        <button {...props} class="wf-btn wf-primary" type="button">
+          New workflow
+        </button>
+      {/snippet}
+    </DropdownMenu.Trigger>
+    <DropdownMenu.Content align={inEmptyState ? 'start' : 'end'} class="w-64">
+      <DropdownMenu.Item class="new-item" onSelect={() => create(GRAPH)}>
+        <span
+          >New graph<small>Draw the steps; the hub compiles them.</small></span
+        >
+      </DropdownMenu.Item>
+      <DropdownMenu.Item class="new-item" onSelect={() => create(PROGRAM)}>
+        <span>New program<small>Write the steps as TypeScript.</small></span>
+      </DropdownMenu.Item>
+    </DropdownMenu.Content>
+  </DropdownMenu.Root>
+{/snippet}
+
 <div class="wf list-page">
   <header class="wf-row wf-spread">
     <div>
       <h1>Workflows</h1>
       <p class="wf-muted">Reusable steps across your fleet.</p>
     </div>
-    <div class="wf-row">
-      <button
-        class="wf-btn wf-primary"
-        disabled={!live || busy}
-        onclick={() => create()}
-        type="button"
-      >
-        New workflow
-      </button>
-    </div>
+    <div class="wf-row">{@render newMenu(false)}</div>
   </header>
   {#if !live}
     <p class="wf-band">
@@ -84,14 +109,7 @@
         A workflow is a graph of steps that run one after another across your
         fleet.
       </p>
-      <button
-        class="wf-btn wf-primary"
-        disabled={!live || busy}
-        onclick={() => create()}
-        type="button"
-      >
-        New workflow
-      </button>
+      {@render newMenu(true)}
     </section>
   {:else}
     <table aria-label="Workflows" class="table">
@@ -217,8 +235,30 @@
     gap: var(--space-4);
     padding-block: var(--space-8);
   }
+  :global(.new-item) {
+    min-height: 44px;
+  }
+  :global(.new-item) span {
+    display: grid;
+    gap: var(--space-1);
+    color: var(--ink-strong);
+    font-size: var(--text-base);
+  }
+  :global(.new-item) small {
+    color: var(--ink-muted);
+    font-size: var(--text-sm);
+    line-height: var(--leading-body);
+  }
   .mobile {
     display: none;
+  }
+  /* DESIGN.md: 44px under a coarse pointer at any width. The row is 64px but
+     the link was 24, so a thumb landed on the row and not on the target. */
+  @media (pointer: coarse) {
+    .name {
+      min-height: 44px;
+      align-content: center;
+    }
   }
   @media (max-width: 760px) {
     .heading,

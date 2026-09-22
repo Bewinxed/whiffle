@@ -73,6 +73,14 @@
   border-color: transparent;
   box-shadow: var(--shadow-action);
 }
+/* A pressed toggle — the Editor/Program/Runs tabs, the run filters, the
+   Steps/Canvas tabs, Select/Pan — said so only to a screen reader. Selection
+   rides the surface and the edge, never a hue. */
+.wf .wf-btn[aria-pressed="true"] {
+  background: var(--surface-active);
+  border-color: var(--border-strong);
+  color: var(--ink-strong);
+}
 .wf button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
