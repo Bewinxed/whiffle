@@ -559,3 +559,95 @@ cycle-checked, depth ≤ 8) · text form in phase 5.
 
 Follow-up outside this feature: CLAUDE.md rule 5 (shared-tree / worktree rule) is, by the
 owner's word, an agent artifact, not an owner rule — to be removed separately.
+
+## 13. v2 — programs (Onyx model), 2026-09-22. Supersedes §3.1–§3.3, §6 `runtime`, §8.3.
+
+Owner: "Adopt their model and make it map out from the node editor." Random Labs' Onyx
+(randomlabs.ai/blog/onyx) states the same thesis as §0 — "the program owns the control
+flow while agents do the side-effecting work" — but its unit is a **program**, not an
+interpreted graph. From v2 a workflow's executable form is a program; the node editor is
+the primary way to author one and compiles to it; a program can also be written by hand.
+Everything the operator sees (runs, steps, attempts, chips, the run view) is unchanged.
+The REST contract of §7 is unchanged. What changes is what the hub executes.
+
+### 13.1 The program
+A TypeScript module, stored in `workflows.program`, shaped:
+
+```ts
+import { z } from "zod";
+export const inputs = z.object({ topic: z.string().describe("…") });
+export default async function (w: Workflow<typeof inputs>) {
+  const summary = await w.run({
+    title: "summarise", harness: "claude", model: "claude-sonnet-4-6",
+    prompt: `Write two sentences about ${w.inputs.topic}.`,
+    output: z.object({ summary: z.string() }),
+  });
+  return { summary: summary.summary };
+}
+```
+`inputs` (zod object) replaces the `start` node's input list and generates the launch
+dialog and the slash stub. The default export's return value is the run's result (the
+`end` node). A program is pure orchestration: no fs, net, env, timers or randomness — the
+worker exposes only `w`, `z`, and the language.
+
+### 13.2 The runtime API (`Workflow`)
+| call | meaning | maps onto |
+|---|---|---|
+| `w.inputs` | validated launch inputs | — |
+| `await w.run(spec)` → `z.infer<spec.output>` | one step, blocking. `spec`: `{ title, harness, model, effort?, skills?, denyTools?, prompt, output, retries? (default 2, max 5), timeoutMinutes? (default 60), continueFrom?: StepHandle }` | §3.1 step 3–4, §5 unchanged: one session, retries on the same session, `submit_result` validated against `zodToJsonSchema(output)` |
+| `w.spawn(spec)` → `StepHandle` (`.result: Promise`, `.id`) | non-blocking step; `Promise.all` is fan-out (replaces `map`) | same |
+| `await w.ask({ question, options, allowOther?, answeredBy?, waitFor? })` → `{ choice, note? }` | human choice (replaces the `ask` node) | §3.5 pending ledger, unchanged |
+| `await w.exec(cmd, { timeoutMinutes? })` → `{ code, output }` · `await w.exists(path)` | machine-side gate rules (replaces `check` `command` / `file-exists`; regex and forbidden-words are plain TS) | §4.3 `runCommand` control, unchanged |
+| `await w.workflow(slug, inputs)` → child result | sub-workflow (replaces the `workflow` node); cycle and depth rules of §3.8 unchanged | child run |
+| `w.state(name, schema)` → `{ get, set, update }` | Onyx's shared store: named, zod-typed, persisted per run in `workflow_runs.state`; step sessions get `workflow_state_read(name)` / `workflow_state_write(name, value)` tools validated against the schema | new |
+| `await w.checkpoint(label, data?)` | progress marker: a `workflow` frame, a line to the supervisor, visible in the run view | new |
+| `await w.sleep(ms)` · `w.now()` | durable timer; journaled clock | new |
+| `w.notify(text)` | message to supervisor if any, else operator (Telegram) | §3.7 |
+| `w.log(text)` | run log line | new |
+
+Failures are typed: `run`/`spawn` reject with `StepError { kind: "no-result" \| "attempt-timeout" \| "harness-error" \| "cancelled", stepId, attempts }`; `ask` with `AskError { kind: "timeout" \| "dismissed" }`; `workflow` with `ChildError`. An uncaught error fails the run with that error as `failure`; `try/catch` is the `fail` port. Supervisor verbs (§3.7) are unchanged; `note` is delivered as `w.notes()` (drained on read) and appended to the next `run` prompt suffix as before.
+
+### 13.3 Execution and durability
+The hub runs each program in an isolated Bun `Worker` per run with only the `w` bridge
+crossing the boundary. Durability is **replay** (Temporal's model): every `w.*` effect is
+journaled in `workflow_effects (runId, seq, kind, argsHash, result|failure, at)`; on hub
+restart the worker re-executes the program from the top and each journaled call resolves
+from the journal until the first unresolved one, which then runs live. A program must be
+deterministic — the same calls in the same order; a mismatch (different kind or argsHash
+at a seq) fails the run `nondeterministic` and names the seq. `w.now()`/`w.sleep()` are
+journaled for this reason; `Date.now`/`Math.random` are not exposed. Steps in flight
+across a restart resume exactly as §3.1 already does (same session, resume by sessionKey).
+`workflow_runs.runtime` is removed; `workflow_steps`/`workflow_attempts` stay as the
+public record of `run`/`spawn` calls.
+
+### 13.4 The editor maps out to the program
+The canvas remains the authoring surface. The graph JSON stays in `workflows.graph` as the
+editor's model; on every save the hub compiles it to `workflows.program`
+(`compileWorkflow(graph): string`, deterministic, formatted) and validates the program
+(typecheck in the worker sandbox; problems pinned back onto nodes by the compiler's
+node→line map). Emission per kind: `start` → `export const inputs`; `step` → `const
+<id> = await w.run({...})` (or `w.spawn` when the node's only consumer is a `map`, with
+`Promise.all`); `check` → an `if` over plain-TS regex/forbidden-words and `await
+w.exec`/`w.exists`; `branch` → `if/else if/else`; a cycle-closing edge → a bounded `for`
+with `maxIterations`; `ask` → `await w.ask`; `workflow` → `await w.workflow`; `end` →
+`return {...}`; every edge traversal emits `w.trace(edgeId)` so `run.edges`/`run.loops`
+(§7.2a) are still populated for editor-origin runs. Every node's output schema is emitted
+as zod (`jsonSchemaToZod` at compile; `zodToJsonSchema` at spawn).
+
+`workflows.origin: "editor" | "code"`. Editor-origin programs are regenerated on save and
+shown read-only under **View as program**. Code-origin programs (written by hand, or by
+an agent through `create_workflow(program)`) have no graph: the editor shows the program
+in a code view, and the run view lays the graph out from the effect journal (`run`/`spawn`
+= nodes, data flow = edges, `w.trace` absent) with `@dagrejs/dagre`. There is no
+decompiler; the mapping is one-way, as the owner asked.
+
+### 13.5 What this replaces
+- `packages/hub/src/workflows/engine.ts` graph scheduler → program worker + effect journal + replay. Deleted, not wrapped.
+- §8.3 Markdown text form, `workflow-markdown.ts`, `GET …/markdown`, `{ markdown }` bodies → the program: `GET /api/workflows/:id/program` (`text/typescript`), `{ program }` bodies on `POST/PUT`, tools `create_workflow(program)` / `update_workflow(name, program)`. `list_workflows` returns inputs from the zod schema.
+- The `map`, `check`, `workflow`, `ask`, `end` **nodes stay in the editor** as authoring constructs; they no longer have interpreter semantics of their own — their meaning is the code they compile to.
+- Slash stubs (§8.2) unchanged in behaviour; inputs come from the program's `inputs`.
+
+### 13.6 Phases
+7. **core**: `Workflow` API types, `StepError`/`AskError`/`ChildError`, `compileWorkflow(graph)` with node→line map, `programInputs(program)` (zod → inputs list for stubs/launch dialog), `jsonSchemaToZod`. Zod moves to `@whiffle/core` deps.
+8. **hub**: program worker + `w` bridge, `workflow_effects` table + replay, cutover of routes/tools/stubs from graph to program, deletion of engine scheduler and markdown code, `state` tools on the three harnesses. Verification: the whole phase-1 matrix (§11 phase 1) re-run against programs compiled from the same graphs, plus: a hand-written code-origin program runs; a hub restart mid-run replays to the same seq and continues; a program that calls `w.run` in a different order on replay fails `nondeterministic`; `w.state` written by a step is read by the program; `w.sleep(30_000)` survives a restart.
+9. **dashboard**: **View as program** (read-only code view, editor-origin) / code editor (code-origin) replaces markdown buttons; run view for code-origin runs laid out from the journal; checkpoints and state in the step drawer.
