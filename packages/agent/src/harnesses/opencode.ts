@@ -274,6 +274,49 @@ const canonicalizeJson = (value: unknown): string => {
   return JSON.stringify(value);
 };
 
+/**
+ * Whether every leaf in `desired` is present in `resolved` with the same value.
+ * The runtime config is not the desired document read back: the server fills in
+ * its own defaults (`agent.*.options`), and the plugin list carries Whiffle's
+ * own injected `whiffle-context-*.js`. It is a superset of the parts Whiffle
+ * controls, so convergence means containment, not equality.
+ *
+ * A key the server genuinely lacks is still divergence, and stays divergence —
+ * that is the check having teeth. An invalid key in the operator's config (the
+ * schema sets `additionalProperties: false` on a model entry, so a typo like
+ * `tools` for `tool_call` is dropped on read) will therefore fail convergence
+ * and be reported by name. That is correct: the operator's config is wrong and
+ * should say so, rather than being silently tolerated here.
+ */
+const containsJson = (desired: unknown, resolved: unknown): boolean => {
+  if (desired === undefined) {
+    return true;
+  }
+  if (Array.isArray(desired)) {
+    return (
+      Array.isArray(resolved) &&
+      desired.every((value) =>
+        resolved.some(
+          (candidate) => canonicalizeJson(value) === canonicalizeJson(candidate)
+        )
+      )
+    );
+  }
+  if (desired !== null && typeof desired === "object") {
+    return (
+      resolved !== null &&
+      typeof resolved === "object" &&
+      !Array.isArray(resolved) &&
+      Object.entries(desired).every(
+        ([key, value]) =>
+          Object.hasOwn(resolved, key) &&
+          containsJson(value, (resolved as Record<string, unknown>)[key])
+      )
+    );
+  }
+  return desired === resolved;
+};
+
 const OPENCODE_SESSION_ID = /^ses_/;
 
 const assertOpencodeKey = (key: string, what: string): void => {
@@ -2907,7 +2950,7 @@ export class OpencodeHarness implements Harness {
           field === "agent"
             ? (liveConfig.agent ?? liveConfig.mode)
             : liveConfig[field];
-        if (canonicalizeJson(desired) !== canonicalizeJson(resolved)) {
+        if (!containsJson(desired, resolved)) {
           fieldProblems.push(field);
         }
       }
@@ -3482,7 +3525,7 @@ export class OpencodeHarness implements Harness {
     });
     if (mcp.error) {
       throw new Error(
-        `Could not read OpenCode MCP status: ${String(mcp.error)}`
+        `Could not read OpenCode MCP status: ${errorText(mcp.error)}`
       );
     }
     if (mcp.data?.whiffle?.status !== "connected") {

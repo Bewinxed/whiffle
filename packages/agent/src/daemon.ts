@@ -870,4 +870,18 @@ export const runDaemon = (auth?: AuthState): void => {
     void Effect.runPromise(Fiber.interrupt(daemon)).then(() => process.exit(0));
   };
   process.on("SIGINT", drain).on("SIGTERM", drain);
+  process.on("unhandledRejection", (reason: unknown) => {
+    Effect.runFork(
+      Effect.logError(
+        `[daemon] unhandledRejection: ${reason instanceof Error ? reason.stack : String(reason)}`
+      )
+    );
+  });
+  process.on("uncaughtException", (reason: Error) => {
+    Effect.runFork(
+      Effect.logError(
+        `[daemon] uncaughtException: ${reason instanceof Error ? reason.stack : String(reason)}`
+      )
+    );
+  });
 };
