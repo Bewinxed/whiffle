@@ -1,5 +1,6 @@
 <script lang="ts">
   /** Right-click on a machine's heading — what you can do to the box, not to a session. */
+  import { type UpdateReport, UPDATE_WHIFFLE } from "@whiffle/core";
   import type { Snippet } from "svelte";
   import { toast } from "svelte-sonner";
   import { goto } from "$app/navigation";
@@ -31,20 +32,39 @@
   let unlocking = $state(false);
   let loggingIn = $state(false);
 
+  /** What an {@link UpdateReport} amounts to, in one line. */
+  function said(report: UpdateReport): string {
+    const moved =
+      report.to === report.from
+        ? `${machine.hostname} was already on ${report.from}`
+        : `${machine.hostname}: ${report.from} → ${report.to}`;
+    const restarted =
+      report.restarted.length > 0
+        ? `, restarted ${report.restarted.join(", ")}`
+        : "";
+    return report.skipped
+      ? `${moved}${restarted} — ${report.skipped}`
+      : `${moved}${restarted}`;
+  }
+
   /**
-   * Updates the machine's Claude Code in place. Sessions already running keep the
-   * CLI they launched with, so there is nothing here to confirm away.
+   * Brings the machine onto the current checkout: pull, install, rebuild,
+   * restart. This is the only thing that moves the Claude Code its sessions
+   * run — the harness spawns the agent SDK's own pinned build, so the `claude`
+   * on the machine's PATH is not what any session ever launches, and updating
+   * it moved nothing. The agent is restarted too, but only once it is idle:
+   * sessions already running keep the build they launched with either way.
    */
-  async function updateClaudeCode() {
-    const updating = machineControl<string>(
+  async function updateMachine() {
+    const updating = machineControl<UpdateReport>(
       machine.machineId,
-      "updateClaudeCode",
-      [],
+      UPDATE_WHIFFLE,
+      [{ restartAgent: true }],
       UPDATE_TIMEOUT_MS
     );
     toast.promise(updating, {
-      loading: `Updating Claude Code on ${machine.hostname}…`,
-      success: (said: string) => said || `${machine.hostname} is up to date.`,
+      loading: `Updating ${machine.hostname}…`,
+      success: said,
       error: (err: unknown) =>
         err instanceof Error ? err.message : String(err),
     });
@@ -92,11 +112,11 @@
     <ContextMenu.Item
       onSelect={() => {
         // biome-ignore lint/complexity/noVoid: fire-and-forget; toast.promise above already tracks the outcome
-        void updateClaudeCode();
+        void updateMachine();
       }}
     >
       <IconDownload />
-      Update Claude Code
+      Update this machine
     </ContextMenu.Item>
 
     <ContextMenu.Separator />

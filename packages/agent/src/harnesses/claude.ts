@@ -1092,22 +1092,6 @@ class ClaudeSession implements HarnessSession {
   }
 }
 
-/** How long the `claude update` control gets. */
-const TAIL_LINES = 4;
-const tail = (output: string): string =>
-  output.trim().split("\n").slice(-TAIL_LINES).join("\n");
-
-/** Updates the Claude Code the machine's sessions run on. */
-const updateClaudeCode = async (): Promise<string> => {
-  const updated = await Bun.$`claude update`.quiet().nothrow();
-  const said =
-    tail(updated.stdout.toString()) || tail(updated.stderr.toString());
-  if (updated.exitCode !== 0) {
-    throw new Error(said || `claude update exited ${updated.exitCode}`);
-  }
-  return said;
-};
-
 const toInfo = (
   info: import("@anthropic-ai/claude-agent-sdk").SDKSessionInfo
 ): NeutralSessionInfo => ({
@@ -2212,8 +2196,6 @@ export class ClaudeHarness implements Harness {
   // biome-ignore lint/suspicious/useAwait: Harness.machine returns Promise<unknown>; the `default` branch returns bare undefined, which needs async's implicit wrap
   async machine(method: string, args: unknown[]): Promise<unknown> {
     switch (method) {
-      case "updateClaudeCode":
-        return updateClaudeCode();
       case MARKETPLACE_CATALOG:
         return marketplaceCatalog(args[0] as string);
       case READ_MEMORY_FILE:
