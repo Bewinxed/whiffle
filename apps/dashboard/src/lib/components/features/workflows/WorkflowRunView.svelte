@@ -347,16 +347,18 @@
         {@const text = question(askNode)}
         <section class="answer wf-stack">
           <h2>Answer · {text.question}</h2>
-          <div class="wf-row">
+          <div class="options">
             {#each text.options as option (option.label)}
               <button
-                class="wf-btn wf-primary"
+                class="wf-btn"
                 disabled={busy || !live}
                 onclick={() => act(() => answerWorkflow(runId, ask.id, option.label, note))}
-                title={option.description}
                 type="button"
               >
-                {option.label}
+                <span>{option.label}</span>
+                {#if option.description}
+                  <small>{option.description}</small>
+                {/if}
               </button>
             {/each}
           </div>
@@ -548,6 +550,30 @@
     padding: var(--space-4) var(--space-5);
     background: var(--surface-raised);
     border-bottom: 1px solid var(--border-divider);
+  }
+  /* The options are peers the workflow author wrote, not one recommended
+     action, so none of them takes the never-flat graphite. On a waiting run
+     the needs-you chip is the only thing that should be loud. */
+  .options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+  }
+  .answer .options button {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: var(--space-1);
+    min-height: 44px;
+    padding: var(--space-3);
+    max-width: 320px;
+    text-align: left;
+  }
+  .answer .options small {
+    color: var(--ink-muted);
+    font-size: var(--text-sm);
+    line-height: 1.4;
+    overflow-wrap: anywhere;
   }
   .tabs,
   .loading {
