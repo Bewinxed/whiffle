@@ -335,7 +335,7 @@ test("startup instructions expose routing and catalog before tool discovery", ()
     'ToolSearch(query="select:mcp__whiffle__delegate")'
   );
   expect(instructions).toContain("Native harness subagents are a separate mechanism");
-  expect(instructions).toContain("Before repository exploration");
+  expect(instructions).toContain("Delegate substantial bounded work");
   for (const type of DEFAULT_DELEGATE_TYPES) {
     expect(instructions).toContain(`'${type.name}'`);
     expect(instructions).toContain(type.description);
