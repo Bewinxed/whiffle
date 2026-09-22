@@ -74,6 +74,7 @@ import {
   usageLimitHistory,
   usageLimits,
   workflowAttempts,
+  workflowEffects,
   workflowRuns,
   workflowSteps,
   workflows,
@@ -89,6 +90,7 @@ export type WorkflowRow = typeof workflows.$inferSelect;
 export type WorkflowRunRow = typeof workflowRuns.$inferSelect;
 export type WorkflowStepRow = typeof workflowSteps.$inferSelect;
 export type WorkflowAttemptRow = typeof workflowAttempts.$inferSelect;
+export type WorkflowEffectRow = typeof workflowEffects.$inferSelect;
 
 /**
  * A session the returning daemon no longer carries. `resumes` is the whole
@@ -281,6 +283,10 @@ export interface DbShape {
       }
     | undefined;
   readonly getWorkflow: (id: string) => WorkflowRow | undefined;
+  readonly getWorkflowEffect: (
+    runId: string,
+    seq: number
+  ) => WorkflowEffectRow | undefined;
   readonly getWorkflowRun: (id: string) => WorkflowRunRow | undefined;
   readonly getWorkflowStep: (id: string) => WorkflowStepRow | undefined;
   /** Look up a single non-discarded instance by its harness sessionId. */
@@ -348,6 +354,7 @@ export interface DbShape {
   /** Every machine's latest limit reading. */
   readonly listUsageLimits: () => UsageLimitRow[];
   readonly listWorkflowAttempts: (stepId: string) => WorkflowAttemptRow[];
+  readonly listWorkflowEffects: (runId: string) => WorkflowEffectRow[];
   readonly listWorkflowRuns: (workflowId?: string) => WorkflowRunRow[];
   readonly listWorkflowSteps: (runId: string) => WorkflowStepRow[];
   readonly listWorkflows: () => WorkflowRow[];
@@ -515,6 +522,9 @@ export interface DbShape {
   /** Stores the machine's latest limit reading; one row per machine. */
   readonly putUsageLimits: (machineId: string, limits: ClaudeLimits) => void;
   readonly putWorkflow: (row: typeof workflows.$inferInsert) => WorkflowRow;
+  readonly putWorkflowEffect: (
+    row: typeof workflowEffects.$inferInsert
+  ) => void;
   /**
    * The daemon's own word, arriving every 15s: `liveIds` is exactly what its
    * supervisor is carrying right now (`HeartbeatPayload.instances`).
@@ -1127,6 +1137,9 @@ const make = (path: string): DbShape => {
               .run();
           }
           tx.delete(workflowSteps).where(eq(workflowSteps.runId, run.id)).run();
+          tx.delete(workflowEffects)
+            .where(eq(workflowEffects.runId, run.id))
+            .run();
         }
         tx.delete(workflowRuns).where(eq(workflowRuns.workflowId, id)).run();
         tx.delete(workflows).where(eq(workflows.id, id)).run();
@@ -1155,6 +1168,30 @@ const make = (path: string): DbShape => {
         .where(eq(workflowAttempts.stepId, stepId))
         .orderBy(workflowAttempts.number)
         .all(),
+    getWorkflowEffect: (runId, seq) =>
+      db
+        .select()
+        .from(workflowEffects)
+        .where(
+          and(eq(workflowEffects.runId, runId), eq(workflowEffects.seq, seq))
+        )
+        .get(),
+    listWorkflowEffects: (runId) =>
+      db
+        .select()
+        .from(workflowEffects)
+        .where(eq(workflowEffects.runId, runId))
+        .orderBy(workflowEffects.seq)
+        .all(),
+    putWorkflowEffect: (row) => {
+      db.insert(workflowEffects)
+        .values(row)
+        .onConflictDoUpdate({
+          target: [workflowEffects.runId, workflowEffects.seq],
+          set: row,
+        })
+        .run();
+    },
     workflowTransition: (run, step, attempt, steps = []) =>
       db.transaction((tx) => {
         tx.insert(workflowRuns)
@@ -1723,7 +1760,7 @@ const make = (path: string): DbShape => {
             .from(workflows)
             .all()
             .map((workflow) => {
-              const skill = workflowSkill(workflow);
+              const skill = workflowSkill(workflow, workflow.inputs);
               if (held("skills", skill.name, skill.hash)) {
                 skill.files = undefined;
               }

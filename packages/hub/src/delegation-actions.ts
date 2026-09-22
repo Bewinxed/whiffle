@@ -300,6 +300,7 @@ export interface HandoffDeps {
   readonly harness?: "claude" | "opencode" | "pi";
   /** The session doing the handing over. */
   readonly instanceId: string;
+  readonly workflowRunId?: string;
   readonly workflowStepId?: string;
 }
 
@@ -325,7 +326,7 @@ export interface HandoffActions {
     answers?: Record<string, string>,
     deny?: boolean
   ): Promise<string>;
-  readonly createWorkflow: (markdown: string) => Promise<unknown>;
+  readonly createWorkflow: (name: string, program: string) => Promise<unknown>;
   // biome-ignore lint/style/useConsistentMethodSignatures: implemented below; property-style would change parameter variance against that implementation
   delegate(
     prompt: string,
@@ -360,6 +361,7 @@ export interface HandoffActions {
   // biome-ignore lint/style/useConsistentMethodSignatures: implemented below; property-style would change parameter variance against that implementation
   listSessions(): Promise<string>;
   readonly listWorkflows: () => Promise<unknown>;
+  readonly readWorkflowState: (name: string) => Promise<{ value: unknown }>;
   readonly runWorkflow: (
     name: string,
     inputs: Record<string, unknown>,
@@ -383,7 +385,11 @@ export interface HandoffActions {
   // biome-ignore lint/style/useConsistentMethodSignatures: implemented below; property-style would change parameter variance against that implementation
   stopDelegate(target: string): Promise<string>;
   readonly submitResult: (result: unknown) => Promise<string>;
-  readonly updateWorkflow: (name: string, markdown: string) => Promise<unknown>;
+  readonly updateWorkflow: (name: string, program: string) => Promise<unknown>;
+  readonly writeWorkflowState: (
+    name: string,
+    value: unknown
+  ) => Promise<string>;
 }
 
 /** The structured result of startSession / delegate — the id, title, and the model-facing prose. */
@@ -420,23 +426,23 @@ function resolveDelegate(
   }
 }
 
-async function saveWorkflowMarkdown(
+async function saveWorkflowProgram(
   method: string,
   path: string,
-  markdown: string
+  body: { name?: string; program: string }
 ): Promise<unknown> {
   const response = await fetch(`${hubHttpUrl()}${path}`, {
     method,
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ markdown }),
+    body: JSON.stringify(body),
   });
   if (!response.ok) {
     const text = await response.text();
     if (response.headers.get("content-type")?.includes("application/json")) {
-      const body = JSON.parse(text) as { problems?: { message: string }[] };
-      if (body.problems) {
+      const refused = JSON.parse(text) as { problems?: { message: string }[] };
+      if (refused.problems) {
         throw new Error(
-          body.problems.map((problem) => problem.message).join("\n")
+          refused.problems.map((problem) => problem.message).join("\n")
         );
       }
     }
@@ -447,20 +453,47 @@ async function saveWorkflowMarkdown(
 
 export const handoffActions = ({
   instanceId,
+  workflowRunId,
   workflowStepId,
   cwd,
   harness: callerHarness,
   emit,
 }: HandoffDeps): HandoffActions => ({
-  createWorkflow(markdown) {
-    return saveWorkflowMarkdown("POST", "/api/workflows", markdown);
+  createWorkflow(name, program) {
+    return saveWorkflowProgram("POST", "/api/workflows", { name, program });
   },
-  updateWorkflow(name, markdown) {
-    return saveWorkflowMarkdown(
+  updateWorkflow(name, program) {
+    return saveWorkflowProgram(
       "PUT",
       `/api/workflows/${encodeURIComponent(name)}`,
-      markdown
+      { program }
     );
+  },
+  async readWorkflowState(name) {
+    if (!(workflowStepId && workflowRunId)) {
+      throw new Error("Workflow state is available only to workflow steps.");
+    }
+    const response = await fetch(
+      `${hubHttpUrl()}/api/workflow-runs/${encodeURIComponent(workflowRunId)}/state/${encodeURIComponent(name)}?instanceId=${encodeURIComponent(instanceId)}`
+    );
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+    return (await response.json()) as { value: unknown };
+  },
+  async writeWorkflowState(name, value) {
+    if (!(workflowStepId && workflowRunId)) {
+      throw new Error("Workflow state is available only to workflow steps.");
+    }
+    const response = await fetch(
+      `${hubHttpUrl()}/api/workflow-runs/${encodeURIComponent(workflowRunId)}/state/${encodeURIComponent(name)}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ instanceId, value }),
+      }
+    );
+    return response.text();
   },
   async submitResult(result) {
     if (!workflowStepId) {

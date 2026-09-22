@@ -1,16 +1,17 @@
-import type { WorkflowAction, WorkflowGraph } from "@whiffle/core";
+import type { Problem, WorkflowGraph } from "@whiffle/core";
+import { compileWorkflow, validateWorkflow } from "@whiffle/core";
 import {
-  parseWorkflowMarkdown,
-  serializeWorkflowMarkdown,
-  validateWorkflow,
-} from "@whiffle/core";
+  programInputs,
+  typecheckProgram,
+  workflowProgramCheck,
+} from "@whiffle/core/workflow-sandbox";
 import { Elysia, t } from "elysia";
 import type { DbShape } from "../db";
-import { type createWorkflowEngine, publicRun } from "./engine";
+import { type createWorkflowRuntime, publicRun } from "./runtime";
 
 export function workflowRoutes(
   db: DbShape,
-  engine: ReturnType<typeof createWorkflowEngine>,
+  runtime: ReturnType<typeof createWorkflowRuntime>,
   presence: (id: string) => string | undefined,
   skills: {
     changed: () => void;
@@ -30,56 +31,55 @@ export function workflowRoutes(
   };
   const save = async (
     input: {
-      name?: string;
-      graph?: WorkflowGraph;
       description?: string;
-      markdown?: string;
+      graph?: WorkflowGraph;
+      name?: string;
+      program?: string;
     },
     id: string = crypto.randomUUID()
   ) => {
-    const parsed =
-      input.markdown === undefined
-        ? undefined
-        : parseWorkflowMarkdown(input.markdown);
-    if (parsed?.problems.length) {
-      return Response.json({ problems: parsed.problems }, { status: 400 });
+    if (!input.name?.trim()) {
+      throw new Error("A workflow needs a name.");
     }
-    const body = parsed ?? input;
-    if (!(body.name?.trim() && body.graph)) {
-      throw new Error("A workflow needs a name and a graph.");
-    }
-    const problems = validateWorkflow(body.graph, {
-      workflowId: id,
-      resolveWorkflow: (target) =>
-        target === id
-          ? { id, name: body.name ?? id, graph: body.graph as WorkflowGraph }
-          : db.getWorkflow(target),
-    });
-    if (parsed && problems.length) {
-      return Response.json(
-        {
-          problems: problems.map((problem) => {
-            const line =
-              (problem.nodeId ? parsed.nodeLines[problem.nodeId] : undefined) ??
-              (problem.edgeId ? parsed.edgeLines[problem.edgeId] : undefined) ??
-              2;
-            return {
-              ...problem,
-              line,
-              message: `Line ${line}: ${problem.message}`,
-            };
-          }),
-        },
-        { status: 400 }
+    if (!(input.graph || input.program)) {
+      throw new Error(
+        "A workflow needs either a graph (the editor's model) or a program."
       );
     }
-    const cycle = problems.find((problem) =>
-      problem.message.startsWith("Workflow call cycle:")
-    );
-    if (cycle) {
-      throw new Error(cycle.message);
+    if (input.graph && input.program) {
+      throw new Error(
+        "A workflow is authored either as a graph or as a program, never both."
+      );
     }
-    const slug = body.name
+    // A program that will not compile or typecheck is refused with the
+    // diagnostics; a graph whose *authoring* rules fail still saves and is
+    // refused at launch instead (§9.3), because the editor autosaves.
+    let problems: Problem[] = [];
+    let program = input.program ?? "";
+    if (input.graph) {
+      const fatal = workflowProgramCheck(input.graph);
+      if (fatal.length) {
+        return Response.json({ problems: fatal }, { status: 400 });
+      }
+      problems = validateWorkflow(input.graph, {
+        workflowId: id,
+        resolveWorkflow: (target) =>
+          target === id
+            ? {
+                id,
+                name: input.name ?? id,
+                graph: input.graph as WorkflowGraph,
+              }
+            : db.getWorkflow(target),
+      });
+      ({ program } = compileWorkflow(input.graph));
+    } else {
+      const fatal = typecheckProgram(program);
+      if (fatal.length) {
+        return Response.json({ problems: fatal }, { status: 400 });
+      }
+    }
+    const slug = input.name
       .trim()
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
@@ -96,17 +96,16 @@ export function workflowRoutes(
     }
     const stored = db.putWorkflow({
       id,
-      name: body.name.trim(),
+      name: input.name.trim(),
       slug,
-      graph: body.graph,
-      description: body.description ?? "",
-      source: input.markdown ?? old?.source ?? null,
+      graph: input.graph ?? null,
+      program,
+      origin: input.graph ? "editor" : "code",
+      inputs: await programInputs(program),
+      description: input.description ?? old?.description ?? "",
     });
     skills.changed();
-    return {
-      ...stored,
-      problems,
-    };
+    return { ...stored, problems };
   };
   const actor = (instanceId: string) => {
     const [row] = db.getInstancesByIds([instanceId]);
@@ -118,14 +117,7 @@ export function workflowRoutes(
     return row;
   };
   return new Elysia()
-    .get("/api/workflows", () => ({
-      workflows: db.listWorkflows().map((workflow) => ({
-        ...workflow,
-        inputs:
-          workflow.graph.nodes.find((node) => node.kind === "start")?.inputs ??
-          [],
-      })),
-    }))
+    .get("/api/workflows", () => ({ workflows: db.listWorkflows() }))
     .post("/api/workflows", { body: t.Any() }, ({ body, set }) =>
       attempt(async () => {
         const saved = await save(body as Parameters<typeof save>[0]);
@@ -135,31 +127,32 @@ export function workflowRoutes(
         return saved;
       })
     )
-    .get("/api/workflows/:id/markdown", ({ params }) =>
+    .get("/api/workflows/:id/program", ({ params }) => {
+      const row = db.getWorkflow(params.id);
+      return row
+        ? new Response(row.program, {
+            headers: { "content-type": "text/typescript; charset=utf-8" },
+          })
+        : new Response("Workflow not found.", { status: 404 });
+    })
+    .get("/api/workflows/:id", ({ params }) =>
       attempt(() => {
         const row = db.getWorkflow(params.id);
         if (!row) {
           return new Response("Workflow not found.", { status: 404 });
         }
-        const source = serializeWorkflowMarkdown(row);
-        db.putWorkflow({ ...row, source });
-        return new Response(source, {
-          headers: { "content-type": "text/markdown; charset=utf-8" },
-        });
+        return {
+          ...row,
+          problems: row.graph
+            ? validateWorkflow(row.graph, {
+                workflowId: row.id,
+                checkProgram: workflowProgramCheck,
+                resolveWorkflow: db.getWorkflow,
+              })
+            : typecheckProgram(row.program),
+        };
       })
     )
-    .get("/api/workflows/:id", ({ params }) => {
-      const row = db.getWorkflow(params.id);
-      return row
-        ? {
-            ...row,
-            problems: validateWorkflow(row.graph, {
-              workflowId: row.id,
-              resolveWorkflow: db.getWorkflow,
-            }),
-          }
-        : new Response("Workflow not found.", { status: 404 });
-    })
     .put("/api/workflows/:id", { body: t.Any() }, ({ body, params }) =>
       attempt(() => {
         const row = db.getWorkflow(params.id);
@@ -190,16 +183,16 @@ export function workflowRoutes(
     .get("/api/workflows/:id/runs", ({ params }) => ({
       runs: db
         .listWorkflowRuns(db.getWorkflow(params.id)?.id ?? params.id)
-        .map(publicRun),
+        .map((run) => publicRun(run, db.listWorkflowEffects(run.id))),
     }))
     .post("/api/workflows/:id/runs", { body: t.Any() }, ({ params, body }) =>
       attempt(() => {
-        const input = body as Parameters<typeof engine.launch>[1] & {
+        const input = body as Parameters<typeof runtime.launch>[1] & {
           instanceId?: string;
         };
         if (input.instanceId) {
           const row = actor(input.instanceId);
-          return engine.launch(params.id, {
+          return runtime.launch(params.id, {
             inputs: input.inputs,
             workspace: input.workspace ?? {
               path: row.cwd,
@@ -209,7 +202,7 @@ export function workflowRoutes(
             launchedBy: `agent:${row.id}`,
           });
         }
-        return engine.launch(params.id, {
+        return runtime.launch(params.id, {
           inputs: input.inputs,
           workspace: input.workspace,
           supervisor: input.supervisor,
@@ -218,7 +211,7 @@ export function workflowRoutes(
     )
     .get("/api/workflow-runs/:id", ({ params }) =>
       attempt(() => {
-        const detail = engine.detail(params.id);
+        const detail = runtime.detail(params.id);
         return {
           ...detail,
           steps: detail.steps.map((step) => ({
@@ -237,8 +230,11 @@ export function workflowRoutes(
         };
       })
     )
+    .get("/api/workflow-runs/:id/effects", ({ params }) => ({
+      effects: runtime.effects(params.id),
+    }))
     .post("/api/workflow-runs/:id/cancel", ({ params }) =>
-      attempt(() => engine.cancel(params.id))
+      attempt(() => runtime.cancel(params.id))
     )
     .post(
       "/api/workflow-runs/:id/answer",
@@ -251,7 +247,7 @@ export function workflowRoutes(
       },
       ({ params, body }) =>
         attempt(async () => {
-          await engine.answer(params.id, body.stepId, body.choice, body.note);
+          await runtime.answer(params.id, body.stepId, body.choice, body.note);
           return { ok: true };
         })
     )
@@ -268,46 +264,46 @@ export function workflowRoutes(
           if (body.instanceId) {
             actor(body.instanceId);
           }
-          return engine.steer(
+          return runtime.steer(
             params.id,
-            body.action as WorkflowAction,
+            body.action as Parameters<typeof runtime.steer>[1],
             body.instanceId
           );
         })
     )
     .post(
       "/api/workflow-runs/:id/rerun",
-      { body: t.Object({ fromNodeId: t.String() }) },
+      { body: t.Object({ fromNodeId: t.Optional(t.String()) }) },
       ({ params, body }) =>
-        attempt(() => {
-          const run = db.getWorkflowRun(params.id);
-          if (!run) {
-            throw new Error("Workflow run not found.");
-          }
-          if (
-            !run.graph.nodes.some(
-              (node) => node.id === body.fromNodeId && node.kind !== "start"
-            )
-          ) {
-            throw new Error("Choose an existing node to re-run from.");
-          }
-          return engine.launch(run.workflowId, {
-            inputs: run.inputs,
-            workspace: { path: run.workspace, machineId: run.machineId },
-            supervisor: run.supervisorInstanceId
-              ? { instanceId: run.supervisorInstanceId }
-              : undefined,
-            rerunOfRunId: run.id,
-            fromNodeId: body.fromNodeId,
-          });
-        })
+        attempt(() => runtime.rerun(params.id, body.fromNodeId))
     )
     .post(
       "/api/workflow-steps/:id/result",
       { body: t.Object({ instanceId: t.String(), result: t.Unknown() }) },
       ({ params, body }) =>
         attempt(() =>
-          engine.submitResult(params.id, body.instanceId, body.result)
+          runtime.submitResult(params.id, body.instanceId, body.result)
         )
+    )
+    .post(
+      "/api/workflow-runs/:id/state/:name",
+      { body: t.Object({ instanceId: t.String(), value: t.Unknown() }) },
+      ({ params, body }) =>
+        attempt(() => {
+          const [row] = db.getInstancesByIds([body.instanceId]);
+          if (!row || row.workflowRunId !== params.id) {
+            throw new Error("This session is not a step of that workflow run.");
+          }
+          return runtime.writeState(params.id, params.name, body.value);
+        })
+    )
+    .get("/api/workflow-runs/:id/state/:name", ({ params, query }) =>
+      attempt(() => {
+        const [row] = db.getInstancesByIds([String(query.instanceId ?? "")]);
+        if (!row || row.workflowRunId !== params.id) {
+          throw new Error("This session is not a step of that workflow run.");
+        }
+        return { value: runtime.readState(params.id, params.name) ?? null };
+      })
     );
 }

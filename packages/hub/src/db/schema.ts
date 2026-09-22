@@ -16,13 +16,17 @@ import type {
   RuleWatch,
   SkillFile,
   ToolStatus,
+  WorkflowEffectKind,
   WorkflowGraph,
+  WorkflowInput,
+  WorkflowOrigin,
   WorkflowRunStatus,
   WorkflowStepStatus,
 } from "@whiffle/core";
 import {
   index,
   integer,
+  primaryKey,
   real,
   sqliteTable,
   text,
@@ -35,8 +39,11 @@ export const workflows = sqliteTable("workflows", {
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
   description: text("description").notNull().default(""),
-  graph: text("graph", { mode: "json" }).$type<WorkflowGraph>().notNull(),
-  source: text("source"),
+  graph: text("graph", { mode: "json" }).$type<WorkflowGraph>(),
+  program: text("program").notNull(),
+  origin: text("origin").$type<WorkflowOrigin>().notNull(),
+  /** The program's `inputs` export, evaluated once at save. */
+  inputs: text("inputs", { mode: "json" }).$type<WorkflowInput[]>().notNull(),
   createdAt: timestamp("created_at")
     .notNull()
     .$defaultFn(() => new Date()),
@@ -51,7 +58,8 @@ export const workflowRuns = sqliteTable("workflow_runs", {
   workflowId: text("workflow_id")
     .notNull()
     .references(() => workflows.id),
-  graph: text("graph", { mode: "json" }).$type<WorkflowGraph>().notNull(),
+  graph: text("graph", { mode: "json" }).$type<WorkflowGraph>(),
+  program: text("program").notNull(),
   inputs: text("inputs", { mode: "json" })
     .$type<Record<string, unknown>>()
     .notNull(),
@@ -61,7 +69,7 @@ export const workflowRuns = sqliteTable("workflow_runs", {
   status: text("status").$type<WorkflowRunStatus>().notNull(),
   result: text("result", { mode: "json" }).$type<unknown>(),
   failure: text("failure"),
-  runtime: text("runtime", { mode: "json" })
+  state: text("state", { mode: "json" })
     .$type<Record<string, unknown>>()
     .notNull(),
   startedAt: timestamp("started_at")
@@ -78,6 +86,8 @@ export const workflowSteps = sqliteTable("workflow_steps", {
     .notNull()
     .references(() => workflowRuns.id),
   nodeId: text("node_id").notNull(),
+  /** The effect sequence that owns this step, and so its spec in the journal. */
+  seq: integer("seq").notNull(),
   kind: text("kind").$type<WorkflowGraph["nodes"][number]["kind"]>().notNull(),
   status: text("status").$type<WorkflowStepStatus>().notNull(),
   instanceId: text("instance_id"),
@@ -87,6 +97,30 @@ export const workflowSteps = sqliteTable("workflow_steps", {
   startedAt: timestamp("started_at"),
   endedAt: timestamp("ended_at"),
 });
+/**
+ * The effect journal (proposal §13.3): every `w.*` call a run's program made,
+ * in order. A replay answers from these rows until the first unsettled one.
+ */
+export const workflowEffects = sqliteTable(
+  "workflow_effects",
+  {
+    runId: text("run_id")
+      .notNull()
+      .references(() => workflowRuns.id),
+    seq: integer("seq").notNull(),
+    kind: text("kind").$type<WorkflowEffectKind>().notNull(),
+    argsHash: text("args_hash").notNull(),
+    result: text("result", { mode: "json" }).$type<unknown>(),
+    failure: text("failure"),
+    at: timestamp("at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    primaryKey({ columns: [table.runId, table.seq] }),
+    index("workflow_effects_run").on(table.runId),
+  ]
+);
 export const workflowAttempts = sqliteTable("workflow_attempts", {
   id: text("id").primaryKey(),
   stepId: text("step_id")

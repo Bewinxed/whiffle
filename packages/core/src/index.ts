@@ -839,4 +839,4 @@ export const readEnv = (
 export const WHIFFLE_MDNS_TYPE = "whiffle";
 export * from "./image-generation";
 export * from "./workflow";
-export * from "./workflow-markdown";
+export * from "./workflow-compile";

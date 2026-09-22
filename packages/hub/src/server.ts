@@ -75,6 +75,7 @@ import {
   TOOL_CATALOG,
   toolSpec,
   UPDATE_WHIFFLE,
+  validateWorkflow,
   WHIFFLE_ENV,
 } from "@whiffle/core";
 import { Elysia, t } from "elysia";
@@ -97,8 +98,8 @@ import { hashFiles, resolveSkill } from "./skills";
 import { createStreamHub, HUB_CAPABILITIES } from "./stream";
 import { SupervisorEngine, type SupervisorStatusSignal } from "./supervisor";
 import type { TelegramBridge } from "./telegram";
-import { createWorkflowEngine } from "./workflows/engine";
 import { workflowRoutes } from "./workflows/routes";
+import { createWorkflowRuntime } from "./workflows/runtime";
 
 /** The frame a forwarded `control` comes back as, whoever asked for it. */
 type ControlResult = Extract<FramePayload, { kind: "control_result" }>;
@@ -1985,7 +1986,7 @@ export const createServer = ({
         ? {
             workflowRunId: row.workflowRunId ?? undefined,
             workflowStepId: row.workflowStepId,
-            ...workflowEngine.specFor(row.workflowStepId),
+            ...workflowRuntime.specFor(row.workflowStepId),
           }
         : {}),
       ...(reattachOnly ? { reattachOnly } : {}),
@@ -2035,7 +2036,7 @@ export const createServer = ({
     const specs = instanceSpecs(db.listInstances(), machineId);
     for (const spec of Object.values(specs)) {
       if (spec.workflowStepId) {
-        Object.assign(spec, workflowEngine.specFor(spec.workflowStepId));
+        Object.assign(spec, workflowRuntime.specFor(spec.workflowStepId));
       }
     }
     return specs;
@@ -3069,7 +3070,7 @@ export const createServer = ({
   // route group, mounted rather than folded into the routes below — see
   // delegate-types.ts for why it keeps its own connection.
   const delegateTypes = makeDelegateTypes();
-  const workflowEngine = createWorkflowEngine({
+  const workflowRuntime = createWorkflowRuntime({
     db,
     online: (machineId) => !!registry.agent(machineId),
     emit: (envelope) => {
@@ -3162,6 +3163,19 @@ export const createServer = ({
         machineId: frame.run.machineId,
         payload: { kind: "workflow", ...frame },
       }),
+    problems: (graph, workflowId) =>
+      validateWorkflow(graph, {
+        workflowId,
+        resolveWorkflow: db.getWorkflow,
+      }),
+    notifyUser: (text) => {
+      telegram?.onUserMessage({
+        verb: "frames",
+        machineId: "hub",
+        instanceId: "workflow",
+        payload: { kind: "user_message", instanceId: "workflow", text },
+      });
+    },
     supervisor: async (type, cwd, machineId, prompt) => {
       const preset = delegateTypes.list().find((entry) => entry.name === type);
       if (!preset) {
@@ -3206,7 +3220,7 @@ export const createServer = ({
     },
   });
   onWorkflowAnswer(pending, (id, result) =>
-    workflowEngine.settleQuestion(id, result)
+    workflowRuntime.settleQuestion(id, result)
   );
   const delegationMcp = createDelegationMcp({
     instances: () => db.listInstances(),
@@ -3219,7 +3233,7 @@ export const createServer = ({
       .use(
         workflowRoutes(
           db,
-          workflowEngine,
+          workflowRuntime,
           (id) => withSessionPresence(db.getInstancesByIds([id]))[0]?.status,
           {
             changed: fanOutFleet,
@@ -5724,7 +5738,7 @@ export const createServer = ({
                   specsFor(message.machineId)
                 )
               );
-              workflowEngine.recover(message.machineId);
+              workflowRuntime.recover(message.machineId);
               break;
             }
             case "heartbeat": {
@@ -6098,7 +6112,7 @@ export const createServer = ({
                   // there; `markInstanceLive` only touches the states a live
                   // process can be wrongly filed under.
                   db.markInstanceLive(message.instanceId);
-                  workflowEngine.instanceLive(message.instanceId);
+                  workflowRuntime.instanceLive(message.instanceId);
                   heldSessions.delete(message.instanceId);
                   publishInstances(message.machineId);
                 }
@@ -6192,7 +6206,7 @@ export const createServer = ({
                       ? neutral.errors.join("\n")
                       : (neutral.result ??
                         `Harness error (${neutral.subtype}).`);
-                    workflowEngine.observe(
+                    workflowRuntime.observe(
                       row.id,
                       neutral.is_error ? workflowFailure : undefined
                     );
@@ -6272,7 +6286,7 @@ export const createServer = ({
                 const reason =
                   peek(message.payload, "message") ?? "the session failed";
                 db.failInstance(message.instanceId, reason);
-                workflowEngine.observe(message.instanceId, reason);
+                workflowRuntime.observe(message.instanceId, reason);
                 forgetPending(message.instanceId);
                 escalateRoutedAsks(message.instanceId);
                 telegram?.onError(message.instanceId, reason);
