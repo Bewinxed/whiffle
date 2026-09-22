@@ -8,8 +8,8 @@
  */
 import type {
   Envelope,
-  Problem,
   PermissionResult,
+  Problem,
   SpawnPayload,
   WorkflowAction,
   WorkflowEffectKind,
@@ -47,9 +47,9 @@ export interface WorkflowRuntimeDeps {
   halt: (machineId: string, instanceId: string) => Promise<void>;
   notifyUser: (text: string) => void;
   online: (machineId: string) => boolean;
+  park: (envelope: Envelope) => void;
   /** The graph's authoring problems: a workflow with any cannot run (§9.3). */
   problems: (graph: WorkflowGraph, workflowId: string) => Problem[];
-  park: (envelope: Envelope) => void;
   settle: (requestId: string) => void;
   spawn: (machineId: string, payload: SpawnPayload) => Promise<void>;
   supervisor: (
@@ -888,11 +888,71 @@ export function createWorkflowRuntime(deps: WorkflowRuntimeDeps) {
    * mismatch at a sequence fails the run; anything else runs live and is
    * journaled.
    */
+  /**
+   * The replay rule (§13.3): a journaled effect answers from the journal; a
+   * mismatch at a sequence fails the run; anything else runs live.
+   */
+  const decide = (
+    runId: string,
+    message: Extract<WorkerOut, { type: "effect" }>,
+    argsHash: string
+  ): {
+    reply?: { failure?: WorkflowFailure; result?: unknown };
+    run?: WorkflowRunRow;
+    sleepUntil?: number;
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: the replay rule is one decision over journal presence, kind, hash and settledness
+  } => {
+    const run = runOf(runId);
+    if (!active(run)) {
+      return {};
+    }
+    const journaled = db.getWorkflowEffect(runId, message.seq);
+    if (
+      journaled &&
+      (journaled.kind !== message.kind || journaled.argsHash !== argsHash)
+    ) {
+      finish(
+        run,
+        "failed",
+        `nondeterministic: effect ${message.seq} was ${journaled.kind} on the first run and is ${message.kind} now.`
+      );
+      return {};
+    }
+    const settledBefore =
+      journaled &&
+      (journaled.failure !== null ||
+        !["run", "spawn", "ask", "workflow", "sleep"].includes(journaled.kind));
+    if (settledBefore) {
+      return {
+        reply: journaled.failure
+          ? { failure: JSON.parse(journaled.failure) as WorkflowFailure }
+          : {
+              result:
+                journaled.kind === "run" || journaled.kind === "spawn"
+                  ? (journaled.result as { value: unknown }).value
+                  : journaled.result,
+            },
+      };
+    }
+    if (journaled?.result && journaled.kind === "sleep") {
+      const { due } = journaled.result as { due: number };
+      return due <= Date.now()
+        ? { reply: { result: journaled.result } }
+        : { run, sleepUntil: due };
+    }
+    if (
+      journaled &&
+      ["run", "spawn"].includes(journaled.kind) &&
+      db.getWorkflowStep(stepIdOf(runId, message.seq))?.status === "passed"
+    ) {
+      return { reply: { result: stepOf(stepIdOf(runId, message.seq)).result } };
+    }
+    return { run };
+  };
+
   const onEffect = async (
     runId: string,
     message: Extract<WorkerOut, { type: "effect" }>
-
-    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: the replay rule is one decision over journal presence, kind, hash and settledness
   ) => {
     const live = workers.get(runId);
     const reply = (payload: {
@@ -908,57 +968,22 @@ export function createWorkflowRuntime(deps: WorkflowRuntimeDeps) {
           : { type: "effect-result", id: message.id, result: payload.result }
       );
     };
-    const run = runOf(runId);
-    if (!active(run)) {
-      return;
-    }
     const argsHash = hashArgs(message.args);
-    const journaled = db.getWorkflowEffect(runId, message.seq);
-    if (
-      journaled &&
-      (journaled.kind !== message.kind || journaled.argsHash !== argsHash)
-    ) {
-      finish(
-        run,
-        "failed",
-        `nondeterministic: effect ${message.seq} was ${journaled.kind} on the first run and is ${message.kind} now.`
-      );
+    // Only the replay decision is serialised per run. Executing an effect —
+    // a step that runs for an hour, an ask that waits for a person — must not
+    // hold the lock, or the very frames that settle it queue behind it.
+    const decided = await serial(runId, () => decide(runId, message, argsHash));
+    if (decided.reply) {
+      reply(decided.reply);
       return;
     }
-    const settledBefore =
-      journaled &&
-      (journaled.failure !== null ||
-        !["run", "spawn", "ask", "workflow", "sleep"].includes(journaled.kind));
-    if (settledBefore) {
-      reply(
-        journaled.failure
-          ? { failure: JSON.parse(journaled.failure) as WorkflowFailure }
-          : {
-              result:
-                journaled.kind === "run" || journaled.kind === "spawn"
-                  ? (journaled.result as { value: unknown }).value
-                  : journaled.result,
-            }
-      );
+    if (!decided.run) {
       return;
     }
-    if (journaled?.result && journaled.kind === "sleep") {
-      const { due } = journaled.result as { due: number };
-      if (due <= Date.now()) {
-        reply({ result: journaled.result });
-        return;
-      }
-      await sleepUntil(runId, message.seq, due);
-      reply({ result: journaled.result });
-      return;
-    }
-    if (
-      journaled &&
-      ["run", "spawn"].includes(journaled.kind) &&
-      db.getWorkflowStep(stepIdOf(runId, message.seq))?.status === "passed"
-    ) {
-      const step = stepOf(stepIdOf(runId, message.seq));
-      reply({ result: step.result });
+    const { run } = decided;
+    if (decided.sleepUntil !== undefined) {
+      await sleepUntil(runId, message.seq, decided.sleepUntil);
+      reply({ result: { due: decided.sleepUntil } });
       return;
     }
     const kind = message.kind as WorkflowEffectKind;
@@ -973,15 +998,17 @@ export function createWorkflowRuntime(deps: WorkflowRuntimeDeps) {
     } catch (error) {
       outcome = { failure: { name: "Error", message: reason(error) } };
     }
-    const stored = db.getWorkflowEffect(runId, message.seq);
-    db.putWorkflowEffect({
-      runId,
-      seq: message.seq,
-      kind,
-      argsHash,
-      result: journalResult(kind, stored, outcome),
-      failure: outcome.failure ? JSON.stringify(outcome.failure) : null,
-      at: stored?.at ?? new Date(),
+    await serial(runId, () => {
+      const stored = db.getWorkflowEffect(runId, message.seq);
+      db.putWorkflowEffect({
+        runId,
+        seq: message.seq,
+        kind,
+        argsHash,
+        result: journalResult(kind, stored, outcome),
+        failure: outcome.failure ? JSON.stringify(outcome.failure) : null,
+        at: stored?.at ?? new Date(),
+      });
     });
     reply(outcome);
   };
@@ -999,7 +1026,7 @@ export function createWorkflowRuntime(deps: WorkflowRuntimeDeps) {
     worker.addEventListener("message", (event: MessageEvent<WorkerOut>) => {
       const message = event.data;
       if (message.type === "effect") {
-        serial(run.id, () => onEffect(run.id, message)).catch((error) => {
+        onEffect(run.id, message).catch((error) => {
           const current = db.getWorkflowRun(run.id);
           if (current && active(current)) {
             finish(current, "failed", reason(error));
@@ -1147,7 +1174,9 @@ export function createWorkflowRuntime(deps: WorkflowRuntimeDeps) {
       if (workflow.graph) {
         const problems = deps.problems(workflow.graph, workflow.id);
         if (problems.length) {
-          throw new Error(problems.map((problem) => problem.message).join("\n"));
+          throw new Error(
+            problems.map((problem) => problem.message).join("\n")
+          );
         }
       }
       let chosen = options.supervisor;
