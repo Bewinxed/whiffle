@@ -1184,11 +1184,12 @@ const make = (path: string): DbShape => {
             ...(effort ? { effort } : {}),
             // Presence, not truth: a leaf's `false` has to land.
             ...(canDelegate === undefined ? {} : { canDelegate }),
-            // Same reasoning as the insert above: a relaunch or a restore is a
-            // spawn going out, not a process coming up.
+            // `updatedAt` deliberately absent: a restore or relaunch re-issues
+            // an existing session, so its last-activity time is whatever it
+            // already was; stamping it here dated every restored session to the
+            // daemon reconnect instant.
             status: "starting",
             lastError: null,
-            updatedAt: now,
             ...(cleanSessionId ? { sessionId: cleanSessionId } : {}),
             ...(harness ? { harness } : {}),
             ...(projectId ? { projectId } : {}),
@@ -1277,9 +1278,11 @@ const make = (path: string): DbShape => {
         .run();
     },
     // The daemon went away: its sessions may or may not still be alive out there.
+    // `updatedAt` deliberately untouched: the hub losing the daemon socket is
+    // not the session doing anything.
     reconcileInstances: (machineId, liveIds) => {
       db.update(instances)
-        .set({ status: "unknown", updatedAt: new Date() })
+        .set({ status: "unknown" })
         .where(
           and(
             eq(instances.machineId, machineId),
@@ -1429,12 +1432,14 @@ const make = (path: string): DbShape => {
             now.getTime() - row.updatedAt.getTime() >= graceMs
         );
 
+      // `updatedAt` deliberately absent: the hub concluding that a process
+      // vanished is not the session doing anything.
       for (const row of gone) {
         db.update(instances)
           .set(
             row.sessionId
-              ? { status: "sleeping", lastError: null, updatedAt: now }
-              : { status: "error", lastError: RESTART_LOST, updatedAt: now }
+              ? { status: "sleeping", lastError: null }
+              : { status: "error", lastError: RESTART_LOST }
           )
           .where(eq(instances.id, row.id))
           .run();
