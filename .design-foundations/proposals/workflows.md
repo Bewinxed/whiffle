@@ -71,6 +71,7 @@ PRODUCT.md binds **session**, **run**, **delegate**. This feature adds:
 | **gate** | a `check` node or an edge condition that decides pass / retry / fail in code. |
 | **result** | the validated object a step returned through `submit_result`. |
 | **supervisor** | the session, if any, that receives a run's reports and answers its steps' questions. |
+| **child run** | a workflow run launched by a `workflow` node of another run (its **parent run**). |
 | **workspace** | the project directory a run executes in — every step's `cwd`. Whiffle never creates worktrees for steps; a step that wants isolation decides so itself, or its supervisor tells it. |
 
 ## 3. Execution model (hub, `packages/hub/src/workflows/`)
@@ -87,7 +88,7 @@ assembles a delegate's report) — it never polls a session.
 2. **Schedule.** A node is *ready* when every incoming edge from a non-skipped source has
    fired. Ready `step` nodes spawn, up to `settings.concurrency` (default 4) live sessions
    per run. Ready `check` / `branch` / `map` / `end` nodes evaluate synchronously. Ready
-   `ask` nodes park (§3.5).
+   `ask` nodes park (§3.5). Ready `workflow` nodes launch a child run (§3.8).
 3. **Spawn a step** = one `SpawnPayload` (§5.1) plus one opening `send` carrying the
    rendered prompt (§3.2). The instance row carries `workflowRunId` and `workflowStepId`
    (§6) so the rail nests it under the run and the frame observer routes its frames.
@@ -190,7 +191,22 @@ once; `retry(stepId)` — a new attempt on a failed step; `answer(stepId, choice
 an `ask` with `answeredBy: supervisor`; `cancel()`. It cannot choose an edge, skip a node,
 or edit a prompt: the path stays the graph's.
 
-### 3.8 Cancel and re-run
+### 3.8 Sub-workflows (`workflow` node)
+
+A workflow may invoke another. A `workflow` node launches a **child workflow run** of the
+named workflow with `inputs` mapped from the parent's scope (§3.2 paths), in the parent's
+workspace, on the parent's machine, under the parent's supervisor (if any). The child is an
+ordinary run — its own row, its own steps, its own run view — with `parentRunId` /
+`parentStepId` set so the rail nests it under the parent run and the parent's run view
+shows its status on the node. The child's graph is pinned when the child launches. When the
+child reaches `done`, its `end` outputs are the node's result on port `out`; `failed` or
+`cancelled` fires port `fail` with `{ failure }`. Cancelling a parent cancels its live
+children; cancelling a child fails the parent's node. Bounds: validation rejects a call
+cycle (A→B→A, walked transitively through saved graphs) and nesting is capped at depth 8
+at launch (`workflow-depth` failure). A `map` body may contain a `workflow` node — fan-out
+of whole workflows is the intended way to run one workflow per item.
+
+### 3.9 Cancel and re-run
 
 *Cancel run* stops every live step session, marks pending steps `skipped`, run
 `cancelled`. *Re-run from step* creates a new run that copies every upstream result from
@@ -227,6 +243,10 @@ port per case.
 
 **`map`** — `over` (path to an array), `body` (sub-graph rendered as a group), `concurrency`.
 Port `out` with `{ items: [...] }`; port `fail` with `{ failed: [index] }`. No `ask` inside.
+
+**`workflow`** — `workflowId` (never the calling workflow itself), `inputs: { <child input
+name>: <template or path> }` covering every required input of the child's `start`. Ports
+`out` (child's end outputs), `fail` (`{ failure }`). §3.8.
 
 **`ask`** — `question`, `options: [{ label, description? }]` (labels may template),
 `allowOther`, `answeredBy`, `waitFor?`. One port per option (+ `other`).
@@ -273,9 +293,11 @@ workflow_runs      id, workflowId, graph(json pinned), inputs(json), workspace, 
                    the same transaction as every step/attempt transition, never read by the UI),
                    status running|waiting|done|failed|cancelled, result(json|null),
                    failure|null, startedAt, endedAt, rerunOfRunId|null,
+                   parentRunId|null, parentStepId|null (§3.8),
                    launchedBy dashboard|agent:<id>|skill:<machine>
 workflow_steps     id, runId, nodeId, kind, status pending|running|waiting|passed|failed|
                    skipped|cancelled, instanceId|null (the step's one session),
+                   childRunId|null (a `workflow` node's child run),
                    result(json|null), failure|null, mapIndex|null, startedAt, endedAt
 workflow_attempts  id, stepId, number, renderedPrompt, result(json|null), failure|null,
                    startedAt, endedAt
@@ -293,7 +315,7 @@ GET/PUT/DELETE  /api/workflows/:id                 read · save (returns problem
 GET             /api/workflows/:id/markdown        text form (§8.3)
 POST            /api/workflows/:id/runs            { inputs, workspace: {path, machineId}, supervisor?: {delegateType} | {instanceId} }
 GET             /api/workflows/:id/runs
-GET             /api/workflow-runs/:id             run + steps + attempts, presence-overlaid
+GET             /api/workflow-runs/:id             run + steps + attempts (+ childRunId per `workflow` step), presence-overlaid
 POST            /api/workflow-runs/:id/cancel · /rerun { fromNodeId } · /answer { stepId, choice, note? } · /steer { action }
 POST            /api/workflow-steps/:id/result     submit_result's body; refused unless the caller's instance owns the step
 ```
@@ -340,6 +362,9 @@ regex tom /frequency/ must-match
 ### choose · ask answeredBy:operator
 Which structure? options: {{steps.architect.result.options[*].name}} allowOther
 
+### review · workflow review-diff
+files: {{steps.implement.result.files}}
+
 ```flow
 start -> distill -> gate1
 gate1.fail -> distill (max 2)
@@ -378,8 +403,8 @@ connection-bound. **Density** `compact`. **Narrow:** two-line rows; *Run* in the
 
 ### 9.2 `workflows/[id]` — editor
 **Layout (≥1024):** three panes via `ui/resizable`.
-- **Palette (left, 232px → 48px rail):** **Flow** (Start, End, Branch, Map) · **Work**
-  (Step, Check) · **People** (Ask); glyph + name + one-line meaning; drag or click to place.
+- **Palette (left, 232px → 48px rail):** **Flow** (Start, End, Branch, Map, Workflow) ·
+  **Work** (Step, Check) · **People** (Ask); glyph + name + one-line meaning; drag or click to place.
   Below: **Templates** — delegate types, each dropping a pre-filled Step.
 - **Canvas:** dotted grid, snap 8. Breadcrumb `Workflows / <name>` with inline-editable name.
   Top-right: **Runs** tab, *Validate*, **Run workflow** (primary, graphite). Bottom-centre:
@@ -393,8 +418,9 @@ connection-bound. **Density** `compact`. **Narrow:** two-line rows; *Run* in the
 **fill** for kinds that run a model, **ring** for kinds that only route), title, and — run
 view only — a status chip. Body by kind: Step → harness · model, first prompt line, a
 "continues <step>" line when `context.mode === "continue"`; Check → rule count; Branch →
-cases as port labels; Ask → the question; Map → `over` + group frame; Start → input names;
-End → output names. Input handle left-centre; output handles right, labelled when >1.
+cases as port labels; Ask → the question; Map → `over` + group frame; Workflow → the child
+workflow's name and mapped-input count (run view: the child run's chip and an **Open child
+run** link); Start → input names; End → output names. Input handle left-centre; output handles right, labelled when >1.
 Selected: 2px `--brand-solid` ring. Invalid: `needs you` chip with the first problem.
 
 **Edge:** smooth-step, `--neutral-8`; `when` label at midpoint; backward edges route below
@@ -407,7 +433,9 @@ and carry `×n`; hover shows a delete handle.
   (monospace; `{{` opens a path completer over inputs and upstream schemas) · Result
   schema (flat-field builder; **Edit as JSON**) · Retries · Timeout.
 - Check: rule rows; **Add rule** menu. Branch: ordered cases + fixed `else`. Map: Over ·
-  Concurrency · Edit body. Ask: Question · options · Allow other · Answered by · Wait up to.
+  Concurrency · Edit body. Workflow: Workflow picker (every saved workflow but this one) ·
+  one field per child input with the path completer. Ask: Question · options · Allow other
+  · Answered by · Wait up to.
   Start: inputs. End: outputs. Edge: When · Max iterations (shown and required on cycles).
 
 **States:** Loading Tier 3 skeleton. Empty: a Start node placed, "Drag a step from the
@@ -421,7 +449,9 @@ bottom sheet behind **+ Add node**; inspector is a sheet on tap; canvas full-ble
 Exactly one Start; an End reachable from Start; every node reachable; every `{{}}` path
 resolves; every output port of `step`/`check`/`branch`/`ask` wired or marked "ends the run
 as failed"; every cycle-closing edge has `maxIterations`; `continue.from` is an upstream
-same-harness step; `map` bodies contain no `ask`; `answeredBy: supervisor` only when the
+same-harness step; `map` bodies contain no `ask`; every `workflow` node names an existing workflow other than
+this one, maps every required child input, and closes no call cycle through saved graphs;
+`answeredBy: supervisor` only when the
 workflow's default supervisor is set or the launch supplies one; schemas are objects.
 Problems list in the inspector and pin on nodes; a workflow with problems saves but cannot run.
 
@@ -485,11 +515,15 @@ bumps land with the code that exercises them.
    `validateWorkflow`, `renderPrompt`, `evaluateWhen`); schema tables; `workflows/engine.ts`;
    REST §7.1 (all but `/markdown`); `workflow` frame; frame-observer hook; `submitResult`
    + three registrations; `run_workflow` / `steer_workflow` / `list_workflows` tools;
-   supervisor routing; unsupervised question policy. Verify with curl: create the §10 graph
+   supervisor routing; unsupervised question policy; `workflow` nodes (§3.8) with cascade
+   cancel and cycle validation. Verify with curl: create the §10 graph
    (minus `command` rules), launch on a live machine → `distill` `running` with a live
    instance → `passed` after `submit_result`; a step that never submits retries on the same
    session then fails `no-result`; an `ask` shows in `/api/pending` and Telegram and resumes
-   on answer; cancel stops the live session.
+   on answer; cancel stops the live session; a parent workflow whose `workflow` node calls
+   the summarise workflow reaches `done` with the child's outputs on the node, the child run
+   row carries `parentRunId`, cancelling the parent cancels the child, and saving A→B→A is
+   refused with the cycle named.
 2. **Dashboard: list, launch dialog, run view** (§9.1, §9.4, §9.5, §9.7). `show_preview` +
    `ui-observer` at 1280 and 390.
 3. **Dashboard: editor** (§9.2, §9.3, §9.6) on current `@xyflow/svelte`, reusing
@@ -512,7 +546,8 @@ supervised; `ask` nodes default to the operator · launch surfaces: dashboard, `
 slash stubs · workspace: the project directory named at launch; whiffle never creates or
 suggests worktrees for steps — a step decides, or its supervisor does · "workflow run"
 two words · dependencies updated or added as needed · no spend cap · `map` and `check
-command` in v1 · text form in phase 5.
+command` in v1 · workflows invoke other workflows through a `workflow` node (child run,
+cycle-checked, depth ≤ 8) · text form in phase 5.
 
 Follow-up outside this feature: CLAUDE.md rule 5 (shared-tree / worktree rule) is, by the
 owner's word, an agent artifact, not an owner rule — to be removed separately.
