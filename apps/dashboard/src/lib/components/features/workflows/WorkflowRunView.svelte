@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { renderPrompt, type WorkflowNode } from "@whiffle/core";
   import { onMount, untrack } from "svelte";
   import { MediaQuery } from "svelte/reactivity";
   import { goto } from "$app/navigation";
@@ -126,11 +125,6 @@
       .filter((entry) => entry.stepId === step?.id)
       .sort((a, b) => a.number - b.number) ?? []
   );
-  const waiting = $derived(
-    run?.steps.filter(
-      (entry) => entry.kind === "ask" && entry.status === "waiting"
-    ) ?? []
-  );
   const live = $derived(whiffle.hub === "connected");
   const graph = $derived.by(() => {
     if (!run || scope === "root") {
@@ -202,31 +196,6 @@
       .catch((caught) => {
         errorMessage = message(caught);
       });
-  }
-  function question(askNode: Extract<WorkflowNode, { kind: "ask" }>) {
-    if (!run) {
-      return { question: "", options: [] };
-    }
-    const context = {
-      inputs: run.inputs,
-      workspace: run.workspace,
-      steps: Object.fromEntries(
-        run.steps.map((entry) => [entry.nodeId, { result: entry.result }])
-      ),
-      attempt: { number: 1, previousError: "", gateFindings: [] },
-      supervisor: { note: "" },
-    };
-    try {
-      return {
-        question: renderPrompt(askNode.question, context),
-        options: askNode.options.map((option) => ({
-          ...option,
-          label: renderPrompt(option.label, context),
-        })),
-      };
-    } catch (caught) {
-      return { question: message(caught), options: [] };
-    }
   }
   async function act(action: () => Promise<unknown>) {
     busy = true;
@@ -330,6 +299,7 @@
             ·
             {touch.writes}
             {touch.writes === 1 ? 'write' : 'writes'}
+            of {touch.names.join(', ')}
             while this step was the program's latest call.
           </p>
           {#each slots as [slot, value] (slot)}
@@ -471,53 +441,41 @@
     {#if run.failure}
       <p class="wf-error">Workflow run failed: {run.failure}</p>
     {/if}
-    {#each waiting as ask (ask.id)}
-      {@const askNode = run.graph?.nodes.find((entry) => entry.id === ask.nodeId)}
-      {#if askNode?.kind === 'ask'}
-        {@const text = question(askNode)}
-        <section class="answer wf-stack">
-          <h2>Answer · {text.question}</h2>
-          <div class="options">
-            {#each text.options as option (option.label)}
-              <button
-                class="wf-btn"
-                disabled={busy || !live}
-                onclick={() => act(() => answerWorkflow(runId, ask.id, option.label, note))}
-                type="button"
-              >
-                <span>{option.label}</span>
-                {#if option.description}
-                  <small>{option.description}</small>
-                {/if}
-              </button>
-            {/each}
+    {#if run.status === 'waiting' && run.ask}
+      {@const ask = run.ask}
+      <section class="answer wf-stack">
+        <h2>Answer · {ask.question}</h2>
+        <div class="options">
+          {#each ask.options as option (option.label)}
+            <button
+              class="wf-btn"
+              disabled={busy || !live}
+              onclick={() => act(() => answerWorkflow(runId, ask.stepId, option.label, note))}
+              type="button"
+            >
+              <span>{option.label}</span>
+              {#if option.description}
+                <small>{option.description}</small>
+              {/if}
+            </button>
+          {/each}
+        </div>
+        <label>Note (optional)<input bind:value={note}></label>
+        {#if ask.allowOther}
+          <div class="wf-row">
+            <label>Other answer<input bind:value={other}></label
+            ><button
+              class="wf-btn"
+              disabled={!other || busy || !live}
+              onclick={() => act(() => answerWorkflow(runId, ask.stepId, other, note))}
+              type="button"
+            >
+              Send answer
+            </button>
           </div>
-          <label>Note (optional)<input bind:value={note}></label>
-          {#if askNode.allowOther}
-            <div class="wf-row">
-              <label>Other answer<input bind:value={other}></label
-              ><button
-                class="wf-btn"
-                disabled={!other || busy || !live}
-                onclick={() => act(() => answerWorkflow(runId, ask.id, other, note))}
-                type="button"
-              >
-                Send answer
-              </button>
-            </div>
-          {/if}
-        </section>
-      {:else}
-        <section class="answer wf-stack">
-          <h2>Answer</h2>
-          <p class="wf-muted">
-            This run is waiting on a human choice. A program's question is
-            delivered as a permission request and is not kept on the run, so it
-            is answered from the Telegram prompt rather than here.
-          </p>
-        </section>
-      {/if}
-    {/each}
+        {/if}
+      </section>
+    {/if}
     {#if narrow.current}
       <div class="wf-row tabs">
         <button

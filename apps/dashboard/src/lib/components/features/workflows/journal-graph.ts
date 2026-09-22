@@ -59,6 +59,12 @@ export interface JournalCheckpoint {
   nodeId: string | undefined;
   seq: number;
 }
+export interface JournalStateTouch {
+  /** The slots the calls named, in the order they were first touched. */
+  names: string[];
+  reads: number;
+  writes: number;
+}
 export interface JournalLogLine {
   at: string;
   kind: "log" | "notify";
@@ -93,6 +99,10 @@ export const stepNodeIdOf = (effect: WorkflowEffect): string =>
 
 const firstLine = (text: string) => text.split("\n").find(Boolean) ?? "";
 
+/** One argument of the call, as journaled beside its result. */
+const arg = (effect: WorkflowEffect, name: string): string =>
+  String(effect.args?.[name] ?? "");
+
 function describe(effect: WorkflowEffect): { lines: string[]; title: string } {
   const result = effect.result as Record<string, unknown> | null;
   switch (effect.kind) {
@@ -100,6 +110,7 @@ function describe(effect: WorkflowEffect): { lines: string[]; title: string } {
       return {
         title: "Ask",
         lines: [
+          arg(effect, "question"),
           typeof result?.choice === "string"
             ? `Answered ${result.choice}`
             : "Waiting for an answer",
@@ -109,19 +120,19 @@ function describe(effect: WorkflowEffect): { lines: string[]; title: string } {
       return {
         title: "Command",
         lines: [
+          firstLine(arg(effect, "cmd")),
           result ? `Exit ${String(result.code)}` : "Running",
-          firstLine(String(result?.output ?? "")),
-        ].filter(Boolean),
+        ],
       };
     case "exists": {
       const absent = effect.result === null ? "Running" : "Absent";
       return {
         title: "Path check",
-        lines: [effect.result === true ? "Found" : absent],
+        lines: [arg(effect, "path"), effect.result === true ? "Found" : absent],
       };
     }
     default:
-      return { title: "Child workflow", lines: [] };
+      return { title: "Child workflow", lines: [arg(effect, "slug")] };
   }
 }
 
@@ -261,11 +272,10 @@ export function journalCheckpoints(
     if (effect.kind !== "checkpoint") {
       continue;
     }
-    const result = effect.result as { data: unknown; label: string } | null;
     marks.push({
       seq: effect.seq,
-      label: result?.label ?? "Checkpoint",
-      data: result?.data ?? null,
+      label: arg(effect, "label"),
+      data: effect.args?.data ?? null,
       at: String(effect.at),
       nodeId: previous,
     });
@@ -282,24 +292,20 @@ export function journalLog(effects: WorkflowEffect[]): JournalLogLine[] {
       seq: effect.seq,
       kind: effect.kind as "log" | "notify",
       at: String(effect.at),
-      text:
-        effect.kind === "log"
-          ? String((effect.result as { text?: string } | null)?.text ?? "")
-          : "Sent a notice to the supervisor.",
+      text: arg(effect, "text"),
     }));
 }
 
 /**
  * How many times the run read or wrote its shared store while a step was the
- * program's most recent call. The journal hashes a `state` effect's arguments
- * rather than keeping them, so this counts the traffic; the slot values come
+ * program's most recent call, and which slots by name; the slot values come
  * from `run.state`.
  */
 export function journalStateTouches(
   effects: WorkflowEffect[]
-): Record<string, { reads: number; writes: number }> {
+): Record<string, JournalStateTouch> {
   const ordered = [...effects].sort((a, b) => a.seq - b.seq);
-  const touches: Record<string, { reads: number; writes: number }> = {};
+  const touches: Record<string, JournalStateTouch> = {};
   let previous: string | undefined;
   for (const effect of ordered) {
     if (NODE_KINDS.includes(effect.kind)) {
@@ -314,8 +320,12 @@ export function journalStateTouches(
     ) {
       continue;
     }
-    touches[previous] ??= { reads: 0, writes: 0 };
+    touches[previous] ??= { reads: 0, writes: 0, names: [] };
     const entry = touches[previous];
+    const name = arg(effect, "name");
+    if (!entry.names.includes(name)) {
+      entry.names.push(name);
+    }
     if (effect.kind === "state-get") {
       entry.reads += 1;
     } else {

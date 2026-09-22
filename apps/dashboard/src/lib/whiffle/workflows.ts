@@ -2,21 +2,15 @@ import type {
   Problem,
   Workflow,
   WorkflowAction,
+  WorkflowAsk,
   WorkflowAttempt,
   WorkflowEffect,
   WorkflowGraph,
-  WorkflowInput,
   WorkflowRun,
   WorkflowStep,
 } from "@whiffle/core";
 
-/**
- * The hub evaluates `inputs` from the program's zod export at save and stores
- * it on the row, which is what the launch dialog reads when there is no graph
- * to read a Start node from.
- */
-export type WorkflowRecord = Workflow & { inputs: WorkflowInput[] };
-export type WorkflowDetail = WorkflowRecord & { problems: Problem[] };
+export type WorkflowDetail = Workflow & { problems: Problem[] };
 
 /**
  * A save the hub refused with diagnostics rather than a sentence: a compile or
@@ -37,6 +31,8 @@ export class WorkflowProblems extends Error {
 export type WorkflowRunDetail = WorkflowRun & {
   steps: WorkflowStep[];
   attempts: WorkflowAttempt[];
+  /** Present while the run is `waiting`: the question it is parked on. */
+  ask?: WorkflowAsk;
 };
 export interface WorkflowLaunch {
   inputs: Record<string, unknown>;
@@ -84,7 +80,7 @@ const id = encodeURIComponent;
 /** A workflow is authored either as a graph or as a program, never both. */
 export type WorkflowSource = { graph: WorkflowGraph } | { program: string };
 export const loadWorkflows = () =>
-  request<{ workflows: WorkflowRecord[] }>("workflows");
+  request<{ workflows: Workflow[] }>("workflows");
 export const loadWorkflow = (key: string) =>
   request<WorkflowDetail>(`workflows/${id(key)}`);
 export const createWorkflow = (body: { name: string } & WorkflowSource) =>

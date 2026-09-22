@@ -40,6 +40,8 @@ export type WorkflowEffectKind =
  * than silently answered from another call's outcome.
  */
 export interface WorkflowEffect {
+  /** The call's arguments as made; null for `run`/`spawn`, whose spec is on `result`. */
+  args: Record<string, unknown> | null;
   argsHash: string;
   at: Date | string;
   failure: string | null;

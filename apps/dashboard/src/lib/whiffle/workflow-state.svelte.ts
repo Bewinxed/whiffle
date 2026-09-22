@@ -1,15 +1,19 @@
-import type { WorkflowEffect, WorkflowFrame, WorkflowRun } from "@whiffle/core";
+import type {
+  Workflow,
+  WorkflowEffect,
+  WorkflowFrame,
+  WorkflowRun,
+} from "@whiffle/core";
 import {
   loadWorkflowEffects,
   loadWorkflowRun,
   loadWorkflowRuns,
   loadWorkflows,
-  type WorkflowRecord,
   type WorkflowRunDetail,
 } from "./workflows";
 
 export const workflowState = $state({
-  workflows: [] as WorkflowRecord[],
+  workflows: [] as Workflow[],
   runs: {} as Record<string, WorkflowRun>,
   details: {} as Record<string, WorkflowRunDetail>,
   /** The effect journal per run: the code-origin graph, checkpoints and log. */
@@ -24,9 +28,12 @@ export function acceptWorkflowFrame(frame: WorkflowFrame) {
   if (!detail) {
     return;
   }
+  // A frame without `ask` means the run is no longer parked on a question.
+  const { ask: _answered, ...rest } = detail;
   workflowState.details[frame.runId] = {
-    ...detail,
+    ...rest,
     ...frame.run,
+    ...(frame.ask ? { ask: frame.ask } : {}),
     steps: frame.step
       ? [
           ...detail.steps.filter((step) => step.id !== frame.step?.id),

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { DelegateType } from "@whiffle/core";
+  import type { DelegateType, Workflow } from "@whiffle/core";
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
   import DirectoryPicker from "$lib/components/features/DirectoryPicker.svelte";
@@ -7,9 +7,9 @@
   import * as Dialog from "$lib/components/ui/dialog";
   import { whiffle } from "$lib/whiffle/client.svelte";
   import { loadDelegateTypes, message } from "$lib/whiffle/delegate-types";
-  import { launchWorkflow, type WorkflowRecord } from "$lib/whiffle/workflows";
+  import { launchWorkflow } from "$lib/whiffle/workflows";
 
-  let { workflow, onclose }: { onclose: () => void; workflow: WorkflowRecord } =
+  let { workflow, onclose }: { onclose: () => void; workflow: Workflow } =
     $props();
   let machineId = $state("");
   let workspace = $state("");

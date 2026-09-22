@@ -32,7 +32,6 @@ import type {
   StopPayload,
   SupervisorEvent,
   UsageLimitsReading,
-  WorkflowFrame,
 } from "@whiffle/core";
 import {
   CONTROL_RELOAD_SKILLS,
@@ -1112,9 +1111,10 @@ const nameOfCall = (messages: Message[], toolId: string): string =>
     ?.toolName ?? "";
 
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: dispatches every FramePayload kind the socket can deliver; splitting it would scatter one state machine across files
-function handleFrame(frame: FramePayload | WorkflowFrame): void {
+function handleFrame(frame: FramePayload): void {
   if (frame.kind === "permission_request" && "workflowRunId" in frame) {
-    // Workflow questions are represented once, by their authoritative waiting run.
+    // A workflow question is represented once, by its waiting run, and is
+    // answered through the run view — not as a session permission prompt.
     return;
   }
   if (frame.kind === "workflow") {
