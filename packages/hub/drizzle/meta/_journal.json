@@ -232,6 +232,13 @@
       "when": 1788900000000,
       "tag": "0032_fleet_denied_tools",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1790060682312,
+      "tag": "0033_thankful_gambit",
+      "breakpoints": true
     }
   ]
 }

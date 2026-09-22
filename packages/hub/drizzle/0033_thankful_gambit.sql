@@ -1,0 +1,1 @@
+ALTER TABLE `instances` ADD `spawned_at` integer;

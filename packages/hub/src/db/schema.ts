@@ -185,6 +185,11 @@ export const instances = sqliteTable("instances", {
   updatedAt: timestamp("updated_at")
     .notNull()
     .$defaultFn(() => new Date()),
+  /**
+   * When the hub last issued a spawn or restore for this row. A `starting` row's
+   * grace measures from here: asking for a process is not session activity.
+   */
+  spawnedAt: timestamp("spawned_at"),
 });
 
 /** The three things a delegate and its parent ever say to each other. */

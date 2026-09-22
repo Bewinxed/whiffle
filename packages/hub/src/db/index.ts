@@ -1173,6 +1173,7 @@ const make = (path: string): DbShape => {
           status: "starting",
           createdAt: now,
           updatedAt: now,
+          spawnedAt: now,
         })
         .onConflictDoUpdate({
           target: instances.id,
@@ -1189,6 +1190,7 @@ const make = (path: string): DbShape => {
             // already was; stamping it here dated every restored session to the
             // daemon reconnect instant.
             status: "starting",
+            spawnedAt: now,
             lastError: null,
             ...(cleanSessionId ? { sessionId: cleanSessionId } : {}),
             ...(harness ? { harness } : {}),
@@ -1267,10 +1269,10 @@ const make = (path: string): DbShape => {
         );
         return;
       }
+      // Naming its conversation is liveness, not the session doing something.
       db.update(instances)
         .set({
           sessionId,
-          updatedAt: new Date(),
           ...(cwd ? { cwd } : {}),
           ...(harness ? { harness } : {}),
         })
@@ -1345,7 +1347,6 @@ const make = (path: string): DbShape => {
         .all();
 
       const catalog = resumable && new Set(resumable);
-      const updatedAt = new Date();
       for (const row of orphans) {
         const resumes =
           !catalog || (row.sessionId !== null && catalog.has(row.sessionId));
@@ -1358,8 +1359,8 @@ const make = (path: string): DbShape => {
         db.update(instances)
           .set(
             resumes
-              ? { status: "sleeping", lastError: null, updatedAt }
-              : { status: "error", lastError: RESTART_LOST, updatedAt }
+              ? { status: "sleeping", lastError: null }
+              : { status: "error", lastError: RESTART_LOST }
           )
           .where(eq(instances.id, row.id))
           .run();
@@ -1422,14 +1423,13 @@ const make = (path: string): DbShape => {
           )
         )
         .all()
-        // A spawn issued seconds ago may not have reached the supervisor before
-        // the beat that was already in flight left it. Only `starting` gets that
-        // benefit of the doubt — a row that was confirmed `running` and is now
-        // absent is news, immediately.
+        // Only `starting` gets grace, measured from when the spawn was issued,
+        // not the session's last activity. Without an issue-time there is no grace.
         .filter(
           (row) =>
             row.status === "running" ||
-            now.getTime() - row.updatedAt.getTime() >= graceMs
+            row.spawnedAt === null ||
+            now.getTime() - row.spawnedAt.getTime() >= graceMs
         );
 
       // `updatedAt` deliberately absent: the hub concluding that a process
@@ -1446,10 +1446,11 @@ const make = (path: string): DbShape => {
       }
       return { promoted, settled: gone };
     },
+    // A process coming up is liveness, not the session doing something.
     markInstanceLive: (id) =>
       db
         .update(instances)
-        .set({ status: "running", lastError: null, updatedAt: new Date() })
+        .set({ status: "running", lastError: null })
         .where(
           and(
             eq(instances.id, id),
