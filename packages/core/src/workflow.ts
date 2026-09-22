@@ -32,12 +32,14 @@ export interface Workflow {
   updatedAt: Date | string;
 }
 export interface WorkflowRun {
+  edges: Record<string, Record<string, "fired" | "skipped">>;
   endedAt: Date | string | null;
   failure: string | null;
   graph: WorkflowGraph;
   id: string;
   inputs: Record<string, unknown>;
   launchedBy: string;
+  loops: Record<string, Record<string, number>>;
   machineId: string;
   parentRunId: string | null;
   parentStepId: string | null;

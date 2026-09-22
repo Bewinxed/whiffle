@@ -5,6 +5,7 @@ import type {
   WorkflowAction,
   WorkflowGraph,
   WorkflowNode,
+  WorkflowRun,
 } from "@whiffle/core";
 import {
   evaluateWhen,
@@ -45,7 +46,7 @@ type StepNode = Extract<WorkflowNode, { kind: "step" }>;
 export interface WorkflowEngineDeps {
   broadcast: (frame: {
     runId: string;
-    run: Omit<WorkflowRunRow, "runtime">;
+    run: Omit<WorkflowRunRow, "runtime"> & Pick<WorkflowRun, "edges" | "loops">;
     step?: WorkflowStepRow;
     attempt?: WorkflowAttemptRow;
   }) => void;
@@ -72,7 +73,47 @@ const active = (run: WorkflowRunRow) =>
   run.status === "running" || run.status === "waiting";
 const reason = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
-const publicRun = ({ runtime: _runtime, ...run }: WorkflowRunRow) => run;
+export const publicRun = ({ runtime, ...run }: WorkflowRunRow) => {
+  const { scopes } = runtime as Runtime;
+  const names = new Map<string, string>([["root", "root"]]);
+  const nameOf = (id: string): string => {
+    const known = names.get(id);
+    if (known) {
+      return known;
+    }
+    const scope = scopes[id];
+    const parent = Object.entries(scopes).find(([, candidate]) =>
+      Object.values(candidate.steps).includes(scope.parentStep ?? "")
+    );
+    const nodeId =
+      parent &&
+      Object.entries(parent[1].steps).find(
+        ([, stepId]) => stepId === scope.parentStep
+      )?.[0];
+    if (!(parent && nodeId) || scope.index === undefined) {
+      throw new Error(`Missing map parent for workflow scope ${id}.`);
+    }
+    const prefix = parent[0] === "root" ? "" : `${nameOf(parent[0])}.`;
+    const name = `${prefix}${nodeId}[${scope.index}]`;
+    names.set(id, name);
+    return name;
+  };
+  return {
+    ...run,
+    edges: Object.fromEntries(
+      Object.entries(scopes).map(([id, scope]) => [
+        nameOf(id),
+        { ...scope.edges },
+      ])
+    ),
+    loops: Object.fromEntries(
+      Object.entries(scopes).map(([id, scope]) => [
+        nameOf(id),
+        { ...scope.loops },
+      ])
+    ),
+  };
+};
 
 export function createWorkflowEngine(deps: WorkflowEngineDeps) {
   const { db } = deps;

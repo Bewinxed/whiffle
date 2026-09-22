@@ -2,7 +2,7 @@ import type { WorkflowAction, WorkflowGraph } from "@whiffle/core";
 import { validateWorkflow } from "@whiffle/core";
 import { Elysia, t } from "elysia";
 import type { DbShape } from "../db";
-import type { createWorkflowEngine } from "./engine";
+import { type createWorkflowEngine, publicRun } from "./engine";
 
 export function workflowRoutes(
   db: DbShape,
@@ -114,7 +114,7 @@ export function workflowRoutes(
     .get("/api/workflows/:id/runs", ({ params }) => ({
       runs: db
         .listWorkflowRuns(db.getWorkflow(params.id)?.id ?? params.id)
-        .map(({ runtime: _runtime, ...run }) => run),
+        .map(publicRun),
     }))
     .post("/api/workflows/:id/runs", { body: t.Any() }, ({ params, body }) =>
       attempt(() => {
