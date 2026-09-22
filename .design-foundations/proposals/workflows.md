@@ -321,6 +321,14 @@ POST            /api/workflow-steps/:id/result     submit_result's body; refused
 ```
 ### 7.2 WS — one frame kind `workflow` `{ runId, run, step?, attempt? }` on every transition.
 
+### 7.2a Public edge state
+`runtime` never leaves the hub, but the run the API and frames carry includes two
+projections of it so the run view can paint the path without inferring it from step
+statuses: `run.edges: Record<scope, Record<edgeId, "fired" | "skipped">>` and
+`run.loops: Record<scope, Record<edgeId, number>>` (iterations consumed on cycle-closing
+edges). `scope` is `"root"` for the top-level graph and `"<mapNodeId>[<index>]"` for each
+map-body iteration. Present on `GET /api/workflow-runs/:id` and on every `workflow` frame.
+
 ### 7.3 Agent tools (sessions that may delegate)
 `run_workflow(name, inputs, { workspace? })` → `{ runId }`; the caller becomes supervisor
 (§3.7). `steer_workflow(runId, action)`. `create_workflow(markdown)` / `update_workflow(name,
