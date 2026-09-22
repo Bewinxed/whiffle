@@ -512,9 +512,10 @@ const attach = (
       if (socket.readyState !== WebSocket.OPEN) {
         return;
       }
-      // Usage originates at the hub; machine-scoped control replies also
-      // travel through this sink without an instanceId.
-      if (frame.kind === "usage") {
+      // Usage and workflow-run transitions originate at the hub, never at a
+      // daemon; machine-scoped control replies do travel through this sink,
+      // without an instanceId.
+      if (frame.kind === "usage" || frame.kind === "workflow") {
         return;
       }
       send(socket, {

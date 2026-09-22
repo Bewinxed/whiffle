@@ -109,6 +109,11 @@ import {
   TASK_LEDGER_TOOLS,
 } from "./tasks.svelte";
 import type { DelegateAskEvent, DelegateEvent, Message } from "./types";
+import {
+  acceptWorkflowFrame,
+  refreshWorkflows,
+  workflowState,
+} from "./workflow-state.svelte";
 import { workingSet } from "./working-set.svelte";
 
 export type ConnectionStatus =
@@ -881,6 +886,8 @@ function usageLimitReadings(
 
 /** Registry reads: on connect and again after every reconnect. */
 async function refresh(): Promise<void> {
+  // Registry hydration also recovers workflow transitions missed while disconnected.
+  refreshWorkflows();
   const [machines, instances, projects, pending, handoffs, queues, usage] =
     await Promise.all([
       load<Machine[]>("/api/agents"),
@@ -1105,6 +1112,15 @@ const nameOfCall = (messages: Message[], toolId: string): string =>
 
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: dispatches every FramePayload kind the socket can deliver; splitting it would scatter one state machine across files
 function handleFrame(frame: FramePayload): void {
+  if (frame.kind === "permission_request" && "workflowRunId" in frame) {
+    // A workflow question is represented once, by its waiting run, and is
+    // answered through the run view — not as a session permission prompt.
+    return;
+  }
+  if (frame.kind === "workflow") {
+    acceptWorkflowFrame(frame);
+    return;
+  }
   if (frame.kind === "preview") {
     const previous = state.previews[frame.instanceId];
     const sameSource =
@@ -5397,6 +5413,11 @@ export const whiffle = {
     return blockedRequests();
   },
   get blockedCount(): number {
-    return blockedRequests().length;
+    return (
+      blockedRequests().length +
+      Object.values(workflowState.runs).filter(
+        (run) => run.status === "waiting"
+      ).length
+    );
   },
 };

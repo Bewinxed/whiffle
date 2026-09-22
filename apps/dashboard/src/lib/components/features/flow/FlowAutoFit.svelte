@@ -9,13 +9,15 @@
   } from "$lib/utils/flow-constants";
 
   interface Props {
+    mode?: "follow" | "fit";
     nodeCount: number;
     nodes: Node[];
   }
 
-  let { nodeCount, nodes }: Props = $props();
+  let { nodeCount, nodes, mode = "follow" }: Props = $props();
 
-  const { setViewport, getViewport, screenToFlowPosition } = useSvelteFlow();
+  const { setViewport, getViewport, screenToFlowPosition, fitView } =
+    useSvelteFlow();
 
   // Track previous count to detect new nodes
   let prevCount = $state(0);
@@ -124,6 +126,13 @@
   }
 
   onMount(() => {
+    if (mode === "fit") {
+      const timer = setTimeout(
+        () => fitView({ padding: 0.2, maxZoom: 1 }),
+        INITIAL_PAN_DELAY
+      );
+      return () => clearTimeout(timer);
+    }
     hasInitialized = false;
     prevCount = 0;
 
@@ -153,6 +162,17 @@
   });
 
   $effect(() => {
+    if (mode === "fit") {
+      const count = nodeCount;
+      if (count) {
+        const timer = setTimeout(
+          () => fitView({ padding: 0.2, maxZoom: 1 }),
+          50
+        );
+        return () => clearTimeout(timer);
+      }
+      return;
+    }
     if (!hasInitialized) {
       return;
     }

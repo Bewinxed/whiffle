@@ -450,22 +450,48 @@ export const attachOpencodeServer = async (options: {
 /** Supplies MCP caller identity and the workflow-only tool enabled by each session's tool mask. */
 export const buildHandoffPluginSource =
   (): string => `import { tool } from "@opencode-ai/plugin";
-export const WhiffleContext = async ({ directory }) => ({
+const whiffleBase = ${JSON.stringify(delegationHubUrl())};
+export const WhiffleContext = async ({ directory }) => {
+const whiffleStep = async (context) => {
+  const response = await fetch(whiffleBase + "/api/instances");
+  if (!response.ok) throw new Error(await response.text());
+  const rows = await response.json();
+  const actor = rows.find(row => row.sessionId === context.sessionID && row.cwd === directory && row.workflowStepId);
+  if (!actor) throw new Error("This tool is available only to workflow steps.");
+  return actor;
+};
+return ({
   tool: {
     whiffle_submit_result: tool({
       description: "Call exactly once with an object matching the schema in your instructions, then end your turn. The hub's validation message is returned verbatim on failure.",
       args: { result: tool.schema.record(tool.schema.string(), tool.schema.unknown()) },
       async execute({ result }, context) {
-        const base = ${JSON.stringify(delegationHubUrl())};
-        const response = await fetch(base + "/api/instances");
-        if (!response.ok) throw new Error(await response.text());
-        const rows = await response.json();
-        const actor = rows.find(row => row.sessionId === context.sessionID && row.cwd === directory && row.workflowStepId);
-        if (!actor) throw new Error("submit_result is available only to workflow steps.");
-        const recorded = await fetch(base + "/api/workflow-steps/" + encodeURIComponent(actor.workflowStepId) + "/result", {
+        const actor = await whiffleStep(context);
+        const recorded = await fetch(whiffleBase + "/api/workflow-steps/" + encodeURIComponent(actor.workflowStepId) + "/result", {
           method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ instanceId: actor.id, result })
         });
         return recorded.text();
+      }
+    }),
+    whiffle_workflow_state_read: tool({
+      description: "Read a named slot of this workflow run's shared state. Only slots the run's program declared with w.state(name, schema) exist.",
+      args: { name: tool.schema.string() },
+      async execute({ name }, context) {
+        const actor = await whiffleStep(context);
+        const read = await fetch(whiffleBase + "/api/workflow-runs/" + encodeURIComponent(actor.workflowRunId) + "/state/" + encodeURIComponent(name) + "?instanceId=" + encodeURIComponent(actor.id));
+        if (!read.ok) throw new Error(await read.text());
+        return read.text();
+      }
+    }),
+    whiffle_workflow_state_write: tool({
+      description: "Write a named slot of this workflow run's shared state. The value is validated against the schema the run's program declared; the validator's message comes back verbatim on failure.",
+      args: { name: tool.schema.string(), value: tool.schema.unknown() },
+      async execute({ name, value }, context) {
+        const actor = await whiffleStep(context);
+        const written = await fetch(whiffleBase + "/api/workflow-runs/" + encodeURIComponent(actor.workflowRunId) + "/state/" + encodeURIComponent(name), {
+          method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ instanceId: actor.id, value })
+        });
+        return written.text();
       }
     })
   },
@@ -474,7 +500,8 @@ export const WhiffleContext = async ({ directory }) => ({
       output.args.__whiffle = { sessionId: input.sessionID, directory };
     }
   },
-});`;
+});
+};`;
 
 /**
  * Whether a parked permission should be auto-allowed by the daemon itself.
@@ -2017,6 +2044,8 @@ export class OpencodeSession implements HarnessSession {
           parts: parts as never,
           tools: {
             whiffle_submit_result: !!this.#workflowStepId,
+            whiffle_workflow_state_read: !!this.#workflowStepId,
+            whiffle_workflow_state_write: !!this.#workflowStepId,
             ...Object.fromEntries(
               [
                 "start_session",

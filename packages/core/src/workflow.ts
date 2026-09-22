@@ -13,9 +13,75 @@ export type WorkflowStepStatus =
   | "skipped"
   | "cancelled";
 export type WorkflowAttemptStatus = "running" | "passed" | "failed";
+export type WorkflowOrigin = "editor" | "code";
+
+/** Every effect kind the bridge can carry. One row in `workflow_effects`. */
+export type WorkflowEffectKind =
+  | "run"
+  | "spawn"
+  | "await"
+  | "ask"
+  | "exec"
+  | "exists"
+  | "workflow"
+  | "state-get"
+  | "state-set"
+  | "checkpoint"
+  | "sleep"
+  | "now"
+  | "notify"
+  | "notes"
+  | "log"
+  | "trace";
+
+/**
+ * The journal row. `argsHash` pins the call's arguments so a replay that asks
+ * something different at the same `seq` is refused as non-deterministic rather
+ * than silently answered from another call's outcome.
+ */
+export interface WorkflowEffect {
+  /** The call's arguments as made; null for `run`/`spawn`, whose spec is on `result`. */
+  args: Record<string, unknown> | null;
+  argsHash: string;
+  at: Date | string;
+  failure: string | null;
+  kind: WorkflowEffectKind;
+  result: unknown;
+  runId: string;
+  seq: number;
+}
+
+/** How a typed rejection crosses the worker boundary and comes back. */
+export interface WorkflowFailure {
+  attempts?: number;
+  childRunId?: string;
+  kind?: string;
+  message: string;
+  name: "StepError" | "AskError" | "ChildError" | "Error";
+  stepId?: string;
+}
+
+/**
+ * The question a `waiting` run is parked on. Self-contained on purpose: a
+ * code-origin run has no graph to read the question off, so the hub sends the
+ * whole thing, on the run detail and on the frame that announces the wait.
+ */
+export interface WorkflowAsk {
+  allowOther: boolean;
+  answeredBy: "operator" | "supervisor";
+  options: { description?: string; label: string }[];
+  parkedAt: Date | string;
+  question: string;
+  stepId: string;
+}
+
 /** Hub-originated run transition, separate from a harness's session frames. */
 export interface WorkflowFrame {
+  /** Present while the run is `waiting`: everything needed to answer it. */
+  ask?: WorkflowAsk;
   attempt?: WorkflowAttempt;
+  /** The marker a `w.checkpoint` call just recorded. */
+  checkpoint?: { data?: unknown; label: string };
   kind: "workflow";
   run: WorkflowRun;
   runId: string;
@@ -24,18 +90,23 @@ export interface WorkflowFrame {
 export interface Workflow {
   createdAt: Date | string;
   description: string;
-  graph: WorkflowGraph;
+  /** The editor's model. Null for a program written by hand or by an agent. */
+  graph: WorkflowGraph | null;
   id: string;
+  /** The program's `inputs` export, as the launch dialog and stubs need it. */
+  inputs: WorkflowInput[];
   name: string;
+  origin: WorkflowOrigin;
+  /** The executable form: what the hub actually runs (§13.1). */
+  program: string;
   slug: string;
-  source: string | null;
   updatedAt: Date | string;
 }
 export interface WorkflowRun {
   edges: Record<string, Record<string, "fired" | "skipped">>;
   endedAt: Date | string | null;
   failure: string | null;
-  graph: WorkflowGraph;
+  graph: WorkflowGraph | null;
   id: string;
   inputs: Record<string, unknown>;
   launchedBy: string;
@@ -43,9 +114,11 @@ export interface WorkflowRun {
   machineId: string;
   parentRunId: string | null;
   parentStepId: string | null;
+  program: string;
   rerunOfRunId: string | null;
   result: unknown;
   startedAt: Date | string;
+  state: Record<string, unknown>;
   status: WorkflowRunStatus;
   supervisorInstanceId: string | null;
   workflowId: string;
@@ -311,7 +384,14 @@ export function validateWorkflow(
     workflowId?: string;
     resolveWorkflow?: (
       id: string
-    ) => { id: string; name: string; graph: WorkflowGraph } | undefined;
+    ) => { id: string; name: string; graph: WorkflowGraph | null } | undefined;
+    /**
+     * Compiles the graph and typechecks the program, pinning each diagnostic
+     * back onto the node that produced its line. Injected by the hub —
+     * `workflowProgramCheck` in `@whiffle/core/workflow-sandbox` — so the
+     * editor can run the graph rules without loading a TypeScript compiler.
+     */
+    checkProgram?: (graph: WorkflowGraph) => Problem[];
   } = {}
 ): Problem[] {
   const problems: Problem[] = [];
@@ -474,7 +554,7 @@ export function validateWorkflow(
     }
     if (node.kind === "workflow") {
       const child = options.resolveWorkflow?.(node.workflowId);
-      if (child) {
+      if (child?.graph) {
         const childStart = child.graph.nodes.find(
           (entry) => entry.kind === "start"
         );
@@ -638,7 +718,7 @@ export function validateWorkflow(
     const walk = (candidate: WorkflowGraph, ids: string[], names: string[]) => {
       for (const call of calls(candidate)) {
         const child = options.resolveWorkflow?.(call.workflowId);
-        if (!child) {
+        if (!child?.graph) {
           continue;
         }
         if (ids.includes(child.id)) {
@@ -660,6 +740,9 @@ export function validateWorkflow(
       [options.workflowId],
       [options.resolveWorkflow(options.workflowId)?.name ?? options.workflowId]
     );
+  }
+  if (!(problems.length || options.inMap) && options.checkProgram) {
+    problems.push(...options.checkProgram(graph));
   }
   return problems;
 }

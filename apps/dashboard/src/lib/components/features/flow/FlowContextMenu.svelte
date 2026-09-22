@@ -12,13 +12,20 @@
   }
 
   interface Props {
+    jumpLabel?: string;
     onAction: (action: ContextMenuAction) => void;
     onClose: () => void;
     x: number;
     y: number;
   }
 
-  let { x, y, onAction, onClose }: Props = $props();
+  let {
+    x,
+    y,
+    onAction,
+    onClose,
+    jumpLabel = "Jump to chat view",
+  }: Props = $props();
 
   let menuRef = $state<HTMLDivElement | null>(null);
 
@@ -47,7 +54,7 @@
     };
   });
 
-  const menuItems: MenuItem[] = [
+  const menuItems: MenuItem[] = $derived([
     {
       id: "copy",
       label: "Copy content",
@@ -56,11 +63,11 @@
     },
     {
       id: "jump",
-      label: "Jump to chat view",
+      label: jumpLabel,
       icon: IconChat,
-      description: "Switch to chat view",
+      description: jumpLabel,
     },
-  ];
+  ]);
 </script>
 
 <div

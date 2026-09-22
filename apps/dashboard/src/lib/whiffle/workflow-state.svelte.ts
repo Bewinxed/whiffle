@@ -1,0 +1,85 @@
+import type {
+  Workflow,
+  WorkflowEffect,
+  WorkflowFrame,
+  WorkflowRun,
+} from "@whiffle/core";
+import {
+  loadWorkflowEffects,
+  loadWorkflowRun,
+  loadWorkflowRuns,
+  loadWorkflows,
+  type WorkflowRunDetail,
+} from "./workflows";
+
+export const workflowState = $state({
+  workflows: [] as Workflow[],
+  runs: {} as Record<string, WorkflowRun>,
+  details: {} as Record<string, WorkflowRunDetail>,
+  /** The effect journal per run: the code-origin graph, checkpoints and log. */
+  effects: {} as Record<string, WorkflowEffect[]>,
+  error: "",
+});
+const revisions = new Map<string, number>();
+export function acceptWorkflowFrame(frame: WorkflowFrame) {
+  revisions.set(frame.runId, (revisions.get(frame.runId) ?? 0) + 1);
+  workflowState.runs[frame.runId] = frame.run;
+  const detail = workflowState.details[frame.runId];
+  if (!detail) {
+    return;
+  }
+  // A frame without `ask` means the run is no longer parked on a question.
+  const { ask: _answered, ...rest } = detail;
+  workflowState.details[frame.runId] = {
+    ...rest,
+    ...frame.run,
+    ...(frame.ask ? { ask: frame.ask } : {}),
+    steps: frame.step
+      ? [
+          ...detail.steps.filter((step) => step.id !== frame.step?.id),
+          frame.step,
+        ]
+      : detail.steps,
+    attempts: frame.attempt
+      ? [
+          ...detail.attempts.filter(
+            (attempt) => attempt.id !== frame.attempt?.id
+          ),
+          frame.attempt,
+        ]
+      : detail.attempts,
+  };
+}
+export async function refreshWorkflowRun(runId: string) {
+  const revision = revisions.get(runId) ?? 0;
+  const detail = await loadWorkflowRun(runId);
+  if ((revisions.get(runId) ?? 0) !== revision) {
+    return refreshWorkflowRun(runId);
+  }
+  workflowState.details[runId] = detail;
+  workflowState.runs[runId] = detail;
+  return detail;
+}
+export async function refreshWorkflowEffects(runId: string) {
+  const { effects } = await loadWorkflowEffects(runId);
+  workflowState.effects[runId] = effects;
+  return effects;
+}
+export async function refreshWorkflows() {
+  try {
+    const { workflows } = await loadWorkflows();
+    workflowState.workflows = workflows;
+    const batches = await Promise.all(
+      workflows.map((workflow) => loadWorkflowRuns(workflow.id))
+    );
+    await Promise.all(
+      batches
+        .flatMap((batch) => batch.runs)
+        .map((run) => refreshWorkflowRun(run.id))
+    );
+    workflowState.error = "";
+  } catch (error) {
+    workflowState.error =
+      error instanceof Error ? error.message : String(error);
+  }
+}

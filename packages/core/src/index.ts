@@ -714,7 +714,9 @@ export type FramePayload =
       kind: "pulse";
       instanceId: string;
       pulse: SessionPulse;
-    };
+    }
+  /** Hub-originated workflow run transition (§7.2). */
+  | import("./workflow").WorkflowFrame;
 
 export const WHIFFLE_HUB_PORT = 3456;
 
@@ -839,4 +841,4 @@ export const readEnv = (
 export const WHIFFLE_MDNS_TYPE = "whiffle";
 export * from "./image-generation";
 export * from "./workflow";
-export * from "./workflow-markdown";
+export * from "./workflow-compile";

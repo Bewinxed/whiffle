@@ -38,6 +38,7 @@ export function createDelegationMcp(options: {
       cwd: "",
       canDelegate,
       workflowStepId,
+      workflowRunId: workflowStepId ? "" : undefined,
       emit: () => {
         throw new Error("Discovery cannot execute tools");
       },
@@ -194,6 +195,7 @@ export function createDelegationMcp(options: {
         harness: actor.harness as "claude" | "opencode" | "pi",
         canDelegate: actor.canDelegate ?? undefined,
         workflowStepId: actor.workflowStepId ?? undefined,
+        workflowRunId: actor.workflowRunId ?? undefined,
         emit: (envelope) => emitted.push(envelope),
       }).find((tool) => tool.name === name);
       if (!entry) {

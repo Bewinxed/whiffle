@@ -20,6 +20,7 @@
   import { slide } from "svelte/transition";
   import { Virtualizer } from "virtua/svelte";
   import { page } from "$app/state";
+  import WorkflowRail from "$lib/components/features/workflows/WorkflowRail.svelte";
   import { Button } from "$lib/components/ui/button";
   import { Checkbox } from "$lib/components/ui/checkbox";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte component-group convention
@@ -40,6 +41,7 @@
     IconTools,
     IconUsage,
     IconWarningTriangle,
+    IconWorkflow,
   } from "$lib/icons";
   import { formatAgeShort, formatDistanceToNow } from "$lib/utils/time";
   import ActivityDot from "./ActivityDot.svelte";
@@ -66,6 +68,7 @@
   import { type RailSort, rail } from "./rail.svelte";
   import NewSessionDialog from "./spawn/NewSessionDialog.svelte";
   import UsageMeter from "./UsageMeter.svelte";
+  import { workflowState } from "./workflow-state.svelte";
   import { workspace } from "./workspace/workspace.svelte";
 
   const path = $derived(page.url.pathname);
@@ -183,7 +186,9 @@
    * the hundred, and a filter that left it alone would not be a filter.
    */
   const shown = (rows: InstanceRow[]): InstanceRow[] =>
-    rail.delegates ? rows : rows.filter((row) => !row.parentInstanceId);
+    rows.filter(
+      (row) => !row.workflowRunId && (rail.delegates || !row.parentInstanceId)
+    );
 
   const sessionsOf = (project: ProjectRow): InstanceRow[] =>
     ordered(shown(running.filter((row) => inProject(row, project))));
@@ -610,6 +615,19 @@
         <Sidebar.MenuItem>
           <Sidebar.MenuButton
             class={NAV_ROW}
+            isActive={path.startsWith('/workflows')}
+          >
+            {#snippet child({ props })}
+              <a href="/workflows" {...props}
+                ><span class={SLOT}><IconWorkflow class={SLOT_GLYPH} /></span
+                ><span>Workflows</span></a
+              >
+            {/snippet}
+          </Sidebar.MenuButton>
+        </Sidebar.MenuItem>
+        <Sidebar.MenuItem>
+          <Sidebar.MenuButton
+            class={NAV_ROW}
             isActive={path.startsWith('/usage')}
           >
             {#snippet child({ props })}
@@ -623,6 +641,18 @@
       </Sidebar.Menu>
     </Sidebar.Group>
 
+    {#if Object.keys(workflowState.runs).length}
+      <Sidebar.Group class={GROUP}>
+        <Sidebar.GroupLabel class={GROUP_LABEL}
+          >Workflow runs</Sidebar.GroupLabel
+        >
+        <Sidebar.Menu class={MENU}>
+          {#each Object.values(workflowState.runs).filter((run) => !run.parentRunId).sort((a, b) => +new Date(b.startedAt) - +new Date(a.startedAt)) as run (run.id)}
+            <WorkflowRail {activeSession} {run} />
+          {/each}
+        </Sidebar.Menu>
+      </Sidebar.Group>
+    {/if}
     <!-- Machines -->
     {#if whiffle.machines.length > 0}
       <Sidebar.Group class={GROUP}>
@@ -854,7 +884,11 @@
                 isActive={activeSession === row.id}
               >
                 {#snippet child({ props })}
-                  <a href={conversationHref(row.id, whiffle.instances)} style={indent(depth)} {...props}>
+                  <a
+                    href={conversationHref(row.id, whiffle.instances)}
+                    style={indent(depth)}
+                    {...props}
+                  >
                     <span
                       class={MARK}
                       style="background-image: var(--mark-overlay); background-color: var(--mark-{markHue(row.cwd || row.machineId)});"

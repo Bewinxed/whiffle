@@ -20,6 +20,18 @@
     "./sessiond": {
       "types": "./src/sessiond.ts",
       "default": "./src/sessiond.ts"
+    },
+    "./workflow-program": {
+      "types": "./src/workflow-program.ts",
+      "default": "./src/workflow-program.ts"
+    },
+    "./workflow-sandbox": {
+      "types": "./src/workflow-sandbox.ts",
+      "default": "./src/workflow-sandbox.ts"
+    },
+    "./workflow-worker": {
+      "types": "./src/workflow-worker.ts",
+      "default": "./src/workflow-worker.ts"
     }
   },
   "main": "./src/index.ts",
@@ -29,7 +41,10 @@
   },
   "dependencies": {
     "@dagrejs/dagre": "^3.1.1",
-    "yaml": "^2.9.1"
+    "typescript": "^5.9.3",
+    "yaml": "^2.9.1",
+    "zod": "3.25.76",
+    "zod-to-json-schema": "3.25.1"
   },
   "devDependencies": {
     "@types/bun": "latest",

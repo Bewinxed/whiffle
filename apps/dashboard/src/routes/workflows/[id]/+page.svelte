@@ -1,0 +1,9 @@
+<script lang="ts">
+  import { page } from "$app/state";
+  import WorkflowEditor from "$lib/components/features/workflows/WorkflowEditor.svelte";
+  import "$lib/components/features/workflows/workflows.css";
+</script>
+<svelte:head><title>Workflow editor · Whiffle</title></svelte:head>
+{#key page.params.id}
+  <WorkflowEditor id={page.params.id ?? ''} />
+{/key}

@@ -25,6 +25,13 @@ function tool<T extends z.ZodRawShape>(
   };
 }
 
+/** Only a workflow step session gets these; they need its step and run. */
+const STEP_TOOLS: ReadonlySet<string> = new Set([
+  "submit_result",
+  "workflow_state_read",
+  "workflow_state_write",
+]);
+
 /** Hub-owned tool definitions; every harness discovers this same registry. */
 
 export type { HandoffDeps } from "./delegation-actions";
@@ -60,26 +67,52 @@ export function handoffTools(deps: HandoffDeps) {
   const all = [
     tool(
       "create_workflow",
-      "Create a workflow from its Markdown text form: YAML frontmatter, node sections and a fenced flow block. Returns the saved workflow, or line-numbered parse/validation problems verbatim.",
-      { markdown: z.string() },
-      async ({ markdown }) => ({
+      'Create a workflow from a TypeScript program: `import { z } from "zod"`, `export const inputs = z.object({…})`, and a default-exported async function taking the Workflow runtime (w.run, w.spawn, w.ask, w.exec, w.exists, w.workflow, w.state, w.checkpoint, w.sleep, w.now, w.notify, w.notes, w.log). zod is the only import allowed; the program must be deterministic. Returns the saved workflow, or line-numbered typecheck problems verbatim.',
+      { name: z.string(), program: z.string() },
+      async ({ name, program }) => ({
         content: [
           {
             type: "text" as const,
-            text: JSON.stringify(await actions.createWorkflow(markdown)),
+            text: JSON.stringify(await actions.createWorkflow(name, program)),
           },
         ],
       })
     ),
     tool(
       "update_workflow",
-      "Replace a saved workflow by name, slug or id using its complete Markdown text form. Returns the saved workflow, or line-numbered parse/validation problems verbatim.",
-      { name: z.string(), markdown: z.string() },
-      async ({ name, markdown }) => ({
+      "Replace a saved workflow by name, slug or id with a complete TypeScript program. Returns the saved workflow, or line-numbered typecheck problems verbatim.",
+      { name: z.string(), program: z.string() },
+      async ({ name, program }) => ({
         content: [
           {
             type: "text" as const,
-            text: JSON.stringify(await actions.updateWorkflow(name, markdown)),
+            text: JSON.stringify(await actions.updateWorkflow(name, program)),
+          },
+        ],
+      })
+    ),
+    tool(
+      "workflow_state_read",
+      "Read a named slot of this workflow run's shared state. Only slots the run's program declared with w.state(name, schema) exist.",
+      { name: z.string() },
+      async ({ name }) => ({
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(await actions.readWorkflowState(name)),
+          },
+        ],
+      })
+    ),
+    tool(
+      "workflow_state_write",
+      "Write a named slot of this workflow run's shared state. The value is validated against the schema the run's program declared with w.state(name, schema); the validator's message comes back verbatim on failure.",
+      { name: z.string(), value: z.unknown() },
+      async ({ name, value }) => ({
+        content: [
+          {
+            type: "text" as const,
+            text: await actions.writeWorkflowState(name, value),
           },
         ],
       })
@@ -594,7 +627,7 @@ export function handoffTools(deps: HandoffDeps) {
   ];
   return all.filter(
     (entry) =>
-      (entry.name !== "submit_result" || !!deps.workflowStepId) &&
+      (!STEP_TOOLS.has(entry.name) || !!deps.workflowStepId) &&
       (deps.canDelegate !== false || !SPAWNING_TOOLS.has(entry.name))
   );
 }
