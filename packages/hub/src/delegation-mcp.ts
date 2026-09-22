@@ -32,10 +32,11 @@ export function createDelegationMcp(options: {
   let admin = adminTools();
   let adminNames = new Set(admin.map((t) => t.name));
 
-  const describe = () => [
+  const describe = (canDelegate?: boolean) => [
     ...tools({
       instanceId: "",
       cwd: "",
+      canDelegate,
       emit: () => {
         throw new Error("Discovery cannot execute tools");
       },
@@ -253,13 +254,19 @@ export function createDelegationMcp(options: {
     if (binding && !options.instances().some((row) => row.id === binding)) {
       return new Response("Unknown Whiffle instance", { status: 404 });
     }
+    const bound = binding
+      ? options.instances().find((row) => row.id === binding)
+      : undefined;
+    const canDelegate = bound?.canDelegate ?? undefined;
     const server = new Server(
       { name: "whiffle", version: "1.0.0" },
       {
         capabilities: { tools: { listChanged: true } },
         instructions: handoffInstructions({
           instanceId: binding ?? "",
-          cwd: "",
+          cwd: bound?.cwd ?? "",
+          harness: bound?.harness as "claude" | "opencode" | "pi" | undefined,
+          canDelegate,
           emit: () => undefined,
         }),
       }
@@ -276,12 +283,14 @@ export function createDelegationMcp(options: {
       },
     });
     server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: describe().map(({ name, description, inputSchema, ...entry }) => ({
-        name,
-        description,
-        inputSchema: inputSchema as { type: "object" },
-        ...("annotations" in entry ? { annotations: entry.annotations } : {}),
-      })),
+      tools: describe(canDelegate).map(
+        ({ name, description, inputSchema, ...entry }) => ({
+          name,
+          description,
+          inputSchema: inputSchema as { type: "object" },
+          ...("annotations" in entry ? { annotations: entry.annotations } : {}),
+        })
+      ),
     }));
     server.setRequestHandler(CallToolRequestSchema, async (message, extra) => {
       const token = message.params._meta?.progressToken;
