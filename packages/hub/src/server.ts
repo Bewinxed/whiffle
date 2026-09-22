@@ -3124,12 +3124,12 @@ export const createServer = ({
           payload: { instanceId, requestId },
         });
       }),
-    command: async (machineId, cwd, cmd) => {
+    command: async (machineId, cwd, cmd, timeoutMs) => {
       const response = await callAgent(
         machineId,
         "runCommand",
         [cwd, cmd],
-        310_000
+        timeoutMs ?? 310_000
       );
       if (typeof response === "string") {
         throw new Error(`Command refused: machine ${response}.`);

@@ -59,9 +59,27 @@ export interface WorkflowFailure {
   stepId?: string;
 }
 
+/**
+ * The question a `waiting` run is parked on. Self-contained on purpose: a
+ * code-origin run has no graph to read the question off, so the hub sends the
+ * whole thing, on the run detail and on the frame that announces the wait.
+ */
+export interface WorkflowAsk {
+  allowOther: boolean;
+  answeredBy: "operator" | "supervisor";
+  options: { description?: string; label: string }[];
+  parkedAt: Date | string;
+  question: string;
+  stepId: string;
+}
+
 /** Hub-originated run transition, separate from a harness's session frames. */
 export interface WorkflowFrame {
+  /** Present while the run is `waiting`: everything needed to answer it. */
+  ask?: WorkflowAsk;
   attempt?: WorkflowAttempt;
+  /** The marker a `w.checkpoint` call just recorded. */
+  checkpoint?: { data?: unknown; label: string };
   kind: "workflow";
   run: WorkflowRun;
   runId: string;
@@ -73,6 +91,8 @@ export interface Workflow {
   /** The editor's model. Null for a program written by hand or by an agent. */
   graph: WorkflowGraph | null;
   id: string;
+  /** The program's `inputs` export, as the launch dialog and stubs need it. */
+  inputs: WorkflowInput[];
   name: string;
   origin: WorkflowOrigin;
   /** The executable form: what the hub actually runs (§13.1). */

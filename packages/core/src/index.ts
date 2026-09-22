@@ -714,7 +714,9 @@ export type FramePayload =
       kind: "pulse";
       instanceId: string;
       pulse: SessionPulse;
-    };
+    }
+  /** Hub-originated workflow run transition (§7.2). */
+  | import("./workflow").WorkflowFrame;
 
 export const WHIFFLE_HUB_PORT = 3456;
 

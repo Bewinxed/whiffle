@@ -110,6 +110,12 @@ export const workflowEffects = sqliteTable(
     seq: integer("seq").notNull(),
     kind: text("kind").$type<WorkflowEffectKind>().notNull(),
     argsHash: text("args_hash").notNull(),
+    /**
+     * The call's own arguments, kept beside its outcome so the run view can
+     * say what was asked, run or stored without re-reading the program.
+     * `argsHash` stays the replay key; this column is for the reader.
+     */
+    args: text("args", { mode: "json" }).$type<Record<string, unknown>>(),
     result: text("result", { mode: "json" }).$type<unknown>(),
     failure: text("failure"),
     at: timestamp("at")

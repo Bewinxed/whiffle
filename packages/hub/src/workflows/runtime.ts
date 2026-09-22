@@ -12,6 +12,7 @@ import type {
   Problem,
   SpawnPayload,
   WorkflowAction,
+  WorkflowAsk,
   WorkflowEffectKind,
   WorkflowFailure,
   WorkflowGraph,
@@ -31,6 +32,7 @@ import type {
 
 export interface WorkflowRuntimeDeps {
   broadcast: (frame: {
+    ask?: WorkflowAsk;
     attempt?: WorkflowAttemptRow;
     checkpoint?: { data: unknown; label: string };
     run: PublicRun;
@@ -40,7 +42,8 @@ export interface WorkflowRuntimeDeps {
   command: (
     machineId: string,
     cwd: string,
-    cmd: string
+    cmd: string,
+    timeoutMs?: number
   ) => Promise<{ exitCode: number; output: string }>;
   db: DbShape;
   emit: (envelope: Envelope) => void;
@@ -110,6 +113,46 @@ const journalResult = (
     return { ...(stored?.result as object), value: outcome.result };
   }
   return outcome.result;
+};
+
+/**
+ * What a settled effect keeps of its *arguments*. The run view has to say
+ * what was asked, run, stored or slept on; `argsHash` can only say whether
+ * two calls matched. `run`/`spawn` already keep their whole spec under
+ * `result.spec`, and the schemas a `state` call carries are the program's
+ * business, not the reader's — everything else is journaled verbatim.
+ */
+const journalArgs = (
+  kind: WorkflowEffectKind,
+  args: Record<string, unknown>
+): Record<string, unknown> | null => {
+  const keep = (...names: string[]) =>
+    Object.fromEntries(
+      names.filter((name) => args[name] !== undefined).map((n) => [n, args[n]])
+    );
+  switch (kind) {
+    case "ask":
+      return keep("question", "options", "allowOther", "answeredBy", "waitFor");
+    case "exec":
+      return keep("cmd", "timeoutMinutes");
+    case "exists":
+      return keep("path");
+    case "notify":
+    case "log":
+      return keep("text");
+    case "state-get":
+      return keep("name");
+    case "state-set":
+      return keep("name", "value");
+    case "checkpoint":
+      return keep("label", "data");
+    case "workflow":
+      return keep("slug", "inputs");
+    case "sleep":
+      return keep("ms");
+    default:
+      return null;
+  }
 };
 
 const hashArgs = (args: unknown) =>
@@ -196,6 +239,33 @@ export function createWorkflowRuntime(deps: WorkflowRuntimeDeps) {
     clearTimeout(timers.get(id));
     timers.delete(id);
   };
+  /**
+   * The question a waiting run is parked on, read off the rows: the waiting
+   * `ask` step plus the arguments its effect journaled. A code-origin run has
+   * no graph to read the question from, so this is the only source, and both
+   * the detail route and the `workflow` frame use it.
+   */
+  const askOf = (run: WorkflowRunRow): WorkflowAsk | undefined => {
+    if (run.status !== "waiting") {
+      return undefined;
+    }
+    const step = db
+      .listWorkflowSteps(run.id)
+      .find((row) => row.kind === "ask" && row.status === "waiting");
+    if (!step) {
+      return undefined;
+    }
+    const args = (db.getWorkflowEffect(run.id, step.seq)?.args ??
+      {}) as Partial<WorkflowAsk>;
+    return {
+      stepId: step.id,
+      question: args.question ?? "",
+      options: args.options ?? [],
+      allowOther: args.allowOther ?? false,
+      answeredBy: args.answeredBy ?? "operator",
+      parkedAt: step.startedAt ?? run.startedAt,
+    };
+  };
   const write = (
     run: WorkflowRunRow,
     step?: WorkflowStepRow,
@@ -209,6 +279,7 @@ export function createWorkflowRuntime(deps: WorkflowRuntimeDeps) {
       step,
       attempt,
       checkpoint,
+      ask: askOf(run),
     });
   };
   const serial = <T>(
@@ -688,6 +759,7 @@ export function createWorkflowRuntime(deps: WorkflowRuntimeDeps) {
           seq,
           kind,
           argsHash: hashArgs(args),
+          args: null,
           result: { spec },
           failure: null,
           at: new Date(),
@@ -709,6 +781,18 @@ export function createWorkflowRuntime(deps: WorkflowRuntimeDeps) {
         const spec = args as unknown as Parameters<typeof parkAsk>[2];
         const id = stepIdOf(run.id, seq);
         const step = stepRow(run, seq, id, "ask", `seq-${seq}`);
+        // The question is journaled *before* it parks: a waiting run must be
+        // answerable from the rows alone, with no worker and no graph.
+        db.putWorkflowEffect({
+          runId: run.id,
+          seq,
+          kind,
+          argsHash: hashArgs(args),
+          args: journalArgs(kind, args),
+          result: null,
+          failure: null,
+          at: new Date(),
+        });
         step.status = "waiting";
         step.startedAt ??= new Date();
         run.status = "waiting";
@@ -730,7 +814,10 @@ export function createWorkflowRuntime(deps: WorkflowRuntimeDeps) {
         const { exitCode, output } = await deps.command(
           run.machineId,
           run.workspace,
-          String(args.cmd)
+          String(args.cmd),
+          args.timeoutMinutes === undefined
+            ? undefined
+            : Number(args.timeoutMinutes) * 60_000
         );
         return { result: { code: exitCode, output } };
       }
@@ -836,6 +923,7 @@ export function createWorkflowRuntime(deps: WorkflowRuntimeDeps) {
           seq,
           kind,
           argsHash: hashArgs(args),
+          args: journalArgs(kind, args),
           result: { due },
           failure: null,
           at: new Date(),
@@ -1017,6 +1105,9 @@ export function createWorkflowRuntime(deps: WorkflowRuntimeDeps) {
         seq: message.seq,
         kind,
         argsHash,
+        args:
+          stored?.args ??
+          journalArgs(kind, (message.args ?? {}) as Record<string, unknown>),
         result: journalResult(kind, stored, outcome),
         failure: outcome.failure ? JSON.stringify(outcome.failure) : null,
         at: stored?.at ?? new Date(),
@@ -1157,10 +1248,12 @@ export function createWorkflowRuntime(deps: WorkflowRuntimeDeps) {
     detail(id: string) {
       const run = runOf(id);
       const steps = db.listWorkflowSteps(id);
+      const ask = askOf(run);
       return {
         ...publicRun(run, db.listWorkflowEffects(id)),
         steps,
         attempts: steps.flatMap((step) => db.listWorkflowAttempts(step.id)),
+        ...(ask ? { ask } : {}),
       };
     },
     // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: launch refuses bad inputs, depth and supervision before pinning the program and seeding a re-run journal

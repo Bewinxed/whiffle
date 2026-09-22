@@ -113,7 +113,8 @@ function makeBridge(runId: string, inputs: Record<string, unknown>) {
     run: (spec: Record<string, unknown>) => effect("run", strip(spec)),
     spawn: (spec: Record<string, unknown>) => handleOf(strip(spec)),
     ask: (spec: unknown) => effect("ask", spec),
-    exec: (cmd: string, options?: unknown) => effect("exec", { cmd, options }),
+    exec: (cmd: string, options?: { timeoutMinutes?: number }) =>
+      effect("exec", { cmd, timeoutMinutes: options?.timeoutMinutes }),
     exists: (path: string) => effect("exists", { path }),
     workflow: (slug: string, values: unknown) =>
       effect("workflow", { slug, inputs: values }),
