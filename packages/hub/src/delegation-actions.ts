@@ -271,6 +271,8 @@ export const SPAWNING_TOOLS: ReadonlySet<string> = new Set([
   "run_workflow",
   "steer_workflow",
   "list_workflows",
+  "create_workflow",
+  "update_workflow",
   "start_session",
   "delegate",
   "stop_delegate",
@@ -323,6 +325,7 @@ export interface HandoffActions {
     answers?: Record<string, string>,
     deny?: boolean
   ): Promise<string>;
+  readonly createWorkflow: (markdown: string) => Promise<unknown>;
   // biome-ignore lint/style/useConsistentMethodSignatures: implemented below; property-style would change parameter variance against that implementation
   delegate(
     prompt: string,
@@ -380,6 +383,7 @@ export interface HandoffActions {
   // biome-ignore lint/style/useConsistentMethodSignatures: implemented below; property-style would change parameter variance against that implementation
   stopDelegate(target: string): Promise<string>;
   readonly submitResult: (result: unknown) => Promise<string>;
+  readonly updateWorkflow: (name: string, markdown: string) => Promise<unknown>;
 }
 
 /** The structured result of startSession / delegate — the id, title, and the model-facing prose. */
@@ -416,6 +420,31 @@ function resolveDelegate(
   }
 }
 
+async function saveWorkflowMarkdown(
+  method: string,
+  path: string,
+  markdown: string
+): Promise<unknown> {
+  const response = await fetch(`${hubHttpUrl()}${path}`, {
+    method,
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ markdown }),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    if (response.headers.get("content-type")?.includes("application/json")) {
+      const body = JSON.parse(text) as { problems?: { message: string }[] };
+      if (body.problems) {
+        throw new Error(
+          body.problems.map((problem) => problem.message).join("\n")
+        );
+      }
+    }
+    throw new Error(text);
+  }
+  return response.json();
+}
+
 export const handoffActions = ({
   instanceId,
   workflowStepId,
@@ -423,6 +452,16 @@ export const handoffActions = ({
   harness: callerHarness,
   emit,
 }: HandoffDeps): HandoffActions => ({
+  createWorkflow(markdown) {
+    return saveWorkflowMarkdown("POST", "/api/workflows", markdown);
+  },
+  updateWorkflow(name, markdown) {
+    return saveWorkflowMarkdown(
+      "PUT",
+      `/api/workflows/${encodeURIComponent(name)}`,
+      markdown
+    );
+  },
   async submitResult(result) {
     if (!workflowStepId) {
       throw new Error("submit_result is available only to workflow steps.");

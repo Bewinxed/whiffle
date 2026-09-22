@@ -151,6 +151,8 @@ export interface FleetSkillPayload extends FleetPlacement {
   files?: SkillFile[];
   hash: string;
   name: string;
+  /** Hub-owned workflow stub; refuses to replace an operator's skill. */
+  workflowId?: string;
 }
 
 /**

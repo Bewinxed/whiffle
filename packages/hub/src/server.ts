@@ -3220,7 +3220,77 @@ export const createServer = ({
         workflowRoutes(
           db,
           workflowEngine,
-          (id) => withSessionPresence(db.getInstancesByIds([id]))[0]?.status
+          (id) => withSessionPresence(db.getInstancesByIds([id]))[0]?.status,
+          {
+            changed: fanOutFleet,
+            check: async (name, workflowId) => {
+              await Promise.all(
+                // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: verify discovery and the ownership marker before a workflow can claim a skill on each connected machine.
+                [...registry.machineIds()].map(async (machineId) => {
+                  const answer = await callAgent(
+                    machineId,
+                    INSPECT_CONFIG,
+                    [],
+                    READ_TIMEOUT_MS
+                  );
+                  if (answer === "offline" || answer === "timeout") {
+                    throw new Error(
+                      `Cannot check workflow skill ${name}: machine ${machineId} ${answer}.`
+                    );
+                  }
+                  if (!answer.ok) {
+                    throw new Error(
+                      answer.error ?? `Cannot inspect skills on ${machineId}.`
+                    );
+                  }
+                  const inspection =
+                    answer.result as import("@whiffle/core").ConfigInspection;
+                  const matches = inspection.skills.filter(
+                    (skill) => skill.name === name
+                  );
+                  if (!matches.length) {
+                    return;
+                  }
+                  if (
+                    !workflowId ||
+                    matches.some(
+                      (skill) => !skill.managed || skill.scope !== "user"
+                    )
+                  ) {
+                    throw new Error(
+                      `Workflow slug collides with operator-installed skill ${name} on ${machineId}.`
+                    );
+                  }
+                  const files = await callAgent(
+                    machineId,
+                    READ_SKILL_FILES,
+                    [name],
+                    READ_TIMEOUT_MS
+                  );
+                  if (files === "offline" || files === "timeout" || !files.ok) {
+                    throw new Error(
+                      `Cannot verify workflow skill ${name} ownership on ${machineId}.`
+                    );
+                  }
+                  const markdown = (files.result as SkillFile[]).find(
+                    (file) => file.path === "SKILL.md"
+                  );
+                  if (
+                    !(
+                      markdown &&
+                      Buffer.from(markdown.contentBase64, "base64")
+                        .toString()
+                        .includes(`<!-- whiffle-workflow:${workflowId} -->`)
+                    )
+                  ) {
+                    throw new Error(
+                      `Workflow slug collides with operator-installed skill ${name} on ${machineId}.`
+                    );
+                  }
+                })
+              );
+            },
+          }
         )
       )
       .all("/mcp/whiffle", ({ request, body, server }) => {

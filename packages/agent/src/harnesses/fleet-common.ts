@@ -18,6 +18,10 @@ import type {
   FleetSkillPayload,
 } from "@whiffle/core";
 import { memoryPlan } from "../fleet";
+import {
+  guardWorkflowSkillRemoval,
+  workflowSkillCollision,
+} from "../workflow-skills";
 
 export const hashText = (content: string): string =>
   new Bun.CryptoHasher("sha256").update(content).digest("hex");
@@ -103,7 +107,22 @@ export const syncSkillFiles = async (
 ): Promise<Record<string, string>> => {
   const written: Record<string, string> = {};
   for (const skill of desired) {
-    if (managed[skill.name] === skill.hash) {
+    try {
+      // biome-ignore lint/performance/noAwaitInLoops: ownership is checked before this skill is written or claimed.
+      const collision = await workflowSkillCollision(dir, skill);
+      if (collision) {
+        report[skill.name] = { state: "failed", detail: collision };
+        continue;
+      }
+    } catch (error) {
+      report[skill.name] = { state: "failed", detail: String(error) };
+      continue;
+    }
+    if (
+      managed[skill.name] === skill.hash &&
+      (!skill.workflowId ||
+        (await Bun.file(join(dir, skill.name, "SKILL.md")).exists()))
+    ) {
       written[skill.name] = skill.hash;
       report[skill.name] = { state: "applied" };
       continue;
@@ -116,7 +135,7 @@ export const syncSkillFiles = async (
     // suppressed it is exactly what this failure retracts.
     if (!skill.files) {
       if (managed[skill.name] !== undefined) {
-        written[skill.name] = managed[skill.name];
+        written[skill.name] = skill.workflowId ? "" : managed[skill.name];
       }
       report[skill.name] = {
         state: "failed",
@@ -138,7 +157,6 @@ export const syncSkillFiles = async (
     }
 
     try {
-      // biome-ignore lint/performance/noAwaitInLoops: each skill's directory write must finish before its hash is recorded, or a crash mid-loop would claim an unwritten skill
       await writeSkill(dir, skill);
       written[skill.name] = skill.hash;
       report[skill.name] = { state: "applied" };
@@ -156,9 +174,15 @@ export const syncSkillFiles = async (
     if (wanted.has(name)) {
       continue;
     }
-    // biome-ignore lint/performance/noAwaitInLoops: removals are independent, but mirror the write loop above rather than adding a second concurrency strategy for the same directory
-    await rm(join(dir, name), { recursive: true, force: true });
-    report[name] = { state: "removed" };
+    try {
+      // biome-ignore lint/performance/noAwaitInLoops: record each removal before advancing to the next managed skill.
+      await guardWorkflowSkillRemoval(dir, name);
+      await rm(join(dir, name), { recursive: true, force: true });
+      report[name] = { state: "removed" };
+    } catch (error) {
+      written[name] = managed[name];
+      report[name] = { state: "failed", detail: String(error) };
+    }
   }
   return written;
 };

@@ -59,6 +59,32 @@ export function handoffTools(deps: HandoffDeps) {
   const actions = handoffActions(deps);
   const all = [
     tool(
+      "create_workflow",
+      "Create a workflow from its Markdown text form: YAML frontmatter, node sections and a fenced flow block. Returns the saved workflow, or line-numbered parse/validation problems verbatim.",
+      { markdown: z.string() },
+      async ({ markdown }) => ({
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(await actions.createWorkflow(markdown)),
+          },
+        ],
+      })
+    ),
+    tool(
+      "update_workflow",
+      "Replace a saved workflow by name, slug or id using its complete Markdown text form. Returns the saved workflow, or line-numbered parse/validation problems verbatim.",
+      { name: z.string(), markdown: z.string() },
+      async ({ name, markdown }) => ({
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(await actions.updateWorkflow(name, markdown)),
+          },
+        ],
+      })
+    ),
+    tool(
       "submit_result",
       "Call exactly once with an object matching the schema in your instructions, then end your turn. The hub's validation message is returned verbatim on failure.",
       { result: z.record(z.unknown()) },

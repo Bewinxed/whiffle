@@ -43,6 +43,7 @@ import { drizzle } from "drizzle-orm/bun-sqlite";
 import { migrate } from "drizzle-orm/bun-sqlite/migrator";
 import { Context, Effect, Layer } from "effect";
 import { DB_PATH } from "../config";
+import { workflowSkill } from "../workflows/skills";
 import type {
   DelegateAskStatus,
   DelegateEventKind,
@@ -1696,22 +1697,39 @@ const make = (path: string): DbShape => {
           .map(({ id, enabled }) => ({ id, enabled })),
         // Only the rows that resolved: a skill with no files is nothing a machine
         // could converge on, and one whose row says nothing is not sent at all.
-        skills: db
-          .select({ name: skills.name, hash: skills.hash, files: skills.files })
-          .from(skills)
-          .where(eq(skills.enabled, true))
-          .all()
-          .flatMap(({ name, hash, files }) =>
-            hash && files
-              ? [
-                  {
-                    name,
-                    hash,
-                    ...(held("skills", name, hash) ? {} : { files }),
-                  },
-                ]
-              : []
-          ),
+        skills: [
+          ...db
+            .select({
+              name: skills.name,
+              hash: skills.hash,
+              files: skills.files,
+            })
+            .from(skills)
+            .where(eq(skills.enabled, true))
+            .all()
+            .flatMap(({ name, hash, files }) =>
+              hash && files
+                ? [
+                    {
+                      name,
+                      hash,
+                      ...(held("skills", name, hash) ? {} : { files }),
+                    },
+                  ]
+                : []
+            ),
+          ...db
+            .select()
+            .from(workflows)
+            .all()
+            .map((workflow) => {
+              const skill = workflowSkill(workflow);
+              if (held("skills", skill.name, skill.hash)) {
+                skill.files = undefined;
+              }
+              return skill;
+            }),
+        ],
         // Only the rows a resolve filled in. A plugin the hub could not fetch is
         // simply absent here, and the daemon installs it the old way — which is
         // the one path left that needs the machine to reach the source itself.
@@ -1872,6 +1890,17 @@ const make = (path: string): DbShape => {
         .all()
         .map(skillMeta),
     putSkill: ({ name, source, enabled, hash, bytes, error, files }) => {
+      if (
+        db
+          .select()
+          .from(workflows)
+          .all()
+          .some((workflow) => `wf-${workflow.slug}` === name)
+      ) {
+        throw new Error(
+          `Skill ${name} is owned by a workflow; edit or delete that workflow instead.`
+        );
+      }
       const stored = db
         .select()
         .from(skills)

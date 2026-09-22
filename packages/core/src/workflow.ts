@@ -155,6 +155,7 @@ export interface WorkflowGraph {
 }
 export interface Problem {
   edgeId?: string;
+  line?: number;
   message: string;
   nodeId?: string;
 }

@@ -1,5 +1,9 @@
 import type { WorkflowAction, WorkflowGraph } from "@whiffle/core";
-import { validateWorkflow } from "@whiffle/core";
+import {
+  parseWorkflowMarkdown,
+  serializeWorkflowMarkdown,
+  validateWorkflow,
+} from "@whiffle/core";
 import { Elysia, t } from "elysia";
 import type { DbShape } from "../db";
 import { type createWorkflowEngine, publicRun } from "./engine";
@@ -7,7 +11,11 @@ import { type createWorkflowEngine, publicRun } from "./engine";
 export function workflowRoutes(
   db: DbShape,
   engine: ReturnType<typeof createWorkflowEngine>,
-  presence: (id: string) => string | undefined
+  presence: (id: string) => string | undefined,
+  skills: {
+    changed: () => void;
+    check: (name: string, workflowId: string | undefined) => Promise<void>;
+  }
 ) {
   const refusal = (error: unknown) =>
     new Response(error instanceof Error ? error.message : String(error), {
@@ -20,10 +28,23 @@ export function workflowRoutes(
       return refusal(error);
     }
   };
-  const save = (
-    body: { name?: string; graph: WorkflowGraph; description?: string },
+  const save = async (
+    input: {
+      name?: string;
+      graph?: WorkflowGraph;
+      description?: string;
+      markdown?: string;
+    },
     id: string = crypto.randomUUID()
   ) => {
+    const parsed =
+      input.markdown === undefined
+        ? undefined
+        : parseWorkflowMarkdown(input.markdown);
+    if (parsed?.problems.length) {
+      return Response.json({ problems: parsed.problems }, { status: 400 });
+    }
+    const body = parsed ?? input;
     if (!(body.name?.trim() && body.graph)) {
       throw new Error("A workflow needs a name and a graph.");
     }
@@ -31,9 +52,27 @@ export function workflowRoutes(
       workflowId: id,
       resolveWorkflow: (target) =>
         target === id
-          ? { id, name: body.name ?? id, graph: body.graph }
+          ? { id, name: body.name ?? id, graph: body.graph as WorkflowGraph }
           : db.getWorkflow(target),
     });
+    if (parsed && problems.length) {
+      return Response.json(
+        {
+          problems: problems.map((problem) => {
+            const line =
+              (problem.nodeId ? parsed.nodeLines[problem.nodeId] : undefined) ??
+              (problem.edgeId ? parsed.edgeLines[problem.edgeId] : undefined) ??
+              2;
+            return {
+              ...problem,
+              line,
+              message: `Line ${line}: ${problem.message}`,
+            };
+          }),
+        },
+        { status: 400 }
+      );
+    }
     const cycle = problems.find((problem) =>
       problem.message.startsWith("Workflow call cycle:")
     );
@@ -48,14 +87,24 @@ export function workflowRoutes(
     if (!slug) {
       throw new Error("The workflow name needs at least one letter or number.");
     }
+    const old = db.getWorkflow(id);
+    await skills.check(`wf-${slug}`, old?.id);
+    if (db.listSkills().some((skill) => skill.name === `wf-${slug}`)) {
+      throw new Error(
+        `Workflow slug ${slug} collides with operator-installed skill wf-${slug}.`
+      );
+    }
+    const stored = db.putWorkflow({
+      id,
+      name: body.name.trim(),
+      slug,
+      graph: body.graph,
+      description: body.description ?? "",
+      source: input.markdown ?? old?.source ?? null,
+    });
+    skills.changed();
     return {
-      ...db.putWorkflow({
-        id,
-        name: body.name.trim(),
-        slug,
-        graph: body.graph,
-        description: body.description ?? "",
-      }),
+      ...stored,
       problems,
     };
   };
@@ -69,9 +118,35 @@ export function workflowRoutes(
     return row;
   };
   return new Elysia()
-    .get("/api/workflows", () => ({ workflows: db.listWorkflows() }))
-    .post("/api/workflows", { body: t.Any() }, ({ body }) =>
-      attempt(() => save(body as Parameters<typeof save>[0]))
+    .get("/api/workflows", () => ({
+      workflows: db.listWorkflows().map((workflow) => ({
+        ...workflow,
+        inputs:
+          workflow.graph.nodes.find((node) => node.kind === "start")?.inputs ??
+          [],
+      })),
+    }))
+    .post("/api/workflows", { body: t.Any() }, ({ body, set }) =>
+      attempt(async () => {
+        const saved = await save(body as Parameters<typeof save>[0]);
+        if (!(saved instanceof Response)) {
+          set.status = 201;
+        }
+        return saved;
+      })
+    )
+    .get("/api/workflows/:id/markdown", ({ params }) =>
+      attempt(() => {
+        const row = db.getWorkflow(params.id);
+        if (!row) {
+          return new Response("Workflow not found.", { status: 404 });
+        }
+        const source = serializeWorkflowMarkdown(row);
+        db.putWorkflow({ ...row, source });
+        return new Response(source, {
+          headers: { "content-type": "text/markdown; charset=utf-8" },
+        });
+      })
     )
     .get("/api/workflows/:id", ({ params }) => {
       const row = db.getWorkflow(params.id);
@@ -108,6 +183,7 @@ export function workflowRoutes(
           throw new Error("A workflow with a live run cannot be deleted.");
         }
         db.deleteWorkflow(row.id);
+        skills.changed();
         return { ok: true };
       })
     )
