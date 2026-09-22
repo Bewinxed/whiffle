@@ -44,9 +44,8 @@ export const loadWorkflows = () =>
   request<{ workflows: Workflow[] }>("workflows");
 export const loadWorkflow = (key: string) =>
   request<WorkflowDetail>(`workflows/${id(key)}`);
-export const createWorkflow = (
-  body: { name: string; graph: WorkflowGraph } | { markdown: string }
-) => request<WorkflowDetail>("workflows", "POST", body);
+export const createWorkflow = (body: { name: string; graph: WorkflowGraph }) =>
+  request<WorkflowDetail>("workflows", "POST", body);
 export const saveWorkflow = (
   key: string,
   body: { name: string; description: string; graph: WorkflowGraph }
@@ -87,11 +86,3 @@ export const submitWorkflowResult = (
     instanceId,
     result,
   });
-export async function workflowMarkdown(key: string): Promise<string> {
-  const response = await fetch(`/api/workflows/${id(key)}/markdown`);
-  const text = await response.text();
-  if (!response.ok) {
-    throw new Error(text || `The hub answered ${response.status}.`);
-  }
-  return text;
-}

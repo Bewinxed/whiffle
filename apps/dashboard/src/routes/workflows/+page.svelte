@@ -5,8 +5,6 @@
   import WorkflowLaunch from "$lib/components/features/workflows/WorkflowLaunch.svelte";
   import WorkflowStatus from "$lib/components/features/workflows/WorkflowStatus.svelte";
   import { newNode } from "$lib/components/features/workflows/workflow-ui";
-  // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte component group
-  import * as Dialog from "$lib/components/ui/dialog";
   import { formatDistanceToNow } from "$lib/utils/time";
   import { whiffle } from "$lib/whiffle/client.svelte";
   import { message } from "$lib/whiffle/delegate-types";
@@ -20,8 +18,6 @@
   let loading = $state(true);
   let busy = $state(false);
   let errorMessage = $state("");
-  let importing = $state(false);
-  let markdown = $state("");
   let launch = $state<Workflow>();
   const live = $derived(whiffle.hub === "connected");
   const rows = $derived(
@@ -37,18 +33,14 @@
       loading = false;
     });
   });
-  async function create(importText = false) {
+  async function create() {
     busy = true;
     errorMessage = "";
     try {
-      const workflow = await createWorkflow(
-        importText
-          ? { markdown }
-          : {
-              name: "Untitled workflow",
-              graph: { nodes: [newNode("start")], edges: [] },
-            }
-      );
+      const workflow = await createWorkflow({
+        name: "Untitled workflow",
+        graph: { nodes: [newNode("start")], edges: [] },
+      });
       await goto(`/workflows/${workflow.id}`);
     } catch (caught) {
       errorMessage = message(caught);
@@ -66,13 +58,6 @@
     </div>
     <div class="wf-row">
       <button
-        class="wf-btn"
-        disabled={!live || busy}
-        onclick={() => { importing = true; }}
-        type="button"
-      >
-        Import markdown
-      </button><button
         class="wf-btn wf-primary"
         disabled={!live || busy}
         onclick={() => create()}
@@ -137,10 +122,11 @@
             </td>
             <td class="age wf-muted">
               {last ? formatDistanceToNow(new Date(last.startedAt)) : '—'}
+              <span class="mobile"
+                >{` · ${runs.length} ${runs.length === 1 ? 'run' : 'runs'}`}</span
+              >
             </td>
-            <td class="count">
-              {runs.length}<span class="mobile"> runs</span>
-            </td>
+            <td class="count">{runs.length}</td>
             <td>
               <button
                 class="wf-btn desktop"
@@ -173,32 +159,6 @@
 {#if launch}
   <WorkflowLaunch onclose={() => { launch = undefined; }} workflow={launch} />
 {/if}
-<Dialog.Root bind:open={importing}
-  ><Dialog.Content
-    ><div class="wf wf-stack">
-      <Dialog.Title>Import markdown</Dialog.Title
-      ><Dialog.Description>Paste a .workflow.md document.</Dialog.Description
-      ><label
-        >Markdown<textarea
-          class="wf-mono"
-          rows="12"
-          bind:value={markdown}
-        ></textarea></label
-      >
-      {#if errorMessage}
-        <p class="wf-error">{errorMessage}</p>
-      {/if}
-      <button
-        class="wf-btn wf-primary"
-        disabled={!markdown.trim() || busy || !live}
-        onclick={() => create(true)}
-        type="button"
-      >
-        {busy ? 'Importing…' : 'Import workflow'}
-      </button>
-    </div></Dialog.Content
-  ></Dialog.Root
->
 <style>
   .list-page {
     padding: var(--space-7) var(--space-6);
@@ -265,11 +225,21 @@
     .desktop {
       display: none !important;
     }
-    .mobile {
+    span.mobile {
       display: inline;
     }
-  thead, tbody { display: block; width: 100%; }
-  .workflow-row {
+    details.mobile {
+      display: block;
+    }
+    .count {
+      display: none;
+    }
+    thead,
+    tbody {
+      display: block;
+      width: 100%;
+    }
+    .workflow-row {
       grid-template-columns: 1fr auto;
     }
     .name {
@@ -280,7 +250,7 @@
     }
     .workflow-row > :last-child {
       grid-column: 2;
-      grid-row: 2 / 4;
+      grid-row: 2;
     }
     summary {
       min-height: 44px;

@@ -7,7 +7,7 @@
   import { validateWorkflow } from "@whiffle/core";
   import { onMount } from "svelte";
   import { MediaQuery } from "svelte/reactivity";
-  import { beforeNavigate } from "$app/navigation";
+  import { beforeNavigate, goto } from "$app/navigation";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte component group
   import * as Dialog from "$lib/components/ui/dialog";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte component group
@@ -23,7 +23,6 @@
     loadWorkflow,
     saveWorkflow,
     type WorkflowDetail,
-    workflowMarkdown,
   } from "$lib/whiffle/workflows";
   import WorkflowCanvas from "./WorkflowCanvas.svelte";
   import WorkflowInspector from "./WorkflowInspector.svelte";
@@ -43,7 +42,7 @@
   let selected = $state<string>();
   let errorMessage = $state("");
   let saving = $state(false);
-  let failedPayload = $state('');
+  let failedPayload = $state("");
   let saved = $state("");
   let savedAt = $state(0);
   let now = $state(Date.now());
@@ -51,10 +50,8 @@
   let inspectorOpen = $state(false);
   let paletteCollapsed = $state(false);
   let panelWidth = $state(940);
-  let palettePane: { collapse: () => void; expand: () => void } | undefined;
+  let palettePane = $state<{ collapse: () => void; expand: () => void }>();
   let launch = $state(false);
-  let markdownOpen = $state(false);
-  let markdown = $state("");
   let tab = $state("editor");
   let filter = $state("all");
   let runId = $state<string>();
@@ -120,10 +117,16 @@
     return () => clearTimeout(timer);
   });
   beforeNavigate((navigation) => {
-    if (dirty) {
-      navigation.cancel();
-      persist(serial);
+    if (!dirty) {
+      return;
     }
+    navigation.cancel();
+    const target = navigation.to?.url;
+    persist(serial).then(() => {
+      if (target && !dirty) {
+        goto(target);
+      }
+    });
   });
   async function persist(payload: string) {
     if (saving || !live) {
@@ -219,7 +222,7 @@
     ) {
       return;
     }
-    if (tab !== "editor" || launch || markdownOpen) {
+    if (tab !== "editor" || launch) {
       return;
     }
     const command = event.metaKey || event.ctrlKey;
@@ -260,15 +263,6 @@
       selected = undefined;
       inspectorOpen = false;
       paletteOpen = false;
-    }
-  }
-  async function viewMarkdown() {
-    markdownOpen = true;
-    markdown = "";
-    try {
-      markdown = await workflowMarkdown(id);
-    } catch (caught) {
-      markdown = message(caught);
     }
   }
 </script>
@@ -383,13 +377,6 @@
       <div class="wf-row">
         <button
           class="wf-btn"
-          disabled={!workflow || dirty}
-          onclick={viewMarkdown}
-          type="button"
-        >
-          View as markdown
-        </button><button
-          class="wf-btn"
           disabled={!(workflow && live) || saving}
           onclick={() => { inspectorOpen = narrow.current; selected = undefined; persist(serial); }}
           type="button"
@@ -474,13 +461,24 @@
       {@render canvas()}
     {:else}
       <Resizable.PaneGroup class="min-h-0 flex-1" direction="horizontal"
-        ><Resizable.Pane bind:this={palettePane} defaultSize={232 / panelWidth * 100} minSize={15} maxSize={30} collapsible collapsedSize={48 / panelWidth * 100} onCollapse={() => { paletteCollapsed = true; }} onExpand={() => { paletteCollapsed = false; }}
+        ><Resizable.Pane
+          collapsedSize={48 / panelWidth * 100}
+          collapsible
+          defaultSize={232 / panelWidth * 100}
+          maxSize={30}
+          minSize={15}
+          onCollapse={() => { paletteCollapsed = true; }}
+          onExpand={() => { paletteCollapsed = false; }}
+          bind:this={palettePane}
           >{@render palette()}</Resizable.Pane
         ><Resizable.Handle />
         <Resizable.Pane defaultSize={100 - 592 / panelWidth * 100} minSize={20}
           >{@render canvas()}</Resizable.Pane
         ><Resizable.Handle />
-        <Resizable.Pane defaultSize={360 / panelWidth * 100} maxSize={50} minSize={25}
+        <Resizable.Pane
+          defaultSize={360 / panelWidth * 100}
+          maxSize={50}
+          minSize={25}
           ><div class="inspector-scroll">
             {@render inspector()}
           </div></Resizable.Pane
@@ -559,17 +557,6 @@
     ></Dialog.Root
   >
 {/if}
-<Dialog.Root bind:open={markdownOpen}
-  ><Dialog.Content class="max-h-[90dvh] overflow-y-auto sm:max-w-3xl"
-    ><Dialog.Title>Workflow markdown</Dialog.Title
-    ><Dialog.Description
-      >The hub's text representation of this saved workflow.</Dialog.Description
-    >
-    <pre
-      class="whitespace-pre-wrap break-words font-mono text-sm"
-    >{markdown || 'Loading markdown…'}</pre></Dialog.Content
-  ></Dialog.Root
->
 <style>
   .editor {
     display: flex;
