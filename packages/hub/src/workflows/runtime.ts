@@ -785,8 +785,18 @@ export function createWorkflowRuntime(deps: WorkflowRuntimeDeps) {
         return outcome;
       }
       case "state-get": {
+        // Reading a slot declares it: the step sessions' state tools refuse a
+        // name the program never named.
+        run.state = {
+          ...run.state,
+          schemas: {
+            ...((run.state.schemas ?? {}) as Record<string, unknown>),
+            [String(args.name)]: args.schema,
+          },
+        };
+        write(run);
         const slots = (run.state.slots ?? {}) as Record<string, unknown>;
-        return { result: slots[String(args.name)] };
+        return { result: slots[String(args.name)] ?? null };
       }
       case "state-set": {
         const validate = ajv.compile(args.schema as Record<string, unknown>);
