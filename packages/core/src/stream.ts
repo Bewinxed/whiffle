@@ -163,9 +163,14 @@ export interface IngestMark {
  * what sessiond knows, which is a pid and a cwd.
  */
 export interface InstanceSpec {
+  canDelegate?: boolean;
+  denyTools?: string[];
   effort?: string;
   model?: string;
   permissionMode?: string;
+  skills?: string[];
+  workflowRunId?: string;
+  workflowStepId?: string;
 }
 
 /** `register`'s ack, with the ledger the returning agent reattaches against. */

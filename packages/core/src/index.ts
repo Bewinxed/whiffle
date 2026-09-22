@@ -187,6 +187,8 @@ export interface SpawnPayload {
    * only.
    */
   title?: string;
+  workflowRunId?: string;
+  workflowStepId?: string;
 }
 
 /** One repository a machine can {@link SpawnPayload.bootstrap} from. */
@@ -551,6 +553,8 @@ export interface InstanceRow {
   title?: string | null;
   /** When the row last moved. */
   updatedAt?: string | number | Date | null;
+  workflowRunId?: string | null;
+  workflowStepId?: string | null;
 }
 
 /**
@@ -834,3 +838,4 @@ export const readEnv = (
  */
 export const WHIFFLE_MDNS_TYPE = "whiffle";
 export * from "./image-generation";
+export * from "./workflow";
