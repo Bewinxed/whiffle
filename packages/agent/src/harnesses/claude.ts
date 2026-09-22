@@ -1265,6 +1265,21 @@ const READ_ONLY_CONTROLS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * Controls custody HOLDS rather than refuses. A fleet sync fires these at every
+ * live session the moment the agent reconnects — which is exactly when every
+ * session is in custody — so refusing them both spams the transcript and drops
+ * the refresh on the floor. They are idempotent, and `refreshSessions` never
+ * reads their result, so deferring them to the hand-off costs nothing and makes
+ * the reload actually land. Every other control still fails at once: its caller
+ * is waiting on a `control_result` that a hold would never deliver.
+ */
+const DEFERRED_CONTROLS: ReadonlySet<string> = new Set([
+  "reloadSkills",
+  "reloadPlugins",
+  "reinitialize",
+]);
+
+/**
  * CUSTODY (design §4.1) — the session while the agent that owned it is gone.
  *
  * A restarted agent cannot reconstruct a live `Query` around a mid-stream
@@ -1303,6 +1318,8 @@ export class ClaudeCustody implements HarnessSession {
     message: NeutralUserMessage;
     extras: Pick<SendPayload, "attachments" | "images" | "urgent">;
   }[] = [];
+  /** Controls deferred during custody; replayed by the respawned session. */
+  readonly #heldControls: { method: string; args: unknown[] }[] = [];
   #handedOff = false;
   /** Settled by {@link exited} when sessiond reports the child gone. */
   readonly #exit = Promise.withResolvers<void>();
@@ -1319,6 +1336,7 @@ export class ClaudeCustody implements HarnessSession {
       message: NeutralUserMessage;
       extras: Pick<SendPayload, "attachments" | "images" | "urgent">;
     }[];
+    heldControls: { method: string; args: unknown[] }[];
   }) => void;
   /** Signals the child; what a `stop` falls back to when EOF alone does not end it. */
   readonly #kill: (sig: NodeJS.Signals) => void;
@@ -1335,6 +1353,7 @@ export class ClaudeCustody implements HarnessSession {
         message: NeutralUserMessage;
         extras: Pick<SendPayload, "attachments" | "images" | "urgent">;
       }[];
+      heldControls: { method: string; args: unknown[] }[];
     }) => void,
     sessionId: string | null = null,
     kill: (sig: NodeJS.Signals) => void = () => {
@@ -1486,17 +1505,21 @@ export class ClaudeCustody implements HarnessSession {
   }
 
   /**
-   * Every non-permission control fails, for the reason above; only the ones
-   * that would have changed the session fail in the transcript too (see
-   * {@link READ_ONLY_CONTROLS}).
+   * Fleet-sync controls are held for hand-off (see {@link DEFERRED_CONTROLS}).
+   * Other controls except interrupt fail; only the ones that would have changed
+   * the session fail in the transcript too (see {@link READ_ONLY_CONTROLS}).
    */
-  control(method: string): Promise<unknown> {
+  control(method: string, args: unknown[] = []): Promise<unknown> {
     // The one control custody can serve itself: an interrupt is a raw
     // control_request on the child's stdin, not something the dead `Query` had
     // to route. Stopping a runaway turn is exactly what an operator needs
     // during custody, so it is dispatched here rather than refused.
     if (method === CONTROL_INTERRUPT) {
       return this.interrupt();
+    }
+    if (DEFERRED_CONTROLS.has(method)) {
+      this.#heldControls.push({ method, args });
+      return Promise.resolve(undefined);
     }
     const reason = `whiffle: agent restarted; control \`${method}\` is unavailable until this session hands back (custody)`;
     if (!READ_ONLY_CONTROLS.has(method)) {
@@ -1536,8 +1559,10 @@ export class ClaudeCustody implements HarnessSession {
       instanceId: this.instanceId,
       sessionId: this.sessionId,
       held: [...this.#held],
+      heldControls: [...this.#heldControls],
     });
     this.#held.length = 0;
+    this.#heldControls.length = 0;
   }
 
   async stop(): Promise<void> {
@@ -1548,6 +1573,7 @@ export class ClaudeCustody implements HarnessSession {
     }
     this.#parked.clear();
     this.#held.length = 0;
+    this.#heldControls.length = 0;
     this.#handedOff = true;
     this.#stdinEnd();
     // Returned only once the child is actually dead. The supervisor's relaunch
@@ -1565,6 +1591,7 @@ export class ClaudeCustody implements HarnessSession {
   async dispose(): Promise<void> {
     this.#parked.clear();
     this.#held.length = 0;
+    this.#heldControls.length = 0;
   }
 }
 
@@ -1841,6 +1868,7 @@ export class ClaudeHarness implements Harness {
           message: NeutralUserMessage;
           extras: Pick<SendPayload, "attachments" | "images" | "urgent">;
         }[];
+        heldControls: { method: string; args: unknown[] }[];
       }) => void;
     }
   ): Promise<ClaudeCustody> {

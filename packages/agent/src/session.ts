@@ -79,6 +79,7 @@ interface ClaudeAdoption {
           message: NeutralUserMessage;
           extras: Pick<SendPayload, "attachments" | "images" | "urgent">;
         }[];
+        heldControls: { method: string; args: unknown[] }[];
       }) => void;
     }
   ): Promise<HarnessSession>;
@@ -1058,7 +1059,12 @@ export class SessionSupervisor {
         ...(afterSeq === undefined ? {} : { afterSeq }),
         ...(proc.head === undefined ? {} : { head: proc.head }),
         sessionId: row.sessionId ?? null,
-        onHandoff: ({ instanceId, sessionId, held: heldTurns }) => {
+        onHandoff: ({
+          instanceId,
+          sessionId,
+          held: heldTurns,
+          heldControls,
+        }) => {
           // Queued through `dispatch` so the hand-off serialises behind
           // whatever else is in flight for this instance, exactly as an
           // operator-issued relaunch would.
@@ -1085,6 +1091,20 @@ export class SessionSupervisor {
                 : {}),
             } satisfies SpawnPayload,
           } as Envelope);
+          // Before the held turns: a deferred reload must land before the turn
+          // that will use the skills and plugins it brings in.
+          for (const control of heldControls) {
+            this.dispatch({
+              verb: "control",
+              instanceId,
+              payload: {
+                instanceId,
+                requestId: crypto.randomUUID(),
+                method: control.method,
+                args: control.args,
+              } satisfies ControlPayload,
+            } as Envelope);
+          }
           for (const turn of heldTurns) {
             this.dispatch({
               verb: "send",
