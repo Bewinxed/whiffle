@@ -60,7 +60,7 @@
   );
   const step = $derived(run?.steps.find((entry) => entry.id === selected));
   const node = $derived(
-    run?.graph.nodes.find((entry) => entry.id === step?.nodeId)
+    run?.graph?.nodes.find((entry) => entry.id === step?.nodeId)
   );
   const attempts = $derived(
     run?.attempts
@@ -78,7 +78,7 @@
       return run?.graph;
     }
     const id = scope.slice(0, scope.lastIndexOf("["));
-    const map = run.graph.nodes.find((entry) => entry.id === id);
+    const map = run.graph?.nodes.find((entry) => entry.id === id);
     return map?.kind === "map" ? map.body : run.graph;
   });
   const scopedSteps = $derived(
@@ -176,7 +176,7 @@
       .filter((entry) => entry.status === "running" && entry.instanceId)
       .map(
         (entry) =>
-          `${run?.graph.nodes.find((item) => item.id === entry.nodeId)?.title ?? entry.nodeId} (${entry.instanceId})`
+          `${run?.graph?.nodes.find((item) => item.id === entry.nodeId)?.title ?? entry.nodeId} (${entry.instanceId})`
       );
     if (
       await confirm({
@@ -342,7 +342,7 @@
       <p class="wf-error">Workflow run failed: {run.failure}</p>
     {/if}
     {#each waiting as ask (ask.id)}
-      {@const askNode = run.graph.nodes.find((entry) => entry.id === ask.nodeId)}
+      {@const askNode = run.graph?.nodes.find((entry) => entry.id === ask.nodeId)}
       {#if askNode?.kind === 'ask'}
         {@const text = question(askNode)}
         <section class="answer wf-stack">
@@ -420,7 +420,7 @@
                 class:chosen={entry.id === selected}
               >
                 <span
-                  >{run.graph.nodes.find((item) => item.id === entry.nodeId)?.title ?? entry.nodeId}{entry.mapIndex === null ? '' : ` [${entry.mapIndex}]`}</span
+                  >{run.graph?.nodes.find((item) => item.id === entry.nodeId)?.title ?? entry.nodeId}{entry.mapIndex === null ? '' : ` [${entry.mapIndex}]`}</span
                 ><WorkflowStatus status={entry.status} />
                 <small>{duration(entry.startedAt, entry.endedAt, now)}</small>
               </button>

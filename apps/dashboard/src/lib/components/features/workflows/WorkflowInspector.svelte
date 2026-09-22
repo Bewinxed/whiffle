@@ -59,7 +59,7 @@
       : undefined
   );
   const childStart = $derived(
-    child?.graph.nodes.find((entry) => entry.kind === "start")
+    child?.graph?.nodes.find((entry) => entry.kind === "start")
   );
   function patch(fields: object) {
     if (node) {

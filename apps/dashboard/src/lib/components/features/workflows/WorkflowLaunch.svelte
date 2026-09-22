@@ -19,13 +19,13 @@
   let errorMessage = $state("");
   let busy = $state(false);
   const start = $derived(
-    workflow.graph.nodes.find((node) => node.kind === "start")
+    workflow.graph?.nodes.find((node) => node.kind === "start")
   );
   const online = $derived(
     whiffle.onlineMachines.some((machine) => machine.machineId === machineId)
   );
   onMount(() => {
-    const defaults = workflow.graph.settings;
+    const defaults = workflow.graph?.settings;
     const project = defaults?.defaultProject
       ? whiffle.project(defaults.defaultProject)
       : null;

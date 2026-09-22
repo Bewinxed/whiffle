@@ -93,7 +93,8 @@
     Promise.all([loadWorkflow(id), loadDelegateTypes(), refreshWorkflows()])
       .then(([value, presets]) => {
         workflow = value;
-        ({ name, description, graph: root } = value);
+        ({ name, description } = value);
+        root = value.graph ?? root;
         ({ types } = presets);
         saved = JSON.stringify({ name, description, graph: root });
         savedAt = Date.now();
