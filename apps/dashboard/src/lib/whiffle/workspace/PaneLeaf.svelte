@@ -1,5 +1,4 @@
 <script lang="ts">
-  import type { EffortLevel, PermissionMode } from "@whiffle/core";
   /**
    * One group: a strip of tabs, the identity bar for whichever is showing,
    * and a slot per conversation stacked behind it.
@@ -11,36 +10,18 @@
    * alive once and docks it into the slot here, so a split, a move or a
    * change of grid rearranges the DOM without rebuilding a transcript.
    *
-   * The header stays ONE instance per group on purpose. Because there is one
-   * of it and its text comes from synchronous state, torph morphs the title
-   * character by character when the group changes tab, instead of the bar
-   * being torn down and rebuilt. Give each tab its own header and that
-   * disappears.
    */
   import { untrack } from "svelte";
   import { browser } from "$app/environment";
   import { page } from "$app/state";
   import {
-    commandRecord,
     type HistorySource,
     hidePreview,
-    relaunchSession,
     revealPreview,
-    streamCapable,
-    submitCommand,
     whiffle,
   } from "../client.svelte";
-  import {
-    effortStops as getEffortStops,
-    hasEffortScale,
-  } from "../effort-levels";
-  import { describingRow, ensureModels, models } from "../models.svelte";
-  import { PERMISSION_MODES } from "../permission-modes";
   import SessionPane from "../SessionPane.svelte";
-  import { sessionName } from "../session-name";
-  import SessionHeader, {
-    type SettingChange,
-  } from "../transcript/SessionHeader.svelte";
+  import SessionToolbar from "../transcript/SessionToolbar.svelte";
   import { dropHint, paneDropTarget } from "./dnd.svelte";
   import { paneViews, slot } from "./dock.svelte";
   import { createSwipe } from "./gesture.svelte";
@@ -73,11 +54,7 @@
   /** Whether the reader's keyboard belongs to this group. */
   const isFocusedLeaf = $derived(workspace.focusedLeafId === leaf.id);
 
-  /**
-   * Which conversation the header NAMES — the swipe's target once a drag has
-   * passed the point it would commit at, so the title morphs while the finger
-   * is still moving and morphs back if the drag retreats.
-   */
+  /** View controls follow the conversation previewed by a swipe. */
   const headerId = $derived(swipe.previewId ?? viewId);
 
   /* ── Slots ─────────────────────────────────────────────────────────
@@ -150,80 +127,6 @@
       }
     });
   });
-
-  /* ── The header's data ──────────────────────────────────────────── */
-
-  const session = $derived(whiffle.session(headerId) ?? null);
-  const machineId = $derived(whiffle.session(headerId)?.machineId ?? "");
-  const headerCtx = $derived(contextOf(headerId));
-
-  const machineName = $derived(
-    whiffle.machines.find((m) => m.machineId === machineId)?.hostname ??
-      machineId
-  );
-
-  const servedNames = $derived(
-    (page.data as { names?: Record<string, string> }).names ?? {}
-  );
-  const title = $derived(sessionName(headerId, servedNames).label);
-
-  const stats = $derived(whiffle.statsOf(headerId));
-  const activity = $derived(whiffle.activityOf(headerId));
-
-  const machineRow = $derived(
-    whiffle.machines.find((m) => m.machineId === machineId) ?? null
-  );
-  const harnessReport = $derived(
-    machineRow?.harnesses?.find(
-      (report) => report.harness === session?.harness
-    ) ?? null
-  );
-  const offeredModes = $derived(
-    harnessReport
-      ? PERMISSION_MODES.filter((mode) =>
-          harnessReport.capabilities.permissionModes.includes(mode.value)
-        )
-      : PERMISSION_MODES
-  );
-  const chosenModel = $derived(
-    session?.model
-      ? // biome-ignore lint/style/noNonNullAssertion: TS can't narrow session.model across the closure boundary; the outer ternary already guards it
-        describingRow(session.model!)
-      : null
-  );
-  const harnessEffort = $derived(harnessReport?.capabilities.effort !== false);
-  const showEffort = $derived(harnessEffort && hasEffortScale(chosenModel));
-  const effortStopsForModel = $derived(getEffortStops(chosenModel));
-
-  // One more attempt each time a session comes up, and on nothing else: the
-  // store's own reads are untracked so a failed ask cannot re-run this.
-  $effect(() => {
-    // biome-ignore lint/complexity/noVoid: read-for-tracking — this is the reactive dependency that reruns the effect, its value is unused by design
-    void whiffle.runningInstances.length;
-    untrack(ensureModels);
-  });
-
-  function onmodel(model: string): SettingChange {
-    if (!machineId) {
-      return null;
-    }
-    return submitCommand(headerId, machineId, "set-model", { model });
-  }
-  function onpermission(mode: PermissionMode): SettingChange {
-    if (!machineId) {
-      return null;
-    }
-    if (mode === "bypassPermissions") {
-      return relaunchSession(headerId, machineId, mode);
-    }
-    return submitCommand(headerId, machineId, "set-permission-mode", { mode });
-  }
-  function oneffort(level: EffortLevel): SettingChange {
-    if (!machineId) {
-      return null;
-    }
-    return submitCommand(headerId, machineId, "set-effort", { effort: level });
-  }
 </script>
 
 <!-- The whole group answers to a click by taking focus, so typing goes where
@@ -245,23 +148,7 @@
   {/if}
 
   {#if viewId}
-    <SessionHeader
-      {activity}
-      cost={stats.cost}
-      cwd={session?.cwd || headerCtx?.cwd || ''}
-      effort={session?.effort ?? null}
-      effortStops={effortStopsForModel}
-      harness={session?.harness ?? headerCtx?.harness ?? 'claude'}
-      {harnessEffort}
-      {machineName}
-      maxTokens={stats.maxTokens}
-      mcpCount={session?.mcp?.length ?? null}
-      model={session?.model ?? null}
-      morph={swipe.previewId !== null}
-      {offeredModes}
-      {oneffort}
-      {onmodel}
-      {onpermission}
+    <SessionToolbar
       onpreview={() => {
         if (whiffle.previewVisible[headerId]) {
           hidePreview(headerId);
@@ -272,16 +159,8 @@
       onview={(v) => {
         paneViews[headerId] = v;
       }}
-      permissionMode={session?.permissionMode ?? null}
       previewAvailable={whiffle.previews[headerId]?.state === 'open'}
       previewOpen={whiffle.previewVisible[headerId] === true}
-      seed={session?.cwd || headerCtx?.cwd || headerId}
-      {showEffort}
-      streaming={streamCapable()}
-      {title}
-      totalTokens={stats.totalTokens}
-      trackedCommand={commandRecord}
-      turns={stats.turns}
       view={paneViews[headerId] ?? 'chat'}
     />
   {/if}

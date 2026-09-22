@@ -10,19 +10,25 @@
     efforts,
     value,
     onchange,
+    oncommit,
+    embedded = false,
   }: {
     efforts: EffortLevel[];
     /** The level the slider sits on; the owner decides what "untouched" shows. */
     value: EffortLevel | null;
     onchange: (level: EffortLevel) => void;
+    oncommit?: (level: EffortLevel) => void;
+    embedded?: boolean;
   } = $props();
 
   let knobWidth = $state(0);
+  let draft = $state<EffortLevel | null>(null);
+  const displayed = $derived(draft ?? value);
   const kw = $derived(knobWidth + 6);
 
   const n = $derived(efforts.length);
   const effortIdx = $derived(
-    Math.max(0, efforts.indexOf(value as EffortLevel))
+    Math.max(0, efforts.indexOf(displayed as EffortLevel))
   );
   const frac = (i: number) => (n > 1 ? i / (n - 1) : 0);
   const p = $derived(frac(effortIdx));
@@ -42,6 +48,19 @@
     return { from: Math.min(p, to), span: Math.abs(to - p) };
   });
   const label = $derived(n ? (efforts[effortIdx] ?? "") : "Default");
+  function change(level: EffortLevel) {
+    if (oncommit) {
+      draft = level;
+    } else {
+      onchange(level);
+    }
+  }
+  function commit() {
+    if (draft !== null) {
+      oncommit?.(draft);
+      draft = null;
+    }
+  }
 
   function indexAt(event: PointerEvent) {
     const el = event.currentTarget as HTMLElement;
@@ -66,7 +85,7 @@
     }
     drag = true;
     hover = -1;
-    onchange(efforts[idx]);
+    change(efforts[idx]);
   }
   function move(event: PointerEvent) {
     if (!n) {
@@ -74,14 +93,15 @@
     }
     const idx = indexAt(event);
     if (drag) {
-      if (efforts[idx] !== value) {
-        onchange(efforts[idx]);
+      if (efforts[idx] !== displayed) {
+        change(efforts[idx]);
       }
     } else if (idx !== hover) {
       hover = idx;
     }
   }
   function up() {
+    commit();
     drag = false;
     hover = -1;
   }
@@ -92,14 +112,14 @@
   }
 </script>
 
-<div class="box">
+<div class="box" class:embedded={embedded}>
   <div
     class="slider"
     style={`opacity:${n ? 1 : 0.55};pointer-events:${n ? "auto" : "none"}`}
   >
     <div
       class="track"
-      onpointercancel={up}
+      onpointercancel={() => { draft = null; drag = false; hover = -1; }}
       onpointerdown={down}
       onpointerleave={leave}
       onpointermove={move}
@@ -157,10 +177,11 @@
         onblur={() => {
           focused = false;
         }}
+        onchange={commit}
         onfocus={() => {
           focused = true;
         }}
-        oninput={(event) => onchange(efforts[Number(event.currentTarget.value)])}
+        oninput={(event) => change(efforts[Number(event.currentTarget.value)])}
         step="1"
         type="range"
         value={effortIdx}
@@ -179,6 +200,12 @@
     border: 1px solid var(--fai-border-subtle);
     border-radius: var(--fai-radius-md);
     overflow: hidden;
+  }
+  .box.embedded {
+    height: auto;
+    padding: 0;
+    border: 0;
+    background: transparent;
   }
   .slider {
     grid-area: 1 / 1;
@@ -252,7 +279,8 @@
     border-radius: var(--fai-radius-sm);
     background: var(--fai-raised);
     box-shadow:
-      inset 0 0 0 1px var(--fai-grey-400), var(--fai-shadow-raised);
+      inset 0 0 0 1px var(--fai-grey-400),
+      var(--fai-shadow-raised);
     color: var(--fai-text-muted);
     transition:
       color 120ms ease,

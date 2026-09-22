@@ -13,11 +13,14 @@
     modes,
     value,
     onchange,
+    embedded = false,
   }: {
     modes: { value: PermissionMode; disabled: boolean; reason?: string }[];
-    value: PermissionMode;
+    value: PermissionMode | null;
     onchange: (mode: PermissionMode) => void;
+    embedded?: boolean;
   } = $props();
+  const uid = $props.id();
   const LOOK: Record<
     string,
     { name: string; desc: string; icon: Component; hue: string }
@@ -74,12 +77,13 @@
   onmousemove={ghost.move}
   role="radiogroup"
   tabindex="-1"
+  class:embedded={embedded}
 >
   <span aria-hidden="true" class="ns-ghost" style={ghost.style}></span>
   <span
     aria-hidden="true"
     class="fill"
-    style={`transform:translateY(calc(${index} * 46px))`}
+    style={`transform:translateY(calc(${index} * (var(--permission-row-height, 44px) + 2px)));opacity:${rows.some(row => row.value === value) ? 1 : 0}`}
   ></span>
   {#each rows as row, i (row.value)}
     {@const Icon = row.icon}
@@ -87,7 +91,7 @@
     <!-- biome-ignore lint/a11y/useSemanticElements: the permission rows are designed tiles with a sliding fill; a native radio cannot render them -->
     <button
       aria-checked={on}
-      aria-describedby={row.reason ? `perm-${row.value}-reason` : undefined}
+      aria-describedby={row.reason ? `${uid}-perm-${row.value}-reason` : undefined}
       class="row ns-in"
       data-fh="1"
       data-perm={row.value}
@@ -106,7 +110,7 @@
         <Check class="check ns-check" />
       {/if}
       {#if row.reason}
-        <span class="sr-only" id={`perm-${row.value}-reason`}
+        <span class="sr-only" id={`${uid}-perm-${row.value}-reason`}
           >{row.reason}</span
         >
       {/if}
@@ -125,16 +129,26 @@
     border-radius: var(--fai-radius-md);
     box-shadow: var(--fai-shadow-xs);
   }
+  .perms.embedded {
+    padding: 0;
+    border: 0;
+    box-shadow: none;
+    background: transparent;
+  }
   .fill {
     position: absolute;
     left: 4px;
     right: 4px;
     top: 4px;
-    height: 44px;
+    height: var(--permission-row-height, 44px);
     background: var(--fai-fill);
     border-radius: var(--fai-radius-sm);
     transition: transform 160ms var(--ns-ease-in-out);
     pointer-events: none;
+  }
+  .embedded .fill {
+    inset-inline: 0;
+    top: 0;
   }
   .row {
     position: relative;
@@ -142,7 +156,7 @@
     align-items: center;
     gap: 10px;
     width: 100%;
-    height: 44px;
+    height: var(--permission-row-height, 44px);
     padding: 6px 8px;
     background: transparent;
     border: 1px solid transparent;

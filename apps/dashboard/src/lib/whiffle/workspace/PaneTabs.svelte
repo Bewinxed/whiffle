@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Popover } from "bits-ui";
   /**
    * One group's tabs: a segmented control (the Fluid Functionalism tabs,
    * `$lib/components/ui/fluid-tabs`) with one segment per open conversation.
@@ -8,23 +9,25 @@
    * split two workstations rather than one view showing two things: each half
    * has its own set of things open and its own idea of which is in front.
    *
-   * Each segment carries the session's mark, its state on the mark's corner,
-   * its name, and a close control; the strip scrolls when the row cannot
+   * Each segment carries the session's activity, name and details disclosure;
+   * the strip scrolls when the row cannot
    * hold them. Hosted, the strip is the top bar's content; in a group it
    * brings its own row.
    */
-  import { untrack } from "svelte";
+  import { onDestroy, untrack } from "svelte";
+  import { MediaQuery } from "svelte/reactivity";
   import { page } from "$app/state";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte convention for component groups
   import * as ContextMenu from "$lib/components/ui/context-menu";
+  // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte convention for component groups
+  import * as Drawer from "$lib/components/ui/drawer";
   import {
     TabItem,
     Tabs,
     TabsList,
     type TabsTravel,
   } from "$lib/components/ui/fluid-tabs";
-  import { IconClose } from "$lib/icons";
-  import ActivityDot from "../ActivityDot.svelte";
+  import { IconChevronDown, IconClose } from "$lib/icons";
   import {
     ACTIVITY_LABEL,
     type Activity,
@@ -33,17 +36,13 @@
   } from "../activity";
   import { isFailed, isStale, whiffle } from "../client.svelte";
   import { copyToClipboard } from "../copy";
-  import HarnessGlyph from "../HarnessGlyph.svelte";
   import { conversationHref } from "../links";
-  import { markHue } from "../mark";
   import { sessionName } from "../session-name";
   import { workingSet } from "../working-set.svelte";
   import { dragSession, dropHint, tabDropTarget } from "./dnd.svelte";
-  import {
-    contextOf,
-    type LeafNode,
-    workspace,
-  } from "./workspace.svelte";
+  import SessionDetails from "./SessionDetails.svelte";
+  import SessionStatus from "./SessionStatus.svelte";
+  import { contextOf, type LeafNode, workspace } from "./workspace.svelte";
 
   let {
     leaf,
@@ -65,7 +64,6 @@
     failed: boolean;
     harness: string;
     href: string;
-    hue: ReturnType<typeof markHue>;
     id: string;
     label: string;
     named: boolean;
@@ -101,7 +99,6 @@
         cwd: ctx?.cwd,
       }),
       label,
-      hue: markHue(view?.cwd || row?.cwd || ctx?.cwd || id),
       harness: ctx?.harness || row?.harness || view?.harness || "claude",
       named,
       activity,
@@ -130,6 +127,70 @@
   const otherLeaves = $derived(
     workspace.leaves.filter((other) => other.id !== leaf.id)
   );
+  const touch = new MediaQuery(
+    "(hover: none), (pointer: coarse), (max-width: 640px)"
+  );
+  let detailId = $state<string | null>(null);
+  let detailAnchor = $state<HTMLElement | null>(null);
+  let detailsOpen = $state(false);
+  let pinned = $state(false);
+  let restoreFocus = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const detailTab = $derived(tabs.find((tab) => tab.id === detailId));
+  function closeDetails() {
+    clearTimeout(timer);
+    restoreFocus = pinned;
+    detailsOpen = false;
+    pinned = false;
+  }
+  function showDetails(id: string, anchor: HTMLElement, pin: boolean) {
+    clearTimeout(timer);
+    detailId = id;
+    detailAnchor = anchor;
+    pinned = pin;
+    detailsOpen = true;
+  }
+  function hoverTab(id: string, event: PointerEvent) {
+    if (touch.current || event.pointerType !== "mouse" || pinned) {
+      return;
+    }
+    clearTimeout(timer);
+    const anchor = event.currentTarget as HTMLElement;
+    timer = setTimeout(() => showDetails(id, anchor, false), 350);
+  }
+  function leaveDetails() {
+    clearTimeout(timer);
+    if (!pinned) {
+      timer = setTimeout(closeDetails, 250);
+    }
+  }
+  function clickTab(id: string, event: MouseEvent) {
+    if (
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    ) {
+      return;
+    }
+    if (leaf.active === id) {
+      event.preventDefault();
+      if (detailsOpen && pinned && detailId === id) {
+        closeDetails();
+      } else {
+        showDetails(id, event.currentTarget as HTMLElement, true);
+      }
+    } else {
+      closeDetails();
+    }
+  }
+  $effect(() => {
+    if (!detailTab) {
+      closeDetails();
+    }
+  });
+  onDestroy(() => clearTimeout(timer));
 </script>
 
 <!-- `''` when the board is showing: a value no segment carries, so nothing
@@ -137,7 +198,7 @@
      navigation must be two transition groups, or the transition is
      abandoned. -->
 <Tabs
-  class="tabs {hosted ? 'hosted' : ''}"
+  class="session-tabs {hosted ? 'hosted' : ''}"
   onValueChange={(id) => workspace.activate(id, leaf.id)}
   style="view-transition-name: tabs-{leaf.id}"
   {travel}
@@ -160,36 +221,44 @@
             use:tabDropTarget={{ leafId: leaf.id, index: i, sessionId: tab.id }}
           >
             <TabItem
+              aria-expanded={detailsOpen && detailId === tab.id}
+              aria-haspopup="dialog"
+              aria-label={`${tab.label}${tab.status ? ` — ${tab.status}` : ''}${leaf.active === tab.id ? ' — open session details' : ''}`}
+              data-session-tab={tab.id}
               href={tab.href}
               label={tab.label}
-              title={tab.status ? `${tab.label} — ${tab.status}` : tab.label}
+              onclick={(event) => clickTab(tab.id, event)}
+              onkeydown={(event) => {
+                if (event.key === 'ArrowDown' || event.key === ' ') {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  showDetails(tab.id, event.currentTarget as HTMLElement, true);
+                }
+              }}
+              onpointerenter={(event) => hoverTab(tab.id, event)}
+              onpointerleave={leaveDetails}
               value={tab.id}
             >
               {#snippet lead()}
-                <span class="mark">
-                  <span aria-hidden="true" class="tm m{tab.hue}">
-                    <HarnessGlyph harness={tab.harness} />
-                  </span>
-                  <!-- The session's state, on the mark's corner: the running
-                       one breathes, the one parked on you pings, a failed one
-                       is red and still. An idle tab says nothing. -->
-                  {#if tab.status}
-                    <span class="badge">
-                      <ActivityDot
-                        activity={tab.activity}
-                        failed={tab.failed}
-                        size={1.5}
-                        stale={tab.stale}
-                      />
-                    </span>
-                  {/if}
-                </span>
+                <SessionStatus compact sessionId={tab.id} />
               {/snippet}
               {#snippet trail()}
+                {#if leaf.active === tab.id}
+                  <button
+                    aria-expanded={detailsOpen && detailId === tab.id}
+                    aria-haspopup="dialog"
+                    aria-label="Session details for {tab.label}"
+                    class="tdetails"
+                    onclick={(event) => clickTab(tab.id, event)}
+                    type="button"
+                  >
+                    <IconChevronDown />
+                  </button>
+                {/if}
                 <button
                   aria-label="Close {tab.label}"
                   class="tclose"
-                  onclick={() => workspace.close(tab.id)}
+                  onclick={() => { closeDetails(); workspace.close(tab.id); }}
                   type="button"
                 >
                   <IconClose />
@@ -199,6 +268,13 @@
           </div>
         </ContextMenu.Trigger>
         <ContextMenu.Content>
+          <ContextMenu.Item
+            onSelect={() => {
+            const anchor = document.querySelector<HTMLElement>(`[data-session-tab="${tab.id}"]`);
+            if (anchor) { showDetails(tab.id, anchor, true); }
+          }}
+            >Session details</ContextMenu.Item
+          >
           <!-- Every gesture has a command that does the same thing. Splitting
                and moving are reachable from here before drag-and-drop exists,
                and stay reachable for anyone not using a pointer. -->
@@ -251,7 +327,169 @@
   </TabsList>
 </Tabs>
 
+{#if touch.current}
+  <Drawer.Root
+    onOpenChange={(open) => { if (!open) { closeDetails(); } }}
+    open={detailsOpen}
+  >
+    <Drawer.Content
+      class="session-details-sheet"
+      onCloseAutoFocus={(event) => { event.preventDefault(); detailAnchor?.focus(); }}
+    >
+      <Drawer.Title class="sr-only">Session details</Drawer.Title>
+      <Drawer.Description class="sr-only"
+        >Session identity, runtime configuration and usage.</Drawer.Description
+      >
+      <div class="details-scroll">
+        {#if detailTab}
+          {#key detailTab.id}
+            <SessionDetails
+              href={detailTab.href}
+              onclose={closeDetails}
+              sessionId={detailTab.id}
+              title={detailTab.label}
+            />
+          {/key}
+        {/if}
+      </div>
+    </Drawer.Content>
+  </Drawer.Root>
+{:else}
+  <Popover.Root
+    onOpenChange={(open) => { if (!open) { closeDetails(); } }}
+    open={detailsOpen}
+  >
+    <Popover.Portal>
+      <Popover.Content
+        align="start"
+        aria-label="Session details"
+        class="session-details-popover"
+        collisionPadding={12}
+        customAnchor={detailAnchor}
+        onCloseAutoFocus={(event) => { event.preventDefault(); if (restoreFocus) { detailAnchor?.focus(); } }}
+        onfocusin={() => { clearTimeout(timer); pinned = true; }}
+        onOpenAutoFocus={(event) => { if (!pinned) { event.preventDefault(); } }}
+        onpointerdowncapture={() => { clearTimeout(timer); pinned = true; }}
+        onpointerenter={() => clearTimeout(timer)}
+        onpointerleave={leaveDetails}
+        side="bottom"
+        sideOffset={6}
+        trapFocus={pinned}
+      >
+        {#if detailTab}
+          {#key detailTab.id}
+            <SessionDetails
+              href={detailTab.href}
+              onclose={closeDetails}
+              sessionId={detailTab.id}
+              title={detailTab.label}
+            />
+          {/key}
+        {/if}
+      </Popover.Content>
+    </Popover.Portal>
+  </Popover.Root>
+{/if}
+
 <style>
+  :global(.session-details-popover) {
+    display: flex;
+    z-index: 60;
+    width: min(416px, calc(100vw - 24px));
+    max-height: min(760px, var(--bits-popover-content-available-height, 85dvh));
+    overflow: hidden;
+    overscroll-behavior: contain;
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius-panel);
+    background: var(--surface-raised);
+    box-shadow: var(--shadow-overlay);
+    transform-origin: var(--bits-popover-content-transform-origin);
+    outline: none;
+  }
+  :global(.session-details-sheet) {
+    padding: 0;
+    padding-bottom: env(safe-area-inset-bottom);
+    max-height: 88dvh;
+    overflow: hidden;
+    border: 1px solid var(--border-control);
+    border-bottom: 0;
+    background: var(--surface-raised);
+    border-radius: var(--radius-panel) var(--radius-panel) 0 0;
+  }
+  :global(.session-details-sheet::before) {
+    content: none;
+  }
+  .details-scroll {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: calc(88dvh - 24px - env(safe-area-inset-bottom));
+    overflow: hidden;
+  }
+  .tdetails {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 24px;
+    border: 0;
+    border-radius: var(--radius-mark);
+    background: transparent;
+    color: var(--ink-muted);
+    cursor: pointer;
+  }
+  .tdetails :global(svg) {
+    width: 12px;
+    height: 12px;
+    transition: transform var(--c-100) var(--e-in);
+  }
+  .tdetails[aria-expanded="true"] :global(svg) {
+    transform: rotate(180deg);
+  }
+  .tdetails:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+  }
+  @media (hover: hover) {
+    .tdetails:hover {
+      background: var(--surface-active);
+    }
+  }
+  @media (pointer: coarse) {
+    :global(.session-tabs .ff-tabs-list) {
+      --item: 44px;
+    }
+    .tdetails {
+      width: 44px;
+      height: 44px;
+    }
+    .tclose {
+      display: none;
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    :global(.session-details-popover[data-state="open"]) {
+      animation: details-enter 260ms cubic-bezier(0.32, 0.72, 0, 1);
+    }
+    :global(.session-details-popover[data-state="closed"]) {
+      animation: details-exit 160ms var(--e-out);
+    }
+  }
+  @keyframes details-enter {
+    from {
+      opacity: 0;
+      transform: translateY(-8px) scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes details-exit {
+    to {
+      opacity: 0;
+      transform: translateY(-4px) scale(0.98);
+    }
+  }
   /* ── The row ──────────────────────────────────────────────────────
      Folder tabs stand on a shelf: a hairline in the row's own bottom
      pixel, so the chosen tab's sheet — which ends on that same pixel —
@@ -261,7 +499,7 @@
      and the rail, holds still while a spoke navigation slides the
      content under it: it is chrome. (A tab switch is not a navigation
      at all — the segment simply slides.) */
-  :global(.tabs) {
+  :global(.session-tabs) {
     display: flex;
     align-items: flex-end;
     flex: 0 0 auto;
@@ -273,14 +511,14 @@
       100% 1px no-repeat;
     view-transition-class: tabs;
   }
-  :global(.tabs.hosted) {
+  :global(.session-tabs.hosted) {
     flex: 1 1 0;
     align-self: stretch;
     padding: 0;
     background: none;
   }
   @container leaf (width <= 620px) {
-    :global(.tabs:not(.hosted)) {
+    :global(.session-tabs:not(.hosted)) {
       padding-inline-start: var(--space-4);
     }
   }
@@ -288,7 +526,7 @@
   /* The strip takes one step taller than the component's default in a
      bar with room, with the component's own text size and a tighter
      horizontal pad. The shape and the sheet are the component's. */
-  :global(.tabs .ff-tabs-list) {
+  :global(.session-tabs .ff-tabs-list) {
     --px: 10px;
     --text: var(--text-base);
     --item: 32px;
@@ -328,67 +566,6 @@
   /* The tab being carried recedes; it is somewhere else now. */
   :global(.tab[data-dragging]) {
     opacity: 0.4;
-  }
-
-  .mark {
-    position: relative;
-    display: grid;
-    place-items: center;
-    flex: 0 0 auto;
-  }
-  .tm {
-    display: grid;
-    place-items: center;
-    inline-size: 14px;
-    block-size: 14px;
-    border-radius: var(--radius-mark);
-    background-image: var(--mark-overlay);
-    background-color: var(--mark-1);
-
-    &.m2 {
-      background-color: var(--mark-2);
-    }
-    &.m3 {
-      background-color: var(--mark-3);
-    }
-    &.m4 {
-      background-color: var(--mark-4);
-    }
-    &.m5 {
-      background-color: var(--mark-5);
-    }
-    &.m6 {
-      background-color: var(--mark-6);
-    }
-    &.m7 {
-      background-color: var(--mark-7);
-    }
-    &.m8 {
-      background-color: var(--mark-8);
-    }
-  }
-  .tm :global(svg) {
-    inline-size: 10px;
-    block-size: 10px;
-    display: block;
-    color: var(--mark-glyph);
-  }
-
-  /* On the mark's corner, ringed in the surface the tab stands on: the
-     shelf's field, or — chosen — the sheet. */
-  .badge {
-    position: absolute;
-    inset-inline-end: -4px;
-    inset-block-end: -4px;
-    display: grid;
-    place-items: center;
-    inline-size: 10px;
-    block-size: 10px;
-    border-radius: 50%;
-    background: var(--surface-field);
-  }
-  :global(.ff-tab.selected) .badge {
-    background: var(--sheet);
   }
 
   .tclose {

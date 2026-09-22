@@ -40,6 +40,7 @@
     machineName,
     model,
     onmodel,
+    runtime = false,
   }: {
     harness: HarnessKind;
     onharness: (harness: HarnessKind) => void;
@@ -47,7 +48,9 @@
     machineName: string;
     model: string;
     onmodel: (id: string) => void;
+    runtime?: boolean;
   } = $props();
+  const uid = $props.id();
   type TabId = HarnessKind | "codex";
   const TABS: { id: TabId; name: string; soon?: boolean }[] = [
     { id: "claude", name: "Claude Code" },
@@ -87,7 +90,7 @@
   /** How many leaving rows keep animating. The list shows about five. */
   const LEAVING = 8;
   let listHarness = $state<HarnessKind>(untrack(() => harness));
-  let phase = $state<"in" | "idle">("in");
+  let phase = $state<"in" | "idle">(untrack(() => (runtime ? "idle" : "in")));
   let slideDir = $state(1);
   let gen = $state(0);
   let query = $state("");
@@ -234,70 +237,71 @@
 </script>
 
 <section class="model">
-  <SectionHeader hue="var(--fai-violet-500)" icon={Cpu} label="Model" />
-  <div
-    aria-label="Harness"
-    class="tabs"
-    onkeydown={tabKey}
-    onmouseleave={fhHarness.leave}
-    onmousemove={fhHarness.move}
-    role="radiogroup"
-    tabindex="-1"
-  >
-    <span
-      aria-hidden="true"
-      class="ns-ghost harness-ghost"
-      style={fhHarness.style}
-    ></span>
-    <span
-      aria-hidden="true"
-      class="thumb"
-      style={`--col:${thumbCol};--row:${thumbRow}`}
-    ></span>
-    {#each TABS as tab, i (tab.id)}
-      {@const available = !tab.soon && installed.includes(tab.id as HarnessKind)}
-      <!-- biome-ignore lint/a11y/useSemanticElements: the harness tabs are a designed segmented control; a native radio cannot carry the logo, thumb and disabled reason -->
-      <button
-        aria-checked={tab.id === harness}
-        aria-describedby={available ? undefined : `harness-${tab.id}-why`}
-        class="tab ns-in"
-        data-fh={available ? "1" : undefined}
-        data-harness={tab.id}
-        disabled={!available}
-        onclick={() => onharness(tab.id as HarnessKind)}
-        role="radio"
-        style={`--delay:${i * 30}ms`}
-        tabindex={tab.id === harness ? 0 : -1}
-        title={tab.name}
-        type="button"
-        class:on={tab.id === harness}
-      >
-        {#if tab.id === "codex"}
-          <OpenAiMark aria-hidden="true" class="codex-mark" />
-        {:else}
-          <HarnessLogo harness={tab.id as HarnessKind} />
-        {/if}
-        <span class="tab-name">{tab.name}</span>
-        {#if tab.soon}
-          <span class="soon">soon</span>
-        {/if}
-        {#if !available}
-          <span class="sr-only" id={`harness-${tab.id}-why`}
-            >{tab.soon ? "Coming soon" : `Not installed on ${machineName}`}</span
-          >
-        {/if}
-      </button>
-    {/each}
-  </div>
-
+  {#if !runtime}
+    <SectionHeader hue="var(--fai-violet-500)" icon={Cpu} label="Model" />
+    <div
+      aria-label="Harness"
+      class="tabs"
+      onkeydown={tabKey}
+      onmouseleave={fhHarness.leave}
+      onmousemove={fhHarness.move}
+      role="radiogroup"
+      tabindex="-1"
+    >
+      <span
+        aria-hidden="true"
+        class="ns-ghost harness-ghost"
+        style={fhHarness.style}
+      ></span>
+      <span
+        aria-hidden="true"
+        class="thumb"
+        style={`--col:${thumbCol};--row:${thumbRow}`}
+      ></span>
+      {#each TABS as tab, i (tab.id)}
+        {@const available = !tab.soon && installed.includes(tab.id as HarnessKind)}
+        <!-- biome-ignore lint/a11y/useSemanticElements: the harness tabs are a designed segmented control; a native radio cannot carry the logo, thumb and disabled reason -->
+        <button
+          aria-checked={tab.id === harness}
+          aria-describedby={available ? undefined : `harness-${tab.id}-why`}
+          class="tab ns-in"
+          data-fh={available ? "1" : undefined}
+          data-harness={tab.id}
+          disabled={!available}
+          onclick={() => onharness(tab.id as HarnessKind)}
+          role="radio"
+          style={`--delay:${i * 30}ms`}
+          tabindex={tab.id === harness ? 0 : -1}
+          title={tab.name}
+          type="button"
+          class:on={tab.id === harness}
+        >
+          {#if tab.id === "codex"}
+            <OpenAiMark aria-hidden="true" class="codex-mark" />
+          {:else}
+            <HarnessLogo harness={tab.id as HarnessKind} />
+          {/if}
+          <span class="tab-name">{tab.name}</span>
+          {#if tab.soon}
+            <span class="soon">soon</span>
+          {/if}
+          {#if !available}
+            <span class="sr-only" id={`harness-${tab.id}-why`}
+              >{tab.soon ? "Coming soon" : `Not installed on ${machineName}`}</span
+            >
+          {/if}
+        </button>
+      {/each}
+    </div>
+  {/if}
   <label class="search" class:focus={searchFocus}>
     <Search class="lead" />
     <input
-      aria-controls="session-models"
+      aria-controls={`${uid}-models`}
       aria-label="Search models"
       autocapitalize="off"
       autocorrect="off"
-      id="session-model-search"
+      id={`${uid}-search`}
       onblur={() => { searchFocus = false; }}
       onfocus={() => { searchFocus = true; }}
       oninput={(event) => { query = event.currentTarget.value; }}
@@ -321,7 +325,7 @@
   <div
     aria-label={`${harnessName(listHarness)} models`}
     class="list fai-scroll"
-    id="session-models"
+    id={`${uid}-models`}
     onmouseleave={fhModels.leave}
     onmousemove={fhModels.move}
     role="listbox"

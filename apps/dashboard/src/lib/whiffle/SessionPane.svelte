@@ -1,8 +1,6 @@
 <script lang="ts">
   import type {
-    EffortLevel,
     HarnessKind,
-    PermissionMode,
     PermissionResult,
     SessionMessage,
   } from "@whiffle/core";
@@ -15,7 +13,6 @@
    */
   import { untrack } from "svelte";
   import type { TransitionConfig } from "svelte/transition";
-  import { page } from "$app/state";
   import FlowView from "$lib/components/features/flow/FlowView.svelte";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte component group.
   import * as Resizable from "$lib/components/ui/resizable";
@@ -24,7 +21,6 @@
     blankSession,
     clearReadFault,
     clearRestore,
-    commandRecord,
     ensureAlive,
     type HistorySource,
     hidePreview,
@@ -36,7 +32,6 @@
     type PendingPermission,
     pendingRestore,
     refreshCommands,
-    relaunchSession,
     revealPreview,
     type SendExtras,
     type SessionState,
@@ -47,20 +42,14 @@
     submitCommand,
     whiffle,
   } from "./client.svelte";
-  import { effortStops, hasEffortScale } from "./effort-levels";
   import { mapTranscript, routedToParent } from "./frames";
   import { delegateHandle } from "./links";
-  import { describingRow, ensureModels, models } from "./models.svelte";
-  import { PERMISSION_MODES } from "./permission-modes";
   import PreviewPane from "./preview/PreviewPane.svelte";
   import PreviewSheet from "./preview/PreviewSheet.svelte";
-  import { sessionName } from "./session-name";
   // StaticTail removed — virtua's ssrCount renders the tail directly.
   import Composer, { type Mention } from "./transcript/Composer.svelte";
   import Prompt from "./transcript/Prompt.svelte";
-  import SessionHeader, {
-    type SettingChange,
-  } from "./transcript/SessionHeader.svelte";
+  import SessionToolbar from "./transcript/SessionToolbar.svelte";
   import Transcript from "./transcript/Transcript.svelte";
   import TranscriptSkeleton from "./transcript/TranscriptSkeleton.svelte";
 
@@ -103,7 +92,7 @@
     serverTail?: unknown;
     /** Where the server said this conversation's transcript can be read from. */
     serverHistory?: Promise<HistorySource | null> | null;
-    /** When true, the SessionHeader is not rendered (a shared header is drawn by the parent). */
+    /** The workspace owns the shared view toolbar. */
     hideHeader?: boolean;
     /** Which view to show: chat transcript or flow graph. Managed by parent. */
     view?: "chat" | "flow";
@@ -512,61 +501,7 @@
       machineId
   );
 
-  /**
-   * What this conversation is called. The same helper the tab strip uses, so
-   * the tab and the bar under it are never naming two different sessions.
-   */
-  const servedNames = $derived(
-    (page.data as { names?: Record<string, string> }).names ?? {}
-  );
-  const title = $derived(sessionName(viewId, servedNames, browsingCwd).label);
-
-  const stats = $derived(whiffle.statsOf(viewId));
-  const activity = $derived(whiffle.activityOf(viewId));
   const instanceRow = $derived(whiffle.instances.find((i) => i.id === viewId));
-
-  // The session settings — model, permission mode, effort — are switchable from
-  // the header now, so the same reference data the spawn form uses is derived
-  // here and the store setters are the exact desktop path a change takes.
-  const machineRow = $derived(
-    whiffle.machines.find((m) => m.machineId === machineId) ?? null
-  );
-  const harnessReport = $derived(
-    machineRow?.harnesses?.find(
-      (report) => report.harness === session?.harness
-    ) ?? null
-  );
-  /** The permission modes this session's harness can honour; empty hides the picker. */
-  const offeredModes = $derived(
-    harnessReport
-      ? PERMISSION_MODES.filter((mode) =>
-          harnessReport.capabilities.permissionModes.includes(mode.value)
-        )
-      : PERMISSION_MODES
-  );
-  /** The offered row for the model in force, which is what carries its scale. */
-  const chosenModel = $derived.by(() => {
-    const model = session?.model;
-    if (!model) {
-      return null;
-    }
-    return describingRow(model);
-  });
-  /** Whether the harness runs at an effort at all — the row is named either way. */
-  const harnessEffort = $derived(harnessReport?.capabilities.effort !== false);
-  /** Only drawn when the harness and the model both report an effort scale. */
-  const showEffort = $derived(harnessEffort && hasEffortScale(chosenModel));
-  const effortStopsForModel = $derived(effortStops(chosenModel));
-
-  // Populate the model list so the effort scale can be read even before the
-  // picker is opened; a session with nothing to ask just leaves it empty. One
-  // attempt per session coming up, and on nothing else: the store's own reads
-  // are untracked so a failed ask cannot re-run this.
-  $effect(() => {
-    // biome-ignore lint/complexity/noVoid: read-only dependency — re-runs once per change in how many sessions are running
-    void whiffle.runningInstances.length;
-    untrack(ensureModels);
-  });
 
   /** What `@` can name: the other conversations in the strip, and the machines. */
   const mentions = $derived<Mention[]>([
@@ -594,34 +529,6 @@
    * is the tracker's own account of the action, on both the stream path and the
    * legacy one (where the same calls run and their promises are the stages).
    */
-  function onmodel(model: string): SettingChange {
-    if (!machineId) {
-      return null;
-    }
-    return submitCommand(viewId, machineId, "set-model", { model });
-  }
-
-  function onpermission(mode: PermissionMode): SettingChange {
-    if (!machineId) {
-      return null;
-    }
-    // bypassPermissions is a launch decision the SDK refuses to switch into, so
-    // that one mode relaunches the session in place; the rest switch live. A
-    // relaunch is a different operation on the wire, not a `set-permission-mode`
-    // command, so it stays its own call and hands the header its promise —
-    // sending it as that command would put the call the SDK refuses on the wire.
-    if (mode === "bypassPermissions") {
-      return relaunchSession(viewId, machineId, mode);
-    }
-    return submitCommand(viewId, machineId, "set-permission-mode", { mode });
-  }
-
-  function oneffort(level: EffortLevel): SettingChange {
-    if (!machineId) {
-      return null;
-    }
-    return submitCommand(viewId, machineId, "set-effort", { effort: level });
-  }
 
   /**
    * A parked request's answer, as a command. The id goes back to the card that
@@ -847,34 +754,11 @@
 <div class="pane" bind:clientWidth={paneWidth}>
   {#if session}
     {#if !hideHeader}
-      <SessionHeader
-        {activity}
-        cost={stats.cost}
-        cwd={session.cwd || browsingCwd}
-        effort={session.effort}
-        effortStops={effortStopsForModel}
-        harness={session.harness}
-        {harnessEffort}
-        {machineName}
-        maxTokens={stats.maxTokens}
-        mcpCount={session.mcp?.length ?? null}
-        model={session.model}
-        {offeredModes}
-        {oneffort}
-        {onmodel}
-        {onpermission}
+      <SessionToolbar
         {onpreview}
         {onview}
-        permissionMode={session.permissionMode}
         previewAvailable={previewOpen}
         previewOpen={previewVisible}
-        seed={session.cwd || browsingCwd || viewId}
-        {showEffort}
-        streaming={streamCapable()}
-        {title}
-        totalTokens={stats.totalTokens}
-        trackedCommand={commandRecord}
-        turns={stats.turns}
         {view}
       />
     {/if}
