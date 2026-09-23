@@ -128,14 +128,26 @@ db.upsertAgent({
 
 /**
  * The one thing the DbShape deliberately cannot do: move a row backwards in
- * time. Age is the whole input to the restore horizon and to the `starting`
- * grace, so the tests have to be able to state it, and a second handle on a
- * scratch file is cheaper than an API that exists only for tests.
+ * time. Age is the whole input to the restore horizon, so the tests have to
+ * be able to state it, and a second handle on a scratch file is cheaper than
+ * an API that exists only for tests.
  */
 const backdate = (id: string, ms: number): void => {
   const raw = new Database(DB_FILE);
   raw
     .query("update instances set updated_at = ? where id = ?")
+    .run(Date.now() - ms, id);
+  raw.close();
+};
+
+/**
+ * The `starting` grace runs from when the spawn was issued, not from the
+ * row's last write, so a spawn that never landed is aged on its own clock.
+ */
+const backdateSpawn = (id: string, ms: number): void => {
+  const raw = new Database(DB_FILE);
+  raw
+    .query("update instances set spawned_at = ? where id = ?")
     .run(Date.now() - ms, id);
   raw.close();
 };
@@ -318,7 +330,7 @@ test("a freshly-issued spawn is not settled by a beat that was already in flight
   expect(statusOf("inst-racing")).toBe("starting");
 
   // Past the grace, the same silence is an answer: the spawn never landed.
-  backdate("inst-racing", 60_000);
+  backdateSpawn("inst-racing", 60_000);
   await beat(agent, []);
   expect(statusOf("inst-racing")).toBe("sleeping");
 
