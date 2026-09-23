@@ -136,3 +136,25 @@ always-included new installs), 14 tools, 2 MCP servers; 17 used skills fall outs
   owner's dashboard with real Jev: make-interfaces-feel-better 0.88, interfaces:better-ui 0.86, ui-observer 0.85, claude-in-chrome
   (skill) 0.76; setting restored to off. Found: MCP/tool candidates come only from a live `system.init`, so after a hub restart
   or reload an idle session offers skills only. Fix queued: hub stores each instance's latest init tooling.
+- 2026-09-23 — `c33d4fe`: MCP usage is recorded under the `mcp__<server>__` prefix (`Exa_ai`) while the composer sends the
+  display name (`Exa.ai`), so used servers were never asked about; ranking now looks usage up by the sanitised name. The Jev
+  question became "Is `candidate` made for the task `prompt` describes?": deep-research 0.39 → 0.74 for "we should really
+  research this", with typo/rename/commit prompts still under 0.6. Candidate descriptions go to Jev at 300 chars (at 150,
+  impeccable lost "frontend interface").
+- 2026-09-23 — Last agent message removed from the Jev state (`032c72c`, state is `{ prompt }`). Measured by bc5f9aed: Jev read
+  "this" as the last message's topic; deep-research 0.44 with it, 0.83–0.84 without, across 3 live sessions, and 4 of 6 live
+  sessions showed no chip because of it. Orchestrator decision: suggestions judge the draft alone.
+- 2026-09-23 — Tooling persisted (`826f88f`): the hub stores each init's MCP servers and tools in `instances.tooling`
+  (migration 0042) and the composer reads the row, so a reload or hub restart keeps them (396c6e7b had offered skills only).
+  With tools now always present, the top-50 pool on c2fa7b78 became 33 skills / 15 tools / 2 MCP, and deep-research (1 lifetime
+  use) fell out of it. Orchestrator decision: correct under the owner's rule — "only send the top 50 i'm actually using often" —
+  so no per-kind quotas and no separate skills call.
+- 2026-09-23 — MCP tools collapsed into their server chip: `mcp__<server>__…` tools are never candidates (hub rule, and the
+  dashboard stops sending them). Before, "we should really research this" filled 3 of 4 chips with Exa (web_search_exa 0.92,
+  Exa_ai 0.90, web_fetch_exa 0.87). Chips also tint by confidence (8% → 32% accent across noul 0.6 → 1), with Tab adding the top
+  chip and Shift+Tab adding all (`79584e1`); owner: "color tinted based on confidence … sorted by confidence, with some kind of
+  shortcut to insert them via keyboard, and a shortcut to insert all".
+- 2026-09-23 — Auto-rows marker contract (`d33fc579`): every injected message (rule, supervisor reply, hand-off, workflow step
+  brief and notice, delegate report and ask) opens with a marker line that `@whiffle/core` builds and parses. The dashboard
+  classifies live, mid-turn and stored copies through one function, so a reload renders the same system row; stored workflow
+  briefs and notices no longer render as the owner's turn. Owner: "after i refresh, it shows as if it's my own message".

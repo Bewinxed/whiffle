@@ -52,7 +52,10 @@ function usageName(candidate: SuggestCandidate): string {
 /**
  * The candidates worth asking about: the top {@link SUGGEST_CANDIDATE_LIMIT}
  * by each one's share of its own kind's usage, never-used ones dropped except
- * skills installed in the last {@link NEW_SKILL_DAYS} days.
+ * skills installed in the last {@link NEW_SKILL_DAYS} days. An MCP server's own
+ * tools (`mcp__<server>__…`) are never candidates: the server's chip stands for
+ * them, and its description already lists their names — asking about both
+ * filled the chip row with one server three times.
  *
  * Share within kind, not raw score: tool calls outnumber skill invocations by
  * ~270× (measured on the owner's last 30 days), so raw decayed scores cannot
@@ -75,7 +78,7 @@ export function rankCandidates(
         !(
           candidate.kind === "tool" &&
           (NEVER_SUGGEST_TOOLS.has(candidate.name) ||
-            candidate.name.startsWith("mcp__whiffle__"))
+            candidate.name.startsWith("mcp__"))
         )
     )
     .map((candidate) => ({

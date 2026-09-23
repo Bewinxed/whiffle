@@ -544,13 +544,16 @@
           ),
         };
       });
-    // Every tool by name alone; the hub drops the ones never worth pointing at.
-    const tools: SuggestCandidate[] = tooling.tools.map((tool) => ({
-      id: `tool:${tool}`,
-      kind: "tool",
-      name: tool,
-      description: "",
-    }));
+    // Every non-MCP tool by name alone; an MCP server's tools ride on its chip.
+    // The hub drops the ones never worth pointing at.
+    const tools: SuggestCandidate[] = tooling.tools
+      .filter((tool) => !tool.startsWith("mcp__"))
+      .map((tool) => ({
+        id: `tool:${tool}`,
+        kind: "tool",
+        name: tool,
+        description: "",
+      }));
     return { candidates: [...skills, ...servers, ...tools] };
   });
 
