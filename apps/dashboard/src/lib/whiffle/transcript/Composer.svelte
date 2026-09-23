@@ -194,6 +194,8 @@
   }
   let fileInput = $state<HTMLInputElement>();
   let field = $state<HTMLTextAreaElement>();
+  /** The suggestion row, for Tab and Shift+Tab. */
+  let chips = $state<ReturnType<typeof SuggestionChips>>();
 
   /** A paste longer than this rides as a named attachment, not inline text. */
   const LARGE_PASTE = 1200;
@@ -547,6 +549,50 @@
     field?.focus();
   }
 
+  /**
+   * The `/` and `@` menu owns these keys while it is up — Enter picks a
+   * command rather than sending the half-typed name of one. True when the key
+   * was the menu's.
+   */
+  function menuKey(event: KeyboardEvent): boolean {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      step(event.key === "ArrowDown" ? 1 : -1);
+      return true;
+    }
+    if (event.key === "Enter" || event.key === "Tab") {
+      const picked = entries.find((entry) => entry.id === highlight);
+      if (picked) {
+        event.preventDefault();
+        choose(picked);
+        return true;
+      }
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      dismissed = true;
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Tab adds the most likely suggestion chip, Shift+Tab all of them — only
+   * while chips are shown and nothing is selected, so Tab keeps moving focus
+   * everywhere else. True when a chip was added.
+   */
+  function chipKey(event: KeyboardEvent): boolean {
+    if (
+      event.key === "Tab" &&
+      field?.selectionStart === field?.selectionEnd &&
+      chips?.take(event.shiftKey ? "all" : "first")
+    ) {
+      event.preventDefault();
+      return true;
+    }
+    return false;
+  }
+
   function onkeydown(event: KeyboardEvent): void {
     // BEFORE the menu: mod+Enter is "interrupt and send" (the shortcut sheet's
     // long-standing promise), and a half-picked menu must not swallow it — the
@@ -556,32 +602,8 @@
       submit(oninterruptsend ?? onsubmit);
       return;
     }
-    if (menuOpen) {
-      // The menu owns these keys while it is up — Enter picks a command rather
-      // than sending the half-typed name of one.
-      if (event.key === "ArrowDown") {
-        event.preventDefault();
-        step(1);
-        return;
-      }
-      if (event.key === "ArrowUp") {
-        event.preventDefault();
-        step(-1);
-        return;
-      }
-      if (event.key === "Enter" || event.key === "Tab") {
-        const picked = entries.find((entry) => entry.id === highlight);
-        if (picked) {
-          event.preventDefault();
-          choose(picked);
-          return;
-        }
-      }
-      if (event.key === "Escape") {
-        event.preventDefault();
-        dismissed = true;
-        return;
-      }
+    if (menuOpen ? menuKey(event) : chipKey(event)) {
+      return;
     }
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
@@ -722,6 +744,7 @@
       candidates={suggest.candidates}
       oninsert={insertSuggestion}
       text={value}
+      bind:this={chips}
     />
   {/if}
 

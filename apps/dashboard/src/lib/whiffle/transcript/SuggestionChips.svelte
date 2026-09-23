@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
   import { flip } from "svelte/animate";
+  import { Kbd } from "$lib/components/ui/kbd";
   import { IconToolGeneric, IconToolMcp, IconToolSkill } from "$lib/icons";
   import {
     askSuggestions,
@@ -13,7 +14,8 @@
    * The row of suggested skills and MCP servers above the composer's input.
    *
    * Asks Jev once the operator stops typing, about the whole prompt,
-   * and shows what it would need as chips. A chip click adds one plain
+   * and shows what it would need as chips, most likely first, each tinted by
+   * how likely. A chip click (or Tab, from the composer) adds one plain
    * sentence to the prompt; nothing about the session's tools changes.
    */
   let {
@@ -76,16 +78,27 @@
   let shimmer: ReturnType<typeof setTimeout> | undefined;
 
   const byId = $derived(new Map(candidates.map((c) => [c.id, c])));
-  /** What to show: ranked, still a candidate, and not already named in the draft. */
+  /**
+   * What to show, in the hub's order (highest noul first): ranked, still a
+   * candidate, and not already named in the draft.
+   */
   const shown = $derived(
     ranked
-      .map((entry) => byId.get(entry.id))
+      .map((entry) => ({ candidate: byId.get(entry.id), noul: entry.noul }))
       .filter(
-        (candidate): candidate is SuggestCandidate =>
-          candidate !== undefined &&
-          !text.toLowerCase().includes(candidate.name.toLowerCase())
+        (entry): entry is { candidate: SuggestCandidate; noul: number } =>
+          entry.candidate !== undefined &&
+          !text.toLowerCase().includes(entry.candidate.name.toLowerCase())
       )
   );
+
+  /** The hub only returns nouls at or above this; the tint spans from it to 1. */
+  const TINT_FLOOR = 0.6;
+  const confidence = (noul: number): number =>
+    (noul - TINT_FLOOR) / (1 - TINT_FLOOR);
+
+  /** What a screen reader hears when a chip is added. */
+  let announced = $state("");
 
   function settle() {
     controller?.abort();
@@ -147,6 +160,29 @@
   function choose(candidate: SuggestCandidate) {
     ranked = ranked.filter((entry) => entry.id !== candidate.id);
     oninsert(suggestionLine(candidate));
+    announced = `Added ${candidate.name}`;
+  }
+
+  /**
+   * The composer's Tab and Shift+Tab: add the most likely chip still shown, or
+   * every shown chip in order, one sentence each, then clear the row. False
+   * when no chip is shown, so the key keeps its own meaning.
+   */
+  export function take(which: "first" | "all"): boolean {
+    if (shown.length === 0) {
+      return false;
+    }
+    if (which === "first") {
+      choose(shown[0].candidate);
+      return true;
+    }
+    const taken = shown.map((entry) => entry.candidate);
+    ranked = [];
+    for (const candidate of taken) {
+      oninsert(suggestionLine(candidate));
+    }
+    announced = `Added ${taken.map((candidate) => candidate.name).join(", ")}`;
+    return true;
   }
 
   /**
@@ -180,12 +216,13 @@
 >
   <fieldset class="track" bind:clientHeight={trackHeight}>
     <legend class="sr-only">Suggested skills, tools and MCP servers</legend>
-    {#each shown as candidate, i (candidate.id)}
+    {#each shown as { candidate, noul }, i (candidate.id)}
       <button
         class="chip"
         onclick={() => choose(candidate)}
-        title={candidate.description}
+        title={`Likely needed · ${Math.round(noul * 100)}%${candidate.description ? `\n${candidate.description}` : ''}`}
         type="button"
+        style:--conf={confidence(noul)}
         style:--i={i}
         out:leave
         animate:flip={{ duration: still ? 0 : GLIDE_MS, easing: easeIn }}
@@ -198,11 +235,17 @@
           <IconToolMcp aria-hidden="true" class="glyph" />
         {/if}
         <span class="name">{candidate.name}</span>
+        {#if i === 0}
+          <Kbd aria-hidden="true" class="key">Tab</Kbd>
+        {/if}
         <span class="sr-only"
           >— add “{suggestionLine(candidate)}” to the message</span
         >
       </button>
     {/each}
+    {#if shown.length > 1}
+      <span aria-hidden="true" class="all"><Kbd>⇧ Tab</Kbd> all</span>
+    {/if}
     {#if slow && shown.length === 0}
       <span aria-hidden="true" class="shimmer"></span>
     {/if}
@@ -210,6 +253,7 @@
       <p class="fail" role="status">Suggestions failed: {failure}</p>
     {/if}
   </fieldset>
+  <p aria-live="polite" class="sr-only">{announced}</p>
 </div>
 
 <style>
@@ -240,16 +284,29 @@
     }
   }
 
+  /* Tinted by confidence: `--conf` runs 0 → 1 across the shown range (noul
+     0.6 → 1), and the accent's share of the fill runs 8% → 32% with it. The
+     border takes the same mix at 1.5×. */
   .chip {
+    --tint: calc(8% + var(--conf) * 24%);
     display: inline-flex;
     align-items: center;
     gap: var(--space-2);
     max-inline-size: 100%;
     padding-block: var(--space-1);
     padding-inline: var(--space-2) var(--space-3);
-    border: 1px solid var(--border-hairline);
+    border: 1px solid
+      color-mix(
+        in oklch,
+        var(--accent-solid) calc(var(--tint) * 1.5),
+        var(--surface-raised)
+      );
     border-radius: var(--radius-control);
-    background: var(--surface-raised);
+    background: color-mix(
+      in oklch,
+      var(--accent-solid) var(--tint),
+      var(--surface-raised)
+    );
     box-shadow: var(--shadow-tile);
     color: var(--ink-body);
     font-size: var(--text-sm);
@@ -257,20 +314,19 @@
     cursor: pointer;
     opacity: 1;
     transform: none;
-    transition:
-      opacity var(--c-300) var(--e-in),
-      background-color var(--c-100) var(--e-in),
-      color var(--c-100) var(--e-in);
+    transition: opacity var(--c-300) var(--e-in);
 
     @starting-style {
       opacity: 0;
     }
 
+    /* A confidence that moves in place re-tints over --c-300. */
     @media (prefers-reduced-motion: no-preference) {
       transition:
         opacity var(--c-300) var(--e-in) calc(var(--i) * 30ms),
         transform var(--c-300) var(--e-in) calc(var(--i) * 30ms),
-        background-color var(--c-100) var(--e-in),
+        background-color var(--c-300) var(--e-in),
+        border-color var(--c-300) var(--e-in),
         color var(--c-100) var(--e-in);
 
       @starting-style {
@@ -286,9 +342,9 @@
 
     &:hover {
       background: color-mix(
-        in oklab,
-        var(--surface-raised) 70%,
-        var(--surface-sunken)
+        in oklch,
+        var(--accent-solid) calc(var(--tint) + 6%),
+        var(--surface-raised)
       );
       color: var(--ink-strong);
     }
@@ -313,6 +369,24 @@
   .name {
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  /* The keyboard's way in: Tab on the first chip, Shift+Tab for all of them.
+     A touch screen has no Tab key, so neither hint shows there. */
+  .all {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    color: var(--ink-muted);
+    font-size: var(--text-sm);
+    white-space: nowrap;
+  }
+
+  @media (pointer: coarse) {
+    .chip :global(.key),
+    .all {
+      display: none;
+    }
   }
 
   /* One low-contrast sweep, only while an ask is slow. */
