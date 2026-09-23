@@ -29,7 +29,7 @@
     TabsList,
     type TabsTravel,
   } from "$lib/components/ui/fluid-tabs";
-  import { IconChevronDown, IconClose } from "$lib/icons";
+  import { IconArrowRight, IconChevronDown, IconClose } from "$lib/icons";
   import {
     ACTIVITY_LABEL,
     type Activity,
@@ -37,6 +37,7 @@
     UNKNOWN_LABEL,
   } from "../activity";
   import { isFailed, isStale, whiffle } from "../client.svelte";
+  import { continueInNewSession, continueSourceOf } from "../continue.svelte";
   import { copyToClipboard } from "../copy";
   import { conversationHref } from "../links";
   import { sessionName } from "../session-name";
@@ -142,6 +143,8 @@
   let detailsHeight = $state(0);
   let restoreFocus = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  /** A tab's context menu is open; hovering must not open the card under it. */
+  let menuOpen = false;
   const detailTab = $derived(tabs.find((tab) => tab.id === detailId));
   function closeDetails() {
     clearTimeout(timer);
@@ -161,7 +164,7 @@
     detailsOpen = true;
   }
   function hoverTab(id: string, event: PointerEvent) {
-    if (touch.current || event.pointerType !== "mouse" || pinned) {
+    if (touch.current || event.pointerType !== "mouse" || pinned || menuOpen) {
       return;
     }
     clearTimeout(timer);
@@ -171,6 +174,15 @@
       return;
     }
     timer = setTimeout(() => showDetails(id, anchor, false), 350);
+  }
+  function menuOpenChange(open: boolean) {
+    menuOpen = open;
+    if (open) {
+      clearTimeout(timer);
+      if (detailsOpen && !pinned) {
+        closeDetails();
+      }
+    }
   }
   function leaveDetails() {
     clearTimeout(timer);
@@ -236,7 +248,7 @@
 >
   <TabsList aria-label="Open sessions in this group" scrollable>
     {#each tabs as tab, i (tab.id)}
-      <ContextMenu.Root>
+      <ContextMenu.Root onOpenChange={menuOpenChange}>
         <ContextMenu.Trigger class="contents">
           <!-- The caret marks where a drop would land, drawn on the side the
                pointer is nearest. Graphite, like every structural mark here:
@@ -308,6 +320,12 @@
           }}
             >Session details</ContextMenu.Item
           >
+          <ContextMenu.Item
+            onSelect={() => continueInNewSession(continueSourceOf(tab.id, tab.label))}
+          >
+            <IconArrowRight />
+            Continue in new session…
+          </ContextMenu.Item>
           <!-- Every gesture has a command that does the same thing. Splitting
                and moving are reachable from here before drag-and-drop exists,
                and stay reachable for anyone not using a pointer. -->

@@ -2,6 +2,7 @@
   import type { EffortLevel, HarnessKind, PermissionMode } from "@whiffle/core";
   import { untrack } from "svelte";
   import ProviderLogo from "$lib/components/features/ProviderLogo.svelte";
+  import { IconArrowRight } from "$lib/icons";
   import Down from "~icons/solar/alt-arrow-down-linear";
   import External from "~icons/solar/arrow-right-up-linear";
   import Close from "~icons/solar/close-circle-bold-duotone";
@@ -17,6 +18,7 @@
     submitCommand,
     whiffle,
   } from "../client.svelte";
+  import { continueInNewSession, continueSourceOf } from "../continue.svelte";
   import { copyToClipboard } from "../copy";
   import HarnessLogo from "../HarnessLogo.svelte";
   import { describingRow, ensureModels, modelLabel } from "../models.svelte";
@@ -410,6 +412,13 @@
       /></a
     >
     <button
+      onclick={() => { onclose(); continueInNewSession(continueSourceOf(sessionId, title)); }}
+      type="button"
+    >
+      <IconArrowRight />
+      Continue in new session…
+    </button>
+    <button
       onclick={() => copyToClipboard('Link', new URL(href, location.origin).href)}
       type="button"
     >
@@ -673,14 +682,16 @@
     flex: none;
     background: var(--surface-raised);
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
-    gap: var(--space-3);
+    column-gap: var(--space-3);
     padding: var(--space-2) var(--space-5);
     border-top: 1px solid var(--border-hairline);
   }
   .footer a,
   .footer button {
     display: inline-flex;
+    white-space: nowrap;
     gap: var(--space-2);
     align-items: center;
     min-height: 32px;
