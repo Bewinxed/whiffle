@@ -61,7 +61,7 @@ export async function saveSuggestSetting(enabled: boolean): Promise<void> {
 
 /** One ask. Resolves to the ranked ids, or throws the hub's error text. */
 export async function askSuggestions(
-  body: { text: string; recent: string; candidates: SuggestCandidate[] },
+  body: { text: string; candidates: SuggestCandidate[] },
   signal: AbortSignal
 ): Promise<{ id: string; noul: number }[]> {
   const response = await fetch("/api/suggest", {

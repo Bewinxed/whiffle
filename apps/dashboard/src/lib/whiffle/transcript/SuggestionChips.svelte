@@ -19,14 +19,11 @@
   let {
     text,
     candidates,
-    recent,
     oninsert,
   }: {
     /** The composer's current draft. */
     text: string;
     candidates: SuggestCandidate[];
-    /** The session's last assistant text, for context. */
-    recent: string;
     oninsert: (line: string) => void;
   } = $props();
 
@@ -105,10 +102,7 @@
       slow = true;
     }, SHIMMER_AFTER_MS);
     try {
-      const answer = await askSuggestions(
-        { text: draft, recent, candidates },
-        signal
-      );
+      const answer = await askSuggestions({ text: draft, candidates }, signal);
       // A reply to words that are no longer in the composer is not an answer.
       if (text.trim() === draft) {
         ranked = answer;

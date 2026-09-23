@@ -4988,7 +4988,6 @@ export const createServer = ({
         {
           body: t.Object({
             text: t.String(),
-            recent: t.String(),
             candidates: t.Array(
               t.Object({
                 id: t.String(),
@@ -5015,7 +5014,6 @@ export const createServer = ({
             db,
             connection.apiKey,
             body.text,
-            body.recent,
             body.candidates
           );
           if ("error" in result) {

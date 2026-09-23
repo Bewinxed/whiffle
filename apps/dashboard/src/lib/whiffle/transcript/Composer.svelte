@@ -104,7 +104,7 @@
      * The session's skills and MCP servers, and its last reply, for the
      * suggestion chips. Absent on surfaces with no session behind them.
      */
-    suggest?: { candidates: SuggestCandidate[]; recent: string };
+    suggest?: { candidates: SuggestCandidate[] };
   } = $props();
 
   $effect(() => {
@@ -721,7 +721,6 @@
     <SuggestionChips
       candidates={suggest.candidates}
       oninsert={insertSuggestion}
-      recent={suggest.recent}
       text={value}
     />
   {/if}

@@ -107,7 +107,6 @@ export async function suggest(
   db: DbShape,
   key: string,
   text: string,
-  recent: string,
   candidates: SuggestCandidate[]
 ): Promise<
   { suggestions: { id: string; noul: number }[] } | { error: string }
@@ -118,7 +117,7 @@ export async function suggest(
   }
   const result = await askNouls(
     key,
-    { prompt: text, last_agent_message: recent },
+    { prompt: text },
     Object.fromEntries(
       asked.map((candidate) => [
         candidate.id,

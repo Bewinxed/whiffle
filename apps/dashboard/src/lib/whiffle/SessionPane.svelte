@@ -508,9 +508,6 @@
 
   const commands = $derived(whiffle.commandsOf(viewId));
 
-  /** How much of the last reply the suggestions read for context. */
-  const RECENT_LIMIT = 1500;
-
   /**
    * What the composer may suggest: the session's skills, its connected MCP
    * servers described by their tool names, and its tools. Whiffle's own
@@ -554,13 +551,7 @@
       name: tool,
       description: "",
     }));
-    const said = session?.messages.findLast(
-      (message) => message.type === "assistant"
-    );
-    return {
-      candidates: [...skills, ...servers, ...tools],
-      recent: (said?.content ?? "").slice(-RECENT_LIMIT),
-    };
+    return { candidates: [...skills, ...servers, ...tools] };
   });
 
   /**
