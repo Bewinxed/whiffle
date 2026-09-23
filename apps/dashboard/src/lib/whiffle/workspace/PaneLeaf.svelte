@@ -11,7 +11,7 @@
    * change of grid rearranges the DOM without rebuilding a transcript.
    *
    */
-  import { tick, untrack } from "svelte";
+  import { untrack } from "svelte";
   import { MediaQuery } from "svelte/reactivity";
   import { browser } from "$app/environment";
   import { page } from "$app/state";
@@ -110,51 +110,40 @@
   });
 
   /* ── The switch ────────────────────────────────────────────────────
-     A tab switch moves the transcript the way the strip's sheet wipes, on
-     the strip's own --wipe and --wipe-ease, so the eye reads which way it
-     went. On the phone the neighbours are painted either side, so the
-     leaving transcript goes off toward the side being left and the arriving
-     one comes in from the other. On a desktop only the showing transcript is
-     painted, so the arriving one alone glides in from the side it came from
-     and fades up. A swipe needs none of this — the finger and its settle
-     already moved them, and its travel is still set when the tab flips. */
-  /** How far the arriving transcript travels on a desktop: a cue, not a page turn. */
+     On a desktop a tab switch glides the arriving transcript in from the
+     side it came from and fades it up, on the strip's own --wipe and
+     --wipe-ease, so the eye reads which way it went. Only the showing
+     transcript is painted there, so it alone moves. The phone's group is
+     left alone: its swipe already slides the transcripts. */
+  /** How far the arriving transcript travels: a cue, not a page turn. */
   const NUDGE_PX = 40;
   const SWITCH_MS = 260;
   const SWITCH_EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
   const motion = new MediaQuery("(prefers-reduced-motion: no-preference)");
   let stack = $state<HTMLElement>();
-  /** The pane sliding out, kept painted until it is off screen. */
-  let leaving = $state<string | null>(null);
-  let shownId = untrack(() => viewId);
   let shownIndex = untrack(() => activeIndex);
 
   $effect(() => {
-    const id = viewId;
     const index = activeIndex;
+    const id = viewId;
     untrack(() => {
-      const from = shownId;
       const fromIndex = shownIndex;
-      shownId = id;
       shownIndex = index;
       if (
-        !(stack && motion.current && from) ||
-        from === id ||
+        swipeable ||
+        !(stack && motion.current) ||
         index < 0 ||
         fromIndex < 0 ||
-        swipe.travel !== null
+        index === fromIndex
       ) {
         return;
       }
       const dir = Math.sign(index - fromIndex);
-      const pane = (paneId: string) =>
-        stack?.querySelector<HTMLElement>(
-          `:scope > .pane[data-pane="${CSS.escape(paneId)}"]`
-        );
-      const incoming = pane(id);
-      const timing = { duration: SWITCH_MS, easing: SWITCH_EASE };
-      if (incoming && !swipeable) {
-        incoming.animate(
+      stack
+        .querySelector<HTMLElement>(
+          `:scope > .pane[data-pane="${CSS.escape(id)}"]`
+        )
+        ?.animate(
           [
             {
               transform: `translate3d(${dir * NUDGE_PX}px, 0, 0)`,
@@ -162,43 +151,8 @@
             },
             { transform: "translate3d(0, 0, 0)", opacity: 1 },
           ],
-          timing
+          { duration: SWITCH_MS, easing: SWITCH_EASE }
         );
-        return;
-      }
-      const outgoing = pane(from);
-      if (!(incoming && outgoing)) {
-        return;
-      }
-      leaving = from;
-      incoming.animate(
-        [
-          { transform: `translate3d(${dir * 100}%, 0, 0)` },
-          { transform: "translate3d(0, 0, 0)" },
-        ],
-        timing
-      );
-      // Held at the far end until the pane is hidden again: one parked
-      // further than a neighbour has no resting transform to fall back to.
-      const out = outgoing.animate(
-        [
-          { transform: "translate3d(0, 0, 0)" },
-          { transform: `translate3d(${-dir * 100}%, 0, 0)` },
-        ],
-        { ...timing, fill: "forwards" }
-      );
-      out.finished.then(
-        async () => {
-          if (leaving === from) {
-            leaving = null;
-          }
-          await tick();
-          out.cancel();
-        },
-        () => {
-          // Cancelled by a newer switch, which has taken `leaving` over.
-        }
-      );
     });
   });
 
@@ -255,8 +209,7 @@
     {#each mounted as paneId (paneId)}
       {@const isActive = paneId === viewId}
       {@const delta = deltaOf(paneId)}
-      {@const shown =
-        isActive || paneId === leaving || (swipeable && Math.abs(delta) <= 1)}
+      {@const shown = isActive || (swipeable && Math.abs(delta) <= 1)}
       {@const ctx = contextOf(paneId)}
       <div
         class="pane"
