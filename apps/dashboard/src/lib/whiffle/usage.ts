@@ -74,7 +74,7 @@ export const band = (pct: number): Band => {
   return pct >= 70 ? "warn" : "calm";
 };
 
-/** A countdown to a reset, minute-granular — "2h 14m", "14m", "resetting now". */
+/** A countdown to a reset — "2d 4h", "2h 14m", "14m", "resetting now". */
 export const resetsIn = (resetsAt: string | null, now: number): string => {
   if (!resetsAt) {
     return "";
@@ -86,6 +86,12 @@ export const resetsIn = (resetsAt: string | null, now: number): string => {
   const totalMin = Math.floor(diff / 60_000);
   const h = Math.floor(totalMin / 60);
   const m = totalMin % 60;
+  // A weekly window is days away; "resets in 52h 10m" makes the reader divide.
+  if (h >= 24) {
+    const d = Math.floor(h / 24);
+    const rest = h % 24;
+    return rest > 0 ? `resets in ${d}d ${rest}h` : `resets in ${d}d`;
+  }
   if (h > 0) {
     return `resets in ${h}h ${m}m`;
   }
