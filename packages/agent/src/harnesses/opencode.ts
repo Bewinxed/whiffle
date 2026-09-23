@@ -3136,12 +3136,24 @@ export class OpencodeHarness implements Harness {
         version = said;
       }
     }
+    // The catalog the machine reports, so a picker lists opencode's models
+    // with no opencode session running. A server that cannot answer leaves
+    // the report without one, as claude's does when its probe fails.
+    const models = installed
+      ? await this.#ensure()
+          .then((client) => connectedProviders(client))
+          .then(modelCatalog)
+          .catch((error: unknown) => {
+            console.warn(`[opencode] model catalog unavailable: ${error}`);
+          })
+      : undefined;
     return {
       harness: "opencode",
       installed,
       ...(version ? { version } : {}),
       auth: installed ? "authenticated" : "unauthenticated",
       capabilities: OPENCODE_CAPABILITIES,
+      ...(models ? { models } : {}),
     };
   }
 

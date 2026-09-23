@@ -713,3 +713,15 @@ export const CONTROL_GET_TODOS = "getTodos";
  * answer it.
  */
 export const CONTROL_MODEL_CATALOG = "modelCatalog";
+
+/**
+ * What git says changed in a directory, for a continuation's artifact index:
+ * `git status --porcelain` and `git log --since=<iso> --name-status` — those
+ * two commands, nothing else (`GitChanges`). Machine-scoped.
+ */
+export const CONTROL_GIT_CHANGES = "gitChanges";
+
+/** A directory's git state as {@link CONTROL_GIT_CHANGES} answers it. */
+export type GitChanges =
+  | { repo: false }
+  | { repo: true; status: string; log: string };

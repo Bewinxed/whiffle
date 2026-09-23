@@ -15,6 +15,7 @@ import type {
   FramePayload,
   FsImage,
   FsPayload,
+  GitChanges,
   HarnessKind,
   HarnessReport,
   HookDraft,
@@ -50,6 +51,7 @@ import {
   CONTROL_CONTEXT_USAGE,
   CONTROL_GET_SESSION_INFO,
   CONTROL_GET_SESSION_MESSAGES,
+  CONTROL_GIT_CHANGES,
   CONTROL_LIST_SESSIONS,
   CONTROL_MODEL_CATALOG,
   CONTROL_SEARCH_TRANSCRIPTS,
@@ -96,6 +98,7 @@ import { HUB_VERSION } from "./config";
 import {
   type ContinuationSource,
   extractTranscript,
+  gitSection,
   liveScope,
   openingMessage,
   scopeChars,
@@ -205,6 +208,8 @@ const READ_TIMEOUT_MS = 10_000;
  * past this the machine is not going to answer.
  */
 const CONTINUE_SPAWN_TIMEOUT_MS = 120_000;
+/** How often a running continuation's stream says it is still there. */
+const CONTINUE_HEARTBEAT_MS = 20_000;
 /** The largest frame a machine may send the hub (see the agent socket). */
 const AGENT_FRAME_LIMIT_BYTES = 512 * 1024 * 1024;
 
@@ -2319,6 +2324,56 @@ export const createServer = ({
     return (answer.result as { totalTokens: number }).totalTokens;
   };
 
+  /** When the session started, as its own harness records it. */
+  const sessionStartOf = async (where: SessionLocation): Promise<string> => {
+    const answer = await callAgent(
+      where.machineId,
+      CONTROL_GET_SESSION_INFO,
+      [where.sessionId, where.cwd || undefined],
+      READ_TIMEOUT_MS,
+      where.harness
+    );
+    if (answer === "offline" || answer === "timeout" || !answer.ok) {
+      throw new Error(
+        `machine ${where.machineId} could not say when session ${where.sessionId} started: ${
+          answer === "offline" || answer === "timeout"
+            ? answer
+            : (answer.error ?? "no answer")
+        }`
+      );
+    }
+    const created = (answer.result as NeutralSessionInfo | null)?.createdAt;
+    if (!created) {
+      throw new Error(
+        `${where.harness} does not report when session ${where.sessionId} started`
+      );
+    }
+    return new Date(created).toISOString();
+  };
+
+  /** What git says changed in the session's directory since it started. */
+  const gitChangesOf = async (
+    where: SessionLocation,
+    since: string
+  ): Promise<GitChanges> => {
+    const answer = await callAgent(
+      where.machineId,
+      CONTROL_GIT_CHANGES,
+      [where.cwd, since],
+      READ_TIMEOUT_MS
+    );
+    if (answer === "offline" || answer === "timeout" || !answer.ok) {
+      throw new Error(
+        `machine ${where.machineId} could not read git in ${where.cwd}: ${
+          answer === "offline" || answer === "timeout"
+            ? answer
+            : (answer.error ?? "no answer")
+        }`
+      );
+    }
+    return answer.result as GitChanges;
+  };
+
   /** One read of a session's stored messages through its own machine. */
   const readMessages = async (
     where: SessionLocation,
@@ -2364,14 +2419,21 @@ export const createServer = ({
           : `no session ${sourceId}`
       );
     }
-    const [live, whole] = await Promise.all([
+    const since = await sessionStartOf(where);
+    const [live, whole, git] = await Promise.all([
       readMessages(where, false),
       readMessages(where, true),
+      gitChangesOf(where, since),
     ]);
     const scope = liveScope(live);
-    // Named by what it was first asked — the whole transcript's first turn,
-    // not the compaction summary its live context starts with.
-    const first = firstTurnOf(whole);
+    // Named by what it was first asked in words — the whole transcript's first
+    // prompt, not the compaction summary its live context starts with, nor a
+    // bare slash command (`/clear`) that names nothing.
+    const first = whole
+      .map(userTurnText)
+      .find(
+        (text) => text && !deriveTitleFromFirstMessage(text).startsWith("/")
+      );
     const source: ContinuationSource & { machineId: string } = {
       instanceId: sourceId,
       machineId: where.machineId,
@@ -2385,6 +2447,7 @@ export const createServer = ({
         leaf(where.cwd),
     };
     const extracted = extractTranscript(scope, whole);
+    extracted.artifacts = `${extracted.artifacts}\n\n${gitSection(git, since)}`;
     const prompt = extracted.middle.length
       ? summariserPrompt(extracted.middle, note)
       : undefined;
@@ -2446,15 +2509,20 @@ export const createServer = ({
   const continueSession = async (
     prepared: Awaited<ReturnType<typeof prepareContinuation>>,
     request: ContinueRequest,
+    stage: (name: "summarising" | "starting") => void,
     cancelled: () => boolean
   ): Promise<ContinueOutcome> => {
     const { source, extracted, prompt } = prepared;
+    if (prompt) {
+      stage("summarising");
+    }
     const summariser = prompt
       ? await summariserRun(source, request.summarizer, prompt)
       : undefined;
     if (cancelled()) {
       throw new Error("the continuation was cancelled");
     }
+    stage("starting");
     const { target } = request;
     const targetMachine = target.machineId ?? source.machineId;
     const targetId = crypto.randomUUID();
@@ -4017,9 +4085,10 @@ export const createServer = ({
         }
       })
       // Continue in new session. The fit of both models is checked before
-      // anything starts; the answer is then NDJSON: `{progress: "summarising"}`
-      // while the summariser runs, then `{done: ContinueOutcome}` or `{error}`
-      // carrying the failure's own words.
+      // anything starts (a plain 409); the answer is then NDJSON:
+      // `{stage: "summarising" | "starting"}` as each begins, `{heartbeat}`
+      // every 20s, and last `{result: ContinueOutcome}` or `{error}` carrying
+      // the failure's own words.
       .post(
         "/api/instances/:id/continue",
         {
@@ -4067,6 +4136,7 @@ export const createServer = ({
           }
           const encoder = new TextEncoder();
           let gone = false;
+          let heartbeat: ReturnType<typeof setInterval> | undefined;
           const stream = new ReadableStream<Uint8Array>({
             async start(controller) {
               const line = (value: unknown) => {
@@ -4076,18 +4146,27 @@ export const createServer = ({
                   );
                 }
               };
-              if (prepared.prompt) {
-                line({ progress: "summarising" });
-              }
+              // A proxy between here and the caller (the dashboard's) drops a
+              // body that goes quiet for minutes; a summariser can take that.
+              heartbeat = setInterval(
+                () => line({ heartbeat: Date.now() }),
+                CONTINUE_HEARTBEAT_MS
+              );
               try {
                 line({
-                  done: await continueSession(prepared, body, () => gone),
+                  result: await continueSession(
+                    prepared,
+                    body,
+                    (stage) => line({ stage }),
+                    () => gone
+                  ),
                 });
               } catch (error) {
                 line({
                   error: error instanceof Error ? error.message : String(error),
                 });
               }
+              clearInterval(heartbeat);
               if (!gone) {
                 controller.close();
               }
@@ -4095,6 +4174,7 @@ export const createServer = ({
             cancel() {
               // The caller walked away: nothing after this point may start.
               gone = true;
+              clearInterval(heartbeat);
             },
           });
           return new Response(stream, {

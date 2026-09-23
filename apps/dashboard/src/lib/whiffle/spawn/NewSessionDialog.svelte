@@ -977,13 +977,13 @@
     if (!response.ok) {
       throw new Error(await response.text());
     }
-    // NDJSON: a progress line while the summariser runs, then `done` or `error`.
+    // NDJSON: stage and heartbeat lines while it runs, then `result` or `error`.
     const lines = (await response.text()).trim().split("\n");
     const last = JSON.parse(lines.at(-1) ?? "{}") as {
-      done?: { targetInstanceId: string };
+      result?: { targetInstanceId: string };
       error?: string;
     };
-    if (!last.done) {
+    if (!last.result) {
       throw new Error(last.error);
     }
     if (!current()) {
@@ -999,7 +999,7 @@
       permissionMode: draft.permissionMode,
       effort: draft.effort,
     });
-    await exitTo(last.done.targetInstanceId, current);
+    await exitTo(last.result.targetInstanceId, current);
   }
   async function exitTo(instanceId: string, current: () => boolean) {
     if (!current()) {

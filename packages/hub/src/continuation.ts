@@ -13,6 +13,7 @@
  * what a compaction forgot about files is still there.
  */
 import {
+  type GitChanges,
   type HarnessKind,
   type NeutralContentBlock,
   type SessionMessage,
@@ -79,6 +80,38 @@ const MAIN_ARGUMENTS = [
 /** The files an apply-patch body names (`*** Update File: path`). */
 const PATCH_FILE = /^\*\*\* (?:Add|Update|Delete) File: (.+)$/gm;
 const WHITESPACE = /\s+/g;
+/**
+ * Files a shell command wrote, as the command text names them: an output
+ * redirect (`>`/`>>`, heredocs included), `tee`, and Python's
+ * `open("path", "w"|"a")`. A write through a variable holds no path to copy.
+ */
+const SHELL_WRITES = [
+  /(?:^|[^<>&\d])>>?\s*(?!&)(["']?)([\w./~@+-][^\s;&|<>"'()]*)\1/g,
+  /\btee\s+(?:-a\s+)?(["']?)([\w./~@+-][^\s;&|<>"'()]*)\1/g,
+  /\bopen\(\s*(["'])([^"']+)\1\s*,\s*["'][wa]/g,
+];
+/** `sed -i` edits the files its last arguments name. */
+const SED_IN_PLACE =
+  /\bsed\s+-i\S*\s+(?:-e\s+)?(?:'[^']*'|"[^"]*"|\S+)\s+([^;&|<>]+)/g;
+/** One file of a git diffstat (`path | 12 ++--`), as git answers `--stat`. */
+const DIFFSTAT_FILE = /^\s*(\S+)\s+\|\s+(?:\d+|Bin)/gm;
+const NOT_FILES = new Set(["/dev/null", "/dev/stderr", "/dev/stdout"]);
+
+/** The files a shell command changed, by its text and by the git output it printed. */
+function shellChanges(command: string, output: string): string[] {
+  const paths = [
+    ...SHELL_WRITES.flatMap((pattern) =>
+      [...command.matchAll(pattern)].map((match) => match[2])
+    ),
+    ...[...command.matchAll(SED_IN_PLACE)].flatMap((match) =>
+      match[1].trim().split(WHITESPACE)
+    ),
+    ...(command.includes("git ")
+      ? [...output.matchAll(DIFFSTAT_FILE)].map((match) => match[1])
+      : []),
+  ];
+  return paths.filter((path) => path && !NOT_FILES.has(path));
+}
 
 interface StoredMessage {
   content: string | NeutralContentBlock[];
@@ -218,6 +251,12 @@ function noteArtifact(
   }
   const command = stringField(call.input, ["command"]);
   if (SHELL_TOOLS.has(kind) && command) {
+    for (const changed of shellChanges(
+      command,
+      result ? resultText(result.content) : ""
+    )) {
+      touch(artifacts.changed, changed);
+    }
     const outcome = result?.is_error
       ? `failed: ${oneLine(resultText(result.content), ERROR_CHARS)}`
       : "ok";
@@ -256,7 +295,7 @@ function artifactIndex(entries: SessionMessage[]): string {
   ];
   return [
     ...section(
-      "Files changed (most recent first, with number of edits)",
+      "Files changed (most recent first, with number of changes; by edit tools, shell writes and git diffstats)",
       files(artifacts.changed, artifacts.changed.size)
     ),
     "",
@@ -269,6 +308,44 @@ function artifactIndex(entries: SessionMessage[]): string {
       `Commands run (last ${COMMANDS_SHOWN}, oldest first)`,
       artifacts.commands.slice(-COMMANDS_SHOWN)
     ),
+  ].join("\n");
+}
+
+/** Lines of git output the artifact index carries before it says how many it cut. */
+const GIT_LINES_SHOWN = 200;
+
+/**
+ * The artifact index's git section: what git itself says changed in the
+ * source's directory since the session started — ground truth for edits no
+ * tool call names (a heredoc, a script, a build). Verbatim, capped.
+ */
+export function gitSection(changes: GitChanges, since: string): string {
+  const title = "### Git changes since this session started";
+  if (!changes.repo) {
+    return `${title}\nnot a git repository`;
+  }
+  const lines = [
+    "$ git status --porcelain",
+    ...(changes.status.trim()
+      ? changes.status.trimEnd().split("\n")
+      : ["(clean)"]),
+    "",
+    `$ git log --since=${since} --name-status --format='%h %s'`,
+    ...(changes.log.trim()
+      ? changes.log.trimEnd().split("\n")
+      : ["(no commits)"]),
+  ];
+  const shown = lines.slice(0, GIT_LINES_SHOWN);
+  return [
+    title,
+    "```",
+    ...shown,
+    ...(lines.length > shown.length
+      ? [
+          `… ${lines.length - shown.length} more lines cut (${lines.length} in total)`,
+        ]
+      : []),
+    "```",
   ].join("\n");
 }
 

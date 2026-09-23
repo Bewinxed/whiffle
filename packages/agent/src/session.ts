@@ -16,6 +16,7 @@ import type {
   FramePayload,
   FrameProvenance,
   FsPayload,
+  GitChanges,
   HarnessKind,
   IngestMark,
   InstanceSpec,
@@ -34,6 +35,7 @@ import type {
 import {
   AGENT_BUSY,
   alreadyIngested,
+  CONTROL_GIT_CHANGES,
   FLEET_STATUS,
   FLEET_SYNC,
   GENERATE_IMAGE,
@@ -216,6 +218,27 @@ const ghAvailable = async (): Promise<boolean> =>
  * decides what that is — the private ones included, which is the point of
  * asking the machine rather than GitHub.
  */
+/**
+ * {@link CONTROL_GIT_CHANGES}: exactly two read-only git commands in `cwd`.
+ * `git status` refusing (exit 128: no work tree here) answers `{ repo: false }`.
+ */
+const gitChanges = async (cwd: string, since: string): Promise<GitChanges> => {
+  const dir = expandHome(cwd);
+  const status = await Bun.$`git -C ${dir} status --porcelain`
+    .quiet()
+    .nothrow();
+  if (status.exitCode !== 0) {
+    return { repo: false };
+  }
+  const log =
+    await Bun.$`git -C ${dir} log --since=${since} --name-status ${"--format=%h %s"}`.quiet();
+  return {
+    repo: true,
+    status: status.stdout.toString(),
+    log: log.stdout.toString(),
+  };
+};
+
 const listRepos = async (): Promise<ReposResult> => {
   if (!(await ghAvailable())) {
     return { error: "gh-missing" };
@@ -1532,6 +1555,9 @@ export class SessionSupervisor {
 
       if (method === "listRepos") {
         return await listRepos();
+      }
+      if (method === CONTROL_GIT_CHANGES) {
+        return await gitChanges(args[0] as string, args[1] as string);
       }
       if (method === "listTools") {
         return await probeTools();

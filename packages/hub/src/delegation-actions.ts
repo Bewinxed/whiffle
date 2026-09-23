@@ -506,20 +506,20 @@ export const handoffActions = ({
     if (!response.ok) {
       throw new Error(await response.text());
     }
-    // NDJSON: a progress line while the summariser runs, then one `done` or `error`.
+    // NDJSON: stage and heartbeat lines while it runs, then one `result` or `error`.
     const lines = (await response.text()).trim().split("\n");
     const last = JSON.parse(lines.at(-1) ?? "{}") as {
-      done?: {
+      result?: {
         summariserInstanceId: string | null;
         targetInstanceId: string;
         opening: string;
       };
       error?: string;
     };
-    if (!last.done) {
+    if (!last.result) {
       throw new Error(last.error);
     }
-    const { done } = last;
+    const { result: done } = last;
     return {
       summariserInstanceId: done.summariserInstanceId,
       targetInstanceId: done.targetInstanceId,

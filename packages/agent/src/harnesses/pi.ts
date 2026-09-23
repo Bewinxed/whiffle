@@ -483,14 +483,21 @@ export class PiHarness implements Harness {
     return runtimePromise;
   }
 
-  // biome-ignore lint/suspicious/useAwait: implements Harness.detect's Promise<HarnessReport> contract; the bin probe is synchronous
   async detect(): Promise<HarnessReport> {
     const installed = resolveBin("pi") !== undefined;
+    // The catalog the machine reports, so a picker lists pi's models with no
+    // pi session running.
+    const models = installed
+      ? await modelCatalog().catch((error: unknown) => {
+          console.warn(`[pi] model catalog unavailable: ${error}`);
+        })
+      : undefined;
     return {
       harness: "pi",
       installed,
       auth: installed ? "authenticated" : "unauthenticated",
       capabilities: PI_CAPABILITIES,
+      ...(models ? { models } : {}),
     };
   }
 
