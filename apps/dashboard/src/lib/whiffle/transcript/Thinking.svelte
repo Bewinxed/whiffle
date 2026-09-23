@@ -17,7 +17,7 @@
   const FENCE = /^\s*(```|~~~)/;
   /** Emphasis, code ticks and heading marks: noise in a three-line glimpse. */
   const MARKUP = /[*_`#>]/g;
-  const TAIL_CHARS = 480;
+  const TAIL_CHARS = 240;
 
   /**
    * One step per block: blocks part on blank lines, except inside a fenced
@@ -50,12 +50,16 @@
   /** A running block starts open; a finished one folds to its tail. */
   let expanded = $state(untrack(() => live));
   /**
-   * What a folded block shows: the end of its last thought, as plain text. The
-   * box pins it to the bottom and fades the top, so the latest line reads and
-   * the rest trails off above it.
+   * What a folded block shows past its chevron: the end of its last thought on
+   * one line. The line is pinned to its right edge and fades out on the left,
+   * so the latest words read and the rest trails off behind the label.
    */
   const tail = $derived(
-    (paragraphs.at(-1) ?? "").replace(MARKUP, "").slice(-TAIL_CHARS)
+    (paragraphs.at(-1) ?? "")
+      .replace(MARKUP, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(-TAIL_CHARS)
   );
 </script>
 
@@ -66,6 +70,11 @@
     size="default"
   >
     <ThinkingStepsHeader disabled={!text.trim()}>
+      {#snippet after()}
+        {#if !expanded && tail}
+          <span class="tail"><span>{tail}</span></span>
+        {/if}
+      {/snippet}
       {#if live}
         <ThinkingIndicator
           aria-live={announce ? 'polite' : 'off'}
@@ -77,11 +86,6 @@
         >
       {/if}
     </ThinkingStepsHeader>
-    {#if !expanded && tail}
-      <button class="tail" onclick={() => { expanded = true; }} type="button">
-        <span>{tail}</span>
-      </button>
-    {/if}
     <ThinkingStepsContent>
       {#each paragraphs as paragraph, i (i)}
         <ThinkingStep
@@ -122,30 +126,26 @@
     gap: var(--space-2);
     --thinking-icon-size: 15px;
   }
-  /* Pinned to the bottom so the last line always shows; the mask fades the
-     lines above it into the rail instead of cutting them. */
+  /* One line past the chevron, pinned right so the newest words show; the
+     start fades out rather than cutting. Quieter than a tool row's text, so
+     the fold reads as an aside and not as the next step. */
   .tail {
     display: flex;
-    flex-direction: column;
     justify-content: flex-end;
-    width: 100%;
-    max-height: calc(3 * var(--leading-body) * 1em);
-    margin-top: var(--space-1);
-    padding: 0;
+    flex: 1 1 auto;
+    min-width: 0;
     overflow: hidden;
-    border: 0;
-    background: none;
     color: var(--ink-muted);
-    font: inherit;
-    font-size: var(--text-sm);
-    line-height: var(--leading-body);
-    text-align: left;
-    white-space: pre-line;
-    cursor: pointer;
-    mask-image: linear-gradient(to bottom, transparent, #000 75%);
+    font-size: var(--text-xs);
+    white-space: nowrap;
+    mask-image: linear-gradient(to right, transparent, #000 30%);
   }
-  .tail:hover {
-    color: var(--ink-strong);
+  /* The header spans the row so the tail has the width to read into. */
+  .think :global(.thinking-header) {
+    width: 100%;
+  }
+  .tail > span {
+    flex: 0 0 auto;
   }
   @media (max-width: 900px) {
     .think {

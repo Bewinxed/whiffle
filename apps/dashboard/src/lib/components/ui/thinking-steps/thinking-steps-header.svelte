@@ -1,12 +1,17 @@
 <script lang="ts">
   import { Collapsible } from "bits-ui";
+  import type { Snippet } from "svelte";
   import { IconChevronRight } from "$lib/icons";
 
   let {
     children,
+    after,
     class: className = "",
     ...rest
-  }: Collapsible.TriggerProps = $props();
+  }: Collapsible.TriggerProps & {
+    /** What reads on past the chevron, on the same line. */
+    after?: Snippet;
+  } = $props();
 </script>
 
 <Collapsible.Trigger
@@ -20,6 +25,7 @@
     Thinking
   {/if}
   <span aria-hidden="true" class="chevron"><IconChevronRight /></span>
+  {@render after?.()}
 </Collapsible.Trigger>
 
 <style>
