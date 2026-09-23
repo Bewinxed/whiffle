@@ -110,11 +110,16 @@
   });
 
   /* ── The switch ────────────────────────────────────────────────────
-     A tab tapped on the phone slides the transcripts the way the strip's
-     sheet wipes: the one leaving goes off toward the side being left, the
-     one arriving comes in from the other, on the strip's own --wipe and
-     --wipe-ease. A swipe needs none of this — the finger and its settle
+     A tab switch moves the transcript the way the strip's sheet wipes, on
+     the strip's own --wipe and --wipe-ease, so the eye reads which way it
+     went. On the phone the neighbours are painted either side, so the
+     leaving transcript goes off toward the side being left and the arriving
+     one comes in from the other. On a desktop only the showing transcript is
+     painted, so the arriving one alone glides in from the side it came from
+     and fades up. A swipe needs none of this — the finger and its settle
      already moved them, and its travel is still set when the tab flips. */
+  /** How far the arriving transcript travels on a desktop: a cue, not a page turn. */
+  const NUDGE_PX = 40;
   const SWITCH_MS = 260;
   const SWITCH_EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
   const motion = new MediaQuery("(prefers-reduced-motion: no-preference)");
@@ -133,7 +138,7 @@
       shownId = id;
       shownIndex = index;
       if (
-        !(swipeable && stack && motion.current && from) ||
+        !(stack && motion.current && from) ||
         from === id ||
         index < 0 ||
         fromIndex < 0 ||
@@ -147,12 +152,25 @@
           `:scope > .pane[data-pane="${CSS.escape(paneId)}"]`
         );
       const incoming = pane(id);
+      const timing = { duration: SWITCH_MS, easing: SWITCH_EASE };
+      if (incoming && !swipeable) {
+        incoming.animate(
+          [
+            {
+              transform: `translate3d(${dir * NUDGE_PX}px, 0, 0)`,
+              opacity: 0.4,
+            },
+            { transform: "translate3d(0, 0, 0)", opacity: 1 },
+          ],
+          timing
+        );
+        return;
+      }
       const outgoing = pane(from);
       if (!(incoming && outgoing)) {
         return;
       }
       leaving = from;
-      const timing = { duration: SWITCH_MS, easing: SWITCH_EASE };
       incoming.animate(
         [
           { transform: `translate3d(${dir * 100}%, 0, 0)` },
