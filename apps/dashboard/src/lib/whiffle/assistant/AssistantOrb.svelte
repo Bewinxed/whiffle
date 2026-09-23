@@ -1,21 +1,19 @@
 <script lang="ts">
   /**
-   * The assistant's summon, living in the top bar with the rest of the
-   * chrome — a floating FAB read as foreign in this quiet, rail-based UI
-   * (operator verdict), so the control joined the toolbar. Still the SINGLE
-   * place `--accent-solid` appears as a solid fill (DESIGN.md L81): the one
-   * warm dot in an otherwise hueless bar is the summon's whole signature.
+   * The assistant's summon in the phone's top bar. On a desktop the rail
+   * carries it as a row beside "New session"; on the phone the rail is behind
+   * the menu button, so the bar keeps it one tap away. It is dressed like its
+   * neighbour Jump — hairline, raised surface — and only its glyph takes the
+   * accent, so the bar reads as one row of controls, not a lone blue slab.
    */
   import { IconAssistant } from "$lib/icons";
 
   let {
     onclick,
     open = false,
-    ref = $bindable(null),
   }: {
     onclick: () => void;
     open: boolean;
-    ref?: HTMLButtonElement | null;
   } = $props();
 </script>
 
@@ -26,51 +24,35 @@
   {onclick}
   title="Assistant"
   type="button"
-  bind:this={ref}
 >
   <IconAssistant />
 </button>
 
 <style>
   .orb {
-    width: 28px;
-    height: 28px;
-    border: 1px solid transparent;
-    border-radius: var(--radius-control);
-    background: var(--accent-solid);
-    color: var(--on-brand);
     display: grid;
     place-items: center;
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--border-hairline);
+    border-radius: var(--radius-control);
+    background: var(--surface-raised);
+    color: var(--accent-11);
     cursor: pointer;
-    transition:
-      background var(--c-100) var(--e-toggle),
-      transform var(--c-100) var(--e-toggle);
+    transition: background var(--c-100) var(--e-toggle);
   }
   .orb :global(svg) {
-    width: 16px;
-    height: 16px;
+    width: 18px;
+    height: 18px;
   }
-  @media (hover: hover) and (pointer: fine) {
-    .orb:hover {
-      background: var(--accent-solid-hover);
-    }
+  .orb[aria-expanded="true"] {
+    background: var(--surface-hover);
   }
   .orb:active {
-    transform: scale(0.92);
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .orb:active {
-      transform: none;
-    }
+    background: var(--surface-hover);
   }
   .orb:focus-visible {
     outline: 2px solid var(--focus-ring);
     outline-offset: 2px;
-  }
-  @media (pointer: coarse) {
-    .orb {
-      width: 36px;
-      height: 36px;
-    }
   }
 </style>

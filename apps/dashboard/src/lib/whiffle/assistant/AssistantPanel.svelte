@@ -27,12 +27,21 @@
 
   let {
     open = $bindable(false),
-    orbEl,
   }: {
     open: boolean;
-    /** The orb button — focus returns here on close. */
-    orbEl?: HTMLButtonElement | null;
   } = $props();
+
+  /**
+   * Whatever had focus when the panel opened — the rail row, the phone's
+   * header button, or the page under ⌘J — so closing hands focus back to it.
+   */
+  let returnTo: HTMLElement | null = null;
+  $effect.pre(() => {
+    if (open) {
+      const at = document.activeElement;
+      returnTo = at instanceof HTMLElement ? at : null;
+    }
+  });
 
   let isMobile = $state(false);
   let panelEl: HTMLElement | null = $state(null);
@@ -108,11 +117,16 @@
 
   function close() {
     open = false;
-    orbEl?.focus();
+    returnTo?.focus();
   }
 
-  function onKeydown(event: KeyboardEvent) {
-    if (event.key === "Escape") {
+  /**
+   * Escape closes the desktop pane wherever focus is: it opens from the rail
+   * row or ⌘J, which leave focus outside it. The phone's drawer handles its
+   * own Escape.
+   */
+  function onWindowKeydown(event: KeyboardEvent) {
+    if (open && !isMobile && event.key === "Escape") {
       event.preventDefault();
       close();
     }
@@ -156,6 +170,8 @@
   };
 </script>
 
+<svelte:window onkeydown={onWindowKeydown} />
+
 {#if isMobile}
   <!-- MOBILE-FIRST: vaul-svelte drawer -->
   <Drawer.Root direction="bottom" shouldScaleBackground={false} bind:open>
@@ -177,11 +193,9 @@
   </Drawer.Root>
 {:else if open}
   <!-- DESKTOP: floating pane per mock shell law -->
-  <!-- biome-ignore lint/a11y/noNoninteractiveElementInteractions: WAI-ARIA dialog pattern — the dialog container owns Escape/focus-trap keydown handling -->
   <div
     aria-label="Whiffle Assistant"
     class="panel"
-    onkeydown={onKeydown}
     role="dialog"
     tabindex="-1"
     bind:this={panelEl}
@@ -573,14 +587,17 @@
     overflow-y: auto;
     min-height: 0;
   }
+  /* Rows keep their own height and the list scrolls: a shrinkable row in a
+     scrolling flex column is squeezed below its text and paints over the
+     next one. */
   .log-row {
+    flex: 0 0 auto;
     display: flex;
     align-items: baseline;
     gap: var(--space-2);
     padding: var(--space-1) 0;
     font-size: var(--text-sm);
     line-height: var(--leading-ui);
-    min-height: 0;
   }
   .log-time {
     flex: 0 0 auto;
@@ -589,9 +606,11 @@
     color: var(--ink-muted);
     font-size: var(--text-xs);
   }
+  /* A fixed column, so source and verdict line up down the list. */
   .log-session {
-    flex: 0 1 auto;
+    flex: 0 0 100px;
     min-width: 0;
+    text-align: start;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -617,7 +636,7 @@
     border-radius: 2px;
   }
   .log-session-gone {
-    flex: 0 0 auto;
+    flex: 0 0 100px;
     font-family: var(--font-mono);
     font-size: var(--text-xs);
     color: var(--ink-muted);

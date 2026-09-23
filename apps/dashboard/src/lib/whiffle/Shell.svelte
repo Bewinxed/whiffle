@@ -59,7 +59,6 @@
   let jumpOpen = $state(false);
   let railOpen = $state(false);
   let assistantOpen = $state(false);
-  let orbEl: HTMLButtonElement | null = $state(null);
 
   /**
    * The rail's width is settled before the first paint, in two places at once.
@@ -221,6 +220,11 @@
       jumpOpen = !jumpOpen;
       return;
     }
+    if (key === "j") {
+      event.preventDefault();
+      assistantOpen = !assistantOpen;
+      return;
+    }
     // Split the focused group, putting the conversation in front into the new
     // half. `mod+\` is the binding VS Code uses for exactly this, and this is
     // a straight copy of that model — borrowing the gesture's name too costs
@@ -361,6 +365,10 @@
 <div class="shell" style="--sidebar-width: var(--rail-w, {railWidth}px)">
   <aside class="rail hidden min-[900px]:flex">
     <Sidebar
+      {assistantOpen}
+      onassistant={() => {
+        assistantOpen = !assistantOpen;
+      }}
       onjump={() => {
         jumpOpen = true;
       }}
@@ -385,6 +393,11 @@
         <Sheet.Title>Navigation</Sheet.Title>
       </Sheet.Header>
       <Sidebar
+        {assistantOpen}
+        onassistant={() => {
+          railOpen = false;
+          assistantOpen = true;
+        }}
         onjump={() => {
           railOpen = false;
           jumpOpen = true;
@@ -439,13 +452,15 @@
             <span class="badge">{whiffle.blockedCount}</span>
           </a>
         {/if}
-        <AssistantOrb
-          onclick={() => {
-            assistantOpen = !assistantOpen;
-          }}
-          open={assistantOpen}
-          bind:ref={orbEl}
-        />
+        <!-- The phone's summon; on a desktop the rail carries it as a row. -->
+        <span class="min-[900px]:hidden">
+          <AssistantOrb
+            onclick={() => {
+              assistantOpen = !assistantOpen;
+            }}
+            open={assistantOpen}
+          />
+        </span>
         <!-- No always-on hub dot: a green light that is green 99% of the time
              says nothing. Connection health folds into the banner below, which
              is shown only when the hub is NOT connected. The theme toggle
@@ -485,7 +500,7 @@
 <!-- One dialog for every destructive confirm in the app (see confirm.svelte.ts). -->
 <ConfirmDialog />
 
-<AssistantPanel {orbEl} bind:open={assistantOpen} />
+<AssistantPanel bind:open={assistantOpen} />
 
 <style>
   .skip {

@@ -66,6 +66,7 @@ export { default as IconToolRead } from "~icons/solar/document-text-bold-duotone
 export { default as IconDocument } from "~icons/solar/document-text-linear";
 export { default as IconDollar } from "~icons/solar/dollar-linear";
 export { default as IconDownload } from "~icons/solar/download-linear";
+export { default as IconAssistantDuo } from "~icons/solar/eye-scan-bold-duotone";
 /** The assistant/supervisor: an eye in scan corners — oversight across sessions, in the set's own stroke. */
 export { default as IconAssistant } from "~icons/solar/eye-scan-linear";
 export { default as IconFireDuo } from "~icons/solar/fire-bold-duotone";

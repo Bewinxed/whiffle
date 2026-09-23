@@ -29,6 +29,7 @@
   import * as Sidebar from "$lib/components/ui/sidebar";
   import ThemeSwitcher from "$lib/components/ui/ThemeSwitcher.svelte";
   import {
+    IconAssistantDuo,
     IconBookDuo,
     IconBoxDuo,
     IconChevronRight,
@@ -74,7 +75,16 @@
   import { workspace } from "./workspace/workspace.svelte";
 
   /** Opens the Jump palette, which Shell owns so ⌘K and this field open the same one. */
-  let { onjump }: { onjump: () => void } = $props();
+  let {
+    onjump,
+    onassistant,
+    assistantOpen,
+  }: {
+    onjump: () => void;
+    /** Toggles the assistant, which Shell owns so ⌘J and this row share it. */
+    onassistant: () => void;
+    assistantOpen: boolean;
+  } = $props();
 
   const path = $derived(page.url.pathname);
   /**
@@ -512,6 +522,34 @@
                   <kbd
                     class="font-sans text-[length:var(--text-sm)] text-muted-foreground"
                     >⇧⌘N</kbd
+                  >
+                </span>
+              </button>
+            {/snippet}
+          </Sidebar.MenuButton>
+        </Sidebar.MenuItem>
+        <!-- The assistant beside "New session": the two things you start
+             from anywhere. Its glyph keeps the accent the summon has always
+             carried; the row is otherwise a row like any other. -->
+        <Sidebar.MenuItem>
+          <Sidebar.MenuButton
+            class={NAV_ROW}
+            isActive={assistantOpen}
+            onclick={onassistant}
+          >
+            {#snippet child({ props })}
+              <button {...props} aria-expanded={assistantOpen} type="button">
+                <span class="{SLOT} text-[var(--accent-11)]"
+                  ><IconAssistantDuo class={SLOT_GLYPH} /></span
+                >
+                <span class="flex-1">Assistant</span>
+                <span
+                  class="inline-flex opacity-0 transition-opacity duration-75
+                           group-hover/menu-item:opacity-100 group-focus-within/menu-item:opacity-100"
+                >
+                  <kbd
+                    class="font-sans text-[length:var(--text-sm)] text-muted-foreground"
+                    >⌘J</kbd
                   >
                 </span>
               </button>
