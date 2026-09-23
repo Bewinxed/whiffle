@@ -3724,96 +3724,6 @@ export function clearReadFault(instanceId: string): void {
   }
 }
 
-/** Loads a stored session's transcript into the view it is being browsed under. */
-export async function openTranscript({
-  viewId,
-  machineId,
-  sessionId,
-  cwd,
-  harness = "claude",
-}: {
-  viewId: string;
-  machineId: string;
-  /**
-   * The key the transcript is read under: the hub row's own, or the catalog
-   * entry's the reader chose. Never the view id — and absent, there is no read.
-   */
-  sessionId?: string;
-  cwd: string;
-  harness?: HarnessKind;
-}): Promise<TranscriptOutcome> {
-  const target = session(viewId);
-  target.machineId = machineId;
-  target.cwd = cwd;
-  if (sessionId) {
-    target.sessionId = sessionId;
-  }
-  target.harness = harness;
-  // A stored session's plan is still on its machine, and no frame will ever
-  // arrive to say so — opening it is the only moment there is to ask.
-  refreshTasks(viewId);
-  // Re-opening what is already read — or still hydrating, which has published
-  // its newest turns by now — must not start a second read over the top of it.
-  if (target.messages.length > 0 || target.loading) {
-    return { ok: true, skipped: true };
-  }
-  // Nothing names the transcript, and the view id is not a name for it: a
-  // read sent under one comes back empty or wrong, so this is refused outright.
-  if (!sessionId) {
-    target.readFault = {
-      reason: "failed",
-      message: `no session key on record for ${viewId}; cannot read`,
-    };
-    return { ok: false, ...target.readFault };
-  }
-
-  // Asked before the call rather than inferred from its failure: a machine the
-  // hub has not heard from cannot answer, and "offline" is a different sentence
-  // from "the read failed" — the first is a state, the second is a fault.
-  const machine = state.machines.find((row) => row.machineId === machineId);
-  if (machine && machine.status !== "online") {
-    target.readFault = {
-      reason: "offline",
-      message: `${machine.hostname || machineId} is offline — its stored transcript can't be read right now.`,
-    };
-    return { ok: false, ...target.readFault };
-  }
-
-  const epoch = claimTranscript(viewId);
-  target.loading = true;
-  target.readFault = null;
-  try {
-    const transcript = await machineControl<SessionMessage[]>(
-      machineId,
-      "getSessionMessages",
-      [sessionId, { dir: cwd || undefined }],
-      CONTROL_TIMEOUT_MS,
-      harness
-    );
-    await ingestTranscript(viewId, target, transcript, epoch);
-    return { ok: true };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    // The newest turns may already be on screen; a failure reading the rest
-    // joins them rather than taking the transcript down with it. With nothing
-    // on screen there is no transcript to join, so the failure is handed back
-    // for the pane to state outright — a lone error row in an otherwise empty
-    // scroller is the blank this exists to stop.
-    if (target.messages.length > 0) {
-      target.messages = [
-        errorMessage(viewId, `could not read transcript: ${message}`),
-        ...target.messages,
-      ];
-      return { ok: true };
-    }
-    target.readFault = { reason: "failed", message };
-    return { ok: false, reason: "failed", message };
-  } finally {
-    target.loading = false;
-    target.hydrating = false;
-  }
-}
-
 /**
  * Seeds a live session this browser joined late. Frames only carry what happens
  * from now on, so a session already under way renders as an empty transcript
@@ -3955,7 +3865,7 @@ export function preloadHistory(viewId: string): Promise<TranscriptOutcome> {
 /**
  * A session's stored transcript over HTTP, published as it arrives.
  *
- * The socket path (`backfillSession`, `openTranscript`) cannot answer until the
+ * The socket path (`backfillSession`) cannot answer until the
  * WebSocket is up, which is why a reload showed an empty transcript until the
  * hub reconnected. The hub answers `GET /api/instances/:id/messages` with the
  * same `getSessionMessages` read, so this needs nothing but a page.

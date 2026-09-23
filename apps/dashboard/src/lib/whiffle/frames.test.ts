@@ -10,9 +10,7 @@ import {
   askDetailOf,
   askShort,
   askShortOf,
-  delegateOf,
   foldDelegateEvent,
-  isDelegateReport,
   localUserMessage,
   mapFrame,
   mapTranscript,
@@ -263,56 +261,6 @@ test("an errored result carries its cost and the error line still has it", () =>
   expect(mapping.messages[0].metadata?.totalCost).toBe(0.4567);
 });
 
-const peer = (
-  session: string | undefined,
-  type: Message["type"] = "user.peer"
-): Message => ({
-  instanceId: "parent",
-  type,
-  content: "done",
-  timestamp: new Date(),
-  metadata: session ? { peerSession: session } : undefined,
-});
-
-const row = (id: string, parent: string | null) => ({
-  id,
-  parentInstanceId: parent,
-});
-
-test("a peer from this transcript's own delegate is its report", () => {
-  const instances = [row("deleg1", "parent"), row("other", "elsewhere")];
-  const report = isDelegateReport(peer("deleg1"), "parent", instances);
-  const notReport = isDelegateReport(peer("other"), "parent", instances);
-  expect(report).toBe(true);
-  expect(notReport).toBe(false);
-});
-
-test("a delegate report belongs to its parent transcript only", () => {
-  const instances = [row("deleg1", "parent")];
-  const here = isDelegateReport(peer("deleg1"), "parent", instances);
-  const elsewhere = isDelegateReport(
-    peer("deleg1"),
-    "somewhere-else",
-    instances
-  );
-  expect(here).toBe(true);
-  expect(elsewhere).toBe(false);
-});
-
-test("a peer is no delegate report when its row has no parent, or it is no peer", () => {
-  const rootRow = [row("deleg1", null)];
-  const orphan = isDelegateReport(peer("deleg1"), "parent", rootRow);
-  const notPeer = isDelegateReport(peer(undefined, "user"), "parent", [
-    row("deleg1", "parent"),
-  ]);
-  const noSession = isDelegateReport(peer(undefined), "parent", [
-    row("deleg1", "parent"),
-  ]);
-  expect(orphan).toBe(false);
-  expect(notPeer).toBe(false);
-  expect(noSession).toBe(false);
-});
-
 // A delegate's permission ask arrives as a peer-origin user message whose text
 // is the hub's `deliverDelegateAsk` wire format. The `[delegate-ask …]` marker
 // survives SDK storage (the origin does not), so both the live and the stored
@@ -384,23 +332,6 @@ test("a stored hand-off brief still upgrades to user.peer", () => {
   expect(stored).toHaveLength(1);
   expect(stored[0].type).toBe("user.peer");
   expect(stored[0].metadata?.peerName).toBe("sender");
-});
-
-test("an ask is never a delegate report, even for a delegate of the parent", () => {
-  const ask: Message = {
-    instanceId: "parent",
-    type: "user.delegate_ask",
-    content: ASK_BODY,
-    timestamp: new Date(),
-    metadata: {
-      peerSession: "deleg1",
-      askRequestId: ASK_REQUEST,
-      askLabel: ASK_LABEL,
-    },
-  };
-  expect(isDelegateReport(ask, "parent", [row("deleg1", "parent")])).toBe(
-    false
-  );
 });
 
 test("a second delegate ask with the same requestId merges; a different one does not", () => {
@@ -485,18 +416,6 @@ test("matchesSession pairs short ids with full ids, never under 8 chars", () => 
   expect(matchesSession("506dfaf", REPORT_ID)).toBe(false);
   expect(matchesSession("deadbeef", REPORT_ID)).toBe(false);
   expect(matchesSession(undefined, REPORT_ID)).toBe(false);
-});
-
-test("a stored report is a delegate report for its parent, by prefix", () => {
-  const stored = mapTranscript("parent", [
-    storedEntry(REPORT_TEXT, "u-r2"),
-  ]).messages;
-  expect(
-    isDelegateReport(stored[0], "parent", [row(REPORT_ID, "parent")])
-  ).toBe(true);
-  expect(isDelegateReport(stored[0], "parent", [row(REPORT_ID, "other")])).toBe(
-    false
-  );
 });
 
 // A peer/delegate message queued for a BUSY session loses its `origin` inside
@@ -727,23 +646,6 @@ test("a question ask reads as its questions, off the row and off the text alike"
   );
   // The hub writes that same wording into the transcript, so both paths agree.
   expect(askShort("Q1: Which file?\n- a.ts\n- b.ts")).toBe("Q1: Which file?");
-});
-
-test("delegateOf resolves full id, short id, and directory leaf — own delegates only", () => {
-  const rows = [
-    { id: REPORT_ID, cwd: "/home/u/whiffle", parentInstanceId: "parent" },
-    {
-      id: "aaaabbbb-0000-0000-0000-000000000000",
-      cwd: "/home/u/other",
-      parentInstanceId: "x",
-    },
-  ];
-  expect(delegateOf(REPORT_ID, "parent", rows)?.id).toBe(REPORT_ID);
-  expect(delegateOf("506dfafb", "parent", rows)?.id).toBe(REPORT_ID);
-  expect(delegateOf("whiffle", "parent", rows)?.id).toBe(REPORT_ID);
-  expect(delegateOf("506dfaf", "parent", rows)).toBe(null);
-  expect(delegateOf("aaaabbbb", "parent", rows)).toBe(null);
-  expect(delegateOf("other", "parent", rows)).toBe(null);
 });
 
 // Harness bookkeeping that arrives as user text: a task notification names the

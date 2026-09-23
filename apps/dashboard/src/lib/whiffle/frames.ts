@@ -1493,9 +1493,9 @@ function injectedMessage(
  * The CLI's mid-turn delivery wrapper, reversed. A message queued for a busy
  * session loses its `origin` inside the native binary, which re-materializes
  * it wrapped as human speech at drain time. The wrapper prose is stable, so
- * it is stripped here before the peer markers are consulted — and a report's
- * id still has to name one of this transcript's own delegates downstream
- * (isDelegateReport), so ordinary prose cannot impersonate peer traffic.
+ * it is stripped here before the peer markers are consulted — and a report
+ * only reaches a delegate card whose own id it names, so ordinary prose cannot
+ * impersonate peer traffic.
  */
 const MID_TURN_PREFIXES = [
   "The user sent a new message while you were working:\n",
@@ -1733,43 +1733,6 @@ export function answerVerdict(toolInput: JsonValue | undefined): {
     requestId,
     answers,
   };
-}
-
-/**
- * The delegate row a hand-off target names — full id, short id (≥8 chars), or
- * the directory's last path segment, the same resolution the daemon's own
- * harnesses use — scoped to THIS session's delegates, so a follow-up card can
- * say who it went to instead of printing a raw uuid.
- */
-export function delegateOf(
-  target: string,
-  parentInstanceId: string,
-  instances: ReadonlyArray<{
-    id: string;
-    cwd: string;
-    parentInstanceId?: string | null;
-  }>
-): { id: string; cwd: string } | null {
-  const needle = target.trim().toLowerCase();
-  if (!needle) {
-    return null;
-  }
-  for (const row of instances) {
-    if (row.parentInstanceId !== parentInstanceId) {
-      continue;
-    }
-    const leafName = (
-      row.cwd.split("/").filter(Boolean).pop() ?? row.cwd
-    ).toLowerCase();
-    if (
-      row.id === needle ||
-      (needle.length >= 8 && row.id.startsWith(needle)) ||
-      leafName === needle
-    ) {
-      return { id: row.id, cwd: row.cwd };
-    }
-  }
-  return null;
 }
 
 /**
@@ -2083,32 +2046,6 @@ export function mergePeerMessage(
  */
 const sameArrival = (a: Message, b: Message): boolean =>
   a.sdkUuid ? a.sdkUuid === b.sdkUuid || !b.sdkUuid : !!b.sdkUuid;
-
-/**
- * Whether a `user.peer` is one of this transcript's own delegates reporting
- * back, rather than a handoff handed in from another session. A delegate is an
- * instances row whose `parentInstanceId` names the transcript holding the
- * message; the peer's `peerSession` names the row. Pure — rows, not the store —
- * so a bubble's fate can be decided without reading any state.
- */
-export function isDelegateReport(
-  message: Message,
-  parentInstanceId: string,
-  instances: ReadonlyArray<{ id: string; parentInstanceId?: string | null }>
-): boolean {
-  if (message.type !== "user.peer") {
-    return false;
-  }
-  const peerSession = message.metadata?.peerSession;
-  if (!peerSession) {
-    return false;
-  }
-  return instances.some(
-    (row) =>
-      matchesSession(peerSession, row.id) &&
-      row.parentInstanceId === parentInstanceId
-  );
-}
 
 /** Folds a tool result into the `tool.use` it answers. */
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: one dispatch over every tool-result shape a `tool.use` can be answered by
