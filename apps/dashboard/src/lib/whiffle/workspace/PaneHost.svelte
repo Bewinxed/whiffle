@@ -13,7 +13,7 @@
   import type { HistorySource } from "../client.svelte";
   import SessionPane from "../SessionPane.svelte";
   import Lightbox from "../transcript/Lightbox.svelte";
-  import { dock, paneViews, slots } from "./dock.svelte";
+  import { dock, slots } from "./dock.svelte";
   import { contextOf, workspace } from "./workspace.svelte";
 
   let {
@@ -60,13 +60,8 @@
         browsingCwd={ctx?.cwd ?? ''}
         browsingHarness={ctx?.harness ?? 'claude'}
         focused={isActive && leaf?.id === workspace.focusedLeafId}
-        hideHeader
-        onview={(v) => {
-          paneViews[id] = v;
-        }}
         serverHistory={id === entryId ? entryHistory : null}
         serverTail={id === entryId ? entryTail : null}
-        view={paneViews[id] ?? 'chat'}
         viewId={id}
         visible={slots.get(id)?.shown ?? false}
       />

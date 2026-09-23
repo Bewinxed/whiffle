@@ -14,16 +14,10 @@
   import { untrack } from "svelte";
   import { browser } from "$app/environment";
   import { page } from "$app/state";
-  import {
-    type HistorySource,
-    hidePreview,
-    revealPreview,
-    whiffle,
-  } from "../client.svelte";
+  import { type HistorySource } from "../client.svelte";
   import SessionPane from "../SessionPane.svelte";
-  import SessionToolbar from "../transcript/SessionToolbar.svelte";
   import { dropHint, paneDropTarget } from "./dnd.svelte";
-  import { paneViews, slot } from "./dock.svelte";
+  import { slot } from "./dock.svelte";
   import { createSwipe } from "./gesture.svelte";
   import PaneTabs from "./PaneTabs.svelte";
   import { contextOf, type LeafNode, workspace } from "./workspace.svelte";
@@ -53,9 +47,6 @@
     activeIndex < 0 ? Number.NaN : leaf.tabs.indexOf(paneId) - activeIndex;
   /** Whether the reader's keyboard belongs to this group. */
   const isFocusedLeaf = $derived(workspace.focusedLeafId === leaf.id);
-
-  /** View controls follow the conversation previewed by a swipe. */
-  const headerId = $derived(swipe.previewId ?? viewId);
 
   /* ── Slots ─────────────────────────────────────────────────────────
      Opened on first sight and kept, so returning to a tab is free. The
@@ -147,24 +138,6 @@
     <PaneTabs {leaf} travel={swipe.travel} />
   {/if}
 
-  {#if viewId}
-    <SessionToolbar
-      onpreview={() => {
-        if (whiffle.previewVisible[headerId]) {
-          hidePreview(headerId);
-        } else {
-          revealPreview(headerId);
-        }
-      }}
-      onview={(v) => {
-        paneViews[headerId] = v;
-      }}
-      previewAvailable={whiffle.previews[headerId]?.state === 'open'}
-      previewOpen={whiffle.previewVisible[headerId] === true}
-      view={paneViews[headerId] ?? 'chat'}
-    />
-  {/if}
-
   <!-- Where a dropped conversation would go, shown as the shape it would
        take: half the group when a split is on offer, the whole of it when
        the drop would simply join these tabs. The indicator and the hitbox
@@ -203,17 +176,12 @@
             browsingCwd={ctx?.cwd ?? ''}
             browsingHarness={ctx?.harness ?? 'claude'}
             focused={false}
-            hideHeader
-            onview={() => {
-              /* SSR-only pane, dropped on hydration: no view state to track */
-            }}
             serverHistory={paneId === page.params.id
               ? ((page.data as { history?: Promise<HistorySource | null> | null }).history ?? null)
               : null}
             serverTail={paneId === page.params.id
               ? ((page.data as { tail?: unknown }).tail ?? null)
               : null}
-            view={paneViews[paneId] ?? 'chat'}
             viewId={paneId}
             visible={shown}
           />

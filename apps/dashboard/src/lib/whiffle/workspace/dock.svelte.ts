@@ -23,8 +23,6 @@ export interface Slot {
 
 export const slots = new SvelteMap<string, Slot>();
 
-/** Which view each conversation is in. A session's, not a group's. */
-export const paneViews = $state<Record<string, "chat" | "flow">>({});
 
 /** A group's slot for one tab. Registered while the group keeps it mounted. */
 export function slot(node: HTMLElement, param: { id: string; shown: boolean }) {

@@ -13,7 +13,6 @@
    */
   import { untrack } from "svelte";
   import type { TransitionConfig } from "svelte/transition";
-  import FlowView from "$lib/components/features/flow/FlowView.svelte";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte component group.
   import * as Resizable from "$lib/components/ui/resizable";
   import AutopilotToggle from "./AutopilotToggle.svelte";
@@ -23,7 +22,6 @@
     clearRestore,
     ensureAlive,
     type HistorySource,
-    hidePreview,
     interrupt,
     latestCommandFor,
     loadMcpServers,
@@ -32,7 +30,6 @@
     type PendingPermission,
     pendingRestore,
     refreshCommands,
-    revealPreview,
     type SendExtras,
     type SessionState,
     selectionCommands,
@@ -49,7 +46,6 @@
   // StaticTail removed — virtua's ssrCount renders the tail directly.
   import Composer, { type Mention } from "./transcript/Composer.svelte";
   import Prompt from "./transcript/Prompt.svelte";
-  import SessionToolbar from "./transcript/SessionToolbar.svelte";
   import Transcript from "./transcript/Transcript.svelte";
   import TranscriptSkeleton from "./transcript/TranscriptSkeleton.svelte";
 
@@ -62,11 +58,6 @@
     focused,
     serverTail = null,
     serverHistory = null,
-    hideHeader = false,
-    view = "chat" as "chat" | "flow",
-    onview = (() => {
-      // No parent listening — chat/flow toggling is a no-op until one binds.
-    }) as (v: "chat" | "flow") => void,
   }: {
     viewId: string;
     browsing: string | null;
@@ -92,12 +83,6 @@
     serverTail?: unknown;
     /** Where the server said this conversation's transcript can be read from. */
     serverHistory?: Promise<HistorySource | null> | null;
-    /** The workspace owns the shared view toolbar. */
-    hideHeader?: boolean;
-    /** Which view to show: chat transcript or flow graph. Managed by parent. */
-    view?: "chat" | "flow";
-    /** Called when the user toggles between chat and flow. */
-    onview?: (v: "chat" | "flow") => void;
   } = $props();
 
   const previewVisible = $derived(whiffle.previewVisible[viewId] === true);
@@ -598,10 +583,6 @@
    */
   let composerHeight = $state(0);
 
-  const flowSubagents = $derived(
-    new Map(Object.entries(session?.subagents ?? {}))
-  );
-
   /**
    * The gap in front of the send command: a dead session is revived before the
    * message goes out, and until it does there is no record to read a stage
@@ -614,15 +595,6 @@
   const sending = $derived(
     reviving || latestCommandFor(viewId, "send")?.stage === "submitted"
   );
-
-  /** Show the preview, or put the transcript back. */
-  function onpreview(): void {
-    if (previewVisible) {
-      hidePreview(viewId);
-    } else {
-      revealPreview(viewId);
-    }
-  }
 
   async function onsubmit(
     text: string,
@@ -753,16 +725,6 @@
 
 <div class="pane" bind:clientWidth={paneWidth}>
   {#if session}
-    {#if !hideHeader}
-      <SessionToolbar
-        {onpreview}
-        {onview}
-        previewAvailable={previewOpen}
-        previewOpen={previewVisible}
-        {view}
-      />
-    {/if}
-
     <div
       class="session-content"
       bind:this={content}
@@ -807,14 +769,6 @@
                 </div>
               {:else if !session.initialized && session.messages.length === 0}
                 <TranscriptSkeleton />
-              {:else if view === 'flow'}
-                <FlowView
-                  instanceId={viewId}
-                  messages={session.messages}
-                  streamingToolId={session.currentTool?.toolId}
-                  subagents={flowSubagents}
-                  totalCostUsd={session.totalCost}
-                />
               {:else}
                 <Transcript
                   {agentName}

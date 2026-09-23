@@ -15,6 +15,8 @@
    * brings its own row.
    */
   import { onDestroy, untrack } from "svelte";
+  import { cubicOut } from "svelte/easing";
+  import type { TransitionConfig } from "svelte/transition";
   import { MediaQuery } from "svelte/reactivity";
   import { page } from "$app/state";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte convention for component groups
@@ -134,6 +136,9 @@
   let detailAnchor = $state<HTMLElement | null>(null);
   let detailsOpen = $state(false);
   let pinned = $state(false);
+  /** Set once the open popover retargets another tab; it glides instead of reopening. */
+  let morphing = $state(false);
+  let detailsHeight = $state(0);
   let restoreFocus = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const detailTab = $derived(tabs.find((tab) => tab.id === detailId));
@@ -142,9 +147,13 @@
     restoreFocus = pinned;
     detailsOpen = false;
     pinned = false;
+    morphing = false;
   }
   function showDetails(id: string, anchor: HTMLElement, pin: boolean) {
     clearTimeout(timer);
+    if (detailsOpen && detailId !== id) {
+      morphing = true;
+    }
     detailId = id;
     detailAnchor = anchor;
     pinned = pin;
@@ -156,6 +165,10 @@
     }
     clearTimeout(timer);
     const anchor = event.currentTarget as HTMLElement;
+    if (detailsOpen) {
+      showDetails(id, anchor, false);
+      return;
+    }
     timer = setTimeout(() => showDetails(id, anchor, false), 350);
   }
   function leaveDetails() {
@@ -181,6 +194,8 @@
       } else {
         showDetails(id, event.currentTarget as HTMLElement, true);
       }
+    } else if (detailsOpen) {
+      showDetails(id, event.currentTarget as HTMLElement, pinned);
     } else {
       closeDetails();
     }
@@ -191,6 +206,14 @@
     }
   });
   onDestroy(() => clearTimeout(timer));
+  /** The incoming tab's details fade in over the glide; a first open has its own entrance. */
+  function detailsIn(_node: Element): TransitionConfig {
+    if (!morphing || reduceMotion.current) {
+      return { duration: 0 };
+    }
+    return { duration: 180, delay: 60, easing: cubicOut, css: (t) => `opacity: ${t}` };
+  }
+  const reduceMotion = new MediaQuery("(prefers-reduced-motion: reduce)");
 </script>
 
 <!-- `''` when the board is showing: a value no segment carries, so nothing
@@ -366,6 +389,12 @@
         class="session-details-popover"
         collisionPadding={12}
         customAnchor={detailAnchor}
+        data-morph={morphing ? '' : undefined}
+        onInteractOutside={(event) => {
+          if (event.target instanceof Element && event.target.closest('[data-session-tab]')) {
+            event.preventDefault();
+          }
+        }}
         onCloseAutoFocus={(event) => { event.preventDefault(); if (restoreFocus) { detailAnchor?.focus(); } }}
         onfocusin={() => { clearTimeout(timer); pinned = true; }}
         onOpenAutoFocus={(event) => { if (!pinned) { event.preventDefault(); } }}
@@ -376,16 +405,22 @@
         sideOffset={6}
         trapFocus={pinned}
       >
-        {#if detailTab}
-          {#key detailTab.id}
-            <SessionDetails
-              href={detailTab.href}
-              onclose={closeDetails}
-              sessionId={detailTab.id}
-              title={detailTab.label}
-            />
-          {/key}
-        {/if}
+        <div class="details-morph" style:height={detailsHeight ? `${detailsHeight}px` : undefined}>
+          <div class="details-measure" bind:offsetHeight={detailsHeight}>
+            {#if detailTab}
+              {#key detailTab.id}
+                <div class="details-measure" in:detailsIn>
+                  <SessionDetails
+                    href={detailTab.href}
+                    onclose={closeDetails}
+                    sessionId={detailTab.id}
+                    title={detailTab.label}
+                  />
+                </div>
+              {/key}
+            {/if}
+          </div>
+        </div>
       </Popover.Content>
     </Popover.Portal>
   </Popover.Root>
@@ -466,7 +501,24 @@
       display: none;
     }
   }
+  .details-morph {
+    width: 100%;
+    max-height: inherit;
+    overflow: hidden;
+  }
+  .details-measure {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-height: inherit;
+  }
   @media (prefers-reduced-motion: no-preference) {
+    :global([data-bits-floating-content-wrapper]:has(> .session-details-popover[data-morph])) {
+      transition: transform 260ms cubic-bezier(0.32, 0.72, 0, 1);
+    }
+    :global(.session-details-popover[data-morph]) .details-morph {
+      transition: height 260ms cubic-bezier(0.32, 0.72, 0, 1);
+    }
     :global(.session-details-popover[data-state="open"]) {
       animation: details-enter 260ms cubic-bezier(0.32, 0.72, 0, 1);
     }
