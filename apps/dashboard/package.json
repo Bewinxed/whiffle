@@ -7,7 +7,7 @@
     "build": "vite build",
     "dev": "vite dev",
     "preview": "vite preview",
-    "typecheck": "bun --bun svelte-fast-check --incremental"
+    "typecheck": "svelte-kit sync && bun --bun svelte-fast-check --incremental"
   },
   "overrides": {
     "vite": "npm:rolldown-vite@latest"
