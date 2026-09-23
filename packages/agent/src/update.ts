@@ -312,8 +312,11 @@ export const updateCheckout = async ({
   // services are still restarted, because being asked to update a machine that
   // is already current is how a wedged one gets picked up off the floor.
   if (report.to !== report.from) {
+    // Frozen, so a commit whose bun.lock disagrees with its package.json files
+    // fails this one deploy instead of rewriting bun.lock and leaving the clone
+    // dirty, which would refuse every later pull.
     const installed = await run(
-      [process.execPath, "install"],
+      [process.execPath, "install", "--frozen-lockfile"],
       INSTALL_TIMEOUT_MS,
       root
     );
