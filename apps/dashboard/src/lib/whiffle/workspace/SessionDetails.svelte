@@ -11,6 +11,7 @@
   import Shield from "~icons/solar/shield-check-bold-duotone";
   import {
     latestCommandFor,
+    refreshContext,
     relaunchSession,
     streamCapable,
     submitCommand,
@@ -84,6 +85,23 @@
     acceptEdits: "Auto-accept edits",
     bypassPermissions: "Full access",
   };
+  /*
+   * The reading only arrives when something asks for it, and the transcript
+   * asks at the end of a turn it watched. A tab opened after a reload, or a
+   * session mid-way through a long turn, has had nothing ask — so opening the
+   * details asks, once per session shown, whenever the session can answer.
+   */
+  $effect(() => {
+    const id = sessionId;
+    const mid = machineId;
+    if (editable && mid) {
+      // biome-ignore lint/complexity/noVoid: fire-and-forget — the reading lands in the session's state and the popover follows it
+      untrack(() => void refreshContext(id, mid));
+    }
+  });
+  const reading = $derived(
+    !!session?.contextPending && stats.totalTokens === null
+  );
   const percent = $derived(
     stats.totalTokens !== null && stats.maxTokens
       ? Math.min(100, Math.round((stats.totalTokens / stats.maxTokens) * 100))
@@ -338,7 +356,13 @@
         <div class="context">
           <dt>Context used</dt>
           <dd>
-            {percent === null || stats.totalTokens === null || stats.maxTokens === null ? 'Not reported' : `${percent}% · ${number(stats.totalTokens)} / ${number(stats.maxTokens)}`}
+            {#if percent !== null && stats.totalTokens !== null && stats.maxTokens !== null}
+              {`${percent}% · ${number(stats.totalTokens)} / ${number(stats.maxTokens)}`}
+            {:else if reading}
+              Reading…
+            {:else}
+              Not reported
+            {/if}
           </dd>
           {#if percent !== null}
             <meter aria-label="Context used" max="100" min="0" value={percent}>
