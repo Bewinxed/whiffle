@@ -899,6 +899,12 @@
     flex-direction: column;
     gap: var(--space-3);
   }
+  /* The snippet is always passed; with nothing parked it renders only its
+     anchors, and an empty wrapper would still take a flex gap in the measured
+     composer. A leaving prompt keeps it open until its exit has played. */
+  .prompts:empty {
+    display: none;
+  }
 
   /* One shape, always. --radius-panel outside, --space-2 of inset, and the
      controls inside carry (panel − inset) so the curves are concentric rather
