@@ -17,6 +17,7 @@ import type {
   Rule,
   RuleState,
   RuleStats,
+  SessionTooling,
   SkillFile,
   SupervisorEvent,
   ToolPolicy,
@@ -424,13 +425,15 @@ export interface DbShape {
   /**
    * The SDK session an `init` frame named, so the row can be read back from —
    * with the directory it really opened in, which is the agent's word on where
-   * the spawn's `cwd` resolved to.
+   * the spawn's `cwd` resolved to, and the MCP servers and tools it announced
+   * when it announced any.
    */
   readonly noteInstanceSession: (
     id: string,
     sessionId: string,
     cwd?: string,
-    harness?: string
+    harness?: string,
+    tooling?: SessionTooling
   ) => void;
   /**
    * Records a fire and returns the session's new standing. `pending` is set
@@ -1454,7 +1457,7 @@ const make = (path: string): DbShape => {
         .where(eq(instances.id, id))
         .returning()
         .get(),
-    noteInstanceSession: (id, sessionId, cwd, harness) => {
+    noteInstanceSession: (id, sessionId, cwd, harness, tooling) => {
       // A harness key naming the row itself is confusion, never identity: hub
       // ids are hub-minted, harness sids are harness-minted, and the two only
       // meet when a caller echoed the instance id back as the session key
@@ -1474,6 +1477,7 @@ const make = (path: string): DbShape => {
           sessionId,
           ...(cwd ? { cwd } : {}),
           ...(harness ? { harness } : {}),
+          ...(tooling ? { tooling } : {}),
         })
         .where(eq(instances.id, id))
         .run();

@@ -14,6 +14,7 @@ import type {
   RuleTiming,
   RuleTrigger,
   RuleWatch,
+  SessionTooling,
   SkillFile,
   ToolStatus,
   WorkflowEffectKind,
@@ -220,6 +221,13 @@ export const instances = sqliteTable("instances", {
    * back to the transcript's own title, then to where it runs.
    */
   title: text("title"),
+  /**
+   * The MCP servers and tool names the session's newest `init` announced, as
+   * JSON — overwritten on every `init` that carries them, so a reload or a hub
+   * restart still knows what the session has. Null for a harness whose `init`
+   * carries neither.
+   */
+  tooling: text("tooling", { mode: "json" }).$type<SessionTooling>(),
   /**
    * What the session called itself by what it was first asked to do: the first
    * user message, cleaned by core's `deriveTitleFromFirstMessage`. Written once,

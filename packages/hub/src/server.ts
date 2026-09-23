@@ -33,6 +33,7 @@ import type {
   SendPayload,
   SessionMessage,
   SessionPulse,
+  SessionTooling,
   SkillFile,
   SpawnPayload,
   SupervisorEvent,
@@ -1291,7 +1292,9 @@ const peekQueue = (
 
 const peekInit = (
   payload: unknown
-): { sessionId: string; cwd?: string } | undefined => {
+):
+  | { sessionId: string; cwd?: string; tooling?: SessionTooling }
+  | undefined => {
   if (typeof payload !== "object" || payload === null) {
     return undefined;
   }
@@ -1309,6 +1312,27 @@ const peekInit = (
   return {
     sessionId: sdk.session_id,
     cwd: typeof sdk.cwd === "string" ? sdk.cwd : undefined,
+    tooling: initTooling(sdk),
+  };
+};
+
+/**
+ * The MCP servers (name and status) and tool names an `init` announced. Claude
+ * sends both on every `init`; OpenCode and pi send neither, and their rows keep
+ * no tooling.
+ */
+const initTooling = (
+  sdk: Record<string, unknown>
+): SessionTooling | undefined => {
+  if (!Array.isArray(sdk.tools)) {
+    return undefined;
+  }
+  const servers = Array.isArray(sdk.mcp_servers)
+    ? (sdk.mcp_servers as { name: string; status: string }[])
+    : [];
+  return {
+    servers: servers.map(({ name, status }) => ({ name, status })),
+    tools: sdk.tools as string[],
   };
 };
 
@@ -6946,7 +6970,8 @@ export const createServer = ({
                     message.instanceId,
                     init.sessionId,
                     init.cwd,
-                    peek(message.payload, "harness")
+                    peek(message.payload, "harness"),
+                    init.tooling
                   );
                   // The session naming its own conversation is the daemon's word
                   // that a process exists — first-hand, and the earliest such word

@@ -100,7 +100,6 @@ export interface MessageMetadata {
   isRedactedThinking?: boolean;
   // Model picker
   loading?: boolean;
-  mcpServers?: SDKSystemMessage["mcp_servers"];
   memoryContent?: string;
   memoryPath?: string;
   // Memory picker
@@ -206,7 +205,6 @@ export interface MessageMetadata {
   toolName?: string;
   toolResult?: JsonValue;
   toolStatus?: "pending" | "success" | "error";
-  tools?: SDKSystemMessage["tools"];
   /**
    * The reader's answers to an `AskUserQuestion` tool result, normalised by the
    * harness adapter (`UserQuestionResult`: questions + answers keyed by question

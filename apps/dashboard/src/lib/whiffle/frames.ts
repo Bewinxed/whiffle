@@ -743,9 +743,7 @@ export function mapFrame(instanceId: string, sdk: SDKMessage): FrameMapping {
               model: sdk.model,
               permissionMode: sdk.permissionMode,
               cwd: sdk.cwd,
-              tools: sdk.tools,
               sessionId: sdk.session_id,
-              mcpServers: sdk.mcp_servers,
               // Re-listed every turn, and the only source of which of them are
               // skills — `supportedCommands` describes the commands but does
               // not say where any of them came from.
