@@ -350,39 +350,11 @@
         opacity 80ms linear;
     }
   }
-  /* As a folder tab the sheet is the page below, continued: no edge, no
-     shadow, the page's own surface. It is one outline — rounded shoulders,
-     and a foot that curves outward into the page on both sides — drawn by
-     a single clip-path on a box one flare wider than the tab each side.
-     The outline is in percentages of that box, so it holds its shape on
-     every frame of the slide and the resize; nothing else is drawn that
-     could lose a corner mid-flight. It does not step back for a hover — a
-     page is not a control. */
+  /* Folder tabs draw their own sheet (TabItem): it has to sit exactly on
+     the chosen tab in the same frame the tabs reflow, and a box placed
+     from measurements lands a frame late, wherever the tab used to be. */
   :global([data-variant="folder"]) .segment {
-    background: none;
-    box-shadow: none;
-
-    &.dim {
-      opacity: 1;
-    }
-    &::before {
-      content: "";
-      position: absolute;
-      inset-block: 0;
-      inset-inline: calc(-1 * var(--flare));
-      background: var(--sheet);
-      clip-path: shape(
-        from 0 100%,
-        arc to var(--flare) calc(100% - var(--flare)) of var(--flare) ccw,
-        line to var(--flare) var(--radius),
-        arc to calc(var(--flare) + var(--radius)) 0 of var(--radius) cw,
-        line to calc(100% - var(--flare) - var(--radius)) 0,
-        arc to calc(100% - var(--flare)) var(--radius) of var(--radius) cw,
-        line to calc(100% - var(--flare)) calc(100% - var(--flare)),
-        arc to 100% 100% of var(--flare) ccw,
-        close
-      );
-    }
+    display: none;
   }
   /* Each folder tab tints itself on hover; a field sliding under the row
      would be a second shape crossing the sheet. */

@@ -146,8 +146,8 @@
   /* Folder tabs stand behind the sheet in their own tint: a rounded-top
      card the size of the tab, under the sheet's layer, so the chosen
      sheet's shoulders and flared foot draw over a neighbour's card rather
-     than being cut by it. The chosen tab's card fades out as the sheet
-     arrives, and fades back in as it leaves. */
+     than being cut by it. The chosen tab's card is hidden under the sheet
+     and swaps with it at once. */
   :global([data-variant="folder"]) .ff-tab {
     &::before {
       content: "";
@@ -158,13 +158,37 @@
       background: var(--tab-rest, transparent);
 
       @media (prefers-reduced-motion: no-preference) {
-        transition:
-          opacity 160ms var(--e-in),
-          background-color 80ms linear;
+        transition: background-color 80ms linear;
       }
     }
     &.selected::before {
       opacity: 0;
+    }
+    /* The chosen tab's sheet: the page below, continued. One outline —
+       rounded shoulders and a foot that curves outward into the page —
+       on a box one flare wider than the tab each side, in percentages of
+       that box. It is part of the tab, so it is wherever the tab is laid
+       out, in the same frame, with nothing to travel or catch up. The
+       tab box makes no stacking context, so the sheet (z-index 1) sits
+       above every tab's tint and below every tab's contents. */
+    &.selected::after {
+      content: "";
+      position: absolute;
+      inset-block: 0;
+      inset-inline: calc(-1 * var(--flare));
+      z-index: 1;
+      background: var(--sheet);
+      clip-path: shape(
+        from 0 100%,
+        arc to var(--flare) calc(100% - var(--flare)) of var(--flare) ccw,
+        line to var(--flare) var(--radius),
+        arc to calc(var(--flare) + var(--radius)) 0 of var(--radius) cw,
+        line to calc(100% - var(--flare) - var(--radius)) 0,
+        arc to calc(100% - var(--flare)) var(--radius) of var(--radius) cw,
+        line to calc(100% - var(--flare)) calc(100% - var(--flare)),
+        arc to 100% 100% of var(--flare) ccw,
+        close
+      );
     }
     @media (hover: hover) and (pointer: fine) {
       &:not(.selected):hover::before {
