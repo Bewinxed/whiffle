@@ -35,8 +35,8 @@
   .orb {
     width: 28px;
     height: 28px;
-    border: 0;
-    border-radius: var(--radius-pill);
+    border: 1px solid transparent;
+    border-radius: var(--radius-control);
     background: var(--accent-solid);
     color: var(--on-brand);
     display: grid;

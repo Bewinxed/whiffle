@@ -431,13 +431,6 @@
           </span>
         {/if}
 
-        {#if whiffle.status === 'connected' && whiffle.machines.length > 0}
-          <span class="desk-machines hidden min-[900px]:inline">
-            {whiffle.onlineMachines.length}
-            machine{whiffle.onlineMachines.length === 1 ? '' : 's'}
-          </span>
-        {/if}
-
         <!-- Jump is a single entry: the one command surface the top bar opens.
              The old phone thumb bar duplicated it; that bar is gone. -->
         <Button
@@ -569,7 +562,14 @@
   }
 
   .top {
-    height: 57px; /* the mock's fixed top-bar height; a magic layout value */
+    /* The tabs' own height plus a breath above them: 32px folder tabs on
+       a 4px track pad, 8px of air. Touch keeps the taller bar so every
+       control in it can take the 44px thumb floor. */
+    height: 44px;
+
+    @media (pointer: coarse) {
+      height: 57px;
+    }
     flex-shrink: 0;
     display: flex;
     align-items: center;
@@ -632,8 +632,33 @@
     flex: 0 0 auto;
     padding-left: var(--space-3);
   }
+  /* One family: every control in the cluster is the same 28px box — the
+     hairline, the raised surface, the control radius, the same type — so
+     spend, Jump, the assistant and the theme toggle read as one row. */
+  .right > :global(:is(.desk-budget, .jump, [data-slot="button"])) {
+    height: 28px;
+    min-width: 28px;
+    border: 1px solid var(--border-hairline);
+    border-radius: var(--radius-control);
+    font-size: var(--text-sm);
+  }
+  .right > :global(:is(.desk-budget, .jump, [data-slot="button"])) {
+    background: var(--surface-raised);
+    box-shadow: none;
+  }
+  .right > :global([data-slot="button"]:not(.jump)) {
+    width: 28px;
+  }
   .right :global(.jump) {
     gap: var(--space-2);
+    padding: 0 var(--space-3);
+  }
+  /* Hosting the tabs, the cluster centres on the tab labels, not on the
+     bar: the tabs stand on the bar's bottom edge, so their labels sit
+     2px below its middle. */
+  .top.hosting .right {
+    align-self: flex-end;
+    margin-bottom: 2px;
   }
   .right :global(.jump svg) {
     width: 15px;
@@ -643,8 +668,8 @@
 
   .icobtn {
     position: relative;
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     display: grid;
     place-items: center;
     border: 1px solid var(--border-hairline);
@@ -713,17 +738,12 @@
   .desk-budget {
     align-items: center;
     gap: var(--space-2);
-    font-size: var(--text-xs);
+    padding: 0 var(--space-3);
     font-variant-numeric: tabular-nums;
     color: var(--ink-muted);
   }
   .desk-budget-cap {
     color: var(--ink-faint);
-  }
-  .desk-machines {
-    font-size: var(--text-xs);
-    font-variant-numeric: tabular-nums;
-    color: var(--ink-muted);
   }
 
   .banner {
