@@ -24,6 +24,7 @@ import {
   type AgentSession,
   type AgentSessionEvent,
   createAgentSession,
+  createAgentSessionServices,
   defineTool,
   ModelRuntime,
   SessionManager,
@@ -471,14 +472,27 @@ export class PiHarness implements Harness {
   readonly capabilities = PI_CAPABILITIES;
   auth: AuthState = "authenticated";
 
+  /**
+   * The machine's model runtime with pi's extensions loaded, as pi's own CLI
+   * builds it: an extension may register providers (pi-cliproxyapi registers
+   * `anthropic` through a local proxy), and a runtime without them offers
+   * none of those models — to the picker or to a spawn.
+   */
   static runtime(): Promise<ModelRuntime> {
     if (!runtimePromise) {
-      runtimePromise = ModelRuntime.create({ refreshOnCreate: false }).catch(
-        (error) => {
-          runtimePromise = null;
-          throw error;
+      runtimePromise = (async () => {
+        const services = await createAgentSessionServices({
+          cwd: homedir(),
+          modelRuntime: await ModelRuntime.create({ refreshOnCreate: false }),
+        });
+        for (const diagnostic of services.diagnostics) {
+          console.warn(`[pi] ${diagnostic.type}: ${diagnostic.message}`);
         }
-      );
+        return services.modelRuntime;
+      })().catch((error) => {
+        runtimePromise = null;
+        throw error;
+      });
     }
     return runtimePromise;
   }
