@@ -54,7 +54,7 @@
     modes: { value: PermissionMode; disabled: boolean; reason?: string }[];
     oneffort: (level: EffortLevel) => void;
     onpermission: (mode: PermissionMode) => void;
-    permission: PermissionMode;
+    permission: PermissionMode | null;
   }
 
   let {

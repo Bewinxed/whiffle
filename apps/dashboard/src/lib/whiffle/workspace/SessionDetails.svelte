@@ -1,15 +1,11 @@
+<script lang="ts" module>
+  const HOME = /^\/(home|Users)\/[^/]+/;
+</script>
+
 <script lang="ts">
   import type { EffortLevel, HarnessKind, PermissionMode } from "@whiffle/core";
   import { untrack } from "svelte";
-  import ProviderLogo from "$lib/components/features/ProviderLogo.svelte";
-  import { IconArrowRight } from "$lib/icons";
-  import Down from "~icons/solar/alt-arrow-down-linear";
-  import External from "~icons/solar/arrow-right-up-linear";
-  import Close from "~icons/solar/close-circle-bold-duotone";
-  import Copy from "~icons/solar/copy-bold-duotone";
   import Link from "~icons/solar/link-bold-duotone";
-  import Machine from "~icons/solar/server-square-bold-duotone";
-  import Shield from "~icons/solar/shield-check-bold-duotone";
   import {
     latestCommandFor,
     refreshContext,
@@ -21,11 +17,9 @@
   import { continueInNewSession, continueSourceOf } from "../continue.svelte";
   import { copyToClipboard } from "../copy";
   import HarnessLogo from "../HarnessLogo.svelte";
-  import { describingRow, ensureModels, modelLabel } from "../models.svelte";
+  import { describingRow, ensureModels } from "../models.svelte";
   import { PERMISSION_MODES } from "../permission-modes";
-  import EffortPips from "../spawn/EffortPips.svelte";
   import ModelSection from "../spawn/ModelSection.svelte";
-  import PermissionSection from "../spawn/PermissionSection.svelte";
   import "../spawn/ns-theme.css";
   import SessionStatus from "./SessionStatus.svelte";
   import { contextOf } from "./workspace.svelte";
@@ -76,16 +70,15 @@
       !!machineId &&
       whiffle.runningInstances.some((item) => item.id === sessionId)
   );
-  const harnessName = $derived(
-    harness
-      ? { claude: "Claude Code", opencode: "OpenCode", pi: "Pi" }[harness]
-      : "Not reported"
-  );
-  const permissionNames: Record<string, string> = {
-    default: "Ask before edits",
-    plan: "Plan first",
-    acceptEdits: "Auto-accept edits",
-    bypassPermissions: "Full access",
+  const harnessNames: Record<HarnessKind, string> = {
+    claude: "Claude Code",
+    opencode: "OpenCode",
+    pi: "Pi",
+  };
+  /** `~/…/leaf`: the folder name is what tells sessions apart. */
+  const shortPath = (path: string) => {
+    const parts = path.replace(HOME, "~").split("/");
+    return parts.length > 3 ? `${parts[0]}/…/${parts.at(-1)}` : parts.join("/");
   };
   /*
    * The reading only arrives when something asks for it, and the transcript
@@ -134,11 +127,12 @@
       ? Math.min(100, Math.round((stats.totalTokens / stats.maxTokens) * 100))
       : null
   );
-  const number = (value: number) =>
-    new Intl.NumberFormat(undefined, {
-      notation: "compact",
-      maximumFractionDigits: 1,
-    }).format(value);
+  function tokens(value: number) {
+    if (value >= 1_000_000) {
+      return `${Number((value / 1_000_000).toFixed(1))}M`;
+    }
+    return value >= 1000 ? `${Math.round(value / 1000)}k` : `${value}`;
+  }
   type Slot = "model" | "permission" | "effort";
   const kinds = {
     model: "set-model",
@@ -150,11 +144,6 @@
   let permissionBeforeRelaunch = $state<PermissionMode | null>(null);
   const shownPermission = $derived(
     relaunching ? permissionBeforeRelaunch : (session?.permissionMode ?? null)
-  );
-  const permissionName = $derived(
-    shownPermission
-      ? (permissionNames[shownPermission] ?? shownPermission)
-      : "Not reported"
   );
 
   $effect(() => {
@@ -239,198 +228,121 @@
 <div class="session-details ns-theme">
   <div class="details-body">
     <div class="identity">
-      <h2 id={`${uid}-title`}>{title}</h2>
-      <button
-        aria-label="Close session details"
-        class="icon-action dismiss"
-        onclick={onclose}
-        type="button"
-      >
-        <Close />
-      </button>
-      <SessionStatus {sessionId} />
-    </div>
-    <div class="location">
-      <span class="machine"
-        ><Machine />
-        {machine?.hostname || machineId || 'Machine not reported'}</span
-      >
-      <div class="directory">
-        <code>{cwd || 'Working directory not reported'}</code>
-        {#if cwd}
-          <button
-            aria-label="Copy working directory"
-            class="icon-action"
-            onclick={() => copyToClipboard('Working directory', cwd)}
-            type="button"
-          >
-            <Copy />
-          </button>
-        {/if}
+      <div class="title">
+        <h2 id={`${uid}-title`} {title}>{title}</h2>
+        <button
+          aria-label="Copy link"
+          class="icon-action"
+          onclick={() => copyToClipboard('Link', new URL(href, location.origin).href)}
+          type="button"
+        >
+          <Link />
+        </button>
       </div>
-    </div>
-
-    <div class="configuration">
-      <details class="setting" name={`${uid}-settings`}>
-        <summary>
-          <span class="setting-icon"
-            ><ProviderLogo model={model ?? ''} size={20} /></span
-          ><span class="setting-text"
-            ><span class="label">Model</span
-            ><span class="value"
-              >{model ? modelLabel(model) : 'Not reported'}</span
-            ></span
-          ><Down />
-        </summary>
-        {#if harness}
-          <fieldset
-            aria-busy={pending('model')}
-            disabled={!editable || pending('model')}
-          >
-            <ModelSection
-              {harness}
-              installed={[harness]}
-              machineName={machine?.hostname ?? ''}
-              model={model ?? ''}
-              onharness={() => { /* Running sessions retain their harness. */ }}
-              onmodel={changeModel}
-              runtime
-            />
-          </fieldset>
-        {/if}
-      </details>
-      {@render feedback('model')}
-      <details class="setting" name={`${uid}-settings`}>
-        <summary>
-          <span class="setting-icon"><Shield /></span
-          ><span class="setting-text"
-            ><span class="label">Permissions</span
-            ><span class="value">{permissionName}</span></span
-          ><Down />
-        </summary>
-        {#if modes.length}
-          <fieldset
-            aria-busy={pending('permission')}
-            disabled={!editable || pending('permission')}
-          >
-            <PermissionSection
-              embedded
-              modes={modes.map(mode => ({ value: mode.value, disabled: !editable || pending('permission') }))}
-              onchange={changePermission}
-              value={shownPermission}
-            />
-          </fieldset>
-        {:else}
-          <p class="feedback">
-            This harness has not reported its permission choices.
-          </p>
-        {/if}
-      </details>
-      {@render feedback('permission')}
-      {#if report?.capabilities.effort !== false}
-        <div class="effort">
-          <span class="label"
-            >Reasoning effort
-            {#if !efforts.length}
-              <span class="applied">{session?.effort ?? 'Not reported'}</span>
-            {/if}</span
-          >
-          {#if efforts.length && session?.effort}
-            <fieldset
-              aria-busy={pending('effort')}
-              disabled={!editable || pending('effort')}
-            >
-              <EffortPips
-                {efforts}
-                embedded
-                onchange={changeEffort}
-                oncommit={changeEffort}
-                value={session.effort}
-              />
-            </fieldset>
-          {:else}
-            <p class="feedback">
-              {efforts.length ? 'Waiting for the applied effort level.' : 'No effort scale reported for this model.'}
-            </p>
-          {/if}
-          {@render feedback('effort')}
-        </div>
-      {/if}
-      {#if !editable}
-        <p class="feedback">
-          Runtime controls are available when this session is running and
-          connected.
-        </p>
-      {/if}
-    </div>
-
-    <div class="readings">
-      <div class="harness">
-        {#if harness}
+      {#if harness}
+        <span
+          aria-label={harnessNames[harness]}
+          class="harness"
+          role="img"
+          title={harnessNames[harness]}
+        >
           <HarnessLogo {harness} />
-        {/if}
-        <span>{harnessName}</span>
-      </div>
-      <dl>
-        <div>
-          <dt>Turns</dt>
-          <dd>{stats.turns ?? '—'}</dd>
-        </div>
-        <div>
-          <dt>Cost</dt>
-          <dd>{stats.cost === null ? '—' : `$${stats.cost.toFixed(2)}`}</dd>
-        </div>
-        <div class="context">
-          <dt>Context used</dt>
-          <dd>
-            {#if percent !== null && stats.totalTokens !== null && stats.maxTokens !== null}
-              {`${percent}% · ${number(stats.totalTokens)} / ${number(stats.maxTokens)}`}
-              {#if readAt}
-                {` · read ${readAt}`}
-              {/if}
-            {:else if reading}
-              Reading…
-            {:else if refusal}
-              {refusal}
-            {:else}
-              Not reported
-            {/if}
-          </dd>
-          {#if percent !== null}
-            <meter aria-label="Context used" max="100" min="0" value={percent}>
-              {percent}%
-            </meter>
-          {/if}
-        </div>
-      </dl>
+        </span>
+      {/if}
     </div>
+    <p class="meta">
+      <SessionStatus {sessionId} />
+      {#if machine?.hostname || machineId}
+        <span aria-hidden="true" class="sep">·</span>
+        <span class="host">{machine?.hostname || machineId}</span>
+      {/if}
+      {#if cwd}
+        <span aria-hidden="true" class="sep">·</span>
+        <button
+          aria-label={`Copy working directory ${cwd}`}
+          class="cwd"
+          onclick={() => copyToClipboard('Working directory', cwd)}
+          title={cwd}
+          type="button"
+        >
+          {shortPath(cwd)}
+        </button>
+      {/if}
+    </p>
+
+    {#if harness}
+      <div class="configuration">
+        <fieldset disabled={!editable}>
+          <ModelSection
+            {harness}
+            installed={[harness]}
+            machineName={machine?.hostname ?? ''}
+            model={model ?? ''}
+            onharness={() => { /* Running sessions retain their harness. */ }}
+            onmodel={changeModel}
+            runtime
+            tools={{
+            efforts,
+            effort: session?.effort ?? null,
+            oneffort: changeEffort,
+            modes: modes.map(mode => ({ value: mode.value, disabled: !editable || pending('permission') })),
+            permission: shownPermission,
+            onpermission: changePermission,
+          }}
+          />
+        </fieldset>
+        {@render feedback('model')}
+        {@render feedback('effort')}
+        {@render feedback('permission')}
+        {#if !editable}
+          <p class="feedback">Controls unlock while the session is running.</p>
+        {/if}
+      </div>
+    {/if}
+  </div>
+  <div class="stats">
+    <div class="context">
+      {#if percent !== null && stats.totalTokens !== null && stats.maxTokens !== null}
+        <meter
+          aria-label="Context used"
+          max="100"
+          min="0"
+          title={readAt ? `Read at ${readAt}` : undefined}
+          value={percent}
+        >
+          {percent}%
+        </meter>
+        <span
+          >{`${percent}% · ${tokens(stats.totalTokens)}/${tokens(stats.maxTokens)}`}</span
+        >
+      {:else if reading}
+        <span>Reading…</span>
+      {:else if refusal}
+        <span class="refusal" title={refusal}>{refusal}</span>
+      {:else}
+        <span>Context not reported</span>
+      {/if}
+    </div>
+    {#if session?.mcp}
+      <a class="tools" href="/tools">{session.mcp.length} MCP</a>
+    {/if}
+    {#if stats.cost !== null}
+      <span class="cost">{`$${stats.cost.toFixed(2)}`}</span>
+    {/if}
   </div>
   <div class="footer">
-    <a href="/tools"
-      >{session?.mcp ? `${session.mcp.length} connected servers` : 'Connected tools'}<External
-        aria-hidden="true"
-      /></a
-    >
     <button
+      class="ns-btn primary"
       onclick={() => { onclose(); continueInNewSession(continueSourceOf(sessionId, title)); }}
       type="button"
     >
-      <IconArrowRight />
       Continue in new session…
-    </button>
-    <button
-      onclick={() => copyToClipboard('Link', new URL(href, location.origin).href)}
-      type="button"
-    >
-      <Link />
-      Copy link
     </button>
   </div>
 </div>
 
 <style>
   .session-details {
-    --permission-row-height: 58px;
     color: var(--ink-body);
     min-width: 0;
     min-height: 0;
@@ -449,60 +361,60 @@
     scrollbar-color: var(--border-control) transparent;
   }
   .identity {
-    position: relative;
-    display: grid;
-    gap: var(--space-2);
-    padding: var(--space-5) var(--space-5) var(--space-3);
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-5) var(--space-1);
+  }
+  .title {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
   }
   h2 {
-    padding-right: var(--space-8);
+    min-width: 0;
     margin: 0;
     color: var(--ink-strong);
     font-size: var(--text-lg);
     font-weight: var(--weight-strong);
     line-height: var(--leading-body);
-    overflow-wrap: anywhere;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-  .dismiss {
-    position: absolute;
-    top: var(--space-3);
-    right: var(--space-3);
+  .harness {
+    display: inline-flex;
+    flex: none;
   }
-  .location {
-    padding: 0 var(--space-5) var(--space-4);
-    display: grid;
-    gap: var(--space-2);
-  }
-  .machine {
+  .meta {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    font-size: var(--text-sm);
-    overflow-wrap: anywhere;
-  }
-  .machine :global(svg) {
-    flex: none;
-    width: 16px;
-    height: 16px;
-    color: var(--ink-muted);
-  }
-  .directory {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
-    background: var(--surface-field);
-    border-radius: var(--radius-well);
-  }
-  code {
-    flex: 1;
-    min-width: 0;
-    align-self: center;
-    font-family: var(--font-mono);
+    margin: 0;
+    padding: 0 var(--space-5) var(--space-3);
     font-size: var(--text-sm);
     line-height: var(--leading-body);
-    overflow-wrap: anywhere;
-    white-space: pre-wrap;
+    color: var(--ink-muted);
+    white-space: nowrap;
+  }
+  .host {
+    flex: none;
+    max-width: 40%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .cwd {
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   button {
     cursor: pointer;
@@ -524,82 +436,17 @@
   }
   .configuration {
     border-top: 1px solid var(--border-hairline);
-    padding: var(--space-3) var(--space-5) var(--space-4);
-  }
-  .setting + .setting {
-    margin-top: var(--space-1);
-  }
-  summary {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-2);
-    border-radius: var(--radius-control);
-    cursor: pointer;
-    list-style: none;
-  }
-  summary::-webkit-details-marker {
-    display: none;
-  }
-  .setting summary > :global(svg) {
-    width: 14px;
-    height: 14px;
-    flex: none;
-    transition: transform var(--c-100) var(--e-in);
-  }
-  details[open] summary > :global(svg) {
-    transform: rotate(180deg);
-  }
-  .setting-icon {
-    display: grid;
-    place-items: center;
-    width: 32px;
-    height: 32px;
-    border-radius: var(--radius-control);
-    background: var(--surface-field);
-    flex: none;
-  }
-  .setting-icon :global(svg) {
-    width: 20px;
-    height: 20px;
-  }
-  .setting-text {
-    flex: 1;
-    min-width: 0;
-    display: grid;
-    gap: 2px;
-  }
-  .label {
-    font-size: var(--text-sm);
-    color: var(--ink-muted);
-  }
-  .value {
-    color: var(--ink-strong);
-    font-weight: var(--weight-medium);
-    overflow-wrap: anywhere;
-    line-height: var(--leading-body);
+    padding: var(--space-3) var(--space-5);
   }
   fieldset {
     min-width: 0;
     padding: 0;
     border: 0;
-    margin: var(--space-2) 0;
+    margin: 0;
   }
   fieldset:disabled {
     opacity: 0.55;
     pointer-events: none;
-  }
-  .effort {
-    margin-top: var(--space-3);
-  }
-  .effort > .label {
-    display: flex;
-    justify-content: space-between;
-    gap: var(--space-2);
-  }
-  .applied {
-    text-transform: capitalize;
-    color: var(--ink-body);
   }
   .feedback,
   .failure {
@@ -614,59 +461,51 @@
   .failure {
     color: var(--status-fail-ink);
   }
-  .session-details :global(.perms .desc) {
-    white-space: normal;
-    overflow: visible;
-  }
-  .readings {
-    padding: var(--space-4) var(--space-5);
+  .stats {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-5);
     border-top: 1px solid var(--border-hairline);
     background: var(--surface-field);
+    font-size: var(--text-sm);
+    line-height: var(--leading-body);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    color: var(--ink-body);
   }
-  .harness {
+  .context {
+    flex: 1;
+    min-width: 0;
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    font-size: var(--text-sm);
+  }
+  .refusal {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .tools {
+    display: inline-flex;
+    align-items: center;
+    color: var(--ink-body);
+  }
+  .cost {
+    margin-left: auto;
     color: var(--ink-strong);
-  }
-  dl {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-3);
-    margin-top: var(--space-3);
-  }
-  dl > div {
-    display: grid;
-    gap: var(--space-1);
-  }
-  dt {
-    font-size: var(--text-sm);
-    color: var(--ink-muted);
-  }
-  dd {
-    font-size: var(--text-base);
     font-weight: var(--weight-medium);
-    font-variant-numeric: tabular-nums;
-    color: var(--ink-strong);
-  }
-  .context {
-    grid-column: 1 / -1;
-    grid-template-columns: auto 1fr;
-    align-items: baseline;
-  }
-  .context dd {
-    text-align: right;
-    font-size: var(--text-sm);
   }
   meter {
-    grid-column: 1 / -1;
-    width: 100%;
-    height: 8px;
+    flex: 1;
+    min-width: 48px;
+    max-width: 96px;
+    height: 4px;
     appearance: none;
-    background: var(--border-control);
-    border-radius: var(--radius-pill);
+    border: 0;
+    border-radius: 999px;
     overflow: hidden;
+    background: var(--border-control);
   }
   meter::-webkit-meter-bar {
     background: var(--border-control);
@@ -678,46 +517,28 @@
   meter::-moz-meter-bar {
     background: var(--ink-muted);
   }
+  /* The modal's action row (SessionFooter): right-aligned, 8px apart. */
   .footer {
     flex: none;
-    background: var(--surface-raised);
     display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    column-gap: var(--space-3);
-    padding: var(--space-2) var(--space-5);
-    border-top: 1px solid var(--border-hairline);
-  }
-  .footer a,
-  .footer button {
-    display: inline-flex;
-    white-space: nowrap;
-    gap: var(--space-2);
     align-items: center;
-    min-height: 32px;
-    font-size: var(--text-sm);
-    text-decoration: none;
-    background: transparent;
-    border: 0;
-    color: var(--ink-body);
-  }
-  .footer :global(svg) {
-    width: 16px;
-    height: 16px;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: var(--space-3) var(--space-5);
+    border-top: 1px solid var(--border-hairline);
+    background: var(--surface-raised);
   }
   button:focus-visible,
-  summary:focus-visible,
   a:focus-visible {
     outline: 2px solid var(--focus-ring);
     outline-offset: 2px;
   }
   @media (hover: hover) {
-    summary:hover,
     .icon-action:hover {
       background: var(--surface-hover);
     }
-    .footer a:hover,
-    .footer button:hover {
+    .cwd:hover,
+    .tools:hover {
       color: var(--ink-strong);
     }
   }
@@ -726,17 +547,14 @@
       width: 44px;
       height: 44px;
     }
-    h2 {
-      padding-right: 44px;
-    }
-    .footer a,
-    .footer button {
-      min-height: 44px;
-    }
   }
-  @media (prefers-reduced-motion: reduce) {
-    .setting summary > :global(svg) {
-      transition: none;
+  @media (max-width: 640px) {
+    .footer {
+      padding-bottom: max(var(--space-3), env(safe-area-inset-bottom));
+    }
+    .ns-btn {
+      height: 44px;
+      flex: 1;
     }
   }
 </style>
