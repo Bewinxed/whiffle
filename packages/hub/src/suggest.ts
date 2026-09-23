@@ -146,11 +146,26 @@ export async function suggest(
   console.debug(
     `[suggest] ${asked.length} of ${candidates.length} candidates asked, ${result.inputTokens} input tokens, cost=$${result.costUsd}`
   );
+  // One chip per capability: a name offered as both an MCP server and a skill
+  // (claude-in-chrome) keeps only its likelier entry.
+  const named = new Set<string>();
   return {
-    suggestions: Object.entries(result.answers)
-      .filter(([, noul]) => noul >= SUGGEST_THRESHOLD)
-      .sort(([, a], [, b]) => b - a)
+    suggestions: asked
+      .map((candidate) => ({
+        id: candidate.id,
+        name: candidate.name.toLowerCase(),
+        noul: result.answers[candidate.id],
+      }))
+      .filter((entry) => entry.noul >= SUGGEST_THRESHOLD)
+      .sort((a, b) => b.noul - a.noul)
+      .filter((entry) => {
+        if (named.has(entry.name)) {
+          return false;
+        }
+        named.add(entry.name);
+        return true;
+      })
       .slice(0, SUGGEST_MAX)
-      .map(([id, noul]) => ({ id, noul })),
+      .map(({ id, noul }) => ({ id, noul })),
   };
 }

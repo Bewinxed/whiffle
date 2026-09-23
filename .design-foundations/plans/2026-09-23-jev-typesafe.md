@@ -158,3 +158,6 @@ always-included new installs), 14 tools, 2 MCP servers; 17 used skills fall outs
   brief and notice, delegate report and ask) opens with a marker line that `@whiffle/core` builds and parses. The dashboard
   classifies live, mid-turn and stored copies through one function, so a reload renders the same system row; stored workflow
   briefs and notices no longer render as the owner's turn. Owner: "after i refresh, it shows as if it's my own message".
+- 2026-09-23 — One chip per capability, by name: after thresholding, `suggest()` keeps only the likelier entry when the same
+  name comes back as more than one kind. The final probe had returned both mcp:claude-in-chrome 0.81 and skill:claude-in-chrome
+  0.66, and Shift+Tab inserted both sentences. Orchestrator decision, same rule as the MCP-tool collapse.
