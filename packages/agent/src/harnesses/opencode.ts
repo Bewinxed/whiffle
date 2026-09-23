@@ -88,6 +88,7 @@ import {
 import { type ProcSpec, sessiondEndpoint } from "@whiffle/core/sessiond";
 import { delegationHubUrl } from "../delegation";
 import type { Harness, HarnessContext, HarnessSession } from "../harness";
+import { isMachineAgent } from "../machine-agent";
 import { ensureSessiond, SessiondClient } from "../sessiond-client";
 import { resolveBin } from "../tools";
 import {
@@ -136,6 +137,15 @@ const STATIC_POLICY = {
   permission: { bash: "ask", edit: "ask", webfetch: "deny" },
   tools: { websearch: false },
 } as const;
+
+/** The hub's MCP server as opencode configures a remote server. */
+const whiffleMcp = () => ({
+  type: "remote" as const,
+  url: `${delegationHubUrl()}/mcp/whiffle`,
+  timeout: IMAGE_GENERATION_TIMEOUT_MS + 60_000,
+  enabled: true,
+  oauth: false as const,
+});
 
 /**
  * The config keys the convergence system fingerprints and verifies against
@@ -2903,7 +2913,7 @@ export class OpencodeHarness implements Harness {
 
       // 6. Respawn via the existing attach helper. This reads global config
       //    at startup — the whole point of a process restart.
-      const config = STATIC_POLICY;
+      const config = this.#serverConfig;
       const { url: newUrl } = await attachOpencodeServer({
         sessiond,
         spec: {
@@ -3200,7 +3210,7 @@ export class OpencodeHarness implements Harness {
         // Fleet policy: search is the Exa MCP. `webfetch: 'deny'` above
         // removes the fetch built-in; `websearch` has no permission key,
         // so the tool itself is switched off.
-        const config = STATIC_POLICY;
+        const config = this.#serverConfig;
         // Not `createOpencode`: that spawns the server as THIS process's child,
         // so every agent restart took the machine's opencode sessions with it.
         // The server goes under sessiond instead and we attach as a client —
@@ -3245,52 +3255,58 @@ export class OpencodeHarness implements Harness {
         });
         this.#client = client;
 
-        // Record the baseline config hash. For a freshly spawned server,
-        // verify the runtime actually loaded what we expect before marking
-        // applied — there's a startup race where the disk hash is read
-        // before the server finishes initialization.
-        const initialHash = await this.#hashConfig();
-        this.#desiredHash = initialHash;
-        if (freshlySpawned && initialHash) {
-          try {
-            // At startup no directory is initialized yet; verify
-            // against the global resolved config (no directory query).
-            await this.#verifyApply(client, initialHash);
-            this.#appliedHash = initialHash;
-            this.#configState = "applied";
+        // Convergence keeps the server matching the machine's global config;
+        // that is the machine agent's to do. Another agent's server runs on
+        // the config it was launched with and is not reconciled with a file
+        // it must not write.
+        if (await isMachineAgent()) {
+          // Record the baseline config hash. For a freshly spawned server,
+          // verify the runtime actually loaded what we expect before marking
+          // applied — there's a startup race where the disk hash is read
+          // before the server finishes initialization.
+          const initialHash = await this.#hashConfig();
+          this.#desiredHash = initialHash;
+          if (freshlySpawned && initialHash) {
+            try {
+              // At startup no directory is initialized yet; verify
+              // against the global resolved config (no directory query).
+              await this.#verifyApply(client, initialHash);
+              this.#appliedHash = initialHash;
+              this.#configState = "applied";
+              console.log(
+                JSON.stringify({
+                  type: "config-convergence",
+                  state: "applied",
+                  detail: `freshly spawned, verified baseline ${initialHash.slice(0, 8)}…`,
+                  at: Date.now(),
+                })
+              );
+            } catch (error) {
+              // Verification failed — treat as unknown baseline; the watcher
+              // will schedule convergence.
+              this.#appliedHash = null;
+              this.#configState = "pending";
+              console.warn(
+                `[opencode] config convergence: fresh spawn verification failed, scheduling convergence: ${String(error)}`
+              );
+            }
+          } else {
+            // Unknown baseline: the watcher will detect desired !== applied
+            // and schedule a convergence cycle.
+            this.#appliedHash = null;
+            this.#configState = "pending";
             console.log(
               JSON.stringify({
                 type: "config-convergence",
-                state: "applied",
-                detail: `freshly spawned, verified baseline ${initialHash.slice(0, 8)}…`,
+                state: "pending",
+                detail:
+                  "adopted server, baseline unknown — convergence scheduled",
                 at: Date.now(),
               })
             );
-          } catch (error) {
-            // Verification failed — treat as unknown baseline; the watcher
-            // will schedule convergence.
-            this.#appliedHash = null;
-            this.#configState = "pending";
-            console.warn(
-              `[opencode] config convergence: fresh spawn verification failed, scheduling convergence: ${String(error)}`
-            );
           }
-        } else {
-          // Unknown baseline: the watcher will detect desired !== applied
-          // and schedule a convergence cycle.
-          this.#appliedHash = null;
-          this.#configState = "pending";
-          console.log(
-            JSON.stringify({
-              type: "config-convergence",
-              state: "pending",
-              detail:
-                "adopted server, baseline unknown — convergence scheduled",
-              at: Date.now(),
-            })
-          );
+          this.#startConfigWatcher();
         }
-        this.#startConfigWatcher();
 
         return client;
       })().catch((error) => {
@@ -3301,28 +3317,52 @@ export class OpencodeHarness implements Harness {
     return this.#ready;
   }
 
-  /** Installs the hub MCP connection and its identity-only bridge. */
+  /**
+   * Connects opencode to this agent's hub: the MCP server and the
+   * identity-only bridge plugin. The machine's own agent writes them into
+   * opencode's global config, where every opencode on the machine finds them.
+   * Any other agent (a worktree's, against a test hub) must not: it hands them
+   * to its own server alone, through the config it launches that server with,
+   * and keeps the plugin in a whiffle-owned directory named for its hub.
+   */
   async installDelegationTools(): Promise<void> {
-    await retireLegacyHandoffPlugin();
-    await Bun.$`mkdir -p ${OPENCODE_PLUGINS}`.quiet();
-    const config =
-      (await readJson<Record<string, unknown>>(OPENCODE_CONFIG)) ?? {};
-    await writeJson(OPENCODE_CONFIG, {
-      ...config,
-      mcp: {
-        ...(config.mcp as Record<string, unknown> | undefined),
-        whiffle: {
-          type: "remote",
-          url: `${delegationHubUrl()}/mcp/whiffle`,
-          timeout: IMAGE_GENERATION_TIMEOUT_MS + 60_000,
-          enabled: true,
-          oauth: false,
-        },
-      },
-    });
     const source = buildHandoffPluginSource();
-    await writeHandoffPlugin(source);
+    if (await isMachineAgent()) {
+      await retireLegacyHandoffPlugin();
+      await Bun.$`mkdir -p ${OPENCODE_PLUGINS}`.quiet();
+      const config =
+        (await readJson<Record<string, unknown>>(OPENCODE_CONFIG)) ?? {};
+      await writeJson(OPENCODE_CONFIG, {
+        ...config,
+        mcp: {
+          ...(config.mcp as Record<string, unknown> | undefined),
+          whiffle: whiffleMcp(),
+        },
+      });
+      await writeHandoffPlugin(source);
+      this.#serverConfig = STATIC_POLICY;
+      return;
+    }
+    const own = join(
+      homedir(),
+      ".whiffle",
+      "hub-opencode",
+      new URL(delegationHubUrl()).host.replaceAll(":", "_")
+    );
+    await Bun.$`mkdir -p ${join(own, "plugins")}`.quiet();
+    const plugin = await writeHandoffPlugin(source, own);
+    this.#serverConfig = {
+      ...STATIC_POLICY,
+      mcp: { whiffle: whiffleMcp() },
+      plugin: [`file://${plugin}`],
+    };
   }
+
+  /**
+   * What this agent's opencode server launches with: the fleet's static
+   * policy, plus — for an agent that is not the machine's — its own hub.
+   */
+  #serverConfig: Record<string, unknown> = STATIC_POLICY;
 
   /** Starts the directory-scoped subscription for a directory, once per unique cwd. */
   #ensurePump(client: OpencodeClient, directory: string): Promise<void> {
@@ -3644,19 +3684,18 @@ export class OpencodeHarness implements Harness {
         `Could not read OpenCode MCP status: ${errorText(mcp.error)}`
       );
     }
-    if (mcp.data?.whiffle?.status !== "connected") {
+    // An agent that is not the machine's always points the server at its own
+    // hub: a `whiffle` server read from the global config is the machine's.
+    if (
+      mcp.data?.whiffle?.status !== "connected" ||
+      !(await isMachineAgent())
+    ) {
       const connected = await client.mcp.add({
         signal: AbortSignal.timeout(RECOVERY_TIMEOUT_MS),
         query: { directory: ctx.cwd },
         body: {
           name: "whiffle",
-          config: {
-            type: "remote",
-            url: `${delegationHubUrl()}/mcp/whiffle`,
-            timeout: IMAGE_GENERATION_TIMEOUT_MS + 60_000,
-            enabled: true,
-            oauth: false,
-          },
+          config: whiffleMcp(),
         },
       });
       if (connected.error || connected.data?.whiffle?.status !== "connected") {

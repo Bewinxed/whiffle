@@ -583,15 +583,16 @@ export class PiHarness implements Harness {
       return [];
     }
     const sessions = await SessionManager.list(dir);
+    // pi's `SessionInfo`: `created`/`modified` are Dates, `cwd` is where the
+    // session ran (`path` is its file), `firstMessage` its opening prompt.
     return sessions.map((info) => ({
       sessionId: info.id,
       harness: "pi",
-      lastModified:
-        (info as { updatedAt?: number }).updatedAt ??
-        (info as { createdAt?: number }).createdAt ??
-        Date.now(),
+      createdAt: info.created.getTime(),
+      lastModified: info.modified.getTime(),
+      cwd: info.cwd || dir,
+      ...(info.firstMessage ? { firstPrompt: info.firstMessage } : {}),
       ...(info.name ? { customTitle: info.name } : {}),
-      ...(info.path ? { cwd: info.path } : {}),
     }));
   }
 

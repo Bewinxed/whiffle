@@ -54,6 +54,7 @@ import { expandHome, runFs } from "./fs";
 import type { Harness, HarnessContext, HarnessSession } from "./harness";
 import { harnesses, harness as harnessOf } from "./harnesses";
 import { generateImage } from "./image-generation";
+import { isMachineAgent } from "./machine-agent";
 import { startPreview, stopPreview, stopPreviews } from "./preview";
 import { installTool, probeTools } from "./tools";
 import { type UpdateOptions, updateCheckout } from "./update";
@@ -1573,6 +1574,13 @@ export class SessionSupervisor {
       // sends one desired state, and each harness converges the parts it
       // understands onto its own files. Reports merge into one machine word.
       if (method === FLEET_SYNC) {
+        // Fleet sync writes machine-wide harness config (claude's, opencode's
+        // and pi's); only the machine's own agent may (see machine-agent.ts).
+        if (!(await isMachineAgent())) {
+          throw new Error(
+            "fleet sync skipped: this is not the machine's agent, so machine-wide harness config is left to the agent that is"
+          );
+        }
         return await this.#syncFleet(args[0] as FleetConfig, "syncFleet");
       }
       if (method === FLEET_STATUS) {
