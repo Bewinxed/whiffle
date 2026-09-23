@@ -40,8 +40,15 @@ export interface SuggestCandidate {
 
 /**
  * The candidates worth asking about: the top {@link SUGGEST_CANDIDATE_LIMIT}
- * by decayed usage across all three kinds, never-used ones dropped except
+ * by each one's share of its own kind's usage, never-used ones dropped except
  * skills installed in the last {@link NEW_SKILL_DAYS} days.
+ *
+ * Share within kind, not raw score: tool calls outnumber skill invocations by
+ * ~270× (measured on the owner's last 30 days), so raw decayed scores cannot
+ * be compared across kinds — a combined top 50 by raw score was almost all
+ * browser tools and dropped 37 of 47 used skills. Dividing each score by its
+ * kind's total lets a skill that is 20% of skill use compete fairly with a
+ * tool that is 20% of tool use.
  */
 export function rankCandidates(
   db: DbShape,
@@ -51,7 +58,7 @@ export function rankCandidates(
   const fresh = new Set(
     db.skillsInstalledSince(new Date(Date.now() - NEW_SKILL_DAYS * DAY_MS))
   );
-  return candidates
+  const scored = candidates
     .filter(
       (candidate) =>
         !(
@@ -64,9 +71,18 @@ export function rankCandidates(
       candidate,
       score: scores.get(`${candidate.kind}:${candidate.name}`) ?? 0,
       fresh: candidate.kind === "skill" && fresh.has(candidate.name),
-    }))
+    }));
+  const kindTotal = { skill: 0, tool: 0, mcp: 0 };
+  for (const entry of scored) {
+    kindTotal[entry.candidate.kind] += entry.score;
+  }
+  return scored
     .filter((entry) => entry.score > 0 || entry.fresh)
-    .sort((a, b) => Number(b.fresh) - Number(a.fresh) || b.score - a.score)
+    .map((entry) => ({
+      ...entry,
+      share: entry.score / (kindTotal[entry.candidate.kind] || 1),
+    }))
+    .sort((a, b) => Number(b.fresh) - Number(a.fresh) || b.share - a.share)
     .slice(0, SUGGEST_CANDIDATE_LIMIT)
     .map((entry) => entry.candidate);
 }

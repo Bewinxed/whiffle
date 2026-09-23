@@ -52,7 +52,9 @@ decision log at the bottom with the owner's words.
   the top 50 i'm actually using often", "skillls/tools/mcps").
   - Usage: `capability_usage_daily` (kind `skill`|`tool`|`mcp`, name, day, count), counted by the hub from frames
     it already sees; backfilled once from the last 30 days of transcripts.
-  - Score: Σ count × 0.5^(age_days / 14) (`USAGE_HALF_LIFE_DAYS`, own call). Zero-score candidates are not sent,
+  - Score: Σ count × 0.5^(age_days / 14) (`USAGE_HALF_LIFE_DAYS`, own call). Candidates are ranked by **share
+    within kind**: score ÷ the summed score of every sent candidate of the same kind (skill / tool / mcp), because
+    raw tool counts are ~270× skill counts and cannot be compared across kinds. No per-kind quotas. Zero-score candidates are not sent,
     except skills installed in the last 7 days.
 - Settings toggle "Suggest skills and MCP servers while typing", default off, disabled until OpenRouter is connected.
 - Motion: staggered `@starting-style` entry, FLIP (`animate:flip`) on reorder, out-of-flow exits,
@@ -79,6 +81,10 @@ Measured 2026-09-23 on a copy of the live DB with the owner's key:
 Backfill on the same copy: 992 transcripts touched in 30 days → 288 skill, 77,072 tool, 11,535 MCP uses.
 Of 124 scored candidates (47 skills, 66 tools, 11 MCP servers), 74 fall outside the top 50, including 37 of
 the 47 used skills: tool counts outweigh skill counts by ~270×, so a single combined list is mostly tools.
+
+After switching to share within kind (same copy, same 169 candidates): the top 50 is 34 skills (8 of them the
+always-included new installs), 14 tools, 2 MCP servers; 17 used skills fall outside it (was 37). Live
+`/api/suggest`: 50 asked, 3,509 input tokens, $0.000147 per call, 380 ms.
 
 ## Proposed, not approved
 
@@ -114,3 +120,6 @@ the 47 used skills: tool counts outweigh skill counts by ~270×, so a single com
   as being for user concerns only. Orchestrator cleared the 97 stale pending fires through `/api/rules/ack` with a note
   saying who cleared them and why. Fix briefed (branch `rule-ack`): requireAck replies end with a line naming the
   harness's `note_for_user` tool; the tool's description covers rule messages.
+- 2026-09-23 — `eff3036` live. Measured: combined top-50 by raw decayed score was mostly browser tools (tool calls ≈270× skill
+  invocations), dropping 37 of 47 used skills — misses "top 50 i'm actually using often". Orchestrator decision: rank by
+  share within kind (score ÷ kind's total), no quotas. Briefed to the suggestions delegate.
