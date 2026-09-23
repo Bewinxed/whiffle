@@ -11,7 +11,8 @@
    * change of grid rearranges the DOM without rebuilding a transcript.
    *
    */
-  import { untrack } from "svelte";
+  import { tick, untrack } from "svelte";
+  import { MediaQuery } from "svelte/reactivity";
   import { browser } from "$app/environment";
   import { page } from "$app/state";
   import type { HistorySource } from "../client.svelte";
@@ -108,6 +109,81 @@
     return () => clearTimeout(timer);
   });
 
+  /* ── The switch ────────────────────────────────────────────────────
+     A tab tapped on the phone slides the transcripts the way the strip's
+     sheet wipes: the one leaving goes off toward the side being left, the
+     one arriving comes in from the other, on the strip's own --wipe and
+     --wipe-ease. A swipe needs none of this — the finger and its settle
+     already moved them, and its travel is still set when the tab flips. */
+  const SWITCH_MS = 260;
+  const SWITCH_EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
+  const motion = new MediaQuery("(prefers-reduced-motion: no-preference)");
+  let stack = $state<HTMLElement>();
+  /** The pane sliding out, kept painted until it is off screen. */
+  let leaving = $state<string | null>(null);
+  let shownId = untrack(() => viewId);
+  let shownIndex = untrack(() => activeIndex);
+
+  $effect(() => {
+    const id = viewId;
+    const index = activeIndex;
+    untrack(() => {
+      const from = shownId;
+      const fromIndex = shownIndex;
+      shownId = id;
+      shownIndex = index;
+      if (
+        !(swipeable && stack && motion.current && from) ||
+        from === id ||
+        index < 0 ||
+        fromIndex < 0 ||
+        swipe.travel !== null
+      ) {
+        return;
+      }
+      const dir = Math.sign(index - fromIndex);
+      const pane = (paneId: string) =>
+        stack?.querySelector<HTMLElement>(
+          `:scope > .pane[data-pane="${CSS.escape(paneId)}"]`
+        );
+      const incoming = pane(id);
+      const outgoing = pane(from);
+      if (!(incoming && outgoing)) {
+        return;
+      }
+      leaving = from;
+      const timing = { duration: SWITCH_MS, easing: SWITCH_EASE };
+      incoming.animate(
+        [
+          { transform: `translate3d(${dir * 100}%, 0, 0)` },
+          { transform: "translate3d(0, 0, 0)" },
+        ],
+        timing
+      );
+      // Held at the far end until the pane is hidden again: one parked
+      // further than a neighbour has no resting transform to fall back to.
+      const out = outgoing.animate(
+        [
+          { transform: "translate3d(0, 0, 0)" },
+          { transform: `translate3d(${-dir * 100}%, 0, 0)` },
+        ],
+        { ...timing, fill: "forwards" }
+      );
+      out.finished.then(
+        async () => {
+          if (leaving === from) {
+            leaving = null;
+          }
+          await tick();
+          out.cancel();
+        },
+        () => {
+          // Cancelled by a newer switch, which has taken `leaving` over.
+        }
+      );
+    });
+  });
+
   $effect(() => {
     const open = new Set(leaf.tabs);
     untrack(() => {
@@ -152,11 +228,17 @@
        the strip can be swiped, the two neighbours are also painted, parked
        either side, so a swipe reveals a current transcript; a pointer
        cannot swipe, so elsewhere only the active pane is shown. -->
-  <div class="stack" use:swipe.action={swipeable} use:paneDropTarget={leaf.id}>
+  <div
+    class="stack"
+    bind:this={stack}
+    use:swipe.action={swipeable}
+    use:paneDropTarget={leaf.id}
+  >
     {#each mounted as paneId (paneId)}
       {@const isActive = paneId === viewId}
       {@const delta = deltaOf(paneId)}
-      {@const shown = isActive || (swipeable && Math.abs(delta) <= 1)}
+      {@const shown =
+        isActive || paneId === leaving || (swipeable && Math.abs(delta) <= 1)}
       {@const ctx = contextOf(paneId)}
       <div
         class="pane"
