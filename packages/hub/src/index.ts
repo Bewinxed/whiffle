@@ -10,6 +10,7 @@ import { startPreviewListener } from "./preview";
 import { Registry, RegistryLayer } from "./registry";
 import { createServer } from "./server";
 import { createTelegramBridge } from "./telegram";
+import { backfillUsage } from "./usage-count";
 
 // biome-ignore lint/performance/noBarrelFile: re-exporting one already-imported name is not a barrel; `whiffle deploy init` (see migrate-db.ts) needs migrateLegacyDb importable from this entrypoint.
 export { migrateLegacyDb } from "./migrate-db";
@@ -35,6 +36,9 @@ const main = Effect.gen(function* () {
   // After `listen`, so the first ask the bridge can be handed is one this hub
   // is already able to receive.
   telegram?.start();
+  // Off the boot path: a month of transcripts is read once, then never again.
+  // biome-ignore lint/complexity/noVoid: fire-and-forget; the backfill logs its own outcome
+  void backfillUsage(db);
 });
 
 // Guarded so a test can import `migrateLegacyDb` above without booting a real

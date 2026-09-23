@@ -12,15 +12,16 @@ const JEV_TIMEOUT_MS = 10_000;
 
 interface SystemOneResponse {
   answers: Record<string, { type: "noul"; noul: number }>;
-  usage: { cost: number };
+  usage: { input_tokens: number; cost: number };
 }
 
 export async function askNouls(
   key: string,
   state: Record<string, string>,
-  questions: Record<string, { instructions: string }>
+  questions: Record<string, { instructions: string | Record<string, unknown> }>
 ): Promise<
-  { answers: Record<string, number>; costUsd: number } | { error: string }
+  | { answers: Record<string, number>; costUsd: number; inputTokens: number }
+  | { error: string }
 > {
   const body = {
     model: "jev-latest",
@@ -53,6 +54,7 @@ export async function askNouls(
         Object.entries(parsed.answers).map(([id, answer]) => [id, answer.noul])
       ),
       costUsd: parsed.usage.cost,
+      inputTokens: parsed.usage.input_tokens,
     };
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error) };

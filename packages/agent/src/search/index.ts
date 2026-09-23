@@ -6,24 +6,14 @@
 
 import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
-import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname } from "node:path";
+import { transcriptIndexPath } from "@whiffle/core/paths";
 import { type SearchHit, TranscriptIndex } from "@whiffle/jsonl-parser/fts5";
 import {
   defaultOpenCodePath,
   readOpenCodeDocs,
 } from "@whiffle/jsonl-parser/opencode";
 import { listClaudeFiles } from "../usage/scan-claude";
-
-const DB_NAME = "transcript-index.db";
-
-/** Stable path under the agent's data dir. */
-const indexDbPath = (): string =>
-  join(
-    process.env.XDG_DATA_HOME ?? join(homedir(), ".local", "share"),
-    "whiffle",
-    DB_NAME
-  );
 
 const SYNC_INTERVAL_MS = 30_000;
 const MAX_SEARCH_LIMIT = 50;
@@ -40,7 +30,7 @@ export class TranscriptSearchService {
   }
 
   static async create(): Promise<TranscriptSearchService> {
-    const dbPath = indexDbPath();
+    const dbPath = transcriptIndexPath();
     await mkdir(dirname(dbPath), { recursive: true });
     const index = new TranscriptIndex(dbPath);
     const svc = new TranscriptSearchService(index);

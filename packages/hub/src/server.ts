@@ -97,8 +97,10 @@ import type { HubSocket, RegistryShape } from "./registry";
 import { RuleEngine } from "./rules";
 import { hashFiles, resolveSkill } from "./skills";
 import { createStreamHub, HUB_CAPABILITIES } from "./stream";
+import { suggest } from "./suggest";
 import { SupervisorEngine, type SupervisorStatusSignal } from "./supervisor";
 import type { TelegramBridge } from "./telegram";
+import { UsageCounter } from "./usage-count";
 import { workflowRoutes } from "./workflows/routes";
 import { createWorkflowRuntime } from "./workflows/runtime";
 
@@ -1467,6 +1469,8 @@ export const createServer = ({
    */
   /** Meaning rules' one Jev call per turn, shared by both engines below. */
   const meaningJudge = new MeaningJudge(db);
+  /** Counts skill, tool and MCP server uses for suggestion ranking. */
+  const usageCounter = new UsageCounter(db);
   /**
    * The PKCE verifier of the OpenRouter connect in progress. One at a time: a
    * new connect replaces it, and a finished exchange spends it.
@@ -1553,6 +1557,7 @@ export const createServer = ({
     forgetQueue(instanceId);
     // The supervisor's turn buffers for a dead session are waste.
     supervisor.forget(instanceId);
+    usageCounter.forget(instanceId);
   };
 
   /**
@@ -4299,8 +4304,64 @@ export const createServer = ({
         return {
           connected: connection !== undefined,
           connectedAt: connection?.connectedAt.getTime() ?? null,
+          suggestWhileTyping: connection?.suggestWhileTyping ?? false,
         };
       })
+      .put(
+        "/api/openrouter/suggest",
+        { body: t.Object({ enabled: t.Boolean() }) },
+        ({ body, status }) => {
+          if (!db.getOpenRouterConnection()) {
+            return status(
+              409,
+              "OpenRouter is not connected. Connect it in Settings first."
+            );
+          }
+          db.setSuggestWhileTyping(body.enabled);
+          return { ok: true };
+        }
+      )
+      .post(
+        "/api/suggest",
+        {
+          body: t.Object({
+            text: t.String(),
+            recent: t.String(),
+            candidates: t.Array(
+              t.Object({
+                id: t.String(),
+                kind: t.Union([
+                  t.Literal("skill"),
+                  t.Literal("tool"),
+                  t.Literal("mcp"),
+                ]),
+                name: t.String(),
+                description: t.String(),
+              })
+            ),
+          }),
+        },
+        async ({ body, status }) => {
+          const connection = db.getOpenRouterConnection();
+          if (!connection) {
+            return status(
+              409,
+              "OpenRouter is not connected. Connect it in Settings first."
+            );
+          }
+          const result = await suggest(
+            db,
+            connection.apiKey,
+            body.text,
+            body.recent,
+            body.candidates
+          );
+          if ("error" in result) {
+            return status(502, result.error);
+          }
+          return result;
+        }
+      )
       .post(
         "/api/openrouter/connect",
         { body: t.Object({ callbackUrl: t.String() }) },
@@ -6296,6 +6357,10 @@ export const createServer = ({
               // otherwise be the only thing waiting for it.
               if (kind === "frame" && message.instanceId) {
                 ruleEngine.observe(
+                  message.instanceId,
+                  (message.payload as FramePayload & { kind: "frame" }).message
+                );
+                usageCounter.observe(
                   message.instanceId,
                   (message.payload as FramePayload & { kind: "frame" }).message
                 );

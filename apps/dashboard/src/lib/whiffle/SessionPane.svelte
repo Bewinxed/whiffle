@@ -39,11 +39,13 @@
     submitCommand,
     whiffle,
   } from "./client.svelte";
+  // StaticTail removed — virtua's ssrCount renders the tail directly.
+  import { cleanDetail } from "./command-detail";
   import { mapTranscript, routedToParent } from "./frames";
   import { delegateHandle } from "./links";
   import PreviewPane from "./preview/PreviewPane.svelte";
   import PreviewSheet from "./preview/PreviewSheet.svelte";
-  // StaticTail removed — virtua's ssrCount renders the tail directly.
+  import { clip, type SuggestCandidate } from "./suggest.svelte";
   import Composer, { type Mention } from "./transcript/Composer.svelte";
   import Prompt from "./transcript/Prompt.svelte";
   import Transcript from "./transcript/Transcript.svelte";
@@ -506,6 +508,61 @@
 
   const commands = $derived(whiffle.commandsOf(viewId));
 
+  /** How much of the last reply the suggestions read for context. */
+  const RECENT_LIMIT = 1500;
+
+  /**
+   * What the composer may suggest: the session's skills, its connected MCP
+   * servers described by their tool names, and its tools. Whiffle's own
+   * server is not one. The hub ranks and caps them by usage.
+   */
+  const suggest = $derived.by(() => {
+    const tooling = whiffle.toolingOf(viewId);
+    const skills: SuggestCandidate[] = commands
+      .filter((command) => command.type === "skill")
+      .map((command) => ({
+        id: `skill:${command.name}`,
+        kind: "skill",
+        name: command.name,
+        description: clip(
+          cleanDetail(command.description, undefined, command.source) ?? ""
+        ),
+      }));
+    const servers: SuggestCandidate[] = tooling.servers
+      .filter(
+        (server) => server.status === "connected" && server.name !== "whiffle"
+      )
+      .map((server) => {
+        // Tool names carry the server name with anything outside [A-Za-z0-9_-] as `_`.
+        const prefix = `mcp__${server.name.replace(/[^A-Za-z0-9_-]/g, "_")}__`;
+        return {
+          id: `mcp:${server.name}`,
+          kind: "mcp",
+          name: server.name,
+          description: clip(
+            tooling.tools
+              .filter((tool) => tool.startsWith(prefix))
+              .map((tool) => tool.slice(prefix.length))
+              .join(", ")
+          ),
+        };
+      });
+    // Every tool by name alone; the hub drops the ones never worth pointing at.
+    const tools: SuggestCandidate[] = tooling.tools.map((tool) => ({
+      id: `tool:${tool}`,
+      kind: "tool",
+      name: tool,
+      description: "",
+    }));
+    const said = session?.messages.findLast(
+      (message) => message.type === "assistant"
+    );
+    return {
+      candidates: [...skills, ...servers, ...tools],
+      recent: (said?.content ?? "").slice(-RECENT_LIMIT),
+    };
+  });
+
   /**
    * Every operator action on this conversation goes out as ONE tracked command
    * and reports back the id its stages are readable under. Nothing here wraps a
@@ -803,6 +860,7 @@
                 paneVisible={visible}
                 previewPhone={phone}
                 {sending}
+                {suggest}
                 bind:this={composer}
                 bind:height={composerHeight}
                 bind:value={draft}

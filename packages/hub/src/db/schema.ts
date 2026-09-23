@@ -852,4 +852,25 @@ export const openrouterConnection = sqliteTable("openrouter_connection", {
   id: text("id").primaryKey(),
   apiKey: text("api_key").notNull(),
   connectedAt: timestamp("connected_at").notNull(),
+  /** The composer asks Jev for skill and MCP server suggestions while typing. Off by default. */
+  suggestWhileTyping: integer("suggest_while_typing", { mode: "boolean" })
+    .notNull()
+    .default(false),
 });
+
+/**
+ * How often the operator's sessions used each skill, tool and MCP server, per
+ * day. Counted by the hub from the frames it already relays, backfilled once
+ * from the transcript index. Ranks composer suggestion candidates.
+ */
+export const capabilityUsageDaily = sqliteTable(
+  "capability_usage_daily",
+  {
+    kind: text("kind").$type<"skill" | "tool" | "mcp">().notNull(),
+    name: text("name").notNull(),
+    /** Local date, `YYYY-MM-DD`. */
+    day: text("day").notNull(),
+    count: integer("count").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.kind, table.name, table.day] })]
+);

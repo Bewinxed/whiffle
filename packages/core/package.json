@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./preview-proxy": "./src/preview-proxy.ts",
+    "./paths": "./src/paths.ts",
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
+  import { fade } from "svelte/transition";
   import { toast } from "svelte-sonner";
   import { replaceState } from "$app/navigation";
   import { page } from "$app/state";
@@ -8,25 +9,46 @@
   import { Switch } from "$lib/components/ui/switch";
   import { formatDistanceToNow } from "$lib/utils/time";
   import {
+    type OpenRouterState,
+    saveSuggestSetting,
+    suggestions,
+  } from "$lib/whiffle/suggest.svelte";
+  import {
     loadSupervisor,
     type SupervisorStatus,
     saveSupervisorConfig,
   } from "$lib/whiffle/supervisor";
-  import type { OpenRouterState } from "./+page";
   import type { PageData } from "./$types";
 
   /**
    * Hub-wide connections. OpenRouter is connected by OAuth PKCE: the hub holds
-   * the verifier and the key, the browser only carries the user to OpenRouter
-   * and the `code` back.
+   * the verifier and the key, the browser only carries the operator to
+   * OpenRouter and the `code` back.
    */
   let { data }: { data: PageData } = $props();
 
+  /** Reduced motion swaps states in place, with no crossfade. */
+  let still = $state(false);
+  const swap = (duration: number) => ({ duration: still ? 0 : duration });
+
   let openrouter = $state<OpenRouterState>(untrack(() => data.openrouter));
-  let connecting = $state(false);
   let exchanging = $state(false);
+  let connecting = $state(false);
   let disconnecting = $state(false);
   let openrouterError = $state<string | null>(untrack(() => data.error));
+  let savingSuggest = $state(false);
+
+  const phase = $derived.by(() => {
+    if (exchanging) {
+      return "exchanging";
+    }
+    return openrouter.connected ? "connected" : "disconnected";
+  });
+
+  async function readOpenRouter() {
+    openrouter = await (await fetch("/api/openrouter")).json();
+    suggestions.enabled = openrouter.connected && openrouter.suggestWhileTyping;
+  }
 
   async function connect() {
     connecting = true;
@@ -54,7 +76,7 @@
       body: JSON.stringify({ code }),
     });
     if (response.ok) {
-      openrouter = await (await fetch("/api/openrouter")).json();
+      await readOpenRouter();
       toast.success("OpenRouter is connected.");
     } else {
       openrouterError = `${response.status} ${await response.text()}`;
@@ -67,11 +89,23 @@
     openrouterError = null;
     const response = await fetch("/api/openrouter", { method: "DELETE" });
     if (response.ok) {
-      openrouter = { connected: false, connectedAt: null };
+      await readOpenRouter();
     } else {
       openrouterError = `${response.status} ${await response.text()}`;
     }
     disconnecting = false;
+  }
+
+  async function setSuggest(on: boolean) {
+    savingSuggest = true;
+    openrouterError = null;
+    try {
+      await saveSuggestSetting(on);
+      openrouter.suggestWhileTyping = on;
+    } catch (error) {
+      openrouterError = error instanceof Error ? error.message : String(error);
+    }
+    savingSuggest = false;
   }
 
   // ── supervisor ──────────────────────────────────────────────────────────
@@ -116,33 +150,66 @@
     saving = false;
   }
 
-  const reach = $derived.by(() => {
-    if (!supervisor) {
-      return "Checking the server…";
+  const reach = $derived.by(
+    (): { tone: "wait" | "off" | "bad" | "ok"; text: string } => {
+      if (!supervisor) {
+        return { tone: "wait", text: "Checking the server…" };
+      }
+      const { status } = supervisor;
+      if (!status.configured) {
+        return {
+          tone: "off",
+          text: "Not configured. Set a server URL and a model to turn it on.",
+        };
+      }
+      if (!status.reachable) {
+        return {
+          tone: "bad",
+          text: `The server at ${supervisor.config.baseUrl} did not answer.`,
+        };
+      }
+      return {
+        tone: "ok",
+        text: status.resolvedModel
+          ? `The server answers, and runs ${status.resolvedModel}.`
+          : "The server answers.",
+      };
     }
-    const { status } = supervisor;
-    if (!status.configured) {
-      return "Not configured. Set a server URL and a model to turn it on.";
-    }
-    if (!status.reachable) {
-      return `The server at ${supervisor.config.baseUrl} did not answer.`;
-    }
-    return status.resolvedModel
-      ? `The server answers, and runs ${status.resolvedModel}.`
-      : "The server answers.";
-  });
+  );
+
+  /** Morphing cards measure their content so the height change is animated. */
+  let openrouterHeight = $state(0);
+  let reachHeight = $state(0);
+
+  /**
+   * OpenRouter's redirect back lands here with `?code=`: exchange it, then
+   * strip it from the URL. In that order on purpose — the router is not up
+   * while the page is still hydrating, and SvelteKit refuses `replaceState`
+   * until it is; by the time the exchange has answered, it is.
+   */
+  async function finishConnect(code: string) {
+    await exchange(code);
+    const url = new URL(page.url);
+    url.searchParams.delete("code");
+    replaceState(url, page.state);
+  }
 
   onMount(() => {
     const code = page.url.searchParams.get("code");
     if (code) {
-      const url = new URL(page.url);
-      url.searchParams.delete("code");
-      replaceState(url, page.state);
       // biome-ignore lint/complexity/noVoid: the exchange reports its own outcome in page state
-      void exchange(code);
+      void finishConnect(code);
     }
+    const query = matchMedia("(prefers-reduced-motion: reduce)");
+    still = query.matches;
+    const follow = () => {
+      still = query.matches;
+    };
+    query.addEventListener("change", follow);
+
     // biome-ignore lint/complexity/noVoid: the read reports its own outcome in page state
     void readSupervisor();
+    return () => query.removeEventListener("change", follow);
   });
 </script>
 
@@ -150,82 +217,114 @@
   <title>Settings · Whiffle</title>
 </svelte:head>
 
-<div class="flex-1 overflow-y-auto p-6">
-  <div class="mx-auto flex max-w-2xl flex-col gap-6">
-    <section
-      aria-labelledby="openrouter-heading"
-      class="flex flex-col gap-4 rounded-[var(--radius-panel)] bg-card p-5 shadow-md"
-    >
-      <div class="flex flex-col gap-1">
-        <h2 class="text-body font-medium" id="openrouter-heading">
-          OpenRouter
-        </h2>
-        <p class="max-w-prose text-micro text-muted-foreground">
-          Used to ask Jev yes/no questions for meaning-based rules.
-        </p>
+<div class="page">
+  <div class="col">
+    <section aria-labelledby="openrouter-heading" class="panel">
+      <header class="head">
+        <h2 id="openrouter-heading">OpenRouter</h2>
+        <p>Used to ask Jev yes/no questions for meaning-based rules.</p>
+      </header>
+
+      <div
+        class="morph"
+        style:block-size={openrouterHeight ? `${openrouterHeight}px` : undefined}
+      >
+        <div class="stack" bind:clientHeight={openrouterHeight}>
+          {#key phase}
+            <div class="row state" in:fade={swap(300)} out:fade={swap(100)}>
+              {#if phase === 'exchanging'}
+                <p aria-live="polite" class="status">
+                  <span aria-hidden="true" class="pulse"></span>
+                  Finishing the connection with OpenRouter…
+                </p>
+              {:else if phase === 'connected' && openrouter.connectedAt !== null}
+                <p class="status connected">
+                  <svg aria-hidden="true" class="check" viewBox="0 0 20 20">
+                    <circle cx="10" cy="10" r="10"></circle>
+                    <path d="M6.2 10.4l2.5 2.5 5.1-5.6"></path>
+                  </svg>
+                  Connected
+                  {formatDistanceToNow(new Date(openrouter.connectedAt))}
+                </p>
+                <Button
+                  class="press"
+                  disabled={disconnecting}
+                  onclick={disconnect}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  {disconnecting ? 'Disconnecting…' : 'Disconnect'}
+                </Button>
+              {:else}
+                <p class="status">Not connected</p>
+                <Button
+                  class="press"
+                  disabled={connecting}
+                  onclick={connect}
+                  type="button"
+                >
+                  {connecting ? 'Opening OpenRouter…' : 'Connect OpenRouter'}
+                </Button>
+              {/if}
+            </div>
+          {/key}
+        </div>
       </div>
 
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        {#if exchanging}
-          <p aria-live="polite" class="text-caption text-muted-foreground">
-            Finishing the connection with OpenRouter…
-          </p>
-        {:else if openrouter.connected && openrouter.connectedAt !== null}
-          <p class="text-caption text-foreground">
-            Connected {formatDistanceToNow(new Date(openrouter.connectedAt))}
-          </p>
-          <Button
-            disabled={disconnecting}
-            onclick={disconnect}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            {disconnecting ? 'Disconnecting…' : 'Disconnect'}
-          </Button>
-        {:else}
-          <p class="text-caption text-muted-foreground">Not connected</p>
-          <Button disabled={connecting} onclick={connect} type="button">
-            {connecting ? 'Opening OpenRouter…' : 'Connect OpenRouter'}
-          </Button>
-        {/if}
-      </div>
+      <!-- biome-ignore lint/a11y/noLabelWithoutControl: wraps the <Switch> component; the native control it renders is not visible to Biome -->
+      <label class="row setting">
+        <span class="copy">
+          <span class="label">Suggest skills and MCP servers while typing</span>
+          <span class="hint">
+            {#if openrouter.connected}
+              Jev reads the message as you write it and offers chips you can add
+              to it. The session's tools are not changed.
+            {:else}
+              Needs OpenRouter — connect it above
+            {/if}
+          </span>
+        </span>
+        <Switch
+          checked={openrouter.suggestWhileTyping}
+          disabled={!openrouter.connected || savingSuggest}
+          onCheckedChange={setSuggest}
+        />
+      </label>
 
       {#if openrouterError}
-        <p
-          class="text-micro whitespace-pre-wrap break-words text-destructive"
-          role="alert"
-        >
-          {openrouterError}
-        </p>
+        <p class="error" role="alert">{openrouterError}</p>
       {/if}
     </section>
 
     <form
       aria-labelledby="supervisor-heading"
-      class="flex flex-col gap-4 rounded-[var(--radius-panel)] bg-card p-5 shadow-md"
+      class="panel"
       onsubmit={saveSupervisor}
     >
-      <div class="flex flex-col gap-1">
-        <h2 class="text-body font-medium" id="supervisor-heading">
-          Supervisor
-        </h2>
-        <p class="max-w-prose text-micro text-muted-foreground">
+      <header class="head">
+        <h2 id="supervisor-heading">Supervisor</h2>
+        <p>
           The OpenAI-compatible server that judges turns for LLM rules and
           autopilot.
         </p>
-      </div>
+      </header>
 
       <!-- biome-ignore lint/a11y/noLabelWithoutControl: wraps the <Switch> component; the native control it renders is not visible to Biome -->
-      <label class="flex w-fit items-center gap-3">
+      <label class="row setting">
+        <span class="copy">
+          <span class="label">Enabled</span>
+          <span class="hint">
+            {enabled ? 'LLM rules and autopilot are judged by this server.' : 'Off — LLM rules and autopilot do nothing.'}
+          </span>
+        </span>
         <Switch bind:checked={enabled} />
-        <span class="text-caption">{enabled ? 'Enabled' : 'Off'}</span>
       </label>
 
-      <div class="grid gap-4 sm:grid-cols-2">
+      <div class="fields">
         <!-- biome-ignore lint/a11y/noLabelWithoutControl: wraps the <Input> component; the native control it renders is not visible to Biome -->
-        <label class="flex flex-col gap-1.5 text-caption">
-          Server URL
+        <label class="field">
+          <span class="label">Server URL</span>
           <Input
             autocomplete="off"
             class="font-mono text-sm md:text-sm"
@@ -235,8 +334,8 @@
           />
         </label>
         <!-- biome-ignore lint/a11y/noLabelWithoutControl: wraps the <Input> component; the native control it renders is not visible to Biome -->
-        <label class="flex flex-col gap-1.5 text-caption">
-          Model
+        <label class="field">
+          <span class="label">Model</span>
           <Input
             autocomplete="off"
             class="font-mono text-sm md:text-sm"
@@ -245,34 +344,314 @@
             bind:value={model}
           />
         </label>
+        <!-- biome-ignore lint/a11y/noLabelWithoutControl: wraps the <Input> component; the native control it renders is not visible to Biome -->
+        <label class="field wide">
+          <span class="label">API key</span>
+          <Input
+            autocomplete="off"
+            placeholder="Leave blank to keep the stored key"
+            type="password"
+            bind:value={apiKey}
+          />
+        </label>
       </div>
 
-      <!-- biome-ignore lint/a11y/noLabelWithoutControl: wraps the <Input> component; the native control it renders is not visible to Biome -->
-      <label class="flex flex-col gap-1.5 text-caption">
-        API key
-        <Input
-          autocomplete="off"
-          placeholder="Leave blank to keep the stored key"
-          type="password"
-          bind:value={apiKey}
-        />
-      </label>
-
-      <p aria-live="polite" class="text-caption text-muted-foreground">
-        {reach}
-      </p>
+      <div
+        class="morph"
+        style:block-size={reachHeight ? `${reachHeight}px` : undefined}
+      >
+        <div class="stack" bind:clientHeight={reachHeight}>
+          {#key reach.text}
+            <p
+              aria-live="polite"
+              class="reach"
+              data-tone={reach.tone}
+              in:fade={swap(300)}
+              out:fade={swap(100)}
+            >
+              <span aria-hidden="true" class="dot"></span>
+              {reach.text}
+            </p>
+          {/key}
+        </div>
+      </div>
 
       {#if supervisorError}
-        <p class="text-micro text-destructive" role="alert">
-          {supervisorError}
-        </p>
+        <p class="error" role="alert">{supervisorError}</p>
       {/if}
 
-      <div class="flex justify-end">
-        <Button disabled={saving} type="submit">
+      <div class="actions">
+        <Button class="press" disabled={saving} type="submit">
           {saving ? 'Saving…' : 'Save supervisor'}
         </Button>
       </div>
     </form>
   </div>
 </div>
+
+<style>
+  .page {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--space-6);
+    container: settings / inline-size;
+  }
+
+  .col {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+    max-inline-size: 42rem;
+    margin-inline: auto;
+  }
+
+  .panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+    padding: var(--space-5);
+    border-radius: var(--radius-panel);
+    background: var(--surface-raised);
+    box-shadow: var(--shadow-lifted);
+  }
+
+  .head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+
+    & h2 {
+      margin: 0;
+      font-size: var(--text-md);
+      font-weight: 500;
+      color: var(--ink-strong);
+      text-wrap: balance;
+    }
+
+    & p {
+      margin: 0;
+      max-inline-size: 60ch;
+      font-size: var(--text-sm);
+      color: var(--ink-muted);
+      text-wrap: pretty;
+    }
+  }
+
+  .copy {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .label {
+    font-size: var(--text-base);
+    color: var(--ink-body);
+  }
+
+  .hint {
+    max-inline-size: 52ch;
+    font-size: var(--text-sm);
+    color: var(--ink-muted);
+    text-wrap: pretty;
+  }
+
+  /* Label and control side by side when there is room, stacked when not. */
+  .row {
+    display: flex;
+    flex-direction: column;
+    align-items: start;
+    gap: var(--space-3);
+
+    @container settings (inline-size > 30rem) {
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+    }
+  }
+
+  .setting {
+    cursor: pointer;
+    padding-block-start: var(--space-4);
+    border-block-start: 1px solid var(--border-hairline);
+
+    /* A setting that cannot be changed right now reads as such. */
+    &:has(:disabled) {
+      cursor: default;
+
+      & .label {
+        color: var(--ink-muted);
+      }
+    }
+
+    & :global([data-slot="switch-thumb"]) {
+      transition: transform var(--c-300) var(--e-toggle);
+    }
+  }
+
+  /* A card whose content swaps: the height is measured and tweened. */
+  .morph {
+    interpolate-size: allow-keywords;
+    overflow: clip;
+    overflow-clip-margin: var(--space-2);
+
+    @media (prefers-reduced-motion: no-preference) {
+      transition: block-size var(--c-300) var(--e-in);
+    }
+  }
+
+  .stack {
+    display: grid;
+
+    & > * {
+      grid-area: 1 / 1;
+    }
+  }
+
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: 0;
+    font-size: var(--text-base);
+    color: var(--ink-muted);
+
+    &.connected {
+      color: var(--ink-body);
+    }
+  }
+
+  .check {
+    inline-size: 18px;
+    block-size: 18px;
+    flex: none;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+
+    & circle {
+      fill: color-mix(in oklab, var(--success-9) 16%, transparent);
+      stroke: none;
+    }
+
+    & path {
+      stroke: var(--success-11);
+      stroke-width: 1.8;
+      stroke-dasharray: 12;
+      stroke-dashoffset: 0;
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      & path {
+        animation: draw var(--c-500) var(--e-in) var(--c-100) both;
+      }
+    }
+  }
+
+  @keyframes draw {
+    from {
+      stroke-dashoffset: 12;
+    }
+  }
+
+  .pulse {
+    inline-size: 8px;
+    block-size: 8px;
+    border-radius: 50%;
+    background: var(--ink-muted);
+    opacity: 0.6;
+
+    @media (prefers-reduced-motion: no-preference) {
+      animation: breathe var(--breath) var(--e-toggle) infinite;
+    }
+  }
+
+  @keyframes breathe {
+    50% {
+      opacity: 0.2;
+    }
+  }
+
+  .fields {
+    display: grid;
+    gap: var(--space-4);
+
+    @container settings (inline-size > 30rem) {
+      grid-template-columns: 1fr 1fr;
+
+      & .wide {
+        grid-column: 1 / -1;
+      }
+    }
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .reach {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--ink-muted);
+    text-wrap: pretty;
+
+    & .dot {
+      inline-size: 7px;
+      block-size: 7px;
+      flex: none;
+      border-radius: 50%;
+      background: var(--ink-muted);
+      opacity: 0.5;
+      translate: 0 -1px;
+    }
+
+    &[data-tone="ok"] .dot {
+      background: var(--success-9);
+      opacity: 1;
+    }
+
+    &[data-tone="bad"] .dot {
+      background: var(--warning-9);
+      opacity: 1;
+    }
+  }
+
+  .error {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--destructive);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    opacity: 1;
+    transition: opacity var(--c-300) var(--e-in);
+
+    @starting-style {
+      opacity: 0;
+    }
+  }
+
+  .actions {
+    display: flex;
+    justify-content: end;
+  }
+
+  .panel :global(.press) {
+    @media (prefers-reduced-motion: no-preference) {
+      transition:
+        transform var(--c-100) var(--e-in),
+        background-color var(--c-100) var(--e-in);
+
+      &:active:not(:disabled) {
+        transform: scale(0.97);
+      }
+    }
+
+    @media (pointer: coarse) {
+      min-block-size: 44px;
+    }
+  }
+</style>

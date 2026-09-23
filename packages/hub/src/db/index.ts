@@ -51,6 +51,7 @@ import type {
 } from "./schema";
 import {
   agents,
+  capabilityUsageDaily,
   credentials,
   delegateEvents,
   fleetAgents,
@@ -212,8 +213,23 @@ export interface DbShape {
     instanceId: string,
     note: string
   ) => RuleState | undefined;
+  /** Adds counted capability uses, summing into any row already there. */
+  readonly addCapabilityUsage: (
+    rows: {
+      kind: "skill" | "tool" | "mcp";
+      name: string;
+      day: string;
+      count: number;
+    }[]
+  ) => void;
   /** A machine's last-known tool status by id; empty for one that never reported. */
   readonly agentTools: (machineId: string) => Record<string, ToolStatus>;
+  /** Whether nothing has been counted yet — the backfill's cue. */
+  readonly capabilityUsageEmpty: () => boolean;
+  /** Every usage row on or after `day` (`YYYY-MM-DD`). */
+  readonly capabilityUsageSince: (
+    day: string
+  ) => (typeof capabilityUsageDaily.$inferSelect)[];
   readonly clearFleetMemory: () => void;
   /** Forget the OpenRouter key. */
   readonly clearOpenRouterConnection: () => void;
@@ -274,7 +290,7 @@ export interface DbShape {
   ) => (typeof instances.$inferSelect)[];
   /** The stored OpenRouter key and when it was connected, or undefined while not connected. */
   readonly getOpenRouterConnection: () =>
-    | { apiKey: string; connectedAt: Date }
+    | { apiKey: string; connectedAt: Date; suggestWhileTyping: boolean }
     | undefined;
   /** One rule, or nothing when it has been deleted out from under a caller. */
   readonly getRule: (id: string) => Rule | undefined;
@@ -650,6 +666,8 @@ export interface DbShape {
   ) => void;
   /** Store (or replace) the OpenRouter key from a completed PKCE exchange. */
   readonly setOpenRouterConnection: (apiKey: string) => void;
+  /** Turn composer suggestions on or off. Only meaningful while connected. */
+  readonly setSuggestWhileTyping: (enabled: boolean) => void;
   /** Closes it. An ask this hub never recorded is nothing to close. */
   readonly settleDelegateAsk: (
     requestId: string,
@@ -682,6 +700,8 @@ export interface DbShape {
      */
     resumableAt?: Record<string, number>
   ) => SettledInstance[];
+  /** Names of fleet skills installed at or after `since`. */
+  readonly skillsInstalledSince: (since: Date) => string[];
   readonly stopInstance: (id: string) => void;
   /**
    * The one-time reclassification a taxonomy change needs when the column is
@@ -2756,8 +2776,56 @@ const make = (path: string): DbShape => {
         .where(eq(openrouterConnection.id, OPENROUTER_CONNECTION_ID))
         .get();
       return row
-        ? { apiKey: row.apiKey, connectedAt: row.connectedAt }
+        ? {
+            apiKey: row.apiKey,
+            connectedAt: row.connectedAt,
+            suggestWhileTyping: row.suggestWhileTyping,
+          }
         : undefined;
+    },
+    addCapabilityUsage: (rows) => {
+      db.transaction((tx) => {
+        for (const row of rows) {
+          tx.insert(capabilityUsageDaily)
+            .values(row)
+            .onConflictDoUpdate({
+              target: [
+                capabilityUsageDaily.kind,
+                capabilityUsageDaily.name,
+                capabilityUsageDaily.day,
+              ],
+              set: {
+                count: sql`${capabilityUsageDaily.count} + ${row.count}`,
+              },
+            })
+            .run();
+        }
+      });
+    },
+    capabilityUsageSince: (day) =>
+      db
+        .select()
+        .from(capabilityUsageDaily)
+        .where(gte(capabilityUsageDaily.day, day))
+        .all(),
+    capabilityUsageEmpty: () =>
+      db
+        .select({ day: capabilityUsageDaily.day })
+        .from(capabilityUsageDaily)
+        .limit(1)
+        .get() === undefined,
+    skillsInstalledSince: (since) =>
+      db
+        .select({ name: skills.name })
+        .from(skills)
+        .where(gte(skills.createdAt, since))
+        .all()
+        .map((row) => row.name),
+    setSuggestWhileTyping: (enabled) => {
+      db.update(openrouterConnection)
+        .set({ suggestWhileTyping: enabled })
+        .where(eq(openrouterConnection.id, OPENROUTER_CONNECTION_ID))
+        .run();
     },
     setOpenRouterConnection: (apiKey) => {
       const connectedAt = new Date();

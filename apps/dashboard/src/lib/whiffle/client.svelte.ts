@@ -390,6 +390,11 @@ export interface SessionState {
    */
   thinkingStream: string;
   /**
+   * The MCP servers and tool names the newest `system.init` announced — what
+   * the composer's suggestions offer. Empty for a harness that sends neither.
+   */
+  tooling: SessionTooling;
+  /**
    * The cumulative cost the latest `result` frame reported, in dollars.
    * `undefined` until a turn has closed with one. Frames, not transcript
    * scraping: a successful turn's cost has no transcript line.
@@ -630,6 +635,7 @@ export function blankSession(instanceId: string): SessionState {
     commandsPending: false,
     mcp: null,
     mcpPending: false,
+    tooling: { servers: [], tools: [] },
     lastTurnFailed: false,
     sdkStatus: null,
     lastCompaction: null,
@@ -1408,6 +1414,7 @@ function handleFrame(frame: FramePayload): void {
             message.metadata?.slashCommands ?? target.commands.names;
           target.commands.skills =
             message.metadata?.skills ?? target.commands.skills;
+          harvestTooling(target, message);
           // A relaunch can change the MCP set; null makes the header ask again.
           target.mcp = null;
           // The process behind a relaunch is up: this is the frame it opens with.
@@ -3662,6 +3669,19 @@ export async function loadCatalog(machineId: string): Promise<void> {
  * `system.init` is re-emitted every turn and carries the current list, so the
  * newest one in what was just mapped is the session's own word for it.
  */
+/** What an `init` says about MCP servers and tools, kept for the composer. */
+export interface SessionTooling {
+  servers: { name: string; status: string }[];
+  tools: string[];
+}
+
+function harvestTooling(target: SessionState, init: Message): void {
+  target.tooling = {
+    servers: init.metadata?.mcpServers ?? target.tooling.servers,
+    tools: init.metadata?.tools ?? target.tooling.tools,
+  };
+}
+
 function harvestCommands(target: SessionState, messages: Message[]): void {
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     const init = messages[i];
@@ -3674,6 +3694,7 @@ function harvestCommands(target: SessionState, messages: Message[]): void {
     if (init.metadata?.skills) {
       target.commands.skills = init.metadata.skills;
     }
+    harvestTooling(target, init);
     return;
   }
 }
@@ -5441,6 +5462,9 @@ export const whiffle = {
     };
   },
   /** What a session offers behind `/`, grouped the way the palette lists it. */
+  /** The MCP servers and tools the session's newest `init` announced. */
+  toolingOf: (instanceId: string): SessionTooling =>
+    state.sessions[instanceId]?.tooling ?? { servers: [], tools: [] },
   commandsOf: (instanceId: string): AvailableCommand[] => {
     const target = state.sessions[instanceId];
     return target ? availableCommands(target.commands) : [];

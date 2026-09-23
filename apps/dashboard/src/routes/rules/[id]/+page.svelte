@@ -468,7 +468,12 @@
           {/if}
         </label>
 
-        {#if draft.matchKind !== 'meaning'}
+        <!-- Text-matching options fold away for a meaning rule rather than popping. -->
+        <div
+          class="fold"
+          data-folded={draft.matchKind === 'meaning' ? '' : undefined}
+          inert={draft.matchKind === 'meaning'}
+        >
           <div class="flex flex-wrap items-center gap-2">
             <Toggle
               onPressedChange={(next) => {
@@ -493,7 +498,7 @@
               </Toggle>
             {/if}
           </div>
-        {/if}
+        </div>
 
         <fieldset class="flex flex-col gap-1.5 text-caption">
           <legend class="mb-1.5">Read</legend>
@@ -526,9 +531,13 @@
           {/if}
         </fieldset>
 
-        {#if draft.matchKind !== 'meaning'}
+        <div
+          class="fold"
+          data-folded={draft.matchKind === 'meaning' ? '' : undefined}
+          inert={draft.matchKind === 'meaning'}
+        >
           <RuleTester {draft} bind:sample />
-        {/if}
+        </div>
       {/if}
     </section>
 
@@ -823,3 +832,29 @@
     </div>
   </form>
 </div>
+
+<style>
+  /* Folds shut to nothing, taking the section's gap with it, then opens back
+     to its content's height. */
+  .fold {
+    interpolate-size: allow-keywords;
+    block-size: auto;
+    overflow: clip;
+    overflow-clip-margin: var(--space-1);
+
+    &[data-folded] {
+      block-size: 0;
+      margin-block-end: -1rem;
+      opacity: 0;
+    }
+
+    transition: opacity var(--c-100) var(--e-in);
+
+    @media (prefers-reduced-motion: no-preference) {
+      transition:
+        block-size var(--c-300) var(--e-in),
+        margin-block-end var(--c-300) var(--e-in),
+        opacity var(--c-300) var(--e-in);
+    }
+  }
+</style>

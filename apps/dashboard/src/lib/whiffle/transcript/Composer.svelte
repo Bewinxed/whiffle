@@ -28,11 +28,12 @@
    * driven from the textarea's own keyboard so focus never leaves the message
    * being written.
    */
-  import { type Snippet, untrack } from "svelte";
+  import { type Snippet, tick, untrack } from "svelte";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte convention for a component group.
   import * as Command from "$lib/components/ui/command";
   import { IconClose, IconPlus, IconSend, IconStop } from "$lib/icons";
   import type { SendExtras } from "../client.svelte";
+  import { cleanDetail } from "../command-detail";
   import { newId } from "../id";
   import SelectionChip from "../preview/SelectionChip.svelte";
   import SelectionPopover from "../preview/SelectionPopover.svelte";
@@ -40,6 +41,12 @@
     CapturedSelection,
     PendingSelection,
   } from "../preview/selection";
+  import {
+    loadSuggestSetting,
+    type SuggestCandidate,
+    suggestions,
+  } from "../suggest.svelte";
+  import SuggestionChips from "./SuggestionChips.svelte";
 
   let {
     value = $bindable(""),
@@ -56,6 +63,7 @@
     onstop,
     prompts,
     leading,
+    suggest,
   }: {
     value?: string;
     /**
@@ -92,7 +100,27 @@
     prompts?: Snippet;
     /** Controls rendered before the attach button in the composer row. */
     leading?: Snippet;
+    /**
+     * The session's skills and MCP servers, and its last reply, for the
+     * suggestion chips. Absent on surfaces with no session behind them.
+     */
+    suggest?: { candidates: SuggestCandidate[]; recent: string };
   } = $props();
+
+  $effect(() => {
+    if (suggest) {
+      loadSuggestSetting();
+    }
+  });
+
+  /** A chip's sentence goes on the end of the draft, caret after it. */
+  async function insertSuggestion(line: string) {
+    const draft = value.trimEnd();
+    value = draft ? `${draft} ${line}` : line;
+    await tick();
+    field?.focus();
+    field?.setSelectionRange(value.length, value.length);
+  }
 
   interface PendingImage {
     data: string;
@@ -268,21 +296,6 @@
    * parens — `(code-foundations) Execute…` — which is exactly the section heading
    * above the row, so it is stripped here rather than printed twice.
    */
-  function cleanDetail(
-    description?: string,
-    argumentHint?: string,
-    source?: string
-  ): string | undefined {
-    const prose = description?.trim();
-    if (prose) {
-      if (source && prose.startsWith(`(${source})`)) {
-        return prose.slice(source.length + 2).trim();
-      }
-      return prose;
-    }
-    return argumentHint || undefined;
-  }
-
   /** Where the caret is, so the token under it can be found on every keystroke. */
   let caret = $state(0);
   /** Dismissed with Escape: the token is still there, the menu is not. */
@@ -702,6 +715,15 @@
         </span>
       {/each}
     </div>
+  {/if}
+
+  {#if suggest && suggestions.enabled}
+    <SuggestionChips
+      candidates={suggest.candidates}
+      oninsert={insertSuggestion}
+      recent={suggest.recent}
+      text={value}
+    />
   {/if}
 
   {#if editing}

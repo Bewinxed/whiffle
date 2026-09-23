@@ -1,10 +1,5 @@
+import type { OpenRouterState } from "$lib/whiffle/suggest.svelte";
 import type { PageLoad } from "./$types";
-
-/** What `GET /api/openrouter` answers with. The key itself never leaves the hub. */
-export interface OpenRouterState {
-  connected: boolean;
-  connectedAt: number | null;
-}
 
 /**
  * Read through the proxy like `/rules`: a hub that is down leaves a sentence
@@ -23,7 +18,11 @@ export const load: PageLoad = async ({ fetch }) => {
   return {
     openrouter:
       payload instanceof Error
-        ? ({ connected: false, connectedAt: null } as OpenRouterState)
+        ? ({
+            connected: false,
+            connectedAt: null,
+            suggestWhileTyping: false,
+          } as OpenRouterState)
         : payload,
     error:
       payload instanceof Error

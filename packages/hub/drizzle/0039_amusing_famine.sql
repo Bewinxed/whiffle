@@ -1,0 +1,1 @@
+ALTER TABLE `openrouter_connection` ADD `suggest_while_typing` integer DEFAULT false NOT NULL;
