@@ -175,7 +175,7 @@
     width: number;
     height: number;
   }) =>
-    `left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;height:${rect.height}px`;
+    `transform:translate(${rect.left}px,${rect.top}px);width:${rect.width}px;height:${rect.height}px`;
 </script>
 
 <div
@@ -298,10 +298,15 @@
     background: none;
   }
 
+  /* Placed by `transform`, not `left`/`top`: moving between tabs is then a
+     compositor-only translate. Only the width change lays out, and it lays
+     out one empty absolutely-positioned box. */
   .segment,
   .field,
   .ring {
     position: absolute;
+    inset-block-start: 0;
+    inset-inline-start: 0;
     pointer-events: none;
     border-radius: var(--shape);
   }
@@ -324,8 +329,7 @@
 
     @media (prefers-reduced-motion: no-preference) {
       transition:
-        left 160ms var(--e-in),
-        top 160ms var(--e-in),
+        transform 160ms var(--e-in),
         width 160ms var(--e-in),
         height 160ms var(--e-in),
         opacity 80ms linear;
@@ -381,8 +385,7 @@
 
     @media (prefers-reduced-motion: no-preference) {
       transition:
-        left 80ms var(--e-in),
-        top 80ms var(--e-in),
+        transform 80ms var(--e-in),
         width 80ms var(--e-in),
         height 80ms var(--e-in),
         opacity 80ms linear;
@@ -395,8 +398,7 @@
 
     @media (prefers-reduced-motion: no-preference) {
       transition:
-        left 80ms var(--e-in),
-        top 80ms var(--e-in),
+        transform 80ms var(--e-in),
         width 80ms var(--e-in),
         height 80ms var(--e-in);
     }

@@ -131,7 +131,8 @@ export interface SessiondAwareContext extends HarnessContext {
  * way to tell a replayed line it already has from one it does not.
  */
 export type FrameSink = (
-  frame: Exclude<FramePayload, { kind: "instances" }> & Partial<FrameProvenance>
+  frame: Exclude<FramePayload, { kind: "instances" | "instances_delta" }> &
+    Partial<FrameProvenance>
 ) => void;
 
 const warn = (message: string): void => {

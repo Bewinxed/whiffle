@@ -16,8 +16,8 @@
    */
   import { onDestroy, untrack } from "svelte";
   import { cubicOut } from "svelte/easing";
-  import type { TransitionConfig } from "svelte/transition";
   import { MediaQuery } from "svelte/reactivity";
+  import type { TransitionConfig } from "svelte/transition";
   import { page } from "$app/state";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte convention for component groups
   import * as ContextMenu from "$lib/components/ui/context-menu";
@@ -44,6 +44,7 @@
   import { dragSession, dropHint, tabDropTarget } from "./dnd.svelte";
   import SessionDetails from "./SessionDetails.svelte";
   import SessionStatus from "./SessionStatus.svelte";
+  import { rebuildScheduler } from "./scheduler.svelte";
   import { contextOf, type LeafNode, workspace } from "./workspace.svelte";
 
   let {
@@ -211,7 +212,12 @@
     if (!morphing || reduceMotion.current) {
       return { duration: 0 };
     }
-    return { duration: 180, delay: 60, easing: cubicOut, css: (t) => `opacity: ${t}` };
+    return {
+      duration: 180,
+      delay: 60,
+      easing: cubicOut,
+      css: (t) => `opacity: ${t}`,
+    };
   }
   const reduceMotion = new MediaQuery("(prefers-reduced-motion: reduce)");
 </script>
@@ -258,7 +264,11 @@
                   showDetails(tab.id, event.currentTarget as HTMLElement, true);
                 }
               }}
-              onpointerenter={(event) => hoverTab(tab.id, event)}
+              onpointerdown={() => rebuildScheduler.prepare(tab.id)}
+              onpointerenter={(event) => {
+                rebuildScheduler.prepare(tab.id);
+                hoverTab(tab.id, event);
+              }}
               onpointerleave={leaveDetails}
               value={tab.id}
             >
@@ -390,13 +400,13 @@
         collisionPadding={12}
         customAnchor={detailAnchor}
         data-morph={morphing ? '' : undefined}
+        onCloseAutoFocus={(event) => { event.preventDefault(); if (restoreFocus) { detailAnchor?.focus(); } }}
+        onfocusin={() => { clearTimeout(timer); pinned = true; }}
         onInteractOutside={(event) => {
           if (event.target instanceof Element && event.target.closest('[data-session-tab]')) {
             event.preventDefault();
           }
         }}
-        onCloseAutoFocus={(event) => { event.preventDefault(); if (restoreFocus) { detailAnchor?.focus(); } }}
-        onfocusin={() => { clearTimeout(timer); pinned = true; }}
         onOpenAutoFocus={(event) => { if (!pinned) { event.preventDefault(); } }}
         onpointerdowncapture={() => { clearTimeout(timer); pinned = true; }}
         onpointerenter={() => clearTimeout(timer)}
@@ -405,7 +415,10 @@
         sideOffset={6}
         trapFocus={pinned}
       >
-        <div class="details-morph" style:height={detailsHeight ? `${detailsHeight}px` : undefined}>
+        <div
+          class="details-morph"
+          style:height={detailsHeight ? `${detailsHeight}px` : undefined}
+        >
           <div class="details-measure" bind:offsetHeight={detailsHeight}>
             {#if detailTab}
               {#key detailTab.id}
@@ -513,7 +526,11 @@
     max-height: inherit;
   }
   @media (prefers-reduced-motion: no-preference) {
-    :global([data-bits-floating-content-wrapper]:has(> .session-details-popover[data-morph])) {
+    :global(
+      [data-bits-floating-content-wrapper]:has(
+        > .session-details-popover[data-morph]
+      )
+    ) {
       transition: transform 260ms cubic-bezier(0.32, 0.72, 0, 1);
     }
     :global(.session-details-popover[data-morph]) .details-morph {
@@ -560,7 +577,7 @@
     padding-inline: var(--space-7) var(--space-4);
     /* One step darker than the transcript, so the chosen tab — in the
        transcript's own surface — reads as the page it opens. */
-    background: var(--surface-sunken);
+    background: var(--tabbar-surface);
     view-transition-class: tabs;
   }
   :global(.session-tabs.hosted) {
@@ -583,8 +600,7 @@
     --text: var(--text-base);
     --item: 32px;
     --sheet: var(--surface-field);
-    --tab-rest: color-mix(in oklab, var(--surface-field) 40%, transparent);
-    --tab-hover: color-mix(in oklab, var(--surface-field) 70%, transparent);
+    --tab-hover: var(--tab-rest-hover);
   }
 
   .tab {

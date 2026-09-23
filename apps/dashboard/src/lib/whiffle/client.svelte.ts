@@ -405,6 +405,14 @@ export interface SessionState {
   workingSince: number | null;
 }
 
+/**
+ * Stored sessions per machine, newest first (`listSessions` through the
+ * tunnel). Raw state: the catalogue is read whole and replaced whole, and a
+ * deep proxy over its hundreds of rows was the 100ms+ flush every connect
+ * paid for, with nothing ever mutating a row in place.
+ */
+let catalog = $state.raw<Record<string, SDKSessionInfo[]>>({});
+
 const state = $state({
   previews: {} as Record<
     string,
@@ -480,8 +488,6 @@ const state = $state({
     | { phase: "evaluating"; source: "rule" | "autopilot"; since: number }
     | { phase: "settled"; verdict: SupervisorEvent["verdict"]; at: number }
   >,
-  /** Stored sessions per machine, newest first (`listSessions` through the tunnel). */
-  catalog: {} as Record<string, SDKSessionInfo[]>,
   /**
    * Each machine's latest Claude limit reading, by machineId — folded in from
    * the `kind: 'usage'` frame so the pill updates live rather than polling
@@ -830,6 +836,37 @@ function adoptInstances(instances: InstanceRow[]): void {
 }
 
 /**
+ * Applies what moved since the hub's last publish: each changed row replaced
+ * where it stands (or appended), each gone id dropped. Only the sessions whose
+ * rows moved are re-hydrated, and the rows that did not move keep their
+ * identity — so the rail, tabs and panes re-render the one row that changed
+ * instead of all of them.
+ */
+function patchInstances(upserts: InstanceRow[], removed: string[]): void {
+  if (removed.length > 0) {
+    const gone = new Set(removed);
+    state.instances = state.instances.filter((row) => !gone.has(row.id));
+  }
+  if (upserts.length === 0) {
+    return;
+  }
+  const index = new Map(state.instances.map((row, i) => [row.id, i]));
+  for (const row of upserts) {
+    const at = index.get(row.id);
+    if (at === undefined) {
+      index.set(row.id, state.instances.length);
+      state.instances.push(row);
+    } else {
+      state.instances[at] = row;
+    }
+    const held = state.sessions[row.id];
+    if (held) {
+      hydrate(held);
+    }
+  }
+}
+
+/**
  * Takes the hub's word on what each session is holding but has not started.
  *
  * This is the half of the queue a frame cannot deliver: a tab that opens while
@@ -1134,7 +1171,7 @@ function handleFrame(frame: FramePayload): void {
     }
     return;
   }
-  if (frame.kind === "instances") {
+  if (frame.kind === "instances" || frame.kind === "instances_delta") {
     if (frame.previews) {
       const current = new Set(
         frame.previews.map((preview) => preview.instanceId)
@@ -1166,7 +1203,11 @@ function handleFrame(frame: FramePayload): void {
       (frame as { handoffs?: Record<string, { from: string; at: number }> })
         .handoffs ?? {};
     adoptQueues((frame as { queues?: Record<string, QueuedMessage[]> }).queues);
-    adoptInstances(frame.instances);
+    if (frame.kind === "instances") {
+      adoptInstances(frame.instances);
+    } else {
+      patchInstances(frame.upserts, frame.removed);
+    }
     // The hub's now-state for every session it lists (C3), so a freshly-opened
     // dashboard knows working/blocked/idle at once instead of waiting for the
     // next per-instance `pulse` frame. Structural read, same as `handoffs` and
@@ -3583,11 +3624,12 @@ function ask<T>(
 /** The machine's stored sessions, newest first. */
 export async function loadCatalog(machineId: string): Promise<void> {
   try {
-    state.catalog[machineId] = await machineControl<SDKSessionInfo[]>(
+    const listed = await machineControl<SDKSessionInfo[]>(
       machineId,
       "listSessions",
       [SESSION_CATALOG_LIMIT > 0 ? { limit: SESSION_CATALOG_LIMIT } : {}]
     );
+    catalog = { ...catalog, [machineId]: listed };
   } catch (error) {
     console.error(`[whiffle] listSessions on ${machineId} failed:`, error);
   }
@@ -5245,7 +5287,7 @@ export const whiffle = {
   },
   /** Stored sessions on one machine, minus the side quests hiding among them. */
   catalogOf: (machineId: string): SDKSessionInfo[] =>
-    (state.catalog[machineId] ?? []).filter(listedInHistory),
+    (catalog[machineId] ?? []).filter(listedInHistory),
   get projects() {
     return state.projects;
   },
@@ -5264,7 +5306,7 @@ export const whiffle = {
     ),
   /** Stored sessions the SDK recorded somewhere inside the project's checkout. */
   storedIn: (project: ProjectRow): SDKSessionInfo[] =>
-    (state.catalog[project.machineId] ?? []).filter(
+    (catalog[project.machineId] ?? []).filter(
       (info) =>
         listedInHistory(info) && info.cwd && under(project.cwd, info.cwd)
     ),

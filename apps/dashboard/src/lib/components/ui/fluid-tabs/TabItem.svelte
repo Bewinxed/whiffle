@@ -213,12 +213,10 @@
     visibility: hidden;
     font-variation-settings: "wght" var(--weight-strong);
   }
+  /* The weight changes at once. Tweening it re-shaped the label's glyphs on
+     every frame of the switch; the colour and the sheet carry the motion. */
   .text {
     font-variation-settings: "wght" var(--weight-body);
-
-    @media (prefers-reduced-motion: no-preference) {
-      transition: font-variation-settings 80ms linear;
-    }
   }
   .ff-tab.selected .text {
     font-variation-settings: "wght" var(--weight-strong);

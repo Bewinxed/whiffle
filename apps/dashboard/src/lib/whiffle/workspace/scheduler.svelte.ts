@@ -146,6 +146,26 @@ export const rebuildScheduler = {
     };
   },
 
+  /**
+   * Bring one pane's rows up to date now, out of turn — called when the reader
+   * reaches for its tab. Pointer-enter and pointer-down both come before the
+   * click that switches, so the rebuild lands in that gap and the switch
+   * itself finds nothing to catch up on: one paint, not a held frame followed
+   * by a second update. No-op for a pane that is current or not taking turns.
+   */
+  prepare(id: string): void {
+    const entry = registry.get(id);
+    if (!entry) {
+      return;
+    }
+    const now = entry.fingerprint();
+    if (now === entry.last) {
+      return;
+    }
+    entry.last = now;
+    entry.bump();
+  },
+
   /** How many panes are currently taking turns. For tests and diagnostics. */
   get size(): number {
     return registry.size;

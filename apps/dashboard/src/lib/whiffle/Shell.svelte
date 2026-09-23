@@ -589,7 +589,7 @@
     background:
       linear-gradient(var(--border-hairline), var(--border-hairline)) bottom /
       100% 1px no-repeat,
-      var(--surface-sunken);
+      var(--tabbar-surface);
   }
   .burger {
     width: 44px;

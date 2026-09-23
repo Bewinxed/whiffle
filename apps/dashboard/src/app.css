@@ -332,6 +332,11 @@
   --surface-overlay: var(--neutral-1);
   --surface-hover: var(--neutral-3);
   --surface-active: var(--neutral-4);
+  /* The session tab strip: a bar clearly below the transcript, tabs not
+     chosen one step up from it, the chosen tab the transcript itself. */
+  --tabbar-surface: var(--neutral-5);
+  --tab-rest: var(--neutral-4);
+  --tab-rest-hover: var(--neutral-3);
 
   /* borders — graded, never flattened to one value */
   --border-hairline: color-mix(
@@ -576,6 +581,9 @@
   --surface-overlay: var(--neutral-4);
   --surface-hover: var(--neutral-3);
   --surface-active: var(--neutral-4);
+  --tabbar-surface: color-mix(in oklab, var(--neutral-1), black 50%);
+  --tab-rest: var(--neutral-1);
+  --tab-rest-hover: color-mix(in oklab, var(--neutral-1), var(--neutral-3));
 
   --border-hairline: color-mix(
     in oklab,

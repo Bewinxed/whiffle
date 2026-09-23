@@ -2156,33 +2156,79 @@ export const createServer = ({
    * tells a new one it may follow the sequenced stream instead of watching
    * frames go past.
    */
+  /** Everything an `instances` frame carries besides the rows themselves. */
+  const boardExtras = () => ({
+    agents: withPresence(db.listAgents()),
+    previews: [...previewTargets].map(([id, target]) =>
+      previewFrame(id, "open", target.source)
+    ),
+    handoffs: Object.fromEntries(handoffs),
+    queues: Object.fromEntries(queues),
+    // Additive, both of them: a dashboard that predates either reads the
+    // frame exactly as it always did. `pulses` seeds the rail's now-state on
+    // connect instead of leaving it blank until the next beat; `hubBuild`
+    // lets a client tell a hub that is behind from a machine that is.
+    pulses: Object.fromEntries(pulses),
+    ...(hubBuild ? { hubBuild } : {}),
+    capabilities: [...HUB_CAPABILITIES],
+  });
+
   const instancesFrame = (machineId: string): Envelope => ({
     verb: "frames",
     machineId,
     payload: {
       kind: "instances",
       instances: withSessionPresence(db.listInstances()),
-      agents: withPresence(db.listAgents()),
-      previews: [...previewTargets].map(([id, target]) =>
-        previewFrame(id, "open", target.source)
-      ),
-      handoffs: Object.fromEntries(handoffs),
-      queues: Object.fromEntries(queues),
-      // Additive, both of them: a dashboard that predates either reads the
-      // frame exactly as it always did. `pulses` seeds the rail's now-state on
-      // connect instead of leaving it blank until the next beat; `hubBuild`
-      // lets a client tell a hub that is behind from a machine that is.
-      pulses: Object.fromEntries(pulses),
-      ...(hubBuild ? { hubBuild } : {}),
-      capabilities: [...HUB_CAPABILITIES],
+      ...boardExtras(),
     },
   });
+
+  /**
+   * Each row as it was last published, serialised, by id. A publish sends
+   * only the rows whose serialisation differs and the ids that are gone: the
+   * board is ~900 rows and ~650KB, and every dashboard used to parse and
+   * re-render all of it on each move of any one of them. A dashboard that
+   * connects after a publish gets the whole board from {@link instancesFrame},
+   * so the only rows this can leave stale are ones that changed without a
+   * publish — which the full frame never caught either.
+   */
+  const publishedRows = new Map<string, string>(
+    // Seeded from the board as the hub boots: every dashboard connects after
+    // this and is handed a snapshot at least this fresh, so the first publish
+    // sends what moved rather than all of it.
+    withSessionPresence(db.listInstances()).map((row) => [
+      row.id,
+      JSON.stringify(row),
+    ])
+  );
 
   const publishInstances = (machineId: string): void => {
     // A session's model, project or harness can move under a live rule; every
     // move republishes, so this is the one place that has to drop the cache.
     ruleEngine.forgetFacts();
-    registry.broadcast(instancesFrame(machineId));
+    const rows = withSessionPresence(db.listInstances());
+    const upserts: typeof rows = [];
+    const present = new Set<string>();
+    for (const row of rows) {
+      present.add(row.id);
+      const serialised = JSON.stringify(row);
+      if (publishedRows.get(row.id) !== serialised) {
+        publishedRows.set(row.id, serialised);
+        upserts.push(row);
+      }
+    }
+    const removed: string[] = [];
+    for (const id of publishedRows.keys()) {
+      if (!present.has(id)) {
+        publishedRows.delete(id);
+        removed.push(id);
+      }
+    }
+    registry.broadcast({
+      verb: "frames",
+      machineId,
+      payload: { kind: "instances_delta", upserts, removed, ...boardExtras() },
+    });
   };
 
   /**

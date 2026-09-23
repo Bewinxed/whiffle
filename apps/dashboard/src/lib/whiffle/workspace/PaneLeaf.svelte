@@ -14,7 +14,7 @@
   import { untrack } from "svelte";
   import { browser } from "$app/environment";
   import { page } from "$app/state";
-  import { type HistorySource } from "../client.svelte";
+  import type { HistorySource } from "../client.svelte";
   import SessionPane from "../SessionPane.svelte";
   import { dropHint, paneDropTarget } from "./dnd.svelte";
   import { slot } from "./dock.svelte";
@@ -289,8 +289,12 @@
      every pane paint straight through the surface hiding this whole group,
      and the fleet board and the transcripts rendered on top of each other.
      Only the hidden state is ever stated; the visible one is inherited. */
+  /* A pane off screen keeps its DOM, its scroll and its rows — it is still
+     streaming — but the browser skips its style, layout and paint entirely.
+     `visibility: hidden` left every hidden transcript in each restyle and
+     reflow of the group, which is what a tab switch paid for. */
   .pane-hidden {
-    visibility: hidden;
+    content-visibility: hidden;
     pointer-events: none;
   }
 </style>

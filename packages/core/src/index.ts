@@ -650,6 +650,20 @@ export type FramePayload =
       previews?: Extract<FramePayload, { kind: "preview" }>[];
     }
   | {
+      /**
+       * Hub-originated: what moved since the last publish. A dashboard gets
+       * the whole board once, as `instances`, when it connects; after that
+       * only the rows that changed ride along — the board is hundreds of rows
+       * and a publish usually moves one. Everything else in the frame is the
+       * same small snapshot the `instances` frame carries.
+       */
+      kind: "instances_delta";
+      upserts: InstanceRow[];
+      removed: string[];
+      agents: AgentRow[];
+      previews?: Extract<FramePayload, { kind: "preview" }>[];
+    }
+  | {
       kind: "permission_request";
       instanceId: string;
       harness: import("./harness").HarnessKind;
