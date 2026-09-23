@@ -50,7 +50,12 @@
   import { deriveModelEntries, type ModelEntry } from "./model-entries";
   import { lastSpawnAt, lastUsedAt, recordModelUse } from "./modelUse.svelte";
   import NsPopoverGroup from "./NsPopoverGroup.svelte";
-  import type { MachineItem, MenuItem, ProjectItem } from "./ns-types";
+  import type {
+    LeadChip,
+    MachineItem,
+    MenuItem,
+    ProjectItem,
+  } from "./ns-types";
   import ProjectChip from "./ProjectChip.svelte";
   import PromptEditor from "./PromptEditor.svelte";
   import SectionHeader from "./SectionHeader.svelte";
@@ -62,6 +67,7 @@
     prefill,
     continueFrom,
     onclose,
+    onexitcontinue,
   }: {
     open: boolean;
     prefill?: { machineId?: string; cwd?: string; projectId?: string };
@@ -71,6 +77,8 @@
      */
     continueFrom?: ContinueSource;
     onclose: () => void;
+    /** The operator deleted the source chip: the dialog stays open as a plain New Session. */
+    onexitcontinue?: () => void;
   } = $props();
   const REPO = /^[\w.-]+\/[\w.-]+$/;
   let card = $state<HTMLElement | null>(null);
@@ -456,6 +464,18 @@
       unreadable ||
       locationUnverified ||
       (repo !== undefined && !REPO.test(repo.trim()))
+  );
+  /** The source as the prompt's opening chip; a session title is often its first prompt, so it is cut short. */
+  const sourceChip = $derived<LeadChip | undefined>(
+    continueFrom && {
+      key: "continue-source",
+      harness: continueFrom.harness,
+      label:
+        continueFrom.title.length > 28
+          ? `${continueFrom.title.slice(0, 27).trimEnd()}…`
+          : continueFrom.title,
+      title: continueFrom.title,
+    }
   );
   const startLabel = $derived.by(() => {
     if (continueFrom) {
@@ -1046,7 +1066,7 @@
       <div class="session-viewport">
         <Drawer.Overlay class="session-scrim ns-theme" />
         <Drawer.Content
-          aria-label={continueFrom ? "Continue session" : "New Session"}
+          aria-label="New Session"
           class="session-card ns-theme"
           data-ns-dialog
           inert={busy}
@@ -1066,7 +1086,7 @@
     <DialogPortal>
       <DialogPrimitive.Overlay class="session-scrim ns-theme" />
       <DialogPrimitive.Content
-        aria-label={continueFrom ? "Continue session" : "New Session"}
+        aria-label="New Session"
         class="session-card ns-theme"
         data-ns-dialog
         inert={busy}
@@ -1101,9 +1121,7 @@
     </button>
   </div>
   <div class="body fai-scroll" data-vaul-no-drag onscroll={bodyScroll}>
-    <h2 class:clamped={Boolean(continueFrom)}>
-      {continueFrom ? `Continue ${continueFrom.title}` : "New Session"}
-    </h2>
+    <h2>New Session</h2>
     <section class="sec prompt-sec" style="--delay:0ms">
       <SectionHeader
         hue="var(--fai-blue-500)"
@@ -1116,7 +1134,9 @@
         class:focus={editor === document.activeElement || menuOpen}
       >
         <PromptEditor
+          lead={sourceChip}
           {menuItems}
+          onleadremove={onexitcontinue}
           onmenu={(value) => { menuOpen = value; }}
           onsubmit={start}
           bind:element={editor}
@@ -1364,15 +1384,6 @@
     display: grid;
     gap: 18px;
     margin-top: 18px;
-  }
-  /* A session's title is often its first prompt: two lines say which one. */
-  h2.clamped {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    overflow: hidden;
-    overflow-wrap: anywhere;
   }
   .sizing {
     margin: 0;

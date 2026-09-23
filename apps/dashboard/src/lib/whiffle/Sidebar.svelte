@@ -1095,6 +1095,10 @@
     spawnOpen = false;
     continuing.source = null;
   }}
+  onexitcontinue={() => {
+    spawnOpen = true;
+    continuing.source = null;
+  }}
   open={spawnOpen || continuing.source !== null}
   prefill={continuing.source ? undefined : spawnPrefill}
 />

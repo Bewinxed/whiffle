@@ -3,21 +3,28 @@
    * The first-prompt editor (§1.4, §2.3): a contenteditable that grows from
    * 44px to 120px, detects `@` / `/` at the caret and inserts chips. The prompt
    * that is sent is the editor's text with chips serialised as `@name`/`/name`.
+   * A `lead` chip opens the editor and serialises to nothing; deleting it calls
+   * `onleadremove`.
    */
-  import { mount, unmount } from "svelte";
-  import type { MenuItem } from "./ns-types";
+  import { type Component, mount, unmount } from "svelte";
+  import HarnessLogo from "../HarnessLogo.svelte";
+  import type { LeadChip, MenuItem } from "./ns-types";
   import TriggerMenu from "./TriggerMenu.svelte";
 
   let {
     value = $bindable(""),
     element = $bindable(),
     menuItems,
+    lead,
+    onleadremove,
     onsubmit,
     onmenu,
   }: {
     value?: string;
     element?: HTMLDivElement;
     menuItems: (type: "@" | "/", query: string) => MenuItem[];
+    lead?: LeadChip;
+    onleadremove?: () => void;
     onsubmit: () => void;
     onmenu?: (open: boolean) => void;
   } = $props();
@@ -30,12 +37,13 @@
     type: "@" | "/";
   }
   const TRIGGER = /(^|[\s ])([@/])([\w./-]*)$/;
+  const LEADING_SPACE = /^[\s\u00a0]+/;
   const NAV = ["ArrowUp", "ArrowDown", "Enter", "Tab", "Escape"];
   let promptFocus = $state(false);
   let menu = $state.raw<Menu | null>(null);
   let menuIdx = $state(0);
   const items = $derived(menu ? menuItems(menu.type, menu.query) : []);
-  const promptEmpty = $derived(!value);
+  const promptEmpty = $derived(!(value || lead));
   const promptH = $derived(promptFocus || value || menu ? 120 : 44);
   const anchor = $derived(
     menu ? { getBoundingClientRect: () => (menu as Menu).rect } : null
@@ -116,10 +124,13 @@
       rect,
     };
   }
-  function insertChip(item: MenuItem) {
-    if (!(menu && element)) {
-      return;
+  function makeChip<Props extends Record<string, unknown>>(
+    item: Pick<MenuItem, "key" | "label" | "serial"> & {
+      hue?: string;
+      icon: Component<Props>;
+      props: Props;
     }
+  ) {
     const chip = document.createElement("span");
     chip.contentEditable = "false";
     chip.dataset.chip = item.key;
@@ -127,12 +138,82 @@
     chip.className = "ns-chip";
     const mark = document.createElement("span");
     mark.className = "ns-chip-icon";
-    mark.style.color = item.hue;
+    mark.style.color = item.hue ?? "";
     chip.append(mark);
-    chips.set(chip, mount(item.icon, { target: mark }));
+    chips.set(chip, mount(item.icon, { target: mark, props: item.props }));
     const label = document.createElement("span");
     label.textContent = item.label;
     chip.append(label);
+    return chip;
+  }
+  const leadChip = () =>
+    element?.querySelector<HTMLElement>(":scope > [data-lead]") ?? null;
+  function syncLead() {
+    const current = leadChip();
+    if (!element || Boolean(lead) === Boolean(current)) {
+      return;
+    }
+    if (current) {
+      dropLead(current);
+      return;
+    }
+    const { harness, key, label, title } = lead as LeadChip;
+    const chip = makeChip({
+      icon: HarnessLogo,
+      key,
+      label,
+      props: { harness },
+      serial: "",
+    });
+    chip.dataset.lead = "";
+    chip.title = title;
+    element.prepend(chip, document.createTextNode(" "));
+  }
+  function dropLead(chip: HTMLElement) {
+    const next = chip.nextSibling;
+    if (next instanceof Text) {
+      next.textContent = (next.textContent ?? "").replace(LEADING_SPACE, "");
+    }
+    unmount(chips.get(chip) as Record<string, unknown>);
+    chips.delete(chip);
+    chip.remove();
+  }
+  /** Backspace right after the lead chip, or Delete right before it, removes it. */
+  function deleteLead(event: KeyboardEvent) {
+    const chip = leadChip();
+    const selection = window.getSelection();
+    if (!(chip && element && selection?.isCollapsed && selection.anchorNode)) {
+      return false;
+    }
+    const range = document.createRange();
+    range.setStart(element, 0);
+    range.setEnd(selection.anchorNode, selection.anchorOffset);
+    const before = range.toString().trim();
+    const hit =
+      event.key === "Backspace"
+        ? before === (chip.textContent ?? "").trim()
+        : before === "";
+    if (!hit) {
+      return false;
+    }
+    event.preventDefault();
+    dropLead(chip);
+    value = text();
+    onleadremove?.();
+    return true;
+  }
+  function input() {
+    value = text();
+    detectTrigger();
+    if (lead && !leadChip()) {
+      onleadremove?.();
+    }
+  }
+  function insertChip(item: MenuItem) {
+    if (!(menu && element)) {
+      return;
+    }
+    const chip = makeChip({ ...item, props: {} });
     const range = document.createRange();
     range.setStart(menu.node, menu.start);
     range.setEnd(menu.node, menu.end);
@@ -154,6 +235,12 @@
     if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
       event.preventDefault();
       onsubmit();
+      return;
+    }
+    if (
+      (event.key === "Backspace" || event.key === "Delete") &&
+      deleteLead(event)
+    ) {
       return;
     }
     if (!menu) {
@@ -204,13 +291,14 @@
     });
   }
   $effect(() => {
-    if (value === "" && element && element.textContent !== "") {
+    if (value === "" && element && text() !== "") {
       element.replaceChildren();
       for (const instance of chips.values()) {
         unmount(instance);
       }
       chips.clear();
     }
+    syncLead();
   });
 </script>
 
@@ -225,7 +313,7 @@
     onblur={() => { promptFocus = false; closeMenu(); }}
     onclick={caret}
     onfocus={() => { promptFocus = true; }}
-    oninput={() => { value = text(); detectTrigger(); }}
+    oninput={input}
     {onkeydown}
     onkeyup={caret}
     onpaste={paste}
