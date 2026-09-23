@@ -81,7 +81,9 @@
 >
   {#snippet trigger()}
     <Files style="color:var(--fai-amber-500)" />
-    <span class="chip-label">{project?.name ?? "No project"}</span>
+    {#key project?.id}
+      <span class="chip-label swap">{project?.name ?? "No project"}</span>
+    {/key}
     {#if project}
       <!-- biome-ignore lint/a11y/useSemanticElements: the clear control sits inside the chip trigger, which is already a button; buttons cannot nest -->
       <span
@@ -197,20 +199,21 @@
     width: 13px;
     height: 13px;
   }
+  /* A little larger than the mark, never larger than the chip: a 44px target
+     here reached over the label, so clicking the project's name cleared it. */
   .clear::before {
     content: "";
     position: absolute;
-    top: 50%;
-    left: 50%;
-    width: max(100%, 44px);
-    height: max(100%, 44px);
-    transform: translate(-50%, -50%);
+    inset: -4px;
   }
   @media (hover: hover) {
     .clear:hover {
       background: var(--fai-hover);
       color: var(--fai-text);
     }
+  }
+  .swap {
+    animation: ns-in 200ms var(--ns-ease-out) both;
   }
   .row {
     position: relative;

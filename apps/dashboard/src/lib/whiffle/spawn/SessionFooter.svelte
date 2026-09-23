@@ -30,12 +30,10 @@
 </div>
 
 <style>
+  /* Straight on the dialog's recess: the actions need no card of their own. */
   .footer {
     flex: none;
-    margin-top: 6px;
-    background: var(--fai-surface);
-    border-radius: var(--fai-radius-lg);
-    padding: 10px 12px;
+    padding: 10px 4px 2px;
     display: flex;
     align-items: center;
     justify-content: flex-end;

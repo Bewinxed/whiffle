@@ -11,7 +11,6 @@
     type PermissionMode,
   } from "@whiffle/core";
   import { untrack } from "svelte";
-  import { MediaQuery } from "svelte/reactivity";
   import ProviderLogo from "$lib/components/features/ProviderLogo.svelte";
   import OpenAiMark from "~icons/logos/openai-icon";
   import Down from "~icons/solar/alt-arrow-down-linear";
@@ -125,13 +124,27 @@
   /** The rows the last harness had, still on screen while the new ones arrive. */
   let leaving = $state<ModelEntry[]>([]);
   const harnessIdx = $derived(TABS.findIndex((tab) => tab.id === harness));
-  /** A vertical rail beside the list; two-up under 640px, where the thumb
-      travels in both axes. */
-  const twoUp = new MediaQuery("(max-width: 640px)");
-  const cols = $derived(twoUp.current ? 2 : 1);
-  const thumbCol = $derived(harnessIdx % cols);
-  const thumbRow = $derived(Math.floor(harnessIdx / cols));
-  const fhHarness = new FollowHover("xy");
+  /**
+   * The rail shows marks only; the name rides one tooltip that slides and
+   * re-labels between them rather than a tooltip per mark popping in and out.
+   * `tip` is the mark under the pointer or keyboard focus; `shownTip` holds
+   * the last one so the tooltip fades out where it was instead of jumping.
+   */
+  let tip = $state(-1);
+  let shownTip = $state(0);
+  let tipWidth = $state(0);
+  $effect(() => {
+    if (tip >= 0) {
+      shownTip = tip;
+    }
+  });
+  const RAIL_PAD = 6;
+  const RAIL_STEP = 40;
+  function railMove(event: MouseEvent) {
+    const box = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    const at = Math.floor((event.clientY - box.top - RAIL_PAD) / RAIL_STEP);
+    tip = at >= 0 && at < TABS.length ? at : -1;
+  }
   let pop = $state<"effort" | "permission" | null>(null);
   let toolsWidth = $state(0);
   const look = $derived(permissionLook(tools?.permission ?? ""));
@@ -223,6 +236,10 @@
   const hiOpacity = $derived(rows.some((row) => row.id === selectedId) ? 1 : 0);
   const ctx = (entry: ModelEntry) => (entry.name.endsWith("· 1M") ? "1M" : "");
   const vendor = (id: string) => VENDOR[providerOf(id) ?? ""] ?? "";
+  /** One maker for the whole list says nothing per row; mixed lists do. */
+  const mixedMakers = $derived(
+    new Set(entries.map((entry) => providerOf(entry.id) ?? "")).size > 1
+  );
   function pick(entry: ModelEntry) {
     if (entry.isCustom) {
       rememberModel(entry.id);
@@ -270,42 +287,38 @@
   {#if !runtime}
     <SectionHeader hue="var(--fai-violet-500)" icon={Cpu} label="Model" />
   {/if}
-  <div class="body" class:railed={!runtime}>
+  <div class="picker" class:railed={!runtime}>
     {#if !runtime}
       <div
         aria-label="Harness"
-        class="tabs"
+        class="rail"
+        onfocusout={() => { tip = -1; }}
         onkeydown={tabKey}
-        onmouseleave={fhHarness.leave}
-        onmousemove={fhHarness.move}
+        onmouseleave={() => { tip = -1; }}
+        onmousemove={railMove}
         role="radiogroup"
         tabindex="-1"
       >
         <span
           aria-hidden="true"
-          class="ns-ghost harness-ghost"
-          style={fhHarness.style}
-        ></span>
-        <span
-          aria-hidden="true"
           class="thumb"
-          style={`--col:${thumbCol};--row:${thumbRow}`}
+          style={`transform:translateY(${harnessIdx * RAIL_STEP}px)`}
         ></span>
         {#each TABS as tab, i (tab.id)}
           {@const available = !tab.soon && installed.includes(tab.id as HarnessKind)}
-          <!-- biome-ignore lint/a11y/useSemanticElements: the harness tabs are a designed segmented control; a native radio cannot carry the logo, thumb and disabled reason -->
+          <!-- biome-ignore lint/a11y/useSemanticElements: the harness rail is a designed radio group; a native radio cannot carry the mark, thumb and disabled reason -->
           <button
             aria-checked={tab.id === harness}
             aria-describedby={available ? undefined : `harness-${tab.id}-why`}
+            aria-label={tab.name}
             class="tab ns-in"
-            data-fh={available ? "1" : undefined}
             data-harness={tab.id}
             disabled={!available}
             onclick={() => onharness(tab.id as HarnessKind)}
+            onfocus={(event) => { if (event.currentTarget.matches(':focus-visible')) { tip = i; } }}
             role="radio"
             style={`--delay:${i * 30}ms`}
             tabindex={tab.id === harness ? 0 : -1}
-            title={tab.name}
             type="button"
             class:on={tab.id === harness}
           >
@@ -314,10 +327,6 @@
             {:else}
               <HarnessLogo harness={tab.id as HarnessKind} />
             {/if}
-            <span class="tab-name">{tab.name}</span>
-            {#if tab.soon}
-              <span class="soon">soon</span>
-            {/if}
             {#if !available}
               <span class="sr-only" id={`harness-${tab.id}-why`}
                 >{tab.soon ? "Coming soon" : `Not installed on ${machineName}`}</span
@@ -325,6 +334,22 @@
             {/if}
           </button>
         {/each}
+        <span
+          aria-hidden="true"
+          class="tip"
+          style={`transform:translateY(${shownTip * RAIL_STEP}px);width:${tipWidth}px;opacity:${tip >= 0 ? 1 : 0}`}
+        >
+          {#key shownTip}
+            <span class="tip-text" bind:offsetWidth={tipWidth}
+              >{TABS[shownTip]?.name}
+              {#if TABS[shownTip]?.soon}
+                <span class="soon">soon</span>
+              {:else if !installed.includes(TABS[shownTip]?.id as HarnessKind)}
+                <span class="soon">not installed</span>
+              {/if}</span
+            >
+          {/key}
+        </span>
       </div>
     {/if}
     <div class="pick">
@@ -340,7 +365,7 @@
           onfocus={() => { searchFocus = true; }}
           oninput={(event) => { query = event.currentTarget.value; }}
           onkeydown={(event) => { if (event.key === 'Enter' && showCustomRow) { event.preventDefault(); pickCustom(); } else if (event.key === 'Escape' && query) { event.stopPropagation(); query = ''; } }}
-          placeholder="Search models or paste a custom model id..."
+          placeholder={`Search ${harnessName(listHarness)} models or paste a model id…`}
           spellcheck="false"
           value={query}
         >
@@ -488,13 +513,15 @@
 
 {#snippet rowBody(entry: ModelEntry)}
   {@const provider = providerOf(entry.id)}
-  <span class="ns-tile tile vendor">
-    {#if provider}
-      <ProviderLogo model={entry.id} size={16} />
-    {:else}
-      <HarnessLogo harness={listHarness} />
-    {/if}
-  </span>
+  {#if mixedMakers}
+    <span class="ns-tile tile vendor">
+      {#if provider}
+        <ProviderLogo model={entry.id} size={16} />
+      {:else}
+        <HarnessLogo harness={listHarness} />
+      {/if}
+    </span>
+  {/if}
   <span class="text">
     <span class="name" class:mono={entry.mono}>{entry.name}</span>
     <span class="meta"
@@ -512,126 +539,126 @@
     display: grid;
     gap: 8px;
   }
-  .body {
+  /* One panel: the harness rail down its left edge, search and list beside. */
+  .picker {
+    position: relative;
     display: grid;
-    gap: 10px;
+    background: var(--fai-surface);
+    border: 1px solid var(--fai-border);
+    border-radius: var(--fai-radius-md);
+    box-shadow: var(--fai-shadow-xs);
   }
-  /* The harness rail beside the list it chooses between. */
-  .body.railed {
-    grid-template-columns: 176px minmax(0, 1fr);
-    align-items: start;
+  .picker.railed {
+    grid-template-columns: auto minmax(0, 1fr);
   }
   .pick {
     display: grid;
-    gap: 8px;
     min-width: 0;
   }
-  .tabs {
+  .rail {
     position: relative;
     display: grid;
-    grid-template-columns: minmax(0, 1fr);
     align-content: start;
-    gap: 2px;
-    padding: 3px;
+    gap: 4px;
+    padding: 6px;
+    border-right: 1px solid var(--fai-border-subtle);
     background: var(--fai-recess);
-    border-radius: var(--fai-radius-md);
-  }
-  .harness-ghost {
-    background: oklch(from var(--fai-raised) l c h / 0.5);
+    border-radius: var(--fai-radius-md) 0 0 var(--fai-radius-md);
   }
   .thumb {
     position: absolute;
-    top: 3px;
-    left: 3px;
-    width: calc(100% - 6px);
-    height: 38px;
+    top: 6px;
+    left: 6px;
+    width: 36px;
+    height: 36px;
     background: var(--fai-raised);
     border-radius: var(--fai-radius-sm);
     box-shadow: var(--fai-shadow-raised);
-    transform: translate(
-      calc(var(--col) * (100% + 2px)),
-      calc(var(--row) * (100% + 2px))
-    );
-    transition: transform 160ms var(--ns-ease-in-out);
+    transition: transform 180ms var(--ns-ease-in-out);
     pointer-events: none;
   }
   .tab {
     position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 8px;
-    height: 38px;
-    padding: 0 10px;
-    min-width: 0;
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
     background: transparent;
     border: 0;
     border-radius: var(--fai-radius-sm);
     cursor: pointer;
     color: var(--fai-text-muted);
+    transition: background-color 120ms ease;
   }
-  .tab.on {
-    color: var(--fai-grey-900);
+  @media (hover: hover) {
+    .tab:not(.on):not(:disabled):hover {
+      background: var(--fai-hover);
+    }
   }
   .tab:disabled {
     cursor: not-allowed;
-    opacity: 0.55;
+    opacity: 0.45;
   }
-  .tab :global(.harness-logo) {
-    width: 16px;
-    height: 16px;
-  }
+  .tab :global(.harness-logo),
   .tab :global(.codex-mark) {
-    width: 16px;
-    height: 16px;
+    width: 18px;
+    height: 18px;
     flex: none;
   }
-  .tab-name {
+  /* One tooltip for the whole rail: it slides to the mark under the pointer
+     and re-sizes to its name, so moving down the rail reads as one label
+     travelling, not four appearing and vanishing. */
+  .tip {
+    position: absolute;
+    top: 6px;
+    left: calc(100% + 6px);
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    height: 36px;
+    overflow: hidden;
+    background: var(--fai-grey-900);
+    color: var(--fai-grey-50, #fff);
+    border-radius: var(--fai-radius-sm);
+    box-shadow: var(--fai-shadow-raised);
+    pointer-events: none;
+    transition:
+      transform 180ms var(--ns-ease-in-out),
+      width 180ms var(--ns-ease-in-out),
+      opacity 120ms ease;
+  }
+  .tip-text {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 10px;
     font: 500 12px / 1 var(--fai-font-sans);
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    min-width: 0;
-  }
-  /* The disabled tab still has to read as "Codex": the tag gives up room first. */
-  .tab:has(.soon) {
-    gap: 4px;
-    padding: 0 4px;
-  }
-  .tab:has(.soon) .tab-name {
-    flex: none;
+    animation: ns-in 160ms var(--ns-ease-out) both;
   }
   .soon {
-    flex: none;
-    font: 500 8px / 1 var(--fai-font-sans);
-    letter-spacing: 0.02em;
+    font: 500 9px / 1 var(--fai-font-sans);
+    letter-spacing: 0.04em;
     text-transform: uppercase;
-    padding: 3px 3px;
-    border-radius: 4px;
-    background: var(--fai-grey-200);
-    color: var(--fai-text-muted);
-    white-space: nowrap;
+    opacity: 0.6;
   }
   .search {
     display: flex;
     align-items: center;
     gap: 8px;
-    height: 38px;
-    padding: 0 10px;
-    background: var(--fai-surface);
-    border: 1px solid var(--fai-border);
-    border-radius: var(--fai-radius-md);
-    box-shadow: var(--fai-shadow-xs);
-    transition: var(--fai-transition-control);
-  }
-  .search.focus {
-    border-color: var(--fai-grey-400);
+    height: 42px;
+    padding: 0 12px;
+    border-bottom: 1px solid var(--fai-border-subtle);
   }
   .search :global(svg.lead) {
     width: 15px;
     height: 15px;
     flex: none;
     color: var(--fai-text-subtle);
+  }
+  .search.focus :global(svg.lead) {
+    color: var(--fai-text);
   }
   .search input {
     flex: 1;
@@ -673,13 +700,9 @@
     display: grid;
     gap: 2px;
     align-content: start;
-    height: 272px;
+    height: 300px;
     overflow: auto;
     padding: 4px;
-    background: var(--fai-surface);
-    border: 1px solid var(--fai-border);
-    border-radius: var(--fai-radius-md);
-    box-shadow: var(--fai-shadow-xs);
   }
   /* The outgoing rows, over the incoming ones so both staggers run at once. */
   .leaving {
@@ -814,20 +837,6 @@
     text-wrap: pretty;
   }
   @media (max-width: 640px) {
-    /* The rail folds above the list, two-up, so the thumb moves in both axes. */
-    .body.railed {
-      grid-template-columns: minmax(0, 1fr);
-    }
-    .tabs {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-    .thumb {
-      height: 44px;
-      width: calc((100% - 8px) / 2);
-    }
-    .tab {
-      height: 44px;
-    }
     .search {
       height: 44px;
     }

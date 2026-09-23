@@ -22,8 +22,6 @@
   import Book from "~icons/solar/book-2-bold-duotone";
   import Chat from "~icons/solar/chat-round-line-bold-duotone";
   import Cpu from "~icons/solar/cpu-bold-duotone";
-  import Database from "~icons/solar/database-bold-duotone";
-  import Fire from "~icons/solar/fire-bold-duotone";
   import Files from "~icons/solar/folder-with-files-bold-duotone";
   import Laptop from "~icons/solar/laptop-bold-duotone";
   import Monitor from "~icons/solar/monitor-bold-duotone";
@@ -41,6 +39,7 @@
   import { models } from "../models.svelte";
   import { PERMISSION_MODES } from "../permission-modes";
   import { rememberSpawn, spawnPrefs } from "../spawnPrefs.svelte";
+  import LifetimeChip from "./LifetimeChip.svelte";
   import LocationChip from "./LocationChip.svelte";
   import MachinesChip from "./MachinesChip.svelte";
   import ModelSection from "./ModelSection.svelte";
@@ -209,7 +208,9 @@
   let unreadable = $state(false);
   let missingMachines = $state<string[]>([]);
   let verifiedLocation = $state("");
-  let popover = $state<"machines" | "project" | "location" | null>(null);
+  let popover = $state<"machines" | "project" | "location" | "lifetime" | null>(
+    null
+  );
   let menuOpen = $state(false);
   let skills = $state<string[]>([]);
   let plugins = $state<string[]>([]);
@@ -969,28 +970,12 @@
             {reading}
             repo={repo ?? ""}
           />
-          <!-- A side quest ends with its task; a persistent session stays on
-               the board. One chip, one click, the word says which it is. -->
-          <button
-            aria-label={`Session lifetime: ${sideQuest ? "ephemeral" : "persistent"}`}
-            aria-pressed={sideQuest}
-            class="ns-chip-btn lifetime"
-            onclick={() => { sideQuest = !sideQuest; }}
-            title={sideQuest ? "Ends with its task. Click to keep it." : "Stays on the board. Click to make it ephemeral."}
-            type="button"
-          >
-            {#key sideQuest}
-              <span class="swap">
-                {#if sideQuest}
-                  <Fire style="color:var(--fai-orange-500)" />
-                  <span class="chip-label">Ephemeral</span>
-                {:else}
-                  <Database style="color:var(--fai-blue-500)" />
-                  <span class="chip-label">Persistent</span>
-                {/if}
-              </span>
-            {/key}
-          </button>
+          <LifetimeChip
+            ephemeral={sideQuest}
+            onchange={(value) => { popover = value ? "lifetime" : null; }}
+            onlifetime={(value) => { sideQuest = value; }}
+            open={popover === "lifetime"}
+          />
         </div>
       </div>
       <p
@@ -1178,20 +1163,6 @@
   }
   .reading.informational {
     color: var(--fai-text-muted);
-  }
-  .lifetime {
-    overflow: hidden;
-  }
-  .lifetime .swap {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    animation: ns-in 220ms var(--ns-ease-out) both;
-  }
-  .lifetime :global(svg) {
-    width: 15px;
-    height: 15px;
-    flex: none;
   }
   .composer {
     position: relative;
