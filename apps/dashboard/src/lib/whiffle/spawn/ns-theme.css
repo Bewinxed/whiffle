@@ -64,7 +64,6 @@
   --fai-border: var(--border-control);
   --fai-border-subtle: var(--border-hairline);
   --fai-focus-ring: oklch(from var(--focus-ring) l c h / 0.28);
-  --fai-hover-preview: oklch(from var(--hue-blue-500) l c h / 0.14);
   --fai-status-info-bg: var(--status-live-bg);
   --fai-status-info-fg: var(--status-live-ink);
   --fai-status-expired-fg: var(--status-fail-ink);

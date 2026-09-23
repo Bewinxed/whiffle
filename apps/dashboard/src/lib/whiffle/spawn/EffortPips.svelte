@@ -4,7 +4,7 @@
    * one object, and the fill's right end is the value. Each stop marks where
    * that end lands for its level — just inside the chip's right edge — so the
    * stops ahead sit in the empty track rather than under a chip wider than a
-   * step. Pointing, hover previews and stops all use that one geometry.
+   * step. Pointing and stops use that one geometry.
    */
   import type { EffortLevel } from "@whiffle/core";
 
@@ -57,18 +57,6 @@
   const pips = $derived(
     efforts.map((_, i) => ({ frac: frac(i), on: i > effortIdx }))
   );
-  /**
-   * The span a hover would add or remove. It only fades — on a pick it keeps
-   * its last place while the fill grows over it, instead of shrinking back.
-   */
-  const previewing = $derived(hover >= 0 && !drag && hover !== effortIdx);
-  let preview = $state({ from: 0, span: 0 });
-  $effect.pre(() => {
-    if (previewing) {
-      const to = frac(hover);
-      preview = { from: Math.min(p, to), span: Math.abs(to - p) };
-    }
-  });
   const label = $derived(n ? (efforts[effortIdx] ?? "") : "Default");
   function change(level: EffortLevel) {
     if (oncommit) {
@@ -190,10 +178,6 @@
           </span>
         </div>
       </div>
-      <div
-        class="preview"
-        style={`left:calc(var(--kw) + ${preview.from} * (100% - var(--kw)));width:calc(${preview.span} * (100% - var(--kw)));opacity:${previewing ? 1 : 0}`}
-      ></div>
       {#each pips as pip, i (i)}
         <span
           class="pip"
@@ -281,17 +265,6 @@
     bottom: 0;
     background: var(--fai-recess-deep);
     transition: width var(--ns-fill-ms) var(--ns-ease-in-out);
-    pointer-events: none;
-  }
-  .preview {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    background: var(--fai-hover-preview);
-    transition:
-      left 120ms var(--ns-ease-in-out),
-      width 120ms var(--ns-ease-in-out),
-      opacity 120ms ease;
     pointer-events: none;
   }
   .pip {
