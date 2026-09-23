@@ -5,28 +5,57 @@ import {
 } from "@whiffle/core";
 
 interface SessionInstance {
-  id: string;
-  sessionId?: string | null;
-  machineId?: string;
   cwd?: string;
+  id: string;
+  machineId?: string;
+  sessionId?: string | null;
   updatedAt?: InstanceRow["updatedAt"];
 }
 
 interface SessionLocation {
-  machineId?: string | null;
   cwd?: string;
+  machineId?: string | null;
+}
+
+/**
+ * Every instance row, looked up by id and by session. Built once per change to
+ * the instance list, so resolving a conversation's address is two map reads —
+ * the rail and the board resolve one per row, and a scan per row made that
+ * quadratic in the fleet.
+ */
+export interface InstanceIndex<T extends SessionInstance = SessionInstance> {
+  byId: ReadonlyMap<string, T>;
+  bySession: ReadonlyMap<string, readonly T[]>;
+}
+
+export function indexInstances<T extends SessionInstance>(
+  instances: readonly T[]
+): InstanceIndex<T> {
+  const byId = new Map<string, T>();
+  const bySession = new Map<string, T[]>();
+  for (const row of instances) {
+    byId.set(row.id, row);
+    if (row.sessionId) {
+      const held = bySession.get(row.sessionId);
+      if (held) {
+        held.push(row);
+      } else {
+        bySession.set(row.sessionId, [row]);
+      }
+    }
+  }
+  return { byId, bySession };
 }
 
 /** Location settles shared session keys; the newest row settles true duplicates. */
 export function instanceForSession<T extends SessionInstance>(
-  instances: readonly T[],
+  index: InstanceIndex<T>,
   sessionId: string,
   location?: SessionLocation,
-  requireLocation = false
+  requireLocation = false,
+  accept: (row: T) => boolean = () => true
 ): T | undefined {
-  const candidates = instances.filter(
-    (row) => row.sessionId && row.sessionId === sessionId
-  );
+  const candidates = (index.bySession.get(sessionId) ?? []).filter(accept);
   const narrowed = location
     ? candidates.filter(
         (row) =>
@@ -34,12 +63,8 @@ export function instanceForSession<T extends SessionInstance>(
       )
     : [];
   // Resume must not adopt an ambiguous session from another machine or checkout.
-  const eligible =
-    requireLocation && candidates.length > 1
-      ? narrowed
-      : narrowed.length
-        ? narrowed
-        : candidates;
+  const ambiguous = requireLocation && candidates.length > 1;
+  const eligible = ambiguous || narrowed.length > 0 ? narrowed : candidates;
   return eligible.sort(
     (a, b) =>
       new Date(b.updatedAt ?? 0).getTime() -
@@ -50,15 +75,14 @@ export function instanceForSession<T extends SessionInstance>(
 /** Instance-backed conversations have one address, including sleeping instances. */
 export function conversationHref(
   id: string | null,
-  instances: readonly SessionInstance[],
+  index: InstanceIndex,
   location?: SessionLocation
 ): string {
   if (!id) {
     return "/session";
   }
   const instance =
-    instances.find((row) => row.id === id) ??
-    instanceForSession(instances, id, location);
+    index.byId.get(id) ?? instanceForSession(index, id, location);
   return `/session/${instance?.id ?? id}`;
 }
 
@@ -137,17 +161,17 @@ export function delegateHandle(row: { id: string; cwd: string }): string {
  */
 export function resolveInstanceId(
   id: string | null | undefined,
-  instances: ReadonlyArray<{ id: string }>
+  index: InstanceIndex
 ): string | undefined {
   if (!id) {
     return undefined;
   }
-  if (instances.some((row) => row.id === id)) {
+  if (index.byId.has(id)) {
     return id;
   }
   if (id.length >= 8) {
-    const matches = instances.filter((row) => row.id.startsWith(id));
-    return matches.length === 1 ? matches[0].id : undefined;
+    const matches = [...index.byId.keys()].filter((key) => key.startsWith(id));
+    return matches.length === 1 ? matches[0] : undefined;
   }
   return undefined;
 }

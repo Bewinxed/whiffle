@@ -38,7 +38,10 @@
   }: { machineId: string; info: SDKSessionInfo; children: Snippet } = $props();
 
   const href = $derived(
-    conversationHref(info.sessionId, whiffle.instances, { machineId, cwd: info.cwd })
+    conversationHref(info.sessionId, whiffle.instanceIndex, {
+      machineId,
+      cwd: info.cwd,
+    })
   );
   /** Every mutation names the directory the session was recorded under. */
   const where = $derived({ dir: info.cwd || undefined });
@@ -99,7 +102,7 @@
       sessionId: info.sessionId,
       harness: info.harness,
     });
-    await goto(conversationHref(instanceId, whiffle.instances));
+    await goto(conversationHref(instanceId, whiffle.instanceIndex));
   }
 </script>
 

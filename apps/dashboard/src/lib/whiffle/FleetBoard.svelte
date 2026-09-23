@@ -138,7 +138,7 @@
         contextPct: stats.contextPct,
         cost: stats.cost,
         at: whiffle.pulseAt(instance.id),
-        href: conversationHref(instance.id, whiffle.instances),
+        href: conversationHref(instance.id, whiffle.instanceIndex),
         instance,
         stored: null,
         cwd: instance.cwd,
@@ -167,7 +167,7 @@
             contextPct: null,
             cost: null,
             at: info.lastModified,
-            href: conversationHref(info.sessionId, whiffle.instances, {
+            href: conversationHref(info.sessionId, whiffle.instanceIndex, {
               machineId: machine.machineId,
               cwd: info.cwd,
             }),
@@ -342,7 +342,7 @@
       harness: row.harness as never,
     });
     // biome-ignore lint/complexity/noVoid: fire-and-forget — the session is already resuming, navigation doesn't need to be awaited
-    void goto(conversationHref(id, whiffle.instances));
+    void goto(conversationHref(id, whiffle.instanceIndex));
   }
 
   function exportCsv() {

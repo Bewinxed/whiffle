@@ -1,5 +1,5 @@
 import type { InstanceRow, SDKSessionInfo } from "@whiffle/core";
-import { conversationHref, sessionTitle } from "./links";
+import { conversationHref, indexInstances, sessionTitle } from "./links";
 
 /** Which of the four groups a row belongs to — decides its icon and its cap. */
 export type JumpKind = "project" | "machine" | "live" | "stored";
@@ -82,6 +82,7 @@ const unranked = (row: JumpRow): RankedRow => ({
 });
 
 export function buildJumpIndex(input: JumpIndexInput): JumpIndex {
+  const index = indexInstances(input.instances);
   const groups = GROUPS.map((name, i) => ({
     name,
     kind: KINDS[i],
@@ -119,7 +120,7 @@ export function buildJumpIndex(input: JumpIndexInput): JumpIndex {
       kind: "live",
       label: leaf(instance.cwd) || instance.id,
       detail: `${instance.cwd || "—"} · ${instance.activityLabel}`,
-      href: conversationHref(instance.id, input.instances),
+      href: conversationHref(instance.id, index),
       hay: "",
       labelLower: "",
       detailLower: "",
@@ -130,7 +131,7 @@ export function buildJumpIndex(input: JumpIndexInput): JumpIndex {
     for (const [i, info] of machine.catalog.entries()) {
       const title = sessionTitle(info);
       sessionTitles.set(info.sessionId, title);
-      const href = conversationHref(info.sessionId, input.instances, {
+      const href = conversationHref(info.sessionId, index, {
         machineId: machine.machineId,
         cwd: info.cwd,
       });

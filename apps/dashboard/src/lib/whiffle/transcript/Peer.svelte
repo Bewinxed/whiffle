@@ -20,7 +20,7 @@
   const sender = $derived(isReport ? (meta.peerName ?? "") : "");
   const senderId = $derived(
     isReport
-      ? resolveInstanceId(meta.peerSession, whiffle.instances)
+      ? resolveInstanceId(meta.peerSession, whiffle.instanceIndex)
       : undefined
   );
 
@@ -48,7 +48,9 @@
   </span>
   {#if sender}
     {#if senderId}
-      <a class="from" href={conversationHref(senderId, whiffle.instances)}>{sender}</a>
+      <a class="from" href={conversationHref(senderId, whiffle.instanceIndex)}
+        >{sender}</a
+      >
     {:else}
       <span class="from">{sender}</span>
     {/if}

@@ -76,7 +76,7 @@ import {
   turnStart,
 } from "./frames";
 import { newId } from "./id";
-import { conversationHref, instanceForSession } from "./links";
+import { conversationHref, indexInstances, instanceForSession } from "./links";
 import { type PendingSelection, selectionExtras } from "./preview/selection";
 import { ingestQueued, retireQueued } from "./queue";
 import { checkRestartToast } from "./restart-toast";
@@ -413,6 +413,19 @@ export interface SessionState {
  */
 let catalog = $state.raw<Record<string, SDKSessionInfo[]>>({});
 
+/**
+ * Every instance the hub knows, as immutable rows replaced whole — never
+ * edited in place. Raw state: the fleet is ~a thousand rows, and a deep proxy
+ * made every field read of every row a tracked signal, so a list render or a
+ * lookup paid a proxy trap per row per field.
+ */
+let instances = $state.raw<InstanceRow[]>([]);
+/** The same rows looked up by id and by session, rebuilt once per change. */
+const instanceIndex = $derived(indexInstances(instances));
+const runningInstances = $derived(instances.filter(isLive));
+const staleInstances = $derived(instances.filter(isStale));
+const listedInstances = $derived(instances.filter(isListed));
+
 const state = $state({
   previews: {} as Record<
     string,
@@ -455,7 +468,6 @@ const state = $state({
    * and check for, which is the thing it was supposed to replace.
    */
   handoffs: {} as Record<string, { from: string; at: number }>,
-  instances: [] as InstanceRow[],
   projects: [] as ProjectRow[],
   sessions: {} as Record<string, SessionState>,
   /**
@@ -569,7 +581,7 @@ function teardown(): void {
 
 /** Mainline sessions the rail lists for one machine: live work and what stopped. */
 const listedOn = (machineId: string): InstanceRow[] =>
-  state.instances.filter(
+  instances.filter(
     (row) =>
       row.machineId === machineId && isListed(row) && row.kind !== "scratch"
   );
@@ -673,7 +685,7 @@ function hydrate(target: SessionState): void {
       target.queued = held;
     }
   }
-  const known = state.instances.find((row) => row.id === target.instanceId);
+  const known = instanceIndex.byId.get(target.instanceId);
   if (!known) {
     return;
   }
@@ -734,7 +746,7 @@ async function persistSettings(
     effort?: EffortLevel;
   }
 ): Promise<void> {
-  const row = state.instances.find((candidate) => candidate.id === instanceId);
+  const row = instanceIndex.byId.get(instanceId);
   if (!row) {
     return;
   }
@@ -828,8 +840,8 @@ async function load<T>(path: string): Promise<T | null> {
  * Views this browser opened for a session it did not spawn learn their machine
  * from it, so a snapshot is also how a bare `/session/[id]` fills itself in.
  */
-function adoptInstances(instances: InstanceRow[]): void {
-  state.instances = instances;
+function adoptInstances(rows: InstanceRow[]): void {
+  instances = rows;
   for (const target of Object.values(state.sessions)) {
     hydrate(target);
   }
@@ -843,22 +855,22 @@ function adoptInstances(instances: InstanceRow[]): void {
  * instead of all of them.
  */
 function patchInstances(upserts: InstanceRow[], removed: string[]): void {
-  if (removed.length > 0) {
-    const gone = new Set(removed);
-    state.instances = state.instances.filter((row) => !gone.has(row.id));
-  }
-  if (upserts.length === 0) {
-    return;
-  }
-  const index = new Map(state.instances.map((row, i) => [row.id, i]));
-  for (const row of upserts) {
-    const at = index.get(row.id);
-    if (at === undefined) {
-      index.set(row.id, state.instances.length);
-      state.instances.push(row);
-    } else {
-      state.instances[at] = row;
+  const gone = new Set(removed);
+  const next = instances.filter((row) => !gone.has(row.id));
+  if (upserts.length > 0) {
+    const at = new Map(next.map((row, i) => [row.id, i]));
+    for (const row of upserts) {
+      const i = at.get(row.id);
+      if (i === undefined) {
+        at.set(row.id, next.length);
+        next.push(row);
+      } else {
+        next[i] = row;
+      }
     }
+  }
+  instances = next;
+  for (const row of upserts) {
     const held = state.sessions[row.id];
     if (held) {
       hydrate(held);
@@ -925,7 +937,7 @@ function usageLimitReadings(
 async function refresh(): Promise<void> {
   // Registry hydration also recovers workflow transitions missed while disconnected.
   refreshWorkflows();
-  const [machines, instances, projects, pending, handoffs, queues, usage] =
+  const [machines, rows, projects, pending, handoffs, queues, usage] =
     await Promise.all([
       load<Machine[]>("/api/agents"),
       load<InstanceRow[]>("/api/instances"),
@@ -955,8 +967,8 @@ async function refresh(): Promise<void> {
   if (projects) {
     state.projects = projects;
   }
-  if (instances) {
-    adoptInstances(instances);
+  if (rows) {
+    adoptInstances(rows);
   }
   if (usage) {
     adoptUsageLimits(usage.machines);
@@ -1090,14 +1102,14 @@ function recordSupervisorEvent(event: SupervisorEvent): boolean {
  * the hand-off happens here, not just on the phone.
  */
 function announceSupervisorEvent(event: SupervisorEvent): void {
-  const row = state.instances.find((i) => i.id === event.instanceId);
+  const row = instanceIndex.byId.get(event.instanceId);
   const where =
     row?.title ??
     (row?.cwd ? row.cwd.split("/").filter(Boolean).pop() : undefined) ??
     "a session";
   const open = {
     label: "Open",
-    onClick: () => goto(conversationHref(event.instanceId, state.instances)),
+    onClick: () => goto(conversationHref(event.instanceId, instanceIndex)),
   };
   if (event.verdict === "error") {
     // One toast per (session, cause) — sonner replaces by id, so a broken
@@ -3071,10 +3083,11 @@ export function resumeSession({
   history?: Message[];
 }): string {
   const live = instanceForSession(
-    state.instances.filter(isLive),
+    instanceIndex,
     sessionId,
     { machineId, cwd },
-    true
+    true,
+    isLive
   );
   if (live) {
     const existing = session(live.id);
@@ -3231,7 +3244,7 @@ function noteSendSubmitted(
  * by then carries what the transcript read's header or the catalog entry named.
  */
 function resumeKeyFor(instanceId: string): string | null {
-  const row = state.instances.find((candidate) => candidate.id === instanceId);
+  const row = instanceIndex.byId.get(instanceId);
   if (row) {
     return row.sessionId ?? null;
   }
@@ -3243,7 +3256,7 @@ export async function ensureAlive(
   machineId: string
 ): Promise<void> {
   const target = session(instanceId);
-  const row = state.instances.find((candidate) => candidate.id === instanceId);
+  const row = instanceIndex.byId.get(instanceId);
   const dead =
     row &&
     (row.status === "error" ||
@@ -3333,9 +3346,7 @@ export async function sendToPeer(
 
 /** Sessions this one can hand work to: every other live session in the fleet. */
 export function peerTargets(exceptInstanceId: string): InstanceRow[] {
-  return state.instances.filter(
-    (row) => row.id !== exceptInstanceId && isLive(row)
-  );
+  return instances.filter((row) => row.id !== exceptInstanceId && isLive(row));
 }
 
 export function stopSession(instanceId: string, machineId: string): void {
@@ -3986,7 +3997,7 @@ export function messagesUrl(source: HistorySource, tail?: number): string {
 }
 
 export function preloadHistory(viewId: string): Promise<TranscriptOutcome> {
-  const row = whiffle.instances.find((instance) => instance.id === viewId);
+  const row = whiffle.instanceIndex.byId.get(viewId);
   return streamHistory({
     viewId,
     machineId: "",
@@ -5086,7 +5097,7 @@ export function resolvePermission(
  */
 function blockedRequests(): BlockedRequest[] {
   const stopped = new Set(
-    state.instances.filter((row) => !isLive(row)).map((row) => row.id)
+    instances.filter((row) => !isLive(row)).map((row) => row.id)
   );
 
   const rows: BlockedRequest[] = [];
@@ -5245,7 +5256,10 @@ export const whiffle = {
     return readings.find((r) => r.error === null) ?? readings[0] ?? null;
   },
   get instances() {
-    return state.instances;
+    return instances;
+  },
+  get instanceIndex() {
+    return instanceIndex;
   },
   get previews() {
     return state.previews;
@@ -5257,11 +5271,11 @@ export const whiffle = {
     return state.previewRequests;
   },
   get runningInstances() {
-    return state.instances.filter(isLive);
+    return runningInstances;
   },
   /** Sessions the hub lost track of — shown apart, never as live work. */
   get staleInstances(): InstanceRow[] {
-    return state.instances.filter(isStale);
+    return staleInstances;
   },
   /** Mainline sessions on one machine — what the sidebar groups under it. */
   listedOn,
@@ -5277,13 +5291,11 @@ export const whiffle = {
     listedOn(machineId).filter((row) => !isLive(row)),
   /** Every session the rail lists: live work, plus what failed or fell asleep. */
   get listedInstances(): InstanceRow[] {
-    return state.instances.filter(isListed);
+    return listedInstances;
   },
   /** Side quests across the fleet — kept in their own section, not per machine. */
   get scratchInstances(): InstanceRow[] {
-    return state.instances.filter(
-      (row) => isListed(row) && row.kind === "scratch"
-    );
+    return instances.filter((row) => isListed(row) && row.kind === "scratch");
   },
   /** Stored sessions on one machine, minus the side quests hiding among them. */
   catalogOf: (machineId: string): SDKSessionInfo[] =>
@@ -5298,7 +5310,7 @@ export const whiffle = {
   /** Sessions a project owns: started from it, or running in its checkout.
    *  Failed ones stay listed here too — same board rule as the sidebar. */
   liveIn: (project: ProjectRow): InstanceRow[] =>
-    state.instances.filter(
+    instances.filter(
       (row) =>
         isListed(row) &&
         (row.projectId === project.id ||

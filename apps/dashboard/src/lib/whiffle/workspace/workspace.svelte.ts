@@ -359,7 +359,7 @@ function remember(
  * as the fleet answers.
  */
 export function contextOf(sessionId: string): SessionContext | null {
-  const instance = whiffle.instances.find((row) => row.id === sessionId);
+  const instance = whiffle.instanceIndex.byId.get(sessionId);
   if (instance?.machineId) {
     return {
       machine: instance.machineId,
@@ -476,7 +476,7 @@ function project(sessionId: string | null, mode: "push" | "replace"): void {
     return;
   }
   const ctx = sessionId ? contextOf(sessionId) : null;
-  const url = conversationHref(sessionId, whiffle.instances, {
+  const url = conversationHref(sessionId, whiffle.instanceIndex, {
     machineId: ctx?.machine,
     cwd: ctx?.cwd,
   });

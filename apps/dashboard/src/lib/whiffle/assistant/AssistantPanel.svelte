@@ -66,7 +66,7 @@
     if (!id) {
       return null;
     }
-    const row = whiffle.instances.find((r) => r.id === id);
+    const row = whiffle.instanceIndex.byId.get(id);
     return row ?? null;
   });
 
@@ -143,7 +143,7 @@
 
   function navigateToSession(instanceId: string) {
     close();
-    goto(conversationHref(instanceId, whiffle.instances));
+    goto(conversationHref(instanceId, whiffle.instanceIndex));
   }
 
   const VERDICT_TONE: Record<string, string> = {
@@ -302,7 +302,7 @@
       {:else}
         <ul class="log">
           {#each events as ev (ev.id)}
-            {@const session = whiffle.instances.find((r) => r.id === ev.instanceId)}
+            {@const session = whiffle.instanceIndex.byId.get(ev.instanceId)}
             {@const tone = VERDICT_TONE[ev.verdict] ?? 'muted'}
             <li class="log-row">
               <span class="log-time">{ago(ev.createdAt)}</span>

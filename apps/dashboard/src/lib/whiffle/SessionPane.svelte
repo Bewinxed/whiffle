@@ -228,8 +228,7 @@
             // when this is blank; the id tail stays for the read, which the
             // hub resolves on its own.
             sessionId:
-              whiffle.instances.find((row) => row.id === id)?.sessionId ??
-              undefined,
+              whiffle.instanceIndex.byId.get(id)?.sessionId ?? undefined,
             cwd: hint?.cwd ?? "",
             harness: hint?.harness as never,
             live: running,
@@ -486,7 +485,7 @@
       machineId
   );
 
-  const instanceRow = $derived(whiffle.instances.find((i) => i.id === viewId));
+  const instanceRow = $derived(whiffle.instanceIndex.byId.get(viewId));
 
   /** What `@` can name: the other conversations in the strip, and the machines. */
   const mentions = $derived<Mention[]>([

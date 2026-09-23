@@ -818,7 +818,7 @@
                       <Sidebar.MenuSubItem>
                         <Sidebar.MenuSubButton
                           class={SUB_ROW}
-                          href={conversationHref(row.id, whiffle.instances)}
+                          href={conversationHref(row.id, whiffle.instanceIndex)}
                           isActive={activeSession === row.id}
                           style={indent(depth)}
                         >
@@ -885,7 +885,7 @@
               >
                 {#snippet child({ props })}
                   <a
-                    href={conversationHref(row.id, whiffle.instances)}
+                    href={conversationHref(row.id, whiffle.instanceIndex)}
                     style={indent(depth)}
                     {...props}
                   >
@@ -959,7 +959,7 @@
               >
                 {#snippet child({ props })}
                   <a
-                    href={conversationHref(row.id, whiffle.instances)}
+                    href={conversationHref(row.id, whiffle.instanceIndex)}
                     style={indent(depth)}
                     title={notRunningHint(row)}
                     {...props}

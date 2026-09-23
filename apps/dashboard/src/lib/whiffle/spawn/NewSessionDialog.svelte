@@ -835,7 +835,7 @@
     if (open || request !== submission) {
       return;
     }
-    await goto(conversationHref(instanceId, whiffle.instances));
+    await goto(conversationHref(instanceId, whiffle.instanceIndex));
   }
   function keydown(event: KeyboardEvent) {
     if (!open || event.defaultPrevented || event.isComposing) {

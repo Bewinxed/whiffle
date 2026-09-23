@@ -49,9 +49,7 @@
   const id = $derived(meta.delegateInstanceId ?? null);
   const started = $derived(meta.handoffKind === "start");
 
-  const row = $derived(
-    id ? whiffle.instances.find((r) => r.id === id) : undefined
-  );
+  const row = $derived(id ? whiffle.instanceIndex.byId.get(id) : undefined);
   const branch = $derived(id ? whiffle.session(id) : null);
 
   const events = $derived(id ? whiffle.delegateEventsOf(id) : []);
@@ -372,7 +370,7 @@
         <a
           aria-label="Open {label} in its own view"
           class="jump"
-          href={conversationHref(id, whiffle.instances)}
+          href={conversationHref(id, whiffle.instanceIndex)}
           title="Open {label} in its own view"
         >
           <IconExternal />

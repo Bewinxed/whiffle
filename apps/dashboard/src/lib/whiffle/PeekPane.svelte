@@ -45,7 +45,6 @@
     UNKNOWN_LABEL,
   } from "./activity";
   import ContextMeter from "./ContextMeter.svelte";
-  import { conversationHref } from "./links";
   import {
     backfillSession,
     forkSession,
@@ -64,7 +63,7 @@
     whiffle,
   } from "./client.svelte";
   import { identityVar } from "./folder-prefs.svelte";
-  import { sessionTitle } from "./links";
+  import { conversationHref, sessionTitle } from "./links";
   import { machineLabel } from "./machine";
   import OsMark from "./OsMark.svelte";
   import { permissionSummary } from "./permission-summary";
@@ -107,8 +106,7 @@
           // over as one: an instance id in the key's place is what made two
           // sessions unrevivable.
           sessionId:
-            whiffle.instances.find((instance) => instance.id === next.viewId)
-              ?.sessionId ??
+            whiffle.instanceIndex.byId.get(next.viewId)?.sessionId ??
             whiffle
               .catalogOf(next.browsing.machineId)
               .find((entry) => entry.sessionId === next.viewId)?.sessionId,
@@ -138,10 +136,7 @@
 
   const session = $derived(target ? whiffle.session(target.viewId) : null);
   const row = $derived(
-    target
-      ? (whiffle.instances.find((instance) => instance.id === target.viewId) ??
-          null)
-      : null
+    target ? (whiffle.instanceIndex.byId.get(target.viewId) ?? null) : null
   );
 
   const failed = $derived(row ? isFailed(row) : false);
@@ -219,7 +214,7 @@
       harness: session?.harness ?? "claude",
       history: session?.messages ?? [],
     });
-    await goto(conversationHref(instanceId, whiffle.instances));
+    await goto(conversationHref(instanceId, whiffle.instanceIndex));
   }
 
   /**

@@ -9,7 +9,7 @@
 
   let { sessionId, compact = false }: { sessionId: string; compact?: boolean } =
     $props();
-  const row = $derived(whiffle.instances.find((item) => item.id === sessionId));
+  const row = $derived(whiffle.instanceIndex.byId.get(sessionId));
   const activity = $derived(whiffle.activityOf(sessionId));
   const status = $derived.by(() => {
     if (row && isFailed(row)) {

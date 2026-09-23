@@ -76,7 +76,7 @@
   }
 
   function resolve(id: string): Tab {
-    const row = whiffle.instances.find((instance) => instance.id === id);
+    const row = whiffle.instanceIndex.byId.get(id);
     const view = whiffle.session(id);
     const ctx = contextOf(id);
     const { label, named } = sessionName(id, servedNames);
@@ -97,7 +97,7 @@
     }
     return {
       id,
-      href: conversationHref(id, whiffle.instances, {
+      href: conversationHref(id, whiffle.instanceIndex, {
         machineId: ctx?.machine,
         cwd: ctx?.cwd,
       }),

@@ -9,7 +9,7 @@
  */
 
 import { delegateOf, isDelegateReport, matchesSession } from "./frames";
-import { conversationHref, resolveInstanceId } from "./links";
+import { conversationHref, indexInstances, resolveInstanceId } from "./links";
 import { type SourceRef, sourcesForMessage } from "./sources";
 import type { Message } from "./types";
 
@@ -58,6 +58,7 @@ export function computeMessageHints(
   subagents: Record<string, unknown>
 ): Map<string, MessageHints> {
   const map = new Map<string, MessageHints>();
+  const index = indexInstances(instances);
 
   for (let i = 0; i < messages.length; i += 1) {
     const msg = messages[i];
@@ -118,11 +119,9 @@ export function computeMessageHints(
 
     // ── briefParent ──────────────────────────────────────────────
     if (type === "user.peer" && !msg.metadata?.reportKind) {
-      const row = instances.find(
-        (r) => r.id === (instanceId || msg.instanceId)
-      );
+      const row = index.byId.get(instanceId || msg.instanceId || "");
       if (row?.parentInstanceId) {
-        const parent = instances.find((r) => r.id === row.parentInstanceId);
+        const parent = index.byId.get(row.parentInstanceId);
         if (parent) {
           const sender = msg.metadata?.peerSession ?? msg.metadata?.peerFrom;
           const parentLeaf =
@@ -174,20 +173,18 @@ export function computeMessageHints(
     // keeps only the short id, so it resolves against the fleet's live rows.
     if (type === "user.peer") {
       const sender = msg.metadata?.peerSession ?? msg.metadata?.peerFrom;
-      const resolved = resolveInstanceId(sender, instances);
-      sessionHref = resolved ? conversationHref(resolved, instances) : null;
+      const resolved = resolveInstanceId(sender, index);
+      sessionHref = resolved ? conversationHref(resolved, index) : null;
     } else if (type === "tool.handoff") {
       const full = msg.metadata?.delegateInstanceId;
       if (typeof full === "string") {
-        sessionHref = conversationHref(full, instances);
+        sessionHref = conversationHref(full, index);
       } else {
         const short = TRAILING_INSTANCE_ID.exec(
           String(msg.content ?? "").trim()
         );
-        const resolved = short
-          ? resolveInstanceId(short[1], instances)
-          : undefined;
-        sessionHref = resolved ? conversationHref(resolved, instances) : null;
+        const resolved = short ? resolveInstanceId(short[1], index) : undefined;
+        sessionHref = resolved ? conversationHref(resolved, index) : null;
       }
     }
 

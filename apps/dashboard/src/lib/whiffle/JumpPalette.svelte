@@ -303,7 +303,7 @@
               <Command.Item
                 class="jump-hit"
                 onSelect={() =>
-                jump(conversationHref(hit.instanceId ?? hit.sessionId, whiffle.instances))}
+                jump(conversationHref(hit.instanceId ?? hit.sessionId, whiffle.instanceIndex))}
                 value={`hit:${hit.docId}`}
               >
                 <!-- Which conversation this line came out of. Without it a list of

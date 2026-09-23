@@ -19,7 +19,10 @@
 
   const showCwd = $derived(Boolean(info.cwd) && info.cwd !== groupCwd);
   const href = $derived(
-    conversationHref(info.sessionId, whiffle.instances, { machineId, cwd: info.cwd })
+    conversationHref(info.sessionId, whiffle.instanceIndex, {
+      machineId,
+      cwd: info.cwd,
+    })
   );
 
   // Distinct per stored session (seeded by its SDK session id). These rows all

@@ -88,7 +88,7 @@ async function read(viewId: string): Promise<void> {
   // the registry already knows which machine it runs on and which SDK session
   // it is writing, which is all the ledger is filed under.
   const session = whiffle.session(viewId);
-  const row = whiffle.instances.find((instance) => instance.id === viewId);
+  const row = whiffle.instanceIndex.byId.get(viewId);
   const machineId = session?.machineId || row?.machineId;
   const sessionId = session?.sessionId || row?.sessionId;
   const harness = (session?.harness ??

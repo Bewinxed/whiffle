@@ -31,7 +31,7 @@ export function sessionName(
   served: Record<string, string>,
   cwdFallback?: string
 ): SessionName {
-  const row = whiffle.instances.find((instance) => instance.id === id);
+  const row = whiffle.instanceIndex.byId.get(id);
   const view = whiffle.session(id);
   const ctx = contextOf(id);
   const title = row?.title;

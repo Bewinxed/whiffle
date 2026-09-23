@@ -40,7 +40,7 @@
   } = $props();
   const uid = $props.id();
   const session = $derived(whiffle.session(sessionId));
-  const row = $derived(whiffle.instances.find((item) => item.id === sessionId));
+  const row = $derived(whiffle.instanceIndex.byId.get(sessionId));
   const context = $derived(contextOf(sessionId));
   const machineId = $derived(
     session?.machineId || row?.machineId || context?.machine

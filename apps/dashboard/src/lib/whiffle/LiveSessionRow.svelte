@@ -150,7 +150,7 @@
     class="group flex min-h-9 flex-col justify-center gap-0.5 rounded-[var(--radius-control)] px-4 py-1.5
       transition-colors duration-150 ease-out hover:bg-accent hover:text-accent-foreground
       {failed || activity === 'blocked' ? 'bg-error/10' : ''}"
-    href={conversationHref(instance.id, whiffle.instances)}
+    href={conversationHref(instance.id, whiffle.instanceIndex)}
     title={rowHint}
     use:dragSession={{ sessionId: instance.id, from: null }}
   >

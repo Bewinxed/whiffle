@@ -42,7 +42,7 @@
 
   let { instance, ongroup, children }: Props = $props();
 
-  const href = $derived(conversationHref(instance.id, whiffle.instances));
+  const href = $derived(conversationHref(instance.id, whiffle.instanceIndex));
   const scratch = $derived(instance.kind === "scratch");
   const pinned = $derived(rail.isPinned("session", instance.id));
 

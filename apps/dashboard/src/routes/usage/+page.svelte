@@ -6,8 +6,8 @@
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte convention for component groups
   import * as Table from "$lib/components/ui/table";
   import { whiffle } from "$lib/whiffle/client.svelte";
-  import { conversationHref } from "$lib/whiffle/links";
   import HarnessGlyph from "$lib/whiffle/HarnessGlyph.svelte";
+  import { conversationHref } from "$lib/whiffle/links";
   import StatTile from "$lib/whiffle/StatTile.svelte";
   import { compactNumber, type UsageSummaryRow, usd } from "$lib/whiffle/usage";
   import BreakdownTable from "$lib/whiffle/usage/BreakdownTable.svelte";
@@ -487,7 +487,9 @@
                   </Table.Cell>
                   <Table.Cell>
                     {#if i === 0}
-                      <a class="session-link" href={conversationHref(row.id, whiffle.instances)}
+                      <a
+                        class="session-link"
+                        href={conversationHref(row.id, whiffle.instanceIndex)}
                         >{row.label}</a
                       >
                     {:else}
