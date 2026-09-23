@@ -179,7 +179,9 @@ export const currentBusy = (): number => activeSupervisor?.busyCount ?? 0;
 /**
  * How many consecutive failures against the pinned URL, and how much wall
  * time they must span, before the daemon stops trusting that URL and re-runs
- * discovery instead of just retrying it.
+ * discovery instead of just retrying it — only for a daemon started with
+ * `rediscover` (a hub `whiffle up` discovered). A hub the operator named
+ * (`--hub`, `WHIFFLE_HUB_URL`) is retried forever and never swapped.
  *
  * Both ours, chosen together: 5 failures is inside one retry series (past the
  * point where a flap is still plausibly transient) but comfortably short of
@@ -713,11 +715,15 @@ const attach = (
  * `auth` is what the caller already found out — `whiffle up` probes before it
  * gets here, because it may still be able to fix it. A daemon started any other
  * way asks for itself.
+ *
+ * `rediscover` says whether the hub URL was discovered rather than named. Only
+ * then may a sustained reconnect failure re-run discovery and repin; a named
+ * hub is retried with the usual backoff forever.
  */
-export const startDaemon = (auth?: AuthState) =>
+export const startDaemon = (auth?: AuthState, rediscover = false) =>
   Effect.gen(function* () {
     const url = process.env[WHIFFLE_ENV.hubUrl] ?? DEFAULT_HUB_URL;
-    // Re-pinned by `onSustainedFailure` below, read fresh by every attempt
+    // Re-pinned by the rediscovery trigger below (discovered hubs only), read fresh by every attempt
     // `reconnecting` makes — see its own doc for why a plain closure variable
     // is enough: each attempt calls `session` anew, in the same tick that
     // reads this.
@@ -827,27 +833,29 @@ export const startDaemon = (auth?: AuthState) =>
     yield* reconnecting(
       (markLive) =>
         Effect.scoped(attach(scanner, supervisor, identity, hubUrl, markLive)),
-      {
-        rediscover: {
-          onTrigger: () =>
-            Effect.promise(async () => {
-              const winner = await rediscoverHub({
-                log: (line) => Effect.runSync(Effect.logInfo(line)),
-              });
-              if (winner) {
-                hubUrl = toWsUrl(winner);
-              }
-            }).pipe(
-              // A rediscovery attempt that throws (a probe rejecting oddly, a
-              // malformed tailscale JSON) must never take the reconnect loop
-              // down with it — worst case is the pinned URL simply stays put
-              // and the backoff series it was already running continues.
-              Effect.catchDefect((defect) =>
-                Effect.logWarning(`rediscovery failed: ${String(defect)}`)
-              )
-            ),
-        },
-      }
+      rediscover
+        ? {
+            rediscover: {
+              onTrigger: () =>
+                Effect.promise(async () => {
+                  const winner = await rediscoverHub({
+                    log: (line) => Effect.runSync(Effect.logInfo(line)),
+                  });
+                  if (winner) {
+                    hubUrl = toWsUrl(winner);
+                  }
+                }).pipe(
+                  // A rediscovery attempt that throws (a probe rejecting oddly, a
+                  // malformed tailscale JSON) must never take the reconnect loop
+                  // down with it — worst case is the pinned URL simply stays put
+                  // and the backoff series it was already running continues.
+                  Effect.catchDefect((defect) =>
+                    Effect.logWarning(`rediscovery failed: ${String(defect)}`)
+                  )
+                ),
+            },
+          }
+        : undefined
     );
   }).pipe(Effect.scoped);
 
@@ -858,8 +866,8 @@ export const startDaemon = (auth?: AuthState) =>
  * between turns instead of mid-tool. A second signal arrives with the handler
  * already gone, and kills the daemon the usual way.
  */
-export const runDaemon = (auth?: AuthState): void => {
-  const daemon = Effect.runFork(startDaemon(auth));
+export const runDaemon = (auth?: AuthState, rediscover = false): void => {
+  const daemon = Effect.runFork(startDaemon(auth, rediscover));
   const drain = (signal: NodeJS.Signals): void => {
     // bun-types' `NodeJS.Process` merge redeclares `off` for its own
     // `"memoryPressure"` event only, which shadows @types/node's generic

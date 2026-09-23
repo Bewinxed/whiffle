@@ -11,7 +11,8 @@ import { readConfig, writeConfig } from "./config";
 /**
  * The network rungs of hub discovery, shared between `whiffle up`
  * (`@whiffle/cli`'s `discoverHub`) and the daemon's own re-discovery on a
- * sustained reconnect failure (`rediscoverHub`, below).
+ * sustained reconnect failure (`rediscoverHub`, below) — the latter only for a
+ * hub that was discovered, never one the operator named.
  *
  * This lives on the agent side of the package graph, not core and not cli:
  * `@whiffle/cli` already depends on `@whiffle/agent` (it dynamically imports
