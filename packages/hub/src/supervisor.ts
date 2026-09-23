@@ -10,13 +10,12 @@ import type {
 import {
   RULE_FIRE_CEILING,
   RULE_SCAN_LIMIT,
-  readEnv,
   ruleInScope,
   ruleMatches,
-  WHIFFLE_ENV,
 } from "@whiffle/core";
 import type { DbShape } from "./db";
 import { type RuleVerdict, verdictFor, verdictStream } from "./llm";
+import type { MeaningJudge } from "./meaning";
 
 // ── constants (all sourced from PLAN.md C3) ────────────────────────────
 
@@ -60,6 +59,8 @@ export interface SupervisorStatusSignal {
 export interface SupervisorEngineDeps {
   agent: (machineId: string) => SupervisorSender | undefined;
   db: DbShape;
+  /** Answers `meaning` rules — the same judge the rule engine asks, so a turn is asked about once. */
+  meaning: MeaningJudge;
   publish: (instanceId: string, event: SupervisorEvent) => void;
   /** Optional transient broadcast: the dashboard's "thinking" indicator. */
   status?: (instanceId: string, status: SupervisorStatusSignal) => void;
@@ -214,13 +215,22 @@ export class SupervisorEngine {
     status: SupervisorStatusSignal
   ) => void;
   readonly #state = new Map<string, InstanceState>();
+  readonly #meaning: MeaningJudge;
   readonly #semaphore = new Semaphore(
     SUPERVISOR_MAX_CONCURRENT,
     SEMAPHORE_QUEUE_CAP
   );
 
-  constructor({ db, agent, telegram, publish, status }: SupervisorEngineDeps) {
+  constructor({
+    db,
+    agent,
+    meaning,
+    telegram,
+    publish,
+    status,
+  }: SupervisorEngineDeps) {
     this.#db = db;
+    this.#meaning = meaning;
     this.#agent = agent;
     this.#telegram = telegram;
     this.#publish = publish;
@@ -309,7 +319,14 @@ export class SupervisorEngine {
         state.consecutive = 0;
       }
       // biome-ignore lint/complexity/noVoid: fire-and-forget; the caller (a frame handler) has nowhere to route this promise
-      void this.#evaluate(instanceId, turnText, files, commands, now).catch(
+      void this.#evaluate(
+        message,
+        instanceId,
+        turnText,
+        files,
+        commands,
+        now
+      ).catch(
         // biome-ignore lint/suspicious/noEmptyBlockStatements: #evaluate already reports its own failures (see its body); this is only the last-resort guard against an unhandled rejection
         () => {}
       );
@@ -349,6 +366,7 @@ export class SupervisorEngine {
 
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: runs one full evaluation — builds facts, calls the LLM, applies mute/consecutive/timeout policy, and publishes the verdict
   async #evaluate(
+    frame: NeutralMessage,
     instanceId: string,
     turnText: string,
     files: string[],
@@ -400,7 +418,20 @@ export class SupervisorEngine {
     };
 
     // Selection: autopilot enabled > first in-scope llm rule (createdAt asc).
-    const selection = this.#compose(instanceId, row, facts, turnText);
+    // Meaning rules are matched by Jev's answer about this turn, not by text.
+    const meaningYes = await this.#meaning.turn(
+      frame,
+      instanceId,
+      facts,
+      turnText
+    );
+    const selection = this.#compose(
+      instanceId,
+      row,
+      facts,
+      turnText,
+      meaningYes
+    );
     if (!selection) {
       return;
     }
@@ -830,7 +861,8 @@ export class SupervisorEngine {
       } | null;
     },
     facts: RuleFacts,
-    turnText: string
+    turnText: string,
+    meaningYes: Set<string>
   ): {
     source: "autopilot" | "rule";
     /** The standing autopilot prompt, when the session has one armed. */
@@ -860,6 +892,9 @@ export class SupervisorEngine {
         }
         if (!ruleInScope(rule.scope, facts)) {
           return false;
+        }
+        if (rule.trigger === "pattern" && rule.matchKind === "meaning") {
+          return meaningYes.has(rule.id);
         }
         if (rule.trigger === "pattern") {
           const text =
@@ -987,32 +1022,16 @@ export class SupervisorEngine {
   // ── config resolution ──────────────────────────────────────────────────
 
   #resolveConfig(): { baseUrl: string; model: string; apiKey?: string } | null {
-    // DB row wins, env bootstraps (PLAN.md C4). A stored row — even with
-    // enabled:false — is authoritative; env only fills in while no row exists.
+    // The stored row, set from the Settings page, is the only source.
     const dbConfig = this.#db.getSupervisorConfig();
-    if (dbConfig) {
-      if (!(dbConfig.enabled && dbConfig.baseUrl && dbConfig.model)) {
-        return null;
-      }
-      return {
-        baseUrl: dbConfig.baseUrl,
-        model: dbConfig.model,
-        apiKey: dbConfig.apiKey ?? undefined,
-      };
+    if (!(dbConfig?.enabled && dbConfig.baseUrl && dbConfig.model)) {
+      return null;
     }
-
-    // Env fallback — no DB row exists.
-    const baseUrl = readEnv(WHIFFLE_ENV.supervisorUrl);
-    const model = readEnv(WHIFFLE_ENV.supervisorModel);
-    if (baseUrl && model) {
-      return {
-        baseUrl,
-        model,
-        apiKey: readEnv(WHIFFLE_ENV.supervisorKey),
-      };
-    }
-
-    return null;
+    return {
+      baseUrl: dbConfig.baseUrl,
+      model: dbConfig.model,
+      apiKey: dbConfig.apiKey ?? undefined,
+    };
   }
 
   // ── recording ──────────────────────────────────────────────────────────

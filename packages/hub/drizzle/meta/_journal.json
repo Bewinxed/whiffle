@@ -267,6 +267,13 @@
       "when": 1790095016346,
       "tag": "0037_fair_gideon",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "6",
+      "when": 1790145972285,
+      "tag": "0038_cool_senator_kelly",
+      "breakpoints": true
     }
   ]
 }

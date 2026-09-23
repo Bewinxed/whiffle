@@ -825,12 +825,6 @@ export const WHIFFLE_ENV = {
   serviceMode: "WHIFFLE_SERVICE_MODE",
   /** The npm registry installs and self-updates go through. */
   registry: "WHIFFLE_REGISTRY",
-  /** The OpenAI-compatible router the supervisor calls for verdicts. */
-  supervisorUrl: "WHIFFLE_SUPERVISOR_URL",
-  /** Which model on that router answers — an alias, when the router has one. */
-  supervisorModel: "WHIFFLE_SUPERVISOR_MODEL",
-  /** The router's API key, when it asks for one. Absent for a local router. */
-  supervisorKey: "WHIFFLE_SUPERVISOR_KEY",
 } as const;
 
 /** One of {@link WHIFFLE_ENV}'s variable names. */

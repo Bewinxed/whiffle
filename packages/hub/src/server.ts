@@ -1,3 +1,4 @@
+import { generateCodeChallenge, generateCodeVerifier } from "@whiffle/auth";
 import type {
   AgentRow,
   BuildInfo,
@@ -69,14 +70,12 @@ import {
   RESOLVE_PERMISSION,
   RESTART_RESUMABLE,
   RULE_TEMPLATES,
-  readEnv,
   readProvenance,
   ruleProblem,
   TOOL_CATALOG,
   toolSpec,
   UPDATE_WHIFFLE,
   validateWorkflow,
-  WHIFFLE_ENV,
 } from "@whiffle/core";
 import { Elysia, t } from "elysia";
 import { websocket } from "elysia/websocket";
@@ -88,6 +87,7 @@ import { delegateTypesRoutes, makeDelegateTypes } from "./delegate-types";
 import { hubHttpUrl } from "./delegation-actions";
 import { createDelegationMcp } from "./delegation-mcp";
 import { probe } from "./llm";
+import { MeaningJudge } from "./meaning";
 import { externalizeImages, mediaContentType, mediaFilePath } from "./media";
 import type { PendingShape } from "./pending";
 import { answerWorkflow, onWorkflowAnswer } from "./pending";
@@ -210,7 +210,11 @@ const ruleBody = t.Object({
   name: t.String(),
   enabled: t.Boolean(),
   pattern: t.String(),
-  matchKind: t.Union([t.Literal("phrase"), t.Literal("regex")]),
+  matchKind: t.Union([
+    t.Literal("phrase"),
+    t.Literal("regex"),
+    t.Literal("meaning"),
+  ]),
   caseSensitive: t.Boolean(),
   wholeWord: t.Boolean(),
   watch: t.Union([t.Literal("text"), t.Literal("thinking"), t.Literal("both")]),
@@ -1461,8 +1465,16 @@ export const createServer = ({
    * carries. Constructed here so it shares the request's `db` and reaches
    * machines through the same registry every other injection uses.
    */
+  /** Meaning rules' one Jev call per turn, shared by both engines below. */
+  const meaningJudge = new MeaningJudge(db);
+  /**
+   * The PKCE verifier of the OpenRouter connect in progress. One at a time: a
+   * new connect replaces it, and a finished exchange spends it.
+   */
+  let openrouterVerifier: string | undefined;
   const ruleEngine = new RuleEngine({
     db,
+    meaning: meaningJudge,
     agent: (machineId) => registry.agent(machineId),
   });
 
@@ -1510,6 +1522,7 @@ export const createServer = ({
    */
   const supervisor = new SupervisorEngine({
     db,
+    meaning: meaningJudge,
     agent: (machineId) => registry.agent(machineId),
     telegram,
     publish: publishSupervisorEvent,
@@ -4280,13 +4293,71 @@ export const createServer = ({
           return state;
         }
       )
+      // ── OpenRouter (OAuth PKCE; the key never leaves the hub) ─────────────
+      .get("/api/openrouter", () => {
+        const connection = db.getOpenRouterConnection();
+        return {
+          connected: connection !== undefined,
+          connectedAt: connection?.connectedAt.getTime() ?? null,
+        };
+      })
+      .post(
+        "/api/openrouter/connect",
+        { body: t.Object({ callbackUrl: t.String() }) },
+        ({ body }) => {
+          openrouterVerifier = generateCodeVerifier();
+          const auth = new URL("https://openrouter.ai/auth");
+          auth.searchParams.set("callback_url", body.callbackUrl);
+          auth.searchParams.set(
+            "code_challenge",
+            generateCodeChallenge(openrouterVerifier)
+          );
+          auth.searchParams.set("code_challenge_method", "S256");
+          return { authUrl: auth.toString() };
+        }
+      )
+      .post(
+        "/api/openrouter/exchange",
+        { body: t.Object({ code: t.String() }) },
+        async ({ body, status }) => {
+          if (!openrouterVerifier) {
+            return status(
+              409,
+              "No OpenRouter connect is in progress on this hub. Start again from Settings."
+            );
+          }
+          const response = await fetch(
+            "https://openrouter.ai/api/v1/auth/keys",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                code: body.code,
+                code_verifier: openrouterVerifier,
+                code_challenge_method: "S256",
+              }),
+            }
+          );
+          if (!response.ok) {
+            return new Response(await response.text(), {
+              status: response.status,
+            });
+          }
+          const { key } = (await response.json()) as { key: string };
+          db.setOpenRouterConnection(key);
+          openrouterVerifier = undefined;
+          return { ok: true };
+        }
+      )
+      .delete("/api/openrouter", () => {
+        db.clearOpenRouterConnection();
+        return { ok: true };
+      })
       // ── supervisor ────────────────────────────────────────────────────────
       .get("/api/supervisor", async () => {
         const dbConfig = db.getSupervisorConfig();
-        const baseUrl =
-          dbConfig?.baseUrl || readEnv(WHIFFLE_ENV.supervisorUrl) || null;
-        const model =
-          dbConfig?.model || readEnv(WHIFFLE_ENV.supervisorModel) || null;
+        const baseUrl = dbConfig?.baseUrl || null;
+        const model = dbConfig?.model || null;
         const enabled = dbConfig?.enabled ?? false;
 
         const config = {

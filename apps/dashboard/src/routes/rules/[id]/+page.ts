@@ -12,6 +12,14 @@ import type { PageLoad } from "./$types";
  * rows, and the list of names is needed anyway to refuse a duplicate.
  */
 export const load: PageLoad = async ({ fetch, params }) => {
+  // Meaning rules need OpenRouter; the editor says so under the question.
+  const openrouterConnected = fetch("/api/openrouter")
+    .then(async (response) =>
+      response.ok
+        ? ((await response.json()) as { connected: boolean }).connected
+        : false
+    )
+    .catch(() => false);
   const payload = await fetch("/api/rules")
     .then(async (response) => {
       if (!response.ok) {
@@ -26,6 +34,7 @@ export const load: PageLoad = async ({ fetch, params }) => {
       rule: null as RuleRow | null,
       taken: [] as string[],
       composing: params.id === "new",
+      openrouterConnected: await openrouterConnected,
       error: `Could not read the rules — ${payload.message}.`,
     };
   }
@@ -45,6 +54,7 @@ export const load: PageLoad = async ({ fetch, params }) => {
       .filter((other) => other.id !== params.id)
       .map((other) => other.name),
     composing: params.id === "new",
+    openrouterConnected: await openrouterConnected,
     error: null as string | null,
   };
 };

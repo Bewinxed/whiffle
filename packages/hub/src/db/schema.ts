@@ -840,3 +840,16 @@ export const supervisorConfig = sqliteTable("supervisor_config", {
     .notNull()
     .$defaultFn(() => new Date()),
 });
+
+/**
+ * The fleet's OpenRouter connection — one row, keyed `'openrouter'`, following
+ * the {@link supervisorConfig} single-row precedent. Written by the Settings
+ * page's OAuth PKCE exchange; the key never leaves the hub. No row means not
+ * connected, and meaning rules are not evaluated.
+ */
+export const openrouterConnection = sqliteTable("openrouter_connection", {
+  /** Always `'openrouter'`. */
+  id: text("id").primaryKey(),
+  apiKey: text("api_key").notNull(),
+  connectedAt: timestamp("connected_at").notNull(),
+});

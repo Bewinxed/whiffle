@@ -153,11 +153,10 @@ choice over zod; AI SDK v5 takes Standard Schema natively). New `packages/hub/sr
   Streaming (`streamText`) deliberately unused this slice; it is the reason the SDK is here —
   the future assistant chat reuses this exact provider instance.
 
-Config: DB row wins, env bootstraps. `WHIFFLE_ENV` gains `supervisorUrl`/`supervisorModel`/
-`supervisorKey` (`WHIFFLE_SUPERVISOR_URL/_MODEL/_KEY`). New single-row table
-`supervisor_config` (`id`='supervisor', `enabled` default false, `baseUrl`, `model`, `apiKey`
-nullable, `updatedAt`) — precedent `fleetMemory`/`MEMORY_ID`. Neither DB nor env URL ⇒ disabled,
-status "not configured".
+Config: configure it in Settings — the single-row table `supervisor_config` (`id`='supervisor',
+`enabled` default false, `baseUrl`, `model`, `apiKey` nullable, `updatedAt`) is the only source;
+precedent `fleetMemory`/`MEMORY_ID`. No row ⇒ disabled, status "not configured". (Amended
+2026-09-23: the `WHIFFLE_SUPERVISOR_URL/_MODEL/_KEY` env bootstrap was removed.)
 
 ### C5 — Autopilot state
 - `instances` gains JSON column `autopilot`: `{enabled, prompt, updatedAt} | null` (idiom:

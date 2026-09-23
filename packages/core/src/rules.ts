@@ -17,8 +17,15 @@ import type { HarnessKind } from "./harness";
  * the same habit later in the same session.
  */
 
-/** How {@link Rule.pattern} is read. */
-export type RuleMatchKind = "phrase" | "regex";
+/**
+ * How {@link Rule.pattern} is read.
+ *
+ * - `phrase` / `regex` — text to find in what the session said.
+ * - `meaning` — a yes/no question the hub puts to TypeSafe's Jev (through
+ *   OpenRouter) about what the session said; the rule fires when the answer
+ *   is yes. Decided by the hub asynchronously, so nothing here matches it.
+ */
+export type RuleMatchKind = "phrase" | "regex" | "meaning";
 
 /** Which part of the session's output a rule reads. */
 export type RuleWatch = "text" | "thinking" | "both";
@@ -94,7 +101,7 @@ export interface Rule {
   matchKind: RuleMatchKind;
   /** What the rule is called in the list, and in the reply the session reads. */
   name: string;
-  /** The phrase to watch for, or a regular expression when `matchKind` says so. */
+  /** The phrase to watch for, a regular expression, or a yes/no question, as `matchKind` says. */
   pattern: string;
   /** `action: 'llm'` only: the operator's standing instructions for the supervisor. */
   prompt: string | null;
@@ -188,7 +195,8 @@ export function ruleHits(
   rule: Pick<Rule, "pattern" | "matchKind" | "caseSensitive" | "wholeWord">,
   text: string
 ): { start: number; end: number }[] {
-  if (rule.pattern.trim() === "") {
+  // A meaning rule's pattern is a question for Jev, not text to find.
+  if (rule.matchKind === "meaning" || rule.pattern.trim() === "") {
     return [];
   }
   const expression = ruleRegex(rule);
@@ -234,6 +242,9 @@ export const ruleMatches = (
  */
 const MIN_LLM_PROMPT = 10;
 
+/** The shortest a meaning rule's question can be and still be a question. */
+const MIN_MEANING_QUESTION = 10;
+
 /**
  * Everything wrong with a draft, as whole sentences the form can print under
  * the field that caused it. Empty means it is safe to save.
@@ -259,6 +270,15 @@ export function ruleProblem(draft: Partial<RuleDraft>): Record<string, string> {
     const pattern = draft.pattern ?? "";
     if (pattern.trim() === "") {
       wrong.pattern = "A rule needs something to watch for.";
+    } else if (draft.matchKind === "meaning") {
+      if (pattern.trim().length < MIN_MEANING_QUESTION) {
+        wrong.pattern =
+          "Ask a whole yes-or-no question — that is too short to be one.";
+      }
+      if (draft.timing === "immediate") {
+        wrong.timing =
+          "A meaning rule is answered about a finished message or turn, so it cannot fire mid-stream — pick message or turn.";
+      }
     } else if (draft.matchKind === "regex") {
       try {
         const compiled = new RegExp(pattern);
@@ -305,6 +325,19 @@ export function ruleProblem(draft: Partial<RuleDraft>): Record<string, string> {
   return wrong;
 }
 
+/** What a pattern rule watches for, as the object of {@link ruleSentence}. */
+function watchedFor(rule: Partial<RuleDraft>): string {
+  if (rule.matchKind === "meaning") {
+    return `something where the answer to “${rule.pattern || "…"}” is yes`;
+  }
+  if (rule.matchKind === "regex") {
+    // Quoted like a phrase is: an expression set loose in the middle of a
+    // sentence has no visible end, and `|` reads as prose punctuation.
+    return `something matching “${rule.pattern || "…"}”`;
+  }
+  return `“${rule.pattern || "…"}”`;
+}
+
 /**
  * The rule read back as one English sentence. The editor prints it live above
  * the form, so the thing being configured stays legible while it is configured.
@@ -339,12 +372,7 @@ export function ruleSentence(rule: Partial<RuleDraft>): string {
   } else {
     where = "says";
   }
-  const what =
-    rule.matchKind === "regex"
-      ? // Quoted like a phrase is: an expression set loose in the middle of a
-        // sentence has no visible end, and `|` reads as prose punctuation.
-        `something matching “${rule.pattern || "…"}”`
-      : `“${rule.pattern || "…"}”`;
+  const what = watchedFor(rule);
 
   if (rule.action === "llm") {
     // Illegal to pair with anything but `timing: 'turn'`, so the wake-into-a-

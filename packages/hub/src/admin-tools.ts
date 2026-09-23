@@ -403,11 +403,17 @@ export function adminTools() {
         pattern: z
           .string()
           .optional()
-          .describe("The phrase or regex to watch for. Required for create."),
+          .describe(
+            "The phrase or regex to watch for, or the yes/no question for meaning. Required for create."
+          ),
         matchKind: z
-          .enum(["phrase", "regex"])
+          .enum(["phrase", "regex", "meaning"])
           .optional()
-          .describe("How to read the pattern. Default 'phrase'."),
+          .describe(
+            "How to read the pattern. Default 'phrase'. 'meaning' makes the pattern a yes/no " +
+              "question Jev answers about the output (needs OpenRouter connected in Settings; " +
+              "timing 'turn' or 'message' only)."
+          ),
         caseSensitive: z.boolean().optional(),
         wholeWord: z.boolean().optional(),
         watch: z

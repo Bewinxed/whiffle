@@ -8,6 +8,7 @@ import type {
 } from "@whiffle/core";
 import { RULE_FIRE_CEILING } from "@whiffle/core";
 import { makeDb } from "./db";
+import { MeaningJudge } from "./meaning";
 import { RuleEngine } from "./rules";
 
 /**
@@ -44,6 +45,7 @@ let sent: Envelope<SendPayload>[] = [];
 const engineFor = (): InstanceType<typeof RuleEngine> =>
   new RuleEngine({
     db,
+    meaning: new MeaningJudge(db),
     agent: (machineId) =>
       machineId === MACHINE
         ? {
@@ -401,7 +403,11 @@ test("a regex rule fires on what it describes", () => {
 
 test("an offline machine costs the fire nothing but the send", () => {
   addRule();
-  const engine = new RuleEngine({ db, agent: () => undefined });
+  const engine = new RuleEngine({
+    db,
+    meaning: new MeaningJudge(db),
+    agent: () => undefined,
+  });
 
   turn(engine, "an honest caveat");
 

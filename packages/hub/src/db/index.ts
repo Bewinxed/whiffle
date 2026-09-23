@@ -62,6 +62,7 @@ import {
   instances,
   marketplaces,
   mcpServers,
+  openrouterConnection,
   plugins,
   projects,
   ruleState,
@@ -214,6 +215,8 @@ export interface DbShape {
   /** A machine's last-known tool status by id; empty for one that never reported. */
   readonly agentTools: (machineId: string) => Record<string, ToolStatus>;
   readonly clearFleetMemory: () => void;
+  /** Forget the OpenRouter key. */
+  readonly clearOpenRouterConnection: () => void;
   readonly createProject: (project: {
     id: string;
     machineId: string;
@@ -269,6 +272,10 @@ export interface DbShape {
   readonly getInstancesByIds: (
     ids: string[]
   ) => (typeof instances.$inferSelect)[];
+  /** The stored OpenRouter key and when it was connected, or undefined while not connected. */
+  readonly getOpenRouterConnection: () =>
+    | { apiKey: string; connectedAt: Date }
+    | undefined;
   /** One rule, or nothing when it has been deleted out from under a caller. */
   readonly getRule: (id: string) => Rule | undefined;
   /** The supervisor's own configuration, or undefined while none is stored. */
@@ -641,6 +648,8 @@ export interface DbShape {
     instanceId: string,
     value: { enabled: boolean; prompt: string; updatedAt: number } | null
   ) => void;
+  /** Store (or replace) the OpenRouter key from a completed PKCE exchange. */
+  readonly setOpenRouterConnection: (apiKey: string) => void;
   /** Closes it. An ask this hub never recorded is nothing to close. */
   readonly settleDelegateAsk: (
     requestId: string,
@@ -869,6 +878,7 @@ const MEMORY_ID = "memory";
 
 /** The one row the supervisor config ever takes — same precedent as `MEMORY_ID`. */
 const SUPERVISOR_CONFIG_ID = "supervisor";
+const OPENROUTER_CONNECTION_ID = "openrouter";
 
 /** How many supervisor event rows to keep — bounded without a scheduler (plan: our choice). */
 const SUPERVISOR_EVENTS_RETENTION = 5000;
@@ -2737,6 +2747,31 @@ const make = (path: string): DbShape => {
             updatedAt: values.updatedAt,
           },
         })
+        .run();
+    },
+    getOpenRouterConnection: () => {
+      const row = db
+        .select()
+        .from(openrouterConnection)
+        .where(eq(openrouterConnection.id, OPENROUTER_CONNECTION_ID))
+        .get();
+      return row
+        ? { apiKey: row.apiKey, connectedAt: row.connectedAt }
+        : undefined;
+    },
+    setOpenRouterConnection: (apiKey) => {
+      const connectedAt = new Date();
+      db.insert(openrouterConnection)
+        .values({ id: OPENROUTER_CONNECTION_ID, apiKey, connectedAt })
+        .onConflictDoUpdate({
+          target: openrouterConnection.id,
+          set: { apiKey, connectedAt },
+        })
+        .run();
+    },
+    clearOpenRouterConnection: () => {
+      db.delete(openrouterConnection)
+        .where(eq(openrouterConnection.id, OPENROUTER_CONNECTION_ID))
         .run();
     },
     listRules: () =>

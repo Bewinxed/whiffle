@@ -36,6 +36,7 @@
     IconPlus,
     IconRules,
     IconSearch,
+    IconSettingsDuo,
     IconSort,
     IconSubagent,
     IconTools,
@@ -579,6 +580,20 @@
               <a href="/rules" {...props}>
                 <span class={SLOT}><IconRules class={SLOT_GLYPH} /></span>
                 <span>Rules</span>
+              </a>
+            {/snippet}
+          </Sidebar.MenuButton>
+        </Sidebar.MenuItem>
+
+        <Sidebar.MenuItem>
+          <Sidebar.MenuButton
+            class={NAV_ROW}
+            isActive={path.startsWith('/settings')}
+          >
+            {#snippet child({ props })}
+              <a href="/settings" {...props}>
+                <span class={SLOT}><IconSettingsDuo class={SLOT_GLYPH} /></span>
+                <span>Settings</span>
               </a>
             {/snippet}
           </Sidebar.MenuButton>

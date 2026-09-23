@@ -3,6 +3,7 @@
     HarnessKind,
     RuleAction,
     RuleDraft,
+    RuleMatchKind,
     RuleTiming,
     RuleTrigger,
     RuleWatch,
@@ -147,6 +148,22 @@
     draft.interrupt = false;
     draft.requireAck = false;
     draft.enabled = true;
+  }
+
+  /**
+   * A meaning rule is a question Jev answers about a finished message or
+   * turn: text-matching options do not apply, and it cannot fire mid-stream.
+   */
+  function setMatchKind(next: RuleMatchKind) {
+    draft.matchKind = next;
+    if (next === "meaning") {
+      draft.caseSensitive = false;
+      draft.wholeWord = false;
+      if (draft.timing === "immediate") {
+        draft.timing = "turn";
+        draft.interrupt = false;
+      }
+    }
   }
 
   /** Interruption is only meaningful mid-turn; changing away from it clears the flag. */
@@ -379,11 +396,7 @@
       {#if draft.trigger === 'pattern'}
         <ToggleGroup.Root
           class="w-full"
-          onValueChange={(next) => {
-            if (next) {
-              draft.matchKind = next as 'phrase' | 'regex';
-            }
-          }}
+          onValueChange={(next) => next && setMatchKind(next as RuleMatchKind)}
           size="sm"
           type="single"
           value={draft.matchKind}
@@ -395,26 +408,58 @@
           <ToggleGroup.Item class="flex-1 text-caption" value="regex">
             A regular expression
           </ToggleGroup.Item>
+          <ToggleGroup.Item class="flex-1 text-caption" value="meaning">
+            Meaning
+          </ToggleGroup.Item>
         </ToggleGroup.Root>
 
         <!-- biome-ignore lint/a11y/noLabelWithoutControl: wraps the <Input> component; the native control it renders is not visible to Biome -->
         <label class="flex flex-col gap-1.5 text-caption">
-          {draft.matchKind === 'phrase' ? 'Phrase' : 'Expression'}
-          <Input
-            aria-invalid={shown('pattern') ? 'true' : undefined}
-            autocomplete="off"
-            class="font-mono text-sm md:text-sm"
-            onblur={() => {
-              touched.pattern = true;
-            }}
-            placeholder={draft.matchKind === 'phrase'
-              ? 'honest caveat'
-              : 'should (work|be fine)|probably works'}
-            spellcheck="false"
-            bind:value={draft.pattern}
-          />
+          {#if draft.matchKind === 'meaning'}
+            Question (answered yes or no)
+          {:else}
+            {draft.matchKind === 'phrase' ? 'Phrase' : 'Expression'}
+          {/if}
+          {#if draft.matchKind === 'meaning'}
+            <Textarea
+              aria-invalid={shown('pattern') ? 'true' : undefined}
+              class="resize-y text-sm md:text-sm"
+              onblur={() => {
+                touched.pattern = true;
+              }}
+              placeholder="Is the agent proposing to keep old behaviour alongside the new, a compatibility shim, or a fallback path?"
+              rows={3}
+              bind:value={draft.pattern}
+            />
+          {:else}
+            <Input
+              aria-invalid={shown('pattern') ? 'true' : undefined}
+              autocomplete="off"
+              class="font-mono text-sm md:text-sm"
+              onblur={() => {
+                touched.pattern = true;
+              }}
+              placeholder={draft.matchKind === 'phrase'
+                ? 'honest caveat'
+                : 'should (work|be fine)|probably works'}
+              spellcheck="false"
+              bind:value={draft.pattern}
+            />
+          {/if}
           {#if shown('pattern')}
             <span class="text-micro text-destructive">{wrong.pattern}</span>
+          {:else if draft.matchKind === 'meaning' && !data.openrouterConnected}
+            <span class="text-micro text-warning">
+              Meaning rules need OpenRouter —
+              <a class="underline underline-offset-2" href="/settings"
+                >connect it in Settings</a
+              >
+            </span>
+          {:else if draft.matchKind === 'meaning'}
+            <span class="text-micro text-muted-foreground">
+              Jev answers it about each finished message or turn. The rule fires
+              when the answer is yes.
+            </span>
           {:else if draft.matchKind === 'regex'}
             <span class="text-micro text-muted-foreground">
               JavaScript syntax. It is matched against the whole message, not
@@ -423,30 +468,32 @@
           {/if}
         </label>
 
-        <div class="flex flex-wrap items-center gap-2">
-          <Toggle
-            onPressedChange={(next) => {
-              draft.caseSensitive = next;
-            }}
-            pressed={draft.caseSensitive}
-            size="sm"
-            variant="outline"
-          >
-            Case sensitive
-          </Toggle>
-          {#if draft.matchKind === 'phrase'}
+        {#if draft.matchKind !== 'meaning'}
+          <div class="flex flex-wrap items-center gap-2">
             <Toggle
               onPressedChange={(next) => {
-                draft.wholeWord = next;
-              }}
-              pressed={draft.wholeWord}
+              draft.caseSensitive = next;
+            }}
+              pressed={draft.caseSensitive}
               size="sm"
               variant="outline"
             >
-              Whole words only
+              Case sensitive
             </Toggle>
-          {/if}
-        </div>
+            {#if draft.matchKind === 'phrase'}
+              <Toggle
+                onPressedChange={(next) => {
+                draft.wholeWord = next;
+              }}
+                pressed={draft.wholeWord}
+                size="sm"
+                variant="outline"
+              >
+                Whole words only
+              </Toggle>
+            {/if}
+          </div>
+        {/if}
 
         <fieldset class="flex flex-col gap-1.5 text-caption">
           <legend class="mb-1.5">Read</legend>
@@ -479,7 +526,9 @@
           {/if}
         </fieldset>
 
-        <RuleTester {draft} bind:sample />
+        {#if draft.matchKind !== 'meaning'}
+          <RuleTester {draft} bind:sample />
+        {/if}
       {/if}
     </section>
 
@@ -575,6 +624,8 @@
             {#each TIMING as option (option.value)}
               <ToggleGroup.Item
                 class="flex-1 text-caption"
+                disabled={option.value === 'immediate' &&
+                  draft.matchKind === 'meaning'}
                 value={option.value}
               >
                 {option.label}
@@ -584,6 +635,9 @@
           <span class="max-w-prose text-micro text-muted-foreground"
             >{how}</span
           >
+          {#if shown('timing')}
+            <span class="text-micro text-destructive">{wrong.timing}</span>
+          {/if}
         </fieldset>
 
         {#if draft.timing === 'immediate'}

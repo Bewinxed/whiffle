@@ -143,6 +143,7 @@
       "dependencies": {
         "@ai-sdk/openai-compatible": "^3.0.41",
         "@modelcontextprotocol/sdk": "1.25.2",
+        "@whiffle/auth": "workspace:*",
         "@whiffle/core": "workspace:*",
         "ai": "^7.0.87",
         "ajv": "^8.20.0",
