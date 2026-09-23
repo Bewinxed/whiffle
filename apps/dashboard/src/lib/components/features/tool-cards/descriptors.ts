@@ -26,6 +26,7 @@ import {
   IconToolWeb,
   IconToolWrite,
 } from "$lib/icons";
+import { rootDomain } from "$lib/whiffle/mcp";
 
 export type ToolStatus = "pending" | "success" | "error";
 
@@ -554,7 +555,9 @@ export function describeTool(
   toolName: string | undefined,
   input: Record<string, unknown> | undefined,
   result: string | undefined,
-  status: ToolStatus
+  status: ToolStatus,
+  /** The configured URL's host for an MCP server segment, when the session knows it. */
+  serverHost?: (server: string) => string | undefined
 ): ToolDescriptor {
   const described = sentence(toolName, input, result, status);
   const server = MCP_NAME.exec(toolName ?? "")?.[1];
@@ -563,12 +566,14 @@ export function describeTool(
   }
   // Which server answered is the one thing the sentence cannot say for itself.
   const identity = readServer(server);
+  // An MCP endpoint sits on a subdomain (`mcp.exa.ai`, `api.mobbin.com`) that
+  // s2 only has its placeholder globe for; the site's icon lives at its root.
+  const configured = serverHost?.(server);
+  const host = configured ? rootDomain(configured) : identity.host;
   return {
     ...described,
     chip: described.chip ?? identity.label,
-    favicon:
-      described.favicon ??
-      (identity.host ? faviconUrl(identity.host) : undefined),
+    favicon: described.favicon ?? (host ? faviconUrl(host) : undefined),
   };
 }
 

@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { PreviewSource } from "@whiffle/core";
   import { getContext } from "svelte";
+  import { SvelteSet } from "svelte/reactivity";
   import { toast } from "svelte-sonner";
   import {
     describeTool,
@@ -20,7 +21,9 @@
     revealPreview,
     whiffle,
   } from "$lib/whiffle/client.svelte";
+  import { fleetMcpServers } from "$lib/whiffle/fleet-mcp.svelte";
   import { SHOW_IMAGE_TOOLS, SHOW_PREVIEW_TOOLS } from "$lib/whiffle/frames";
+  import { mcpServerHost } from "$lib/whiffle/mcp";
   import Arrival from "$lib/whiffle/motion/Arrival.svelte";
   import { ARRIVAL } from "$lib/whiffle/motion/arrival";
   import Reveal from "$lib/whiffle/motion/Reveal.svelte";
@@ -75,13 +78,19 @@
   const asString = (value: unknown): string | undefined =>
     typeof value === "string" ? value : undefined;
 
+  /** Favicons that failed to load; their rows keep the tool's glyph. */
+  const brokenIcons = new SvelteSet<string>();
+
   function describe(m: Message): ToolDescriptor {
     const meta = m.metadata ?? {};
     return describeTool(
       meta.toolName,
       (meta.toolInput ?? undefined) as Record<string, unknown> | undefined,
       asString(meta.toolResult),
-      (meta.toolStatus ?? "pending") as ToolStatus
+      (meta.toolStatus ?? "pending") as ToolStatus,
+      (server) =>
+        mcpServerHost(whiffle.session(m.instanceId)?.mcp ?? null, server) ??
+        mcpServerHost(fleetMcpServers(), server)
     );
   }
 
@@ -222,7 +231,15 @@
     {@const hasBody = bodyFor(d.expanded, failed, toolInput, fields, result, m.metadata?.toolResult)}
     {#snippet line()}
       <span class="ic" class:err={failed}
-        ><Reveal><Icon /></Reveal></span
+        ><Reveal
+          >{#if d.favicon && !brokenIcons.has(d.favicon)}
+            {@const src = d.favicon}
+            <!-- biome-ignore lint/a11y/noNoninteractiveElementInteractions: onerror is an image-load callback — a site with no icon keeps the tool's glyph -->
+            <img alt="" class="fav" onerror={() => brokenIcons.add(src)} {src}>
+          {:else}
+            <Icon />
+          {/if}</Reveal
+        ></span
       >
       {#if d.label}
         <span class="tk"><Stream text={d.label} /></span>
@@ -530,6 +547,12 @@
     width: 15px;
     height: 15px;
     display: block;
+  }
+  .fav {
+    width: 14px;
+    height: 14px;
+    display: block;
+    border-radius: 3px;
   }
   /* A failed call carries its state on the glyph — the completed row's done/failed
      cue, next to the running row's breathing glyph in the live tool. */

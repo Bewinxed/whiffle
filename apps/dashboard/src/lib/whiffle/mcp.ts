@@ -1,13 +1,20 @@
-import type { McpServerStatus } from "@whiffle/core";
+/** A server as any config names it: a session's status or a fleet row. */
+export interface ConfiguredServer {
+  config?: unknown;
+  name: string;
+}
 
 /**
  * The hostname a server's favicon can be fetched for: HTTP, SSE and claude.ai
  * proxy configs name a URL; a stdio server runs on the machine itself and has
  * none. Null is "no favicon to try" — the chip falls back to a letter.
  */
-export function mcpHost(server: McpServerStatus): string | null {
+export function mcpHost(server: ConfiguredServer): string | null {
   const { config } = server;
-  if (!(config && "url" in config) || typeof config.url !== "string") {
+  if (
+    !(config && typeof config === "object" && "url" in config) ||
+    typeof config.url !== "string"
+  ) {
     return null;
   }
   try {
@@ -15,6 +22,22 @@ export function mcpHost(server: McpServerStatus): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * The host behind the server segment of an `mcp__<server>__<tool>` call, from
+ * a list of configured servers — a session's own or the fleet's. Claude Code
+ * builds that segment from the configured name with everything outside
+ * `[A-Za-z0-9_-]` turned to `_`.
+ */
+export function mcpServerHost(
+  servers: readonly ConfiguredServer[] | null,
+  segment: string
+): string | undefined {
+  const server = servers?.find(
+    (item) => item.name.replace(/[^\w-]/g, "_") === segment
+  );
+  return (server && mcpHost(server)) ?? undefined;
 }
 
 /**
