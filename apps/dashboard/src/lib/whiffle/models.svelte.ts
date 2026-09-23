@@ -28,6 +28,11 @@ const RECENT_LIMIT = 5;
 export const MODEL_DEFAULT = "";
 
 const store = $state({
+  /**
+   * Claude models' context windows as the hub last saw a turn report them —
+   * claude's own catalog carries none. Keyed by wire id.
+   */
+  claudeWindows: {} as Record<string, number>,
   offered: [] as HarnessModel[],
   recent: [] as string[],
   loading: false,
@@ -41,7 +46,6 @@ const store = $state({
 if (typeof localStorage !== "undefined") {
   store.offered = readJson<HarnessModel[]>(OFFERED_KEY, []);
   store.recent = readJson<string[]>(RECENT_KEY, []);
-
 }
 
 /** One running session per unique harness, so each harness type is queried. */
@@ -232,7 +236,24 @@ function catalog(): HarnessModel[] {
   return [
     ...machineRows,
     ...store.offered.filter((row) => !described.has(row.harness)),
-  ];
+  ].map((row) => {
+    const window =
+      row.harness === "claude"
+        ? store.claudeWindows[row.resolvedModel ?? row.value]
+        : undefined;
+    return window ? { ...row, contextWindow: window } : row;
+  });
+}
+
+/** Reads the claude windows the hub has observed, for pickers that size models. */
+export async function loadModelWindows(): Promise<void> {
+  const response = await fetch("/api/model-windows");
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+  store.claudeWindows = (
+    (await response.json()) as { claude: Record<string, number> }
+  ).claude;
 }
 
 export const models = {

@@ -3,11 +3,13 @@
    * Right-click on a running session or a side quest. Keep and Discard are what a
    * side quest is waiting on, so they only appear on one (NEW.md §1).
    */
+  import type { HarnessKind } from "@whiffle/core";
   import type { Snippet } from "svelte";
   import { goto } from "$app/navigation";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte component-group convention
   import * as ContextMenu from "$lib/components/ui/context-menu";
   import {
+    IconArrowRight,
     IconCheck,
     IconCopy,
     IconExternal,
@@ -25,9 +27,11 @@
     whiffle,
   } from "./client.svelte";
   import { confirm } from "./confirm.svelte";
+  import { continueInNewSession } from "./continue.svelte";
   import { copyToClipboard } from "./copy";
   import { conversationHref } from "./links";
   import { rail } from "./rail.svelte";
+  import { sessionName } from "./session-name";
 
   interface Props {
     children: Snippet;
@@ -76,6 +80,12 @@
     <ContextMenu.Item onSelect={() => goto(href)}>
       <IconExternal />
       Open
+    </ContextMenu.Item>
+    <ContextMenu.Item
+      onSelect={() => continueInNewSession({ instanceId: instance.id, machineId: instance.machineId, cwd: instance.cwd, harness: (instance.harness ?? 'claude') as HarnessKind, model: instance.model ?? undefined, title: sessionName(instance.id, {}, instance.cwd).label })}
+    >
+      <IconArrowRight />
+      Continue in new session…
     </ContextMenu.Item>
     <ContextMenu.Item
       onSelect={() => stopSession(instance.id, instance.machineId)}

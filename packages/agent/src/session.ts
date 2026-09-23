@@ -1568,7 +1568,8 @@ export class SessionSupervisor {
             return await adapter.getSessionMessages(
               args[0] as string,
               dirOf(args[1]),
-              (args[1] as { tail?: number } | undefined)?.tail
+              (args[1] as { tail?: number } | undefined)?.tail,
+              (args[1] as { whole?: boolean } | undefined)?.whole
             );
           case "renameSession":
             return await adapter.renameSession(

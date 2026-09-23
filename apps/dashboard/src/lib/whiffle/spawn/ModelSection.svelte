@@ -66,6 +66,8 @@
     onmodel,
     runtime = false,
     tools,
+    label = "Model",
+    unavailable,
   }: {
     harness: HarnessKind;
     onharness: (harness: HarnessKind) => void;
@@ -75,6 +77,10 @@
     onmodel: (id: string) => void;
     runtime?: boolean;
     tools?: ModelTools;
+    /** The section's heading. */
+    label?: string;
+    /** Why a model cannot be picked here, shown on its row; nothing when it can. */
+    unavailable?: (entry: ModelEntry) => string | undefined;
   } = $props();
   const uid = $props.id();
   type TabId = HarnessKind | "codex";
@@ -286,7 +292,7 @@
 
 <section class="model">
   {#if !runtime}
-    <SectionHeader hue="var(--fai-violet-500)" icon={Cpu} label="Model" />
+    <SectionHeader hue="var(--fai-violet-500)" icon={Cpu} {label} />
   {/if}
   <div class="picker" class:railed={!runtime}>
     {#if !runtime}
@@ -486,18 +492,21 @@
           </button>
         {/if}
         {#each rows as entry, i (`${gen}:${entry.id}`)}
+          {@const reason = unavailable?.(entry)}
           <button
+            aria-disabled={reason ? true : undefined}
             aria-selected={entry.id === selectedId}
             class="row"
             data-fh="1"
             data-model={entry.id}
+            disabled={Boolean(reason)}
             onclick={() => pick(entry)}
             role="option"
             style={`animation:${rowAnim(i)}`}
             type="button"
             class:picked={entry.id === selectedId}
           >
-            {@render rowBody(entry)}
+            {@render rowBody(entry, reason)}
           </button>
         {/each}
         {#if noResults}
@@ -514,7 +523,7 @@
   </div>
 </section>
 
-{#snippet rowBody(entry: ModelEntry)}
+{#snippet rowBody(entry: ModelEntry, reason?: string)}
   {@const provider = providerOf(entry.id)}
   {#if mixedMakers}
     <span class="ns-tile tile vendor">
@@ -527,10 +536,14 @@
   {/if}
   <span class="text">
     <span class="name" class:mono={entry.mono}>{entry.name}</span>
-    <span class="meta"
-      ><span class="mono">{entry.id}</span>
-      {vendor(entry.id) ? ` · ${vendor(entry.id)}` : ""}</span
-    >
+    {#if reason}
+      <span class="meta reason">{reason}</span>
+    {:else}
+      <span class="meta"
+        ><span class="mono">{entry.id}</span>
+        {vendor(entry.id) ? ` · ${vendor(entry.id)}` : ""}</span
+      >
+    {/if}
   </span>
   {#if ctx(entry)}
     <span class="ctx">{ctx(entry)}</span>
@@ -818,6 +831,17 @@
     font-family: var(--fai-font-mono);
   }
   .custom .meta {
+    color: var(--fai-text-muted);
+  }
+  /* A model that cannot take the job stays listed, with why, but inert. */
+  .row:disabled {
+    cursor: not-allowed;
+  }
+  .row:disabled .name,
+  .row:disabled .tile {
+    opacity: 0.5;
+  }
+  .reason {
     color: var(--fai-text-muted);
   }
   .hint,

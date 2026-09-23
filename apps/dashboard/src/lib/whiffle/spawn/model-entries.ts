@@ -3,6 +3,8 @@ import type { ModelUse } from "./modelUse.svelte";
 
 export interface ModelEntry {
   aliases: string[];
+  /** Tokens of context the harness reports for this model; absent is unknown. */
+  contextWindow?: number;
   effort: EffortLevel[];
   id: string;
   isCustom: boolean;
@@ -86,6 +88,7 @@ export function deriveModelEntries(
       released: dates.at(-1),
       lastUsedAt: use.lastUsedAt[id],
       isDefault: group.some((row) => row.value === "default"),
+      contextWindow: group.find((row) => row.contextWindow)?.contextWindow,
       isCustom: false,
       effort: [
         ...new Set(group.flatMap((row) => row.supportedEffortLevels ?? [])),

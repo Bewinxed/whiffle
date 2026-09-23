@@ -73,6 +73,7 @@ import {
   CONTROL_MCP_RECONNECT,
   CONTROL_MCP_STATUS,
   CONTROL_MCP_TOGGLE,
+  CONTROL_MODEL_CATALOG,
   CONTROL_RELOAD_SKILLS,
   CONTROL_SET_EFFORT,
   CONTROL_SET_MODEL,
@@ -816,6 +817,56 @@ const EMPTY_TOKENS = {
   reasoning: 0,
   cache: { read: 0, write: 0 },
 };
+
+/** Providers an OpenCode account can actually use, including OAuth. */
+async function connectedProviders(
+  client: OpencodeClient,
+  directory?: string
+): Promise<Pick<Provider, "id" | "models">[]> {
+  const result = await client.provider.list({
+    ...(directory ? { query: { directory } } : {}),
+  });
+  if (result.error) {
+    throw new Error(errorText(result.error));
+  }
+  const data = result.data as unknown as {
+    all?: Pick<Provider, "id" | "models">[];
+    connected?: string[];
+  };
+  const connected = new Set(data.connected ?? []);
+  return (data.all ?? []).filter((provider) => connected.has(provider.id));
+}
+
+/** Every model the connected providers offer, with its effort scale and context window. */
+function modelCatalog(
+  providers: Pick<Provider, "id" | "models">[]
+): ModelInfo[] {
+  const models: ModelInfo[] = [];
+  for (const provider of providers) {
+    for (const [modelID, model] of Object.entries(provider.models ?? {})) {
+      const { variants } = model as unknown as {
+        variants?: Record<
+          string,
+          { reasoningEffort?: string; disabled?: boolean }
+        >;
+      };
+      const supportedEffortLevels = EFFORT_LEVELS.filter(
+        (level) =>
+          variants?.[level]?.reasoningEffort === level &&
+          !variants[level].disabled
+      );
+      models.push({
+        value: `${provider.id}/${modelID}`,
+        displayName: `${model.name ?? modelID}`,
+        ...(supportedEffortLevels.length
+          ? { supportsEffort: true, supportedEffortLevels }
+          : {}),
+        ...(model.limit?.context ? { contextWindow: model.limit.context } : {}),
+      });
+    }
+  }
+  return models;
+}
 
 export class OpencodeSession implements HarnessSession {
   attached?: () => void;
@@ -2049,6 +2100,7 @@ export class OpencodeSession implements HarnessSession {
             ...Object.fromEntries(
               [
                 "start_session",
+                "continue_session",
                 "delegate",
                 "stop_delegate",
                 "interrupt_delegate",
@@ -2164,19 +2216,8 @@ export class OpencodeSession implements HarnessSession {
   }
 
   /** Providers the current OpenCode account can actually use, including OAuth. */
-  async #connectedProviders(): Promise<Pick<Provider, "id" | "models">[]> {
-    const result = await this.#client.provider.list({
-      query: { directory: this.#directory },
-    });
-    if (result.error) {
-      throw new Error(errorText(result.error));
-    }
-    const data = result.data as unknown as {
-      all?: Pick<Provider, "id" | "models">[];
-      connected?: string[];
-    };
-    const connected = new Set(data.connected ?? []);
-    return (data.all ?? []).filter((provider) => connected.has(provider.id));
+  #connectedProviders(): Promise<Pick<Provider, "id" | "models">[]> {
+    return connectedProviders(this.#client, this.#directory);
   }
 
   /** The current model's context window, from a lazily-cached provider list. */
@@ -2218,7 +2259,6 @@ export class OpencodeSession implements HarnessSession {
     );
   }
 
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: dispatches the harness control verbs to their independent handlers
   async control(method: string, args: unknown[]): Promise<unknown> {
     // Config convergence gate: MCP mutations must not race with a dispose
     // cycle. Reads, interrupt, and local-only setters are always allowed.
@@ -2280,35 +2320,8 @@ export class OpencodeSession implements HarnessSession {
           ],
         };
       }
-      case CONTROL_SUPPORTED_MODELS: {
-        const providers = await this.#connectedProviders();
-        const models: ModelInfo[] = [];
-        for (const provider of providers) {
-          for (const [modelID, model] of Object.entries(
-            provider.models ?? {}
-          )) {
-            const { variants } = model as unknown as {
-              variants?: Record<
-                string,
-                { reasoningEffort?: string; disabled?: boolean }
-              >;
-            };
-            const supportedEffortLevels = EFFORT_LEVELS.filter(
-              (level) =>
-                variants?.[level]?.reasoningEffort === level &&
-                !variants[level].disabled
-            );
-            models.push({
-              value: `${provider.id}/${modelID}`,
-              displayName: `${model.name ?? modelID}`,
-              ...(supportedEffortLevels.length
-                ? { supportsEffort: true, supportedEffortLevels }
-                : {}),
-            });
-          }
-        }
-        return models;
-      }
+      case CONTROL_SUPPORTED_MODELS:
+        return modelCatalog(await this.#connectedProviders());
       case CONTROL_SUPPORTED_COMMANDS:
         return await this.#commands();
       case CONTROL_RELOAD_SKILLS:
@@ -4004,6 +4017,8 @@ export class OpencodeHarness implements Harness {
 
   async machine(method: string, args: unknown[]): Promise<unknown> {
     switch (method) {
+      case CONTROL_MODEL_CATALOG:
+        return modelCatalog(await connectedProviders(await this.#ensure()));
       case CONTROL_GET_TODOS: {
         assertOpencodeKey(args[0] as string, CONTROL_GET_TODOS);
         const client = await this.#ensure();
@@ -4182,6 +4197,10 @@ export function toTranscript(
         },
         parent_tool_use_id: null,
         parent_agent_id: null,
+        // A compaction's summary: opencode's context restarts from here.
+        ...((info as AssistantMessage).summary
+          ? { compactSummary: true as const }
+          : {}),
       });
     }
     for (const part of parts) {

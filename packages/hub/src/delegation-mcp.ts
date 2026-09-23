@@ -13,6 +13,12 @@ import { handoffInstructions, handoffTools } from "./delegation-tools";
 
 type ToolFactory = typeof handoffTools;
 
+/** Tools that run for minutes, and what their progress heartbeat says meanwhile. */
+const LONG_CALLS: Record<string, string> = {
+  generate_image: "Generating image through ChatGPT",
+  continue_session: "Summarising the session",
+};
+
 export function createDelegationMcp(options: {
   instances: () => InstanceRow[];
   baseUrl?: string;
@@ -299,8 +305,9 @@ export function createDelegationMcp(options: {
     server.setRequestHandler(CallToolRequestSchema, async (message, extra) => {
       const token = message.params._meta?.progressToken;
       let elapsed = 0;
+      const doing = LONG_CALLS[message.params.name];
       const heartbeat =
-        message.params.name === "generate_image" && token !== undefined
+        doing && token !== undefined
           ? setInterval(() => {
               elapsed += 15;
               // biome-ignore lint/complexity/noVoid: progress is fire-and-forget; a disconnected client cannot receive it.
@@ -310,7 +317,7 @@ export function createDelegationMcp(options: {
                   params: {
                     progressToken: token,
                     progress: elapsed,
-                    message: `Generating image through ChatGPT (${elapsed}s elapsed).`,
+                    message: `${doing} (${elapsed}s elapsed).`,
                   },
                 })
                 .catch(() => undefined);

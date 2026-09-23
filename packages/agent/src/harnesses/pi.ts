@@ -35,6 +35,7 @@ import type {
   FleetSyncReport,
   HarnessCapabilities,
   HarnessReport,
+  ModelInfo,
   NeutralAssistantBlock,
   NeutralContentBlock,
   NeutralSessionInfo,
@@ -47,7 +48,9 @@ import type {
 import {
   CONTROL_CONTEXT_USAGE,
   CONTROL_INTERRUPT,
+  CONTROL_MODEL_CATALOG,
   CONTROL_SET_MODEL,
+  CONTROL_SUPPORTED_MODELS,
 } from "@whiffle/core";
 import { callDelegationTool, delegationTools } from "../delegation";
 import type { Harness, HarnessContext, HarnessSession } from "../harness";
@@ -139,6 +142,14 @@ const contentOf = (content: unknown): string | NeutralContentBlock[] => {
 // biome-ignore lint/suspicious/noExplicitAny: Model<T>'s config shape varies per provider; only `id` is read here, across every provider
 const modelIdOf = (model: Model<any>): string =>
   String((model as { id?: unknown }).id ?? "");
+
+/** Every model pi's configured providers can run, with pi's own context window for each. */
+const modelCatalog = async (): Promise<ModelInfo[]> =>
+  (await (await PiHarness.runtime()).getAvailable()).map((model) => ({
+    value: modelIdOf(model),
+    displayName: String((model as { name?: unknown }).name ?? modelIdOf(model)),
+    contextWindow: model.contextWindow,
+  }));
 
 /** Thin adapter over the same hub-owned definitions and handlers as MCP. */
 const piHandoffTools = async (instanceId: string): Promise<ToolDefinition[]> =>
@@ -399,6 +410,8 @@ class PiSession implements HarnessSession {
         await this.#session.setModel(model);
         return undefined;
       }
+      case CONTROL_SUPPORTED_MODELS:
+        return await modelCatalog();
       case CONTROL_CONTEXT_USAGE: {
         const last = [...this.#session.messages]
           .reverse()
@@ -584,7 +597,31 @@ export class PiHarness implements Harness {
     }
     const manager = SessionManager.open(path, undefined, dir);
     const entries: SessionMessage[] = [];
+    // A compaction's summary is what the model reads in place of everything
+    // before its first kept entry, so it is placed there: reading from the
+    // last summary on is reading what the session holds in context.
+    const summaries = new Map<string, { id: string; summary: string }>();
     for (const entry of manager.getEntries()) {
+      if (entry.type === "compaction") {
+        summaries.set(entry.firstKeptEntryId, {
+          id: entry.id,
+          summary: entry.summary,
+        });
+      }
+    }
+    for (const entry of manager.getEntries()) {
+      const compacted = summaries.get(entry.id);
+      if (compacted) {
+        entries.push({
+          type: "user",
+          uuid: compacted.id,
+          session_id: sessionKey,
+          message: { role: "user", content: compacted.summary },
+          parent_tool_use_id: null,
+          parent_agent_id: null,
+          compactSummary: true,
+        });
+      }
       if (entry.type !== "message") {
         continue;
       }
@@ -659,6 +696,11 @@ export class PiHarness implements Harness {
   // biome-ignore lint/suspicious/useAwait: implements Harness.dispose's Promise<void> contract; this teardown is synchronous
   async dispose(): Promise<void> {
     runtimePromise = null;
+  }
+
+  // biome-ignore lint/suspicious/useAwait: Harness.machine returns Promise<unknown>; the unclaimed branch returns bare undefined
+  async machine(method: string): Promise<unknown> {
+    return method === CONTROL_MODEL_CATALOG ? modelCatalog() : undefined;
   }
 
   async syncFleet(config: FleetConfig): Promise<FleetSyncReport> {

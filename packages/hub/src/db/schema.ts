@@ -875,3 +875,15 @@ export const capabilityUsageDaily = sqliteTable(
   },
   (table) => [primaryKey({ columns: [table.kind, table.name, table.day] })]
 );
+
+/**
+ * The context window each claude model last reported, from a turn's
+ * `modelUsage[model].contextWindow`. Claude's model catalog carries no window,
+ * so this is the only honest source: a model no turn has run on is absent,
+ * which reads as "unknown", never as a guess.
+ */
+export const claudeContextWindows = sqliteTable("claude_context_windows", {
+  model: text("model").primaryKey(),
+  contextWindow: integer("context_window").notNull(),
+  observedAt: timestamp("observed_at").notNull(),
+});

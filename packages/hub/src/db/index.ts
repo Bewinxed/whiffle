@@ -52,6 +52,7 @@ import type {
 import {
   agents,
   capabilityUsageDaily,
+  claudeContextWindows,
   credentials,
   delegateEvents,
   fleetAgents,
@@ -230,6 +231,8 @@ export interface DbShape {
   readonly capabilityUsageSince: (
     day: string
   ) => (typeof capabilityUsageDaily.$inferSelect)[];
+  /** Every claude model's last observed context window, by model id. */
+  readonly claudeContextWindows: () => Record<string, number>;
   readonly clearFleetMemory: () => void;
   /** Forget the OpenRouter key. */
   readonly clearOpenRouterConnection: () => void;
@@ -406,6 +409,11 @@ export interface DbShape {
   readonly markInstanceLive: (id: string) => boolean;
   /** A whole report: every id it names is replaced, every other cell survives. */
   readonly mergeAgentTools: (machineId: string, statuses: ToolStatus[]) => void;
+  /** Records the window a claude turn reported for its model. */
+  readonly noteClaudeContextWindow: (
+    model: string,
+    contextWindow: number
+  ) => void;
   /**
    * The name the session's first user message gives it, for a row nobody named.
    * Write-once and never over a given title: a spawn's headline, or a custom
@@ -2766,6 +2774,23 @@ const make = (path: string): DbShape => {
             deniedTools: values.deniedTools,
             updatedAt: values.updatedAt,
           },
+        })
+        .run();
+    },
+    claudeContextWindows: () =>
+      Object.fromEntries(
+        db
+          .select()
+          .from(claudeContextWindows)
+          .all()
+          .map((row) => [row.model, row.contextWindow])
+      ),
+    noteClaudeContextWindow: (model, contextWindow) => {
+      db.insert(claudeContextWindows)
+        .values({ model, contextWindow, observedAt: new Date() })
+        .onConflictDoUpdate({
+          target: claudeContextWindows.model,
+          set: { contextWindow, observedAt: new Date() },
         })
         .run();
     },

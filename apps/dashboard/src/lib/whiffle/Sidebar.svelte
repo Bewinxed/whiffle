@@ -61,6 +61,7 @@
     type ProjectRow,
     whiffle,
   } from "./client.svelte";
+  import { continuing } from "./continue.svelte";
   import FolderMenu from "./FolderMenu.svelte";
   import { conversationHref } from "./links";
   import MachineMenu from "./MachineMenu.svelte";
@@ -1089,9 +1090,11 @@
 <!-- end flex column wrapper -->
 
 <NewSessionDialog
+  continueFrom={continuing.source ?? undefined}
   onclose={() => {
     spawnOpen = false;
+    continuing.source = null;
   }}
-  open={spawnOpen}
-  prefill={spawnPrefill}
+  open={spawnOpen || continuing.source !== null}
+  prefill={continuing.source ? undefined : spawnPrefill}
 />

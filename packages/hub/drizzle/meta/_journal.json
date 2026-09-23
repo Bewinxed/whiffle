@@ -288,6 +288,13 @@
       "when": 1790147475490,
       "tag": "0040_blue_the_captain",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "6",
+      "when": 1790150383031,
+      "tag": "0041_silky_stranger",
+      "breakpoints": true
     }
   ]
 }

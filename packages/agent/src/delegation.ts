@@ -61,11 +61,16 @@ export async function callDelegationTool(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, arguments: args }),
-      signal: AbortSignal.timeout(
-        name === "generate_image"
-          ? IMAGE_GENERATION_TIMEOUT_MS + 60_000
-          : 30_000
-      ),
+      // A continuation summarises a whole session and has no bound to give.
+      ...(name === "continue_session"
+        ? {}
+        : {
+            signal: AbortSignal.timeout(
+              name === "generate_image"
+                ? IMAGE_GENERATION_TIMEOUT_MS + 60_000
+                : 30_000
+            ),
+          }),
     }
   );
   if (!response.ok) {

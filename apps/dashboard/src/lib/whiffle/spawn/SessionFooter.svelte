@@ -4,12 +4,15 @@
     oncancel,
     onstart,
     startLabel,
+    busyLabel = "Starting…",
     disabled,
     busy,
   }: {
     oncancel: () => void;
     onstart: () => void;
     startLabel: string;
+    /** What the start button says while its work runs. */
+    busyLabel?: string;
     disabled: boolean;
     busy: boolean;
   } = $props();
@@ -25,7 +28,7 @@
     onclick={onstart}
     type="button"
   >
-    {busy ? "Starting…" : startLabel}
+    {busy ? busyLabel : startLabel}
   </button>
 </div>
 
