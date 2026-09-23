@@ -29,7 +29,7 @@ interface SpawnPrefs {
 const FALLBACK: SpawnPrefs = {
   harness: "claude",
   model: MODEL_DEFAULT,
-  permissionMode: "default",
+  permissionMode: "bypassPermissions",
   effort: null,
 };
 

@@ -4,7 +4,12 @@
    * list with the slide-swap on harness change. Codex is shown but disabled
    * ("Coming soon"); the list is the app's catalogue, canonical names only.
    */
-  import { HARNESSES, type HarnessKind } from "@whiffle/core";
+  import {
+    type EffortLevel,
+    HARNESSES,
+    type HarnessKind,
+    type PermissionMode,
+  } from "@whiffle/core";
   import { untrack } from "svelte";
   import { MediaQuery } from "svelte/reactivity";
   import ProviderLogo from "$lib/components/features/ProviderLogo.svelte";
@@ -14,6 +19,7 @@
   import Code from "~icons/solar/code-square-bold-duotone";
   import Cpu from "~icons/solar/cpu-bolt-bold-duotone";
   import Search from "~icons/solar/magnifer-linear";
+  import Tuning from "~icons/solar/tuning-2-bold-duotone";
   import HarnessLogo from "../HarnessLogo.svelte";
   import {
     ensureModels,
@@ -22,6 +28,7 @@
     rememberModel,
   } from "../models.svelte";
   import { reducedMotion } from "../motion.svelte";
+  import EffortPips from "./EffortPips.svelte";
   import { FollowHover } from "./follow-hover.svelte";
   import {
     deriveModelEntries,
@@ -31,7 +38,24 @@
     matchesQuery,
   } from "./model-entries";
   import { lastSpawnAt, lastUsedAt, type ModelUse } from "./modelUse.svelte";
+  import NsPopover from "./NsPopover.svelte";
+  import PermissionSection from "./PermissionSection.svelte";
+  import { permissionLook } from "./permission-look";
   import SectionHeader from "./SectionHeader.svelte";
+
+  /**
+   * The run settings that ride on the chosen model: its effort and the
+   * session's permission mode, as chips on the selected row. Only the new
+   * session form passes them; a running session sets these elsewhere.
+   */
+  interface ModelTools {
+    effort: EffortLevel | null;
+    efforts: EffortLevel[];
+    modes: { value: PermissionMode; disabled: boolean; reason?: string }[];
+    oneffort: (level: EffortLevel) => void;
+    onpermission: (mode: PermissionMode) => void;
+    permission: PermissionMode;
+  }
 
   let {
     harness,
@@ -41,6 +65,7 @@
     model,
     onmodel,
     runtime = false,
+    tools,
   }: {
     harness: HarnessKind;
     onharness: (harness: HarnessKind) => void;
@@ -49,6 +74,7 @@
     model: string;
     onmodel: (id: string) => void;
     runtime?: boolean;
+    tools?: ModelTools;
   } = $props();
   const uid = $props.id();
   type TabId = HarnessKind | "codex";
@@ -99,12 +125,16 @@
   /** The rows the last harness had, still on screen while the new ones arrive. */
   let leaving = $state<ModelEntry[]>([]);
   const harnessIdx = $derived(TABS.findIndex((tab) => tab.id === harness));
-  /** Two-up under 640px, so the thumb travels in both axes. */
+  /** A vertical rail beside the list; two-up under 640px, where the thumb
+      travels in both axes. */
   const twoUp = new MediaQuery("(max-width: 640px)");
-  const cols = $derived(twoUp.current ? 2 : 4);
+  const cols = $derived(twoUp.current ? 2 : 1);
   const thumbCol = $derived(harnessIdx % cols);
   const thumbRow = $derived(Math.floor(harnessIdx / cols));
-  const fhHarness = new FollowHover("x");
+  const fhHarness = new FollowHover("xy");
+  let pop = $state<"effort" | "permission" | null>(null);
+  let toolsWidth = $state(0);
+  const look = $derived(permissionLook(tools?.permission ?? ""));
   const fhModels = new FollowHover("y");
 
   $effect(() => {
@@ -239,152 +269,220 @@
 <section class="model">
   {#if !runtime}
     <SectionHeader hue="var(--fai-violet-500)" icon={Cpu} label="Model" />
-    <div
-      aria-label="Harness"
-      class="tabs"
-      onkeydown={tabKey}
-      onmouseleave={fhHarness.leave}
-      onmousemove={fhHarness.move}
-      role="radiogroup"
-      tabindex="-1"
-    >
-      <span
-        aria-hidden="true"
-        class="ns-ghost harness-ghost"
-        style={fhHarness.style}
-      ></span>
-      <span
-        aria-hidden="true"
-        class="thumb"
-        style={`--col:${thumbCol};--row:${thumbRow}`}
-      ></span>
-      {#each TABS as tab, i (tab.id)}
-        {@const available = !tab.soon && installed.includes(tab.id as HarnessKind)}
-        <!-- biome-ignore lint/a11y/useSemanticElements: the harness tabs are a designed segmented control; a native radio cannot carry the logo, thumb and disabled reason -->
-        <button
-          aria-checked={tab.id === harness}
-          aria-describedby={available ? undefined : `harness-${tab.id}-why`}
-          class="tab ns-in"
-          data-fh={available ? "1" : undefined}
-          data-harness={tab.id}
-          disabled={!available}
-          onclick={() => onharness(tab.id as HarnessKind)}
-          role="radio"
-          style={`--delay:${i * 30}ms`}
-          tabindex={tab.id === harness ? 0 : -1}
-          title={tab.name}
-          type="button"
-          class:on={tab.id === harness}
-        >
-          {#if tab.id === "codex"}
-            <OpenAiMark aria-hidden="true" class="codex-mark" />
-          {:else}
-            <HarnessLogo harness={tab.id as HarnessKind} />
-          {/if}
-          <span class="tab-name">{tab.name}</span>
-          {#if tab.soon}
-            <span class="soon">soon</span>
-          {/if}
-          {#if !available}
-            <span class="sr-only" id={`harness-${tab.id}-why`}
-              >{tab.soon ? "Coming soon" : `Not installed on ${machineName}`}</span
-            >
-          {/if}
-        </button>
-      {/each}
-    </div>
   {/if}
-  <label class="search" class:focus={searchFocus}>
-    <Search class="lead" />
-    <input
-      aria-controls={`${uid}-models`}
-      aria-label="Search models"
-      autocapitalize="off"
-      autocorrect="off"
-      id={`${uid}-search`}
-      onblur={() => { searchFocus = false; }}
-      onfocus={() => { searchFocus = true; }}
-      oninput={(event) => { query = event.currentTarget.value; }}
-      onkeydown={(event) => { if (event.key === 'Enter' && showCustomRow) { event.preventDefault(); pickCustom(); } else if (event.key === 'Escape' && query) { event.stopPropagation(); query = ''; } }}
-      placeholder="Search models or paste a custom model id..."
-      spellcheck="false"
-      value={query}
-    >
-    {#if query}
-      <button
-        aria-label="Clear"
-        class="clear"
-        onclick={() => { query = ''; }}
-        type="button"
+  <div class="body" class:railed={!runtime}>
+    {#if !runtime}
+      <div
+        aria-label="Harness"
+        class="tabs"
+        onkeydown={tabKey}
+        onmouseleave={fhHarness.leave}
+        onmousemove={fhHarness.move}
+        role="radiogroup"
+        tabindex="-1"
       >
-        <Clear />
-      </button>
-    {/if}
-  </label>
-
-  <div
-    aria-label={`${harnessName(listHarness)} models`}
-    class="list fai-scroll"
-    id={`${uid}-models`}
-    onmouseleave={fhModels.leave}
-    onmousemove={fhModels.move}
-    role="listbox"
-    tabindex="-1"
-    bind:this={list}
-  >
-    <span aria-hidden="true" class="ns-ghost" style={fhModels.style}></span>
-    <span
-      aria-hidden="true"
-      class="fill"
-      style={`transform:translateY(calc(${modelIdx} * 46px));opacity:${hiOpacity}`}
-    ></span>
-    {#if leaving.length}
-      <div aria-hidden="true" class="leaving" inert>
-        {#each leaving as entry, i (entry.id)}
-          <div class="row" style={`animation:${leaveAnim(i)}`}>
-            {@render rowBody(entry)}
-          </div>
+        <span
+          aria-hidden="true"
+          class="ns-ghost harness-ghost"
+          style={fhHarness.style}
+        ></span>
+        <span
+          aria-hidden="true"
+          class="thumb"
+          style={`--col:${thumbCol};--row:${thumbRow}`}
+        ></span>
+        {#each TABS as tab, i (tab.id)}
+          {@const available = !tab.soon && installed.includes(tab.id as HarnessKind)}
+          <!-- biome-ignore lint/a11y/useSemanticElements: the harness tabs are a designed segmented control; a native radio cannot carry the logo, thumb and disabled reason -->
+          <button
+            aria-checked={tab.id === harness}
+            aria-describedby={available ? undefined : `harness-${tab.id}-why`}
+            class="tab ns-in"
+            data-fh={available ? "1" : undefined}
+            data-harness={tab.id}
+            disabled={!available}
+            onclick={() => onharness(tab.id as HarnessKind)}
+            role="radio"
+            style={`--delay:${i * 30}ms`}
+            tabindex={tab.id === harness ? 0 : -1}
+            title={tab.name}
+            type="button"
+            class:on={tab.id === harness}
+          >
+            {#if tab.id === "codex"}
+              <OpenAiMark aria-hidden="true" class="codex-mark" />
+            {:else}
+              <HarnessLogo harness={tab.id as HarnessKind} />
+            {/if}
+            <span class="tab-name">{tab.name}</span>
+            {#if tab.soon}
+              <span class="soon">soon</span>
+            {/if}
+            {#if !available}
+              <span class="sr-only" id={`harness-${tab.id}-why`}
+                >{tab.soon ? "Coming soon" : `Not installed on ${machineName}`}</span
+              >
+            {/if}
+          </button>
         {/each}
       </div>
     {/if}
-    {#if showCustomRow}
-      <button
-        class="row custom ns-in"
-        data-fh="1"
-        onclick={pickCustom}
-        type="button"
+    <div class="pick">
+      <label class="search" class:focus={searchFocus}>
+        <Search class="lead" />
+        <input
+          aria-controls={`${uid}-models`}
+          aria-label="Search models"
+          autocapitalize="off"
+          autocorrect="off"
+          id={`${uid}-search`}
+          onblur={() => { searchFocus = false; }}
+          onfocus={() => { searchFocus = true; }}
+          oninput={(event) => { query = event.currentTarget.value; }}
+          onkeydown={(event) => { if (event.key === 'Enter' && showCustomRow) { event.preventDefault(); pickCustom(); } else if (event.key === 'Escape' && query) { event.stopPropagation(); query = ''; } }}
+          placeholder="Search models or paste a custom model id..."
+          spellcheck="false"
+          value={query}
+        >
+        {#if query}
+          <button
+            aria-label="Clear"
+            class="clear"
+            onclick={() => { query = ''; }}
+            type="button"
+          >
+            <Clear />
+          </button>
+        {/if}
+      </label>
+
+      <div
+        aria-label={`${harnessName(listHarness)} models`}
+        class="list fai-scroll"
+        id={`${uid}-models`}
+        onmouseleave={fhModels.leave}
+        onmousemove={fhModels.move}
+        role="listbox"
+        style={`--tools-w:${tools && hiOpacity ? toolsWidth : 0}px`}
+        tabindex="-1"
+        bind:this={list}
       >
-        <span class="ns-tile tile ink"><Code /></span>
-        <span class="text">
-          <span class="name">Use custom model id</span>
-          <span class="meta mono">{query}</span>
-        </span>
-        <span class="hint">↵ Enter</span>
-      </button>
-    {/if}
-    {#each rows as entry, i (`${gen}:${entry.id}`)}
-      <button
-        aria-selected={entry.id === selectedId}
-        class="row"
-        data-fh="1"
-        data-model={entry.id}
-        onclick={() => pick(entry)}
-        role="option"
-        style={`animation:${rowAnim(i)}`}
-        type="button"
-      >
-        {@render rowBody(entry)}
-      </button>
-    {/each}
-    {#if noResults}
-      <div class="none ns-in">
-        {#if q}
-          No {harnessName(listHarness)} models match "{query}"
-        {:else}
-          No {harnessName(listHarness)} models reported yet
+        <span aria-hidden="true" class="ns-ghost" style={fhModels.style}></span>
+        <span
+          aria-hidden="true"
+          class="fill"
+          style={`transform:translateY(calc(${modelIdx} * 46px));opacity:${hiOpacity}`}
+        ></span>
+        {#if tools}
+          <!-- The chosen model's run settings travel with the selection fill, so
+           picking another model carries them across rather than redrawing. -->
+          <div
+            class="tools"
+            inert={!hiOpacity}
+            style={`transform:translateY(calc(${modelIdx} * 46px));opacity:${hiOpacity}`}
+            bind:clientWidth={toolsWidth}
+          >
+            {#if tools.efforts.length}
+              <NsPopover
+                align="end"
+                id="session-effort"
+                label="Effort"
+                onchange={(value) => { pop = value ? 'effort' : null; }}
+                open={pop === "effort"}
+                triggerClass="ns-chip-btn tool"
+                width={300}
+              >
+                {#snippet trigger()}
+                  <Tuning style="color:var(--fai-orange-500)" />
+                  <span class="chip-label level"
+                    >{tools.effort ?? "Default"}</span
+                  >
+                  <Down class="chevron" />
+                {/snippet}
+                <div class="effort-pop">
+                  <EffortPips
+                    efforts={tools.efforts}
+                    embedded
+                    onchange={tools.oneffort}
+                    value={tools.effort}
+                  />
+                </div>
+              </NsPopover>
+            {/if}
+            <NsPopover
+              align="end"
+              id="session-permission"
+              label="Permission mode"
+              onchange={(value) => { pop = value ? 'permission' : null; }}
+              open={pop === "permission"}
+              triggerClass="ns-chip-btn tool"
+              width={340}
+            >
+              {#snippet trigger()}
+                {@const Icon = look.icon}
+                <Icon style={`color:${look.hue}`} />
+                <span class="chip-label">{look.short}</span>
+                <Down class="chevron" />
+              {/snippet}
+              <PermissionSection
+                embedded
+                modes={tools.modes}
+                onchange={(mode) => { tools.onpermission(mode); pop = null; }}
+                value={tools.permission}
+              />
+            </NsPopover>
+          </div>
+        {/if}
+        {#if leaving.length}
+          <div aria-hidden="true" class="leaving" inert>
+            {#each leaving as entry, i (entry.id)}
+              <div class="row" style={`animation:${leaveAnim(i)}`}>
+                {@render rowBody(entry)}
+              </div>
+            {/each}
+          </div>
+        {/if}
+        {#if showCustomRow}
+          <button
+            class="row custom ns-in"
+            data-fh="1"
+            onclick={pickCustom}
+            type="button"
+          >
+            <span class="ns-tile tile ink"><Code /></span>
+            <span class="text">
+              <span class="name">Use custom model id</span>
+              <span class="meta mono">{query}</span>
+            </span>
+            <span class="hint">↵ Enter</span>
+          </button>
+        {/if}
+        {#each rows as entry, i (`${gen}:${entry.id}`)}
+          <button
+            aria-selected={entry.id === selectedId}
+            class="row"
+            data-fh="1"
+            data-model={entry.id}
+            onclick={() => pick(entry)}
+            role="option"
+            style={`animation:${rowAnim(i)}`}
+            type="button"
+            class:picked={entry.id === selectedId}
+          >
+            {@render rowBody(entry)}
+          </button>
+        {/each}
+        {#if noResults}
+          <div class="none ns-in">
+            {#if q}
+              No {harnessName(listHarness)} models match "{query}"
+            {:else}
+              No {harnessName(listHarness)} models reported yet
+            {/if}
+          </div>
         {/if}
       </div>
-    {/if}
+    </div>
   </div>
 </section>
 
@@ -414,10 +512,25 @@
     display: grid;
     gap: 8px;
   }
+  .body {
+    display: grid;
+    gap: 10px;
+  }
+  /* The harness rail beside the list it chooses between. */
+  .body.railed {
+    grid-template-columns: 176px minmax(0, 1fr);
+    align-items: start;
+  }
+  .pick {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+  }
   .tabs {
     position: relative;
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
     gap: 2px;
     padding: 3px;
     background: var(--fai-recess);
@@ -429,9 +542,9 @@
   .thumb {
     position: absolute;
     top: 3px;
-    bottom: 3px;
     left: 3px;
-    width: calc((100% - 12px) / 4);
+    width: calc(100% - 6px);
+    height: 38px;
     background: var(--fai-raised);
     border-radius: var(--fai-radius-sm);
     box-shadow: var(--fai-shadow-raised);
@@ -446,10 +559,10 @@
     position: relative;
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 6px;
-    height: 32px;
-    padding: 0 6px;
+    justify-content: flex-start;
+    gap: 8px;
+    height: 38px;
+    padding: 0 10px;
     min-width: 0;
     background: transparent;
     border: 0;
@@ -560,7 +673,7 @@
     display: grid;
     gap: 2px;
     align-content: start;
-    height: 220px;
+    height: 272px;
     overflow: auto;
     padding: 4px;
     background: var(--fai-surface);
@@ -592,6 +705,31 @@
       opacity 120ms ease;
     pointer-events: none;
   }
+  /* The chosen row's run settings: effort and permission chips, riding the
+     selection fill's transform so they slide to whichever model is picked. */
+  .tools {
+    position: absolute;
+    top: 4px;
+    right: 10px;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 44px;
+    transition:
+      transform 160ms var(--ns-ease-in-out),
+      opacity 120ms ease;
+  }
+  .tools :global(.ns-chip-btn.tool) {
+    height: 28px;
+    background: var(--fai-surface);
+  }
+  .tools .level {
+    text-transform: capitalize;
+  }
+  .effort-pop {
+    padding: 8px 6px 6px;
+  }
   .row {
     position: relative;
     display: flex;
@@ -606,6 +744,10 @@
     cursor: pointer;
     text-align: left;
     color: var(--fai-text);
+  }
+  /* Room for the chips, so the chosen row's name ends before them. */
+  .row.picked {
+    padding-right: calc(var(--tools-w, 0px) + 14px);
   }
   .custom {
     background: var(--fai-surface);
@@ -672,12 +814,14 @@
     text-wrap: pretty;
   }
   @media (max-width: 640px) {
+    /* The rail folds above the list, two-up, so the thumb moves in both axes. */
+    .body.railed {
+      grid-template-columns: minmax(0, 1fr);
+    }
     .tabs {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
-    /* Two rows now, so the thumb needs a row's height rather than the box's. */
     .thumb {
-      bottom: auto;
       height: 44px;
       width: calc((100% - 8px) / 2);
     }

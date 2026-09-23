@@ -30,6 +30,7 @@
     machineName,
     reading,
     informational = false,
+    embedded = false,
   }: {
     mode: "dir" | "repo";
     onmode: (mode: "dir" | "repo") => void;
@@ -44,6 +45,9 @@
     /** Validation line under the field; empty when nothing to say. */
     reading: string;
     informational?: boolean;
+    /** Inside the composer's location popover: no header, no reading line —
+        the dialog shows the reading under the composer, where it stays in view. */
+    embedded?: boolean;
   } = $props();
   let browsing = $state(false);
   let path = $state("~");
@@ -117,25 +121,37 @@
   });
 </script>
 
-<section class="loc">
-  <SectionHeader hue="var(--fai-amber-500)" icon={Folder} label="Location" wrap>
-    {#snippet right()}
-      <Segmented
-        items={[{ value: "dir", label: "Existing files" }, { value: "repo", label: "Clone from GitHub" }]}
-        label="Location source"
-        onchange={onmode}
-        value={mode}
-      >
-        {#snippet icon(value, on)}
-          {#if value === "dir"}
-            <Folder style="color:var(--fai-amber-500)" />
-          {:else}
-            <GitHub style={`opacity:${on ? 1 : 0.6}`} />
-          {/if}
-        {/snippet}
-      </Segmented>
-    {/snippet}
-  </SectionHeader>
+<section class="loc" class:embedded={embedded}>
+  {#if embedded}
+    {@render source()}
+  {:else}
+    <SectionHeader
+      hue="var(--fai-amber-500)"
+      icon={Folder}
+      label="Location"
+      wrap
+    >
+      {#snippet right()}
+        {@render source()}
+      {/snippet}
+    </SectionHeader>
+  {/if}
+  {#snippet source()}
+    <Segmented
+      items={[{ value: "dir", label: "Existing files" }, { value: "repo", label: "Clone from GitHub" }]}
+      label="Location source"
+      onchange={onmode}
+      value={mode}
+    >
+      {#snippet icon(value, on)}
+        {#if value === "dir"}
+          <Folder style="color:var(--fai-amber-500)" />
+        {:else}
+          <GitHub style={`opacity:${on ? 1 : 0.6}`} />
+        {/if}
+      {/snippet}
+    </Segmented>
+  {/snippet}
 
   <div class="field" class:locked={locked}>
     <div class="row">
@@ -287,15 +303,23 @@
       </div>
     </div>
   </div>
-  <p aria-live="polite" class="reading" title={reading} class:informational>
-    {reading || " "}
-  </p>
+  {#if !embedded}
+    <p aria-live="polite" class="reading" title={reading} class:informational>
+      {reading || " "}
+    </p>
+  {/if}
 </section>
 
 <style>
   .loc {
     display: grid;
     gap: 8px;
+  }
+  .loc.embedded {
+    padding: 4px;
+  }
+  .loc.embedded > :global(.segmented) {
+    justify-self: start;
   }
   .field {
     background: var(--fai-surface);

@@ -1,13 +1,9 @@
 <script lang="ts">
   import type { PermissionMode } from "@whiffle/core";
   /** Permission-mode rows (§1.8, §2.11): sliding fill + mounted check. */
-  import type { Component } from "svelte";
   import Check from "~icons/solar/check-circle-bold";
-  import Danger from "~icons/solar/danger-triangle-bold-duotone";
-  import Notes from "~icons/solar/notes-bold-duotone";
-  import Pen from "~icons/solar/pen-new-square-bold-duotone";
-  import Shield from "~icons/solar/shield-check-bold-duotone";
   import { FollowHover } from "./follow-hover.svelte";
+  import { permissionLook } from "./permission-look";
 
   let {
     modes,
@@ -21,45 +17,8 @@
     embedded?: boolean;
   } = $props();
   const uid = $props.id();
-  const LOOK: Record<
-    string,
-    { name: string; desc: string; icon: Component; hue: string }
-  > = {
-    default: {
-      name: "Ask before edits",
-      desc: "Approve every file write and command.",
-      icon: Shield,
-      hue: "var(--fai-green-500)",
-    },
-    plan: {
-      name: "Plan first",
-      desc: "Read-only until you approve a plan.",
-      icon: Notes,
-      hue: "var(--fai-violet-400)",
-    },
-    acceptEdits: {
-      name: "Auto-accept edits",
-      desc: "Edits run freely; shell commands still ask.",
-      icon: Pen,
-      hue: "var(--fai-blue-500)",
-    },
-    bypassPermissions: {
-      name: "Full access",
-      desc: "No prompts. Use on disposable machines only.",
-      icon: Danger,
-      hue: "var(--fai-orange-500)",
-    },
-  };
   const rows = $derived(
-    modes.map((mode) => ({
-      ...mode,
-      ...(LOOK[mode.value] ?? {
-        name: mode.value,
-        desc: "",
-        icon: Shield,
-        hue: "var(--fai-text-subtle)",
-      }),
-    }))
+    modes.map((mode) => ({ ...mode, ...permissionLook(mode.value) }))
   );
   const index = $derived(
     Math.max(

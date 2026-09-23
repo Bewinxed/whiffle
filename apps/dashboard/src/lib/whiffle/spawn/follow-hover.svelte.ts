@@ -10,9 +10,10 @@ export class FollowHover {
   h = $state(0);
   o = $state(0);
   i = $state(-1);
-  readonly axis: "x" | "y";
+  /** `xy` for a grid, where the nearest row can be beside or below. */
+  readonly axis: "x" | "y" | "xy";
 
-  constructor(axis: "x" | "y" = "y") {
+  constructor(axis: "x" | "y" | "xy" = "y") {
     this.axis = axis;
   }
 
@@ -32,10 +33,13 @@ export class FollowHover {
         return;
       }
       const rect = row.getBoundingClientRect();
-      const distance =
-        this.axis === "x"
-          ? Math.abs(event.clientX - (rect.left + rect.width / 2))
-          : Math.abs(event.clientY - (rect.top + rect.height / 2));
+      const dx = event.clientX - (rect.left + rect.width / 2);
+      const dy = event.clientY - (rect.top + rect.height / 2);
+      const distance = {
+        x: Math.abs(dx),
+        y: Math.abs(dy),
+        xy: Math.hypot(dx, dy),
+      }[this.axis];
       if (distance < bestDistance) {
         bestDistance = distance;
         best = rect;

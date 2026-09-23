@@ -22,13 +22,13 @@
   import Book from "~icons/solar/book-2-bold-duotone";
   import Chat from "~icons/solar/chat-round-line-bold-duotone";
   import Cpu from "~icons/solar/cpu-bold-duotone";
+  import Database from "~icons/solar/database-bold-duotone";
+  import Fire from "~icons/solar/fire-bold-duotone";
   import Files from "~icons/solar/folder-with-files-bold-duotone";
   import Laptop from "~icons/solar/laptop-bold-duotone";
   import Monitor from "~icons/solar/monitor-bold-duotone";
   import Server from "~icons/solar/server-square-bold-duotone";
-  import Shield from "~icons/solar/shield-keyhole-bold-duotone";
   import Stars from "~icons/solar/stars-bold-duotone";
-  import Tuning from "~icons/solar/tuning-2-bold-duotone";
   import {
     createProject,
     machineFs,
@@ -41,14 +41,12 @@
   import { models } from "../models.svelte";
   import { PERMISSION_MODES } from "../permission-modes";
   import { rememberSpawn, spawnPrefs } from "../spawnPrefs.svelte";
-  import EffortPips from "./EffortPips.svelte";
-  import LocationSection from "./LocationSection.svelte";
+  import LocationChip from "./LocationChip.svelte";
   import MachinesChip from "./MachinesChip.svelte";
   import ModelSection from "./ModelSection.svelte";
   import { deriveModelEntries } from "./model-entries";
   import { lastSpawnAt, lastUsedAt, recordModelUse } from "./modelUse.svelte";
   import type { MachineItem, MenuItem, ProjectItem } from "./ns-types";
-  import PermissionSection from "./PermissionSection.svelte";
   import ProjectChip from "./ProjectChip.svelte";
   import PromptEditor from "./PromptEditor.svelte";
   import SectionHeader from "./SectionHeader.svelte";
@@ -211,7 +209,7 @@
   let unreadable = $state(false);
   let missingMachines = $state<string[]>([]);
   let verifiedLocation = $state("");
-  let popover = $state<"machines" | "project" | null>(null);
+  let popover = $state<"machines" | "project" | "location" | null>(null);
   let menuOpen = $state(false);
   let skills = $state<string[]>([]);
   let plugins = $state<string[]>([]);
@@ -955,69 +953,74 @@
             {projectId}
             projects={projectItems}
           />
+          <LocationChip
+            dir={cwd}
+            informational={locationInformational}
+            {locked}
+            {machineId}
+            machineName={machine?.hostname ?? ""}
+            mode={repo === undefined ? "dir" : "repo"}
+            onchange={(value) => { popover = value ? "location" : null; }}
+            ondir={(value) => { cwd = value; editing = true; projectId = undefined; }}
+            onmode={(value) => { repo = value === "repo" ? (repo ?? "") : undefined; if (value === "repo") { projectId = undefined; editing = true; cwd ||= "~"; } }}
+            onoverride={() => { editing = true; }}
+            onrepo={(value) => { repo = value; }}
+            open={popover === "location"}
+            {reading}
+            repo={repo ?? ""}
+          />
+          <!-- A side quest ends with its task; a persistent session stays on
+               the board. One chip, one click, the word says which it is. -->
+          <button
+            aria-label={`Session lifetime: ${sideQuest ? "ephemeral" : "persistent"}`}
+            aria-pressed={sideQuest}
+            class="ns-chip-btn lifetime"
+            onclick={() => { sideQuest = !sideQuest; }}
+            title={sideQuest ? "Ends with its task. Click to keep it." : "Stays on the board. Click to make it ephemeral."}
+            type="button"
+          >
+            {#key sideQuest}
+              <span class="swap">
+                {#if sideQuest}
+                  <Fire style="color:var(--fai-orange-500)" />
+                  <span class="chip-label">Ephemeral</span>
+                {:else}
+                  <Database style="color:var(--fai-blue-500)" />
+                  <span class="chip-label">Persistent</span>
+                {/if}
+              </span>
+            {/key}
+          </button>
         </div>
       </div>
+      <p
+        aria-live="polite"
+        class="reading"
+        title={reading}
+        class:informational={locationInformational}
+      >
+        {reading || "\u00a0"}
+      </p>
     </section>
     <div class="fai-comb comb-gap"></div>
     <div class="stack">
-      <div class="sec" style="--delay:60ms">
-        <LocationSection
-          dir={cwd}
-          informational={locationInformational}
-          {locked}
-          {machineId}
-          machineName={machine?.hostname ?? ""}
-          mode={repo === undefined ? "dir" : "repo"}
-          ondir={(value) => { cwd = value; editing = true; projectId = undefined; }}
-          onmode={(value) => { repo = value === "repo" ? (repo ?? "") : undefined; if (value === "repo") { projectId = undefined; editing = true; cwd ||= "~"; } }}
-          onoverride={() => { editing = true; }}
-          onrepo={(value) => { repo = value; }}
-          {reading}
-          repo={repo ?? ""}
+      <div class="sec" style="--delay:80ms">
+        <ModelSection
+          {harness}
+          installed={installedHarnesses}
+          machineName={machine?.hostname ?? machineId}
+          {model}
+          onharness={chooseHarness}
+          onmodel={(id) => { model = id; effort = null; }}
+          tools={{
+            efforts,
+            effort: effortShown,
+            oneffort: (level) => { effort = level; },
+            modes,
+            permission: permissionMode,
+            onpermission: (value) => { permissionMode = value; },
+          }}
         />
-      </div>
-      <div class="fai-comb"></div>
-      <div class="sec" style="--delay:140ms">
-        <div class="columns">
-          <div class="col">
-            <div class="sec" style="--delay:40ms">
-              <ModelSection
-                {harness}
-                installed={installedHarnesses}
-                machineName={machine?.hostname ?? machineId}
-                {model}
-                onharness={chooseHarness}
-                onmodel={(id) => { model = id; effort = null; }}
-              />
-            </div>
-          </div>
-          <div class="col">
-            <section class="sec" style="--delay:80ms">
-              <SectionHeader
-                hue="var(--fai-orange-500)"
-                icon={Tuning}
-                label="Effort"
-              />
-              <EffortPips
-                {efforts}
-                onchange={(level) => { effort = level; }}
-                value={effortShown}
-              />
-            </section>
-            <section class="sec" style="--delay:120ms">
-              <SectionHeader
-                hue="var(--fai-green-600)"
-                icon={Shield}
-                label="Permission mode"
-              />
-              <PermissionSection
-                {modes}
-                onchange={(value) => { permissionMode = value; }}
-                value={permissionMode}
-              />
-            </section>
-          </div>
-        </div>
       </div>
     </div>
   </div>
@@ -1025,9 +1028,7 @@
     <SessionFooter
       {busy}
       disabled={cantStart}
-      ephemeral={sideQuest}
       oncancel={close}
-      onlifetime={(value) => { sideQuest = value; }}
       onstart={start}
       {startLabel}
     />
@@ -1166,16 +1167,31 @@
     gap: 18px;
     margin-top: 18px;
   }
-  .columns {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
-    gap: 16px 20px;
+  .reading {
+    margin: 0;
+    font: var(--fai-type-meta);
+    color: var(--fai-status-expired-fg);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-height: 16px;
   }
-  .col {
-    display: grid;
-    gap: 16px;
-    align-content: start;
-    min-width: 0;
+  .reading.informational {
+    color: var(--fai-text-muted);
+  }
+  .lifetime {
+    overflow: hidden;
+  }
+  .lifetime .swap {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    animation: ns-in 220ms var(--ns-ease-out) both;
+  }
+  .lifetime :global(svg) {
+    width: 15px;
+    height: 15px;
+    flex: none;
   }
   .composer {
     position: relative;
