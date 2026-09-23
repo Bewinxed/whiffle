@@ -307,10 +307,11 @@ export interface HandoffDeps {
 /** The three hand-off actions, each answering with the text the tool returns. */
 export interface HandoffActions {
   /**
-   * Records what the session did about a concern the user raised. It is
-   * session-scoped on purpose: the caller is never told which rule fired, or
-   * that a rule fired at all, so it has no id to name — the hub settles
-   * everything outstanding for the session from the note alone.
+   * Records what the session did about a concern the user raised, or about a
+   * rule reply that asked for an acknowledgement. It is session-scoped: the
+   * reply asks the session to acknowledge but never names the rule, so the
+   * caller has no id to pass — the hub settles everything outstanding for the
+   * session from the note alone.
    */
   // biome-ignore lint/style/useConsistentMethodSignatures: this interface is implemented by the handoffActions object literal below; property-style would change parameter variance against that implementation
   acknowledgeConcern(note: string): Promise<string>;

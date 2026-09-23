@@ -11,8 +11,9 @@ import type { HarnessKind } from "./harness";
  *
  * The part that makes a rule stick is the acknowledgement. A nudge the model
  * can read and move past is a nudge the model will read and move past, so a
- * fired rule stays *pending* until the session calls `acknowledge_rule` and
- * says what it did about it. While it is pending every further match fires
+ * fired rule stays *pending* until the session calls `note_for_user` and
+ * says what it did about it — the reply it receives ends by asking for exactly
+ * that. While it is pending every further match fires
  * again — the rule nags. Acknowledging re-arms it, so the same rule can catch
  * the same habit later in the same session.
  */

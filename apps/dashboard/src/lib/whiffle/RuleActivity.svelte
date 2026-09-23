@@ -10,9 +10,9 @@
   /**
    * What the rule has caught, and what each session said it did about it.
    *
-   * This panel is load-bearing rather than decorative. Sessions are told
-   * nothing — no rule name, no id, no mention that anything is watching — so
-   * this is the only surface where the mechanism is visible at all. It is also
+   * This panel is load-bearing rather than decorative. A session reads the
+   * reply and is asked to acknowledge it, but never sees the rule's name, id or
+   * fire count, so this is the only surface where the mechanism is visible. It is also
    * what makes the tool a session calls honest: that tool says the note reaches
    * the user, and this is the place it reaches.
    */
@@ -57,8 +57,8 @@
   <div class="flex flex-col gap-1">
     <h2 class="text-body font-medium">What it has caught</h2>
     <p class="max-w-prose text-micro text-muted-foreground">
-      Sessions are never told this rule exists, so this is the only place it is
-      visible. Anything a session wrote back appears here.
+      Sessions see the reply but never this rule's name or history, so this is
+      the only place it is visible. Anything a session wrote back appears here.
     </p>
   </div>
 

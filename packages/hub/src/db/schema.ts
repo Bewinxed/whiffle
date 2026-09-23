@@ -657,7 +657,8 @@ export const rules = sqliteTable("rules", {
   interrupt: integer("interrupt", { mode: "boolean" }).notNull().default(false),
   /**
    * The teeth. On, a fired rule stays pending and fires again on every further
-   * match until the session calls `acknowledge_rule`. Off, it fires once per
+   * match until the session calls `note_for_user`, which the reply asks it
+   * to. Off, it fires once per
    * session and goes quiet — which is a nudge a model can simply walk past.
    */
   requireAck: integer("require_ack", { mode: "boolean" })

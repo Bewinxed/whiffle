@@ -772,11 +772,10 @@
             >
             <span class="max-w-prose text-micro text-muted-foreground">
               {#if draft.requireAck}
-                The session has to call
-                <span class="font-mono">acknowledge_rule</span>
+                The reply asks the session to call
+                <span class="font-mono">note_for_user</span>
                 and say what it did about it. Until then the rule fires again
-                every time it is tripped, and the reminder counts up. It stops
-                after ten in one session.
+                every time it is tripped. It stops after ten in one session.
               {:else}
                 The rule fires once per session and then goes quiet, whether or
                 not anything came of it.

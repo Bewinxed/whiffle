@@ -4204,7 +4204,7 @@ export const createServer = ({
       })
       /**
        * What one session still owes an answer for, and the acknowledgement
-       * itself. The agent's `acknowledge_rule` tool is the only real caller —
+       * itself. The agent's `note_for_user` tool is the only real caller —
        * a rule is cleared by the session that tripped it, never from the UI,
        * because being answered by the model is the whole point of the mechanism.
        */
@@ -4222,8 +4222,8 @@ export const createServer = ({
        * What a rule has actually been doing, per session: fires, and what each
        * session said it did about it.
        *
-       * The sessions are told nothing about any of this, so this listing is the
-       * only window onto it. It is also what makes the tool the sessions call
+       * A session is asked to acknowledge a reply but never sees the rule's
+       * name or fire count, so this listing is the only window onto it. It is also what makes the tool the sessions call
        * honest — it promises the note reaches the user, and this is where.
        */
       .get("/api/rules/:id/activity", ({ params, status }) => {
@@ -4247,10 +4247,10 @@ export const createServer = ({
        * Acknowledge everything this session still owes an answer for, without
        * naming a rule.
        *
-       * The session is never told which rule fired, or that a rule fired at all —
-       * a model that can see the detector games the phrase instead of changing
-       * the habit. So the tool it calls cannot take a rule id, and this settles
-       * whatever is pending for the caller. The note is what the reader sees in
+       * The reply a session receives ends by asking it to call `note_for_user`,
+       * but it never names the rule, so the tool takes no rule id and this
+       * settles whatever is pending for the caller. Rules are judged on what a
+       * message means, so knowing it is being asked costs the rule nothing. The note is what the reader sees in
        * the dashboard, which is the only place any of this is visible.
        */
       .post(
