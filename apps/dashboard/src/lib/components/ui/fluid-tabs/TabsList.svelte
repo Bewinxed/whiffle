@@ -206,23 +206,88 @@
     // segment sliding into place is the motion here.
     const pad = 8;
     if (rect.left - pad < node.scrollLeft) {
+      stopGlide();
       node.scrollLeft = rect.left - pad;
     } else if (rect.left + rect.width + pad > node.scrollLeft + width) {
+      stopGlide();
       node.scrollLeft = rect.left + rect.width + pad - width;
     }
   });
 
+  /**
+   * A vertical wheel over the track moves it sideways on a spring: each
+   * notch pushes the target along and the track glides after it, carrying
+   * its speed into the next notch, instead of jumping 100px a click.
+   * Critically damped at the app's 0.3s response, so it lands without
+   * overshoot. A sideways trackpad swipe is the browser's own scroll and
+   * is left alone.
+   */
+  const GLIDE = 0.3;
+  const STIFFNESS = ((2 * Math.PI) / GLIDE) ** 2;
+  const DAMPING = (4 * Math.PI) / GLIDE;
+  let stopGlide = () => {
+    /* replaced once the track is mounted */
+  };
+
   function sideways(el: HTMLElement) {
+    let target = 0;
+    let at = 0;
+    let velocity = 0;
+    let frame: number | null = null;
+    let last = 0;
+
+    const stop = () => {
+      if (frame !== null) {
+        cancelAnimationFrame(frame);
+        frame = null;
+      }
+    };
+    stopGlide = stop;
+
+    const step = (now: number) => {
+      const dt = Math.min(0.032, (now - last) / 1000);
+      last = now;
+      velocity += (STIFFNESS * (target - at) - DAMPING * velocity) * dt;
+      at += velocity * dt;
+      if (Math.abs(target - at) < 0.5 && Math.abs(velocity) < 10) {
+        el.scrollLeft = target;
+        frame = null;
+        return;
+      }
+      el.scrollLeft = at;
+      frame = requestAnimationFrame(step);
+    };
+
     const onwheel = (event: WheelEvent) => {
       if (event.deltaX !== 0 || el.scrollWidth <= el.clientWidth) {
+        stop();
         return;
       }
       event.preventDefault();
-      el.scrollLeft += event.deltaY;
+      let delta = event.deltaY;
+      if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+        delta *= 16;
+      } else if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+        delta *= el.clientWidth;
+      }
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        el.scrollLeft += delta;
+        return;
+      }
+      if (frame === null) {
+        at = el.scrollLeft;
+        target = at;
+        velocity = 0;
+        last = performance.now();
+        frame = requestAnimationFrame(step);
+      }
+      const max = el.scrollWidth - el.clientWidth;
+      target = Math.max(0, Math.min(max, target + delta));
     };
     el.addEventListener("wheel", onwheel, { passive: false });
     return {
       destroy() {
+        stop();
         el.removeEventListener("wheel", onwheel);
       },
     };
