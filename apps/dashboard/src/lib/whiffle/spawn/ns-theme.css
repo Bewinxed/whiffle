@@ -466,6 +466,8 @@
   overflow: auto;
   padding: 6px;
   display: grid;
+  /* Content never outgrows the surface: a wide row shrinks rather than overflows. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--ns-pop-gap, 0px);
   align-content: start;
   background: var(--fai-surface);
@@ -495,6 +497,11 @@
  * width instead of snapping. Clipping applies only during the glide, so focus
  * rings at the edges are not cut off at rest.
  */
+/* The permission rows never wrap, so their popover takes the rows' width. */
+.ns-theme.ns-pop:has(.perms.embedded) {
+  width: max-content;
+  max-width: calc(100vw - 32px);
+}
 .ns-panel-set {
   display: grid;
   gap: var(--ns-pop-gap, 0px);

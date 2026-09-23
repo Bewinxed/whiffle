@@ -65,9 +65,13 @@
         <span class="name">{row.name}</span>
         <span class="desc">{row.desc}</span>
       </span>
-      {#if on}
-        <Check class="check ns-check" />
-      {/if}
+      <!-- Every row keeps the check's slot, so the rows share one width
+           whichever mode is chosen. -->
+      <span aria-hidden="true" class="check-slot">
+        {#if on}
+          <Check class="check ns-check" />
+        {/if}
+      </span>
       {#if row.reason}
         <span class="sr-only" id={`${uid}-perm-${row.value}-reason`}
           >{row.reason}</span
@@ -152,10 +156,15 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  .check-slot {
+    display: grid;
+    flex: none;
+    width: 16px;
+    height: 16px;
+  }
   .row :global(svg.check) {
     width: 16px;
     height: 16px;
-    flex: none;
     color: var(--fai-grey-900);
   }
 </style>
