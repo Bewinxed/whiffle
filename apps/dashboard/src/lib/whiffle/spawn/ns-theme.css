@@ -429,6 +429,34 @@
   }
 }
 /*
+ * A popover group's surface. Its content sits in a measured block so that,
+ * while the surface glides between siblings, height eases with position and
+ * width instead of snapping. Clipping applies only during the glide, so focus
+ * rings at the edges are not cut off at rest.
+ */
+.ns-panel-set {
+  display: grid;
+  gap: var(--ns-pop-gap, 0px);
+  align-content: start;
+}
+.ns-theme.ns-pop[data-morph] {
+  transition:
+    opacity var(--ns-pop-ms) var(--ns-ease-pop),
+    scale var(--ns-pop-ms) var(--ns-ease-pop),
+    translate var(--ns-pop-ms) var(--ns-ease-pop),
+    width var(--ns-pop-ms) var(--ns-ease-pop);
+}
+.ns-pop[data-morph] .ns-morph {
+  overflow: hidden;
+  transition: height var(--ns-pop-ms) var(--ns-ease-pop);
+}
+@media (prefers-reduced-motion: no-preference) {
+  /* The floating wrapper sits outside .ns-theme, so its easing is literal. */
+  [data-bits-floating-content-wrapper]:has(> .ns-pop[data-morph]) {
+    transition: transform 260ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+}
+/*
  * Small screens get a wider, taller popover — not a takeover. Picking a
  * machine or a project is a detail of the form behind it, and covering the
  * whole viewport to answer it loses the row being edited and reads as a

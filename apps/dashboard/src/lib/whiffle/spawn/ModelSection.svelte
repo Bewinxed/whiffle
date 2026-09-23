@@ -38,6 +38,7 @@
   } from "./model-entries";
   import { lastSpawnAt, lastUsedAt, type ModelUse } from "./modelUse.svelte";
   import NsPopover from "./NsPopover.svelte";
+  import NsPopoverGroup from "./NsPopoverGroup.svelte";
   import PermissionSection from "./PermissionSection.svelte";
   import { permissionLook } from "./permission-look";
   import SectionHeader from "./SectionHeader.svelte";
@@ -407,55 +408,57 @@
             style={`transform:translateY(calc(${modelIdx} * 46px));opacity:${hiOpacity}`}
             bind:clientWidth={toolsWidth}
           >
-            {#if tools.efforts.length}
+            <NsPopoverGroup>
+              {#if tools.efforts.length}
+                <NsPopover
+                  align="end"
+                  id="session-effort"
+                  label="Effort"
+                  onchange={(value) => { pop = value ? 'effort' : null; }}
+                  open={pop === "effort"}
+                  triggerClass="ns-chip-btn tool"
+                  width={300}
+                >
+                  {#snippet trigger()}
+                    <Tuning style="color:var(--fai-orange-500)" />
+                    <span class="chip-label level"
+                      >{tools.effort ?? "Default"}</span
+                    >
+                    <Down class="chevron" />
+                  {/snippet}
+                  <div class="effort-pop">
+                    <EffortPips
+                      efforts={tools.efforts}
+                      embedded
+                      onchange={tools.oneffort}
+                      value={tools.effort}
+                    />
+                  </div>
+                </NsPopover>
+              {/if}
               <NsPopover
                 align="end"
-                id="session-effort"
-                label="Effort"
-                onchange={(value) => { pop = value ? 'effort' : null; }}
-                open={pop === "effort"}
+                id="session-permission"
+                label="Permission mode"
+                onchange={(value) => { pop = value ? 'permission' : null; }}
+                open={pop === "permission"}
                 triggerClass="ns-chip-btn tool"
-                width={300}
+                width={340}
               >
                 {#snippet trigger()}
-                  <Tuning style="color:var(--fai-orange-500)" />
-                  <span class="chip-label level"
-                    >{tools.effort ?? "Default"}</span
-                  >
+                  {@const Icon = look.icon}
+                  <Icon style={`color:${look.hue}`} />
+                  <span class="chip-label">{look.short}</span>
                   <Down class="chevron" />
                 {/snippet}
-                <div class="effort-pop">
-                  <EffortPips
-                    efforts={tools.efforts}
-                    embedded
-                    onchange={tools.oneffort}
-                    value={tools.effort}
-                  />
-                </div>
+                <PermissionSection
+                  embedded
+                  modes={tools.modes}
+                  onchange={(mode) => { tools.onpermission(mode); pop = null; }}
+                  value={tools.permission}
+                />
               </NsPopover>
-            {/if}
-            <NsPopover
-              align="end"
-              id="session-permission"
-              label="Permission mode"
-              onchange={(value) => { pop = value ? 'permission' : null; }}
-              open={pop === "permission"}
-              triggerClass="ns-chip-btn tool"
-              width={340}
-            >
-              {#snippet trigger()}
-                {@const Icon = look.icon}
-                <Icon style={`color:${look.hue}`} />
-                <span class="chip-label">{look.short}</span>
-                <Down class="chevron" />
-              {/snippet}
-              <PermissionSection
-                embedded
-                modes={tools.modes}
-                onchange={(mode) => { tools.onpermission(mode); pop = null; }}
-                value={tools.permission}
-              />
-            </NsPopover>
+            </NsPopoverGroup>
           </div>
         {/if}
         {#if leaving.length}

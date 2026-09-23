@@ -45,6 +45,7 @@
   import ModelSection from "./ModelSection.svelte";
   import { deriveModelEntries } from "./model-entries";
   import { lastSpawnAt, lastUsedAt, recordModelUse } from "./modelUse.svelte";
+  import NsPopoverGroup from "./NsPopoverGroup.svelte";
   import type { MachineItem, MenuItem, ProjectItem } from "./ns-types";
   import ProjectChip from "./ProjectChip.svelte";
   import PromptEditor from "./PromptEditor.svelte";
@@ -938,44 +939,46 @@
           bind:value={prompt}
         />
         <div class="chips">
-          <MachinesChip
-            machines={machineItems}
-            onchange={(value) => { popover = value ? "machines" : null; }}
-            ontoggle={toggleMachine}
-            open={popover === "machines"}
-            selected={machineIds}
-          />
-          <ProjectChip
-            onchange={(value) => { popover = value ? "project" : null; }}
-            onclear={clearProject}
-            oncreate={createFromChip}
-            onpick={pickProject}
-            open={popover === "project"}
-            {projectId}
-            projects={projectItems}
-          />
-          <LocationChip
-            dir={cwd}
-            informational={locationInformational}
-            {locked}
-            {machineId}
-            machineName={machine?.hostname ?? ""}
-            mode={repo === undefined ? "dir" : "repo"}
-            onchange={(value) => { popover = value ? "location" : null; }}
-            ondir={(value) => { cwd = value; editing = true; projectId = undefined; }}
-            onmode={(value) => { repo = value === "repo" ? (repo ?? "") : undefined; if (value === "repo") { projectId = undefined; editing = true; cwd ||= "~"; } }}
-            onoverride={() => { editing = true; }}
-            onrepo={(value) => { repo = value; }}
-            open={popover === "location"}
-            {reading}
-            repo={repo ?? ""}
-          />
-          <LifetimeChip
-            ephemeral={sideQuest}
-            onchange={(value) => { popover = value ? "lifetime" : null; }}
-            onlifetime={(value) => { sideQuest = value; }}
-            open={popover === "lifetime"}
-          />
+          <NsPopoverGroup>
+            <MachinesChip
+              machines={machineItems}
+              onchange={(value) => { popover = value ? "machines" : null; }}
+              ontoggle={toggleMachine}
+              open={popover === "machines"}
+              selected={machineIds}
+            />
+            <ProjectChip
+              onchange={(value) => { popover = value ? "project" : null; }}
+              onclear={clearProject}
+              oncreate={createFromChip}
+              onpick={pickProject}
+              open={popover === "project"}
+              {projectId}
+              projects={projectItems}
+            />
+            <LocationChip
+              dir={cwd}
+              informational={locationInformational}
+              {locked}
+              {machineId}
+              machineName={machine?.hostname ?? ""}
+              mode={repo === undefined ? "dir" : "repo"}
+              onchange={(value) => { popover = value ? "location" : null; }}
+              ondir={(value) => { cwd = value; editing = true; projectId = undefined; }}
+              onmode={(value) => { repo = value === "repo" ? (repo ?? "") : undefined; if (value === "repo") { projectId = undefined; editing = true; cwd ||= "~"; } }}
+              onoverride={() => { editing = true; }}
+              onrepo={(value) => { repo = value; }}
+              open={popover === "location"}
+              {reading}
+              repo={repo ?? ""}
+            />
+            <LifetimeChip
+              ephemeral={sideQuest}
+              onchange={(value) => { popover = value ? "lifetime" : null; }}
+              onlifetime={(value) => { sideQuest = value; }}
+              open={popover === "lifetime"}
+            />
+          </NsPopoverGroup>
         </div>
       </div>
       <p

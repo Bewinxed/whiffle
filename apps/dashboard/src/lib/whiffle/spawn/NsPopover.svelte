@@ -7,6 +7,7 @@
    */
   import { Popover as PopoverPrimitive } from "bits-ui";
   import type { Snippet } from "svelte";
+  import { popoverGroup } from "./popover-group.svelte";
 
   let {
     id,
@@ -43,46 +44,109 @@
     onmouseleave?: (event: MouseEvent) => void;
     "aria-label"?: string;
   } = $props();
+
+  /**
+   * Inside an NsPopoverGroup this is only a trigger: the group owns the one
+   * surface and renders this popover's content on it when it is open.
+   */
+  const group = popoverGroup();
+  let triggerEl = $state<HTMLElement | null>(null);
+  if (group) {
+    $effect(() =>
+      group.add({
+        get align() {
+          return align;
+        },
+        get children() {
+          return children;
+        },
+        get gap() {
+          return gap;
+        },
+        get id() {
+          return id;
+        },
+        get label() {
+          return label;
+        },
+        onchange: (value) => onchange(value),
+        onmouseleave: (event) => onmouseleave?.(event),
+        onmousemove: (event) => onmousemove?.(event),
+        get open() {
+          return open;
+        },
+        get trapFocus() {
+          return trapFocus;
+        },
+        get trigger() {
+          return triggerEl;
+        },
+        get width() {
+          return width;
+        },
+      })
+    );
+  }
 </script>
 
-<PopoverPrimitive.Root onOpenChange={onchange} {open}>
+{#if group}
   {#if trigger}
-    <PopoverPrimitive.Trigger
+    <button
+      aria-controls={`${id}-popover`}
+      aria-expanded={open}
+      aria-haspopup="dialog"
       aria-label={label}
       class={triggerClass}
+      data-state={open ? 'open' : 'closed'}
       {id}
+      onclick={() => onchange(!open)}
       style={triggerStyle}
+      type="button"
+      bind:this={triggerEl}
     >
       {@render trigger()}
-    </PopoverPrimitive.Trigger>
+    </button>
   {/if}
-  <PopoverPrimitive.Portal>
-    <PopoverPrimitive.Content
-      {align}
-      aria-label={rest["aria-label"]}
-      class="ns-theme ns-pop"
-      collisionPadding={8}
-      customAnchor={anchor}
-      id={`${id}-popover`}
-      onOpenAutoFocus={(event) => { if (!trapFocus) { event.preventDefault(); } }}
-      side="bottom"
-      sideOffset={6}
-      style={`--ns-pop-width:${width}px;--ns-pop-gap:${gap}px`}
-      {trapFocus}
-    >
-      {#snippet child({ props, wrapperProps })}
-        <div {...wrapperProps} class="ns-pop-shell">
-          <div
-            {...props}
-            id={`${id}-popover`}
-            {onmouseleave}
-            {onmousemove}
-            role="presentation"
-          >
-            {@render children()}
+{:else}
+  <PopoverPrimitive.Root onOpenChange={onchange} {open}>
+    {#if trigger}
+      <PopoverPrimitive.Trigger
+        aria-label={label}
+        class={triggerClass}
+        {id}
+        style={triggerStyle}
+      >
+        {@render trigger()}
+      </PopoverPrimitive.Trigger>
+    {/if}
+    <PopoverPrimitive.Portal>
+      <PopoverPrimitive.Content
+        {align}
+        aria-label={rest["aria-label"]}
+        class="ns-theme ns-pop"
+        collisionPadding={8}
+        customAnchor={anchor}
+        id={`${id}-popover`}
+        onOpenAutoFocus={(event) => { if (!trapFocus) { event.preventDefault(); } }}
+        side="bottom"
+        sideOffset={6}
+        style={`--ns-pop-width:${width}px;--ns-pop-gap:${gap}px`}
+        {trapFocus}
+      >
+        {#snippet child({ props, wrapperProps })}
+          <div {...wrapperProps} class="ns-pop-shell">
+            <div
+              {...props}
+              id={`${id}-popover`}
+              {onmouseleave}
+              {onmousemove}
+              role="presentation"
+            >
+              {@render children()}
+            </div>
           </div>
-        </div>
-      {/snippet}
-    </PopoverPrimitive.Content>
-  </PopoverPrimitive.Portal>
-</PopoverPrimitive.Root>
+        {/snippet}
+      </PopoverPrimitive.Content>
+    </PopoverPrimitive.Portal>
+  </PopoverPrimitive.Root>
+{/if}

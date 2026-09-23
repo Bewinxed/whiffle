@@ -1,8 +1,10 @@
 <script lang="ts">
   /**
    * The chip lives inside the fill so the level and its filled track read as
-   * one object. Its measured width keeps the fill wrapped at both ends and
-   * gives pips, hover previews, and pointer targeting the same geometry.
+   * one object, and the fill's right end is the value. Each stop marks where
+   * that end lands for its level — just inside the chip's right edge — so the
+   * stops ahead sit in the empty track rather than under a chip wider than a
+   * step. Pointing, hover previews and stops all use that one geometry.
    */
   import type { EffortLevel } from "@whiffle/core";
 
@@ -21,7 +23,19 @@
     embedded?: boolean;
   } = $props();
 
+  /** From a stop to the fill end it marks: the fill's 3px inset plus the chip's padding. */
+  const STOP_INSET = 12;
   let knobWidth = $state(0);
+  /** Transitions wait for the chip's first measurement, so nothing slides in from zero. */
+  let ready = $state(false);
+  $effect(() => {
+    if (knobWidth && !ready) {
+      const frame = requestAnimationFrame(() => {
+        ready = true;
+      });
+      return () => cancelAnimationFrame(frame);
+    }
+  });
   let draft = $state<EffortLevel | null>(null);
   const displayed = $derived(draft ?? value);
   const kw = $derived(knobWidth + 6);
@@ -34,7 +48,10 @@
   const p = $derived(frac(effortIdx));
   let hover = $state(-1);
   let drag = $state(false);
+  /** Keyboard focus only; a pointer or an opening popover focusing the input is not shown. */
   let focused = $state(false);
+  /** Where on the chip it was grabbed, so a drag moves it from there rather than jumping. */
+  let grab = 0;
   const active = $derived(hover >= 0 || drag || focused);
   /** Stops still ahead of the level, so the track says where else it can go. */
   const pips = $derived(
@@ -62,22 +79,26 @@
     }
   }
 
-  function indexAt(event: PointerEvent) {
+  /** The pointer's x inside the track, and whether it is over the chip. */
+  function locate(event: PointerEvent) {
     const el = event.currentTarget as HTMLElement;
-    const box = el.getBoundingClientRect();
+    const x = event.clientX - el.getBoundingClientRect().left - el.clientLeft;
     const rail = el.clientWidth - kw;
-    const f = Math.min(
-      1,
-      Math.max(0, (event.clientX - box.left - el.clientLeft - kw / 2) / rail)
-    );
-    return Math.round(f * (n - 1));
+    const end = kw + p * rail - 3;
+    return { x, rail, onKnob: x >= end - knobWidth && x <= end };
+  }
+  /** The level whose stop is nearest `x`. */
+  function levelAt(x: number, rail: number) {
+    const f = (x - kw + STOP_INSET) / rail;
+    return Math.min(n - 1, Math.max(0, Math.round(f * (n - 1))));
   }
   function down(event: PointerEvent) {
     if (!n || (event.pointerType === "mouse" && event.button !== 0)) {
       return;
     }
     event.preventDefault();
-    const idx = indexAt(event);
+    const { x, rail, onKnob } = locate(event);
+    grab = onKnob ? kw + p * rail - STOP_INSET - x : 0;
     try {
       (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
     } catch {
@@ -85,18 +106,24 @@
     }
     drag = true;
     hover = -1;
-    change(efforts[idx]);
+    if (!onKnob) {
+      change(efforts[levelAt(x, rail)]);
+    }
   }
   function move(event: PointerEvent) {
     if (!n) {
       return;
     }
-    const idx = indexAt(event);
+    const { x, rail, onKnob } = locate(event);
     if (drag) {
+      const idx = levelAt(x + grab, rail);
       if (efforts[idx] !== displayed) {
         change(efforts[idx]);
       }
-    } else if (idx !== hover) {
+      return;
+    }
+    const idx = onKnob ? effortIdx : levelAt(x, rail);
+    if (idx !== hover) {
       hover = idx;
     }
   }
@@ -127,6 +154,7 @@
       role="presentation"
       style={`--kw:${kw}px`}
       class:focus={focused}
+      class:ready={ready}
     >
       <div
         class="fill"
@@ -165,7 +193,7 @@
         <span
           class="pip"
           data-pip={i}
-          style={`left:calc(var(--kw) / 2 + ${pip.frac} * (100% - var(--kw)) - 2.5px);opacity:${pip.on ? 0.3 : 0}`}
+          style={`left:calc(var(--kw) - ${STOP_INSET + 2.5}px + ${pip.frac} * (100% - var(--kw)));opacity:${pip.on ? 0.3 : 0}`}
         ></span>
       {/each}
       <input
@@ -178,8 +206,8 @@
           focused = false;
         }}
         onchange={commit}
-        onfocus={() => {
-          focused = true;
+        onfocus={(event) => {
+          focused = event.currentTarget.matches(":focus-visible");
         }}
         oninput={(event) => change(efforts[Number(event.currentTarget.value)])}
         step="1"
@@ -227,6 +255,10 @@
     transition:
       var(--fai-transition-control),
       box-shadow 120ms ease;
+  }
+  .track:not(.ready),
+  .track:not(.ready) * {
+    transition: none;
   }
   .track.focus {
     border-color: var(--fai-grey-400);
