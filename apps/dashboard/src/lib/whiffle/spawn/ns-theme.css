@@ -395,6 +395,68 @@
   }
 }
 
+/* Chips (§1.8): a setting shown as a small trigger that opens its picker. */
+.ns-theme .ns-chip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 8px;
+  background: var(--fai-surface);
+  border: 1px solid var(--fai-border);
+  border-radius: var(--fai-radius-sm);
+  font: 500 13px / 1 var(--fai-font-sans);
+  color: var(--fai-text);
+  cursor: pointer;
+  white-space: nowrap;
+  max-width: 100%;
+  transition:
+    background-color var(--ns-chip-ms) ease,
+    border-color var(--ns-chip-ms) ease,
+    color var(--ns-chip-ms) ease,
+    transform 160ms var(--ns-ease-out);
+}
+.ns-theme .ns-chip-btn > svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+.ns-theme .ns-chip-btn > svg.chevron {
+  width: 13px;
+  height: 13px;
+  color: var(--fai-text-subtle);
+}
+.ns-theme .ns-chip-btn .chip-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (hover: hover) {
+  .ns-theme .ns-chip-btn:hover {
+    background: var(--fai-hover);
+  }
+}
+/* The same chip as plain text, where the setting cannot be changed. */
+.ns-theme .ns-chip-btn.static {
+  background: transparent;
+  border-color: transparent;
+  cursor: default;
+}
+@media (max-width: 640px) {
+  .ns-theme .ns-chip-btn {
+    height: 44px;
+    padding: 0 12px;
+  }
+}
+/* A button at chip scale, for actions that sit among chips. */
+.ns-theme .ns-btn.xs {
+  gap: 6px;
+  height: 28px;
+  padding: 0 8px;
+  font: 500 13px / 1 var(--fai-font-sans);
+  border-radius: var(--fai-radius-sm);
+}
+
 /* Popover shell (§2.3, §2.5): portaled, origin-aware, interruptible. */
 .ns-theme.ns-pop {
   z-index: 90;

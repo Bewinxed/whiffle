@@ -97,46 +97,6 @@
 </NsPopover>
 
 <style>
-  :global(.ns-theme .ns-chip-btn) {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    height: 30px;
-    padding: 0 8px;
-    background: var(--fai-surface);
-    border: 1px solid var(--fai-border);
-    border-radius: var(--fai-radius-sm);
-    font: 500 13px / 1 var(--fai-font-sans);
-    color: var(--fai-text);
-    cursor: pointer;
-    white-space: nowrap;
-    max-width: 100%;
-    transition:
-      background-color var(--ns-chip-ms) ease,
-      border-color var(--ns-chip-ms) ease,
-      color var(--ns-chip-ms) ease,
-      transform 160ms var(--ns-ease-out);
-  }
-  :global(.ns-theme .ns-chip-btn > svg) {
-    width: 15px;
-    height: 15px;
-    flex: none;
-  }
-  :global(.ns-theme .ns-chip-btn > svg.chevron) {
-    width: 13px;
-    height: 13px;
-    color: var(--fai-text-subtle);
-  }
-  :global(.ns-theme .ns-chip-btn .chip-label) {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  @media (hover: hover) {
-    :global(.ns-theme .ns-chip-btn:hover) {
-      background: var(--fai-hover);
-    }
-  }
   .row {
     position: relative;
     display: flex;
@@ -215,11 +175,5 @@
     font: var(--fai-type-meta);
     color: var(--fai-text-subtle);
     text-align: center;
-  }
-  @media (max-width: 640px) {
-    :global(.ns-theme .ns-chip-btn) {
-      height: 44px;
-      padding: 0 12px;
-    }
   }
 </style>

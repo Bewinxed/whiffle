@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { TextMorph } from "torph/svelte";
   import Failed from "~icons/solar/close-circle-bold-duotone";
   import Attention from "~icons/solar/hand-shake-bold-duotone";
   import Sleeping from "~icons/solar/moon-sleep-bold-duotone";
@@ -7,8 +8,16 @@
   import Working from "~icons/solar/refresh-circle-bold-duotone";
   import { isFailed, isStale, whiffle } from "../client.svelte";
 
-  let { sessionId, compact = false }: { sessionId: string; compact?: boolean } =
-    $props();
+  let {
+    sessionId,
+    compact = false,
+    duration = 150,
+  }: {
+    sessionId: string;
+    compact?: boolean;
+    /** How long the label takes to morph into the next one. */
+    duration?: number;
+  } = $props();
   const row = $derived(whiffle.instanceIndex.byId.get(sessionId));
   const activity = $derived(whiffle.activityOf(sessionId));
   const status = $derived.by(() => {
@@ -45,7 +54,7 @@
 >
   <status.icon aria-hidden="true" />
   {#if !compact}
-    <span>{status.label}</span>
+    <TextMorph as="span" {duration} text={status.label} />
   {/if}
 </span>
 

@@ -22,7 +22,8 @@ const VERSION = /^v?\d+(?:\.\d+)*$/;
 const VERSION_PREFIX = /^v/;
 const ID_SHAPE = /^[\w.\-/[\]:]+$/;
 
-function modelName(id: string, displayName?: string) {
+/** A model's display name as the picker lists it, e.g. "Opus 5.5 · 1M". */
+export function modelName(id: string, displayName?: string) {
   const slash = id.lastIndexOf("/");
   const provider = slash < 0 ? null : id.slice(0, slash);
   const raw = id.slice(slash + 1);

@@ -15,9 +15,7 @@
    * brings its own row.
    */
   import { onDestroy, untrack } from "svelte";
-  import { cubicOut } from "svelte/easing";
   import { MediaQuery } from "svelte/reactivity";
-  import type { TransitionConfig } from "svelte/transition";
   import { page } from "$app/state";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte convention for component groups
   import * as ContextMenu from "$lib/components/ui/context-menu";
@@ -140,6 +138,8 @@
   let pinned = $state(false);
   /** Set once the open popover retargets another tab; it glides instead of reopening. */
   let morphing = $state(false);
+  /** Which way the card moved between tabs: 1 rightward, -1 leftward. */
+  let detailDir = $state<1 | -1>(1);
   let detailsHeight = $state(0);
   let restoreFocus = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -157,6 +157,11 @@
     clearTimeout(timer);
     if (detailsOpen && detailId !== id) {
       morphing = true;
+      detailDir =
+        tabs.findIndex((tab) => tab.id === id) >
+        tabs.findIndex((tab) => tab.id === detailId)
+          ? 1
+          : -1;
     }
     detailId = id;
     detailAnchor = anchor;
@@ -219,19 +224,6 @@
     }
   });
   onDestroy(() => clearTimeout(timer));
-  /** The incoming tab's details fade in over the glide; a first open has its own entrance. */
-  function detailsIn(_node: Element): TransitionConfig {
-    if (!morphing || reduceMotion.current) {
-      return { duration: 0 };
-    }
-    return {
-      duration: 180,
-      delay: 60,
-      easing: cubicOut,
-      css: (t) => `opacity: ${t}`,
-    };
-  }
-  const reduceMotion = new MediaQuery("(prefers-reduced-motion: reduce)");
 </script>
 
 <!-- `''` when the board is showing: a value no segment carries, so nothing
@@ -393,14 +385,13 @@
       >
       <div class="details-scroll">
         {#if detailTab}
-          {#key detailTab.id}
-            <SessionDetails
-              href={detailTab.href}
-              onclose={closeDetails}
-              sessionId={detailTab.id}
-              title={detailTab.label}
-            />
-          {/key}
+          <SessionDetails
+            dir={detailDir}
+            href={detailTab.href}
+            onclose={closeDetails}
+            sessionId={detailTab.id}
+            title={detailTab.label}
+          />
         {/if}
       </div>
     </Drawer.Content>
@@ -439,16 +430,13 @@
         >
           <div class="details-measure" bind:offsetHeight={detailsHeight}>
             {#if detailTab}
-              {#key detailTab.id}
-                <div class="details-measure" in:detailsIn>
-                  <SessionDetails
-                    href={detailTab.href}
-                    onclose={closeDetails}
-                    sessionId={detailTab.id}
-                    title={detailTab.label}
-                  />
-                </div>
-              {/key}
+              <SessionDetails
+                dir={detailDir}
+                href={detailTab.href}
+                onclose={closeDetails}
+                sessionId={detailTab.id}
+                title={detailTab.label}
+              />
             {/if}
           </div>
         </div>
