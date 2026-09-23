@@ -42,12 +42,59 @@
   // side facing the tab it came from, and the old one out toward it.
   let direction = $state<"forward" | "back">("forward");
   let lastIndex: number | null = null;
+  /**
+   * A switch past a neighbour. The two wipes would play at either end of
+   * the row with bare tabs between them, so instead the chosen sheet is
+   * shown whole at once and slides over from the tab it left, on the same
+   * --wipe and curve. Set before the tabs re-render, so the masks skip
+   * their transition in the same frame the choice moves.
+   */
+  let leap = $state<{ from: number; to: number } | null>(null);
   $effect.pre(() => {
     const index = list.optimisticIndex;
     if (index !== null && lastIndex !== null && index !== lastIndex) {
       direction = index > lastIndex ? "forward" : "back";
+      leap =
+        Math.abs(index - lastIndex) > 1 ? { from: lastIndex, to: index } : null;
     }
     lastIndex = index;
+  });
+  $effect(() => {
+    const jump = leap;
+    if (
+      !(jump && node) ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      return;
+    }
+    const tab = (i: number) =>
+      node?.querySelector<HTMLElement>(`[data-proximity-index="${i}"]`);
+    const from = tab(jump.from);
+    const to = tab(jump.to);
+    if (!(from && to)) {
+      return;
+    }
+    const dx =
+      from.getBoundingClientRect().left - to.getBoundingClientRect().left;
+    const slide = to.animate(
+      [{ transform: `translateX(${dx}px)` }, { transform: "none" }],
+      {
+        duration: 260,
+        easing: "cubic-bezier(0.32, 0.72, 0, 1)",
+        pseudoElement: "::after",
+      }
+    );
+    slide.finished.then(
+      () => {
+        if (leap === jump) {
+          leap = null;
+        }
+      },
+      () => {
+        /* a newer switch cancelled it and owns `leap` now */
+      }
+    );
+    return () => slide.cancel();
   });
 
   const selectedRect = $derived(
@@ -193,6 +240,7 @@
 <div
   class={cn("ff-tabs-list", scrollable && "scrollable", className)}
   data-direction={direction}
+  data-leap={leap ? '' : undefined}
   {onfocusin}
   {onfocusout}
   {onkeydown}

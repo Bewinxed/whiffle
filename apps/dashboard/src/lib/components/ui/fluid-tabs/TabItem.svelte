@@ -214,6 +214,11 @@
       mask-size: 100% 100%;
       mask-position: var(--wipe-in, left);
     }
+    /* A switch past a neighbour: the sheets swap at once and TabsList
+       slides the chosen one over from the tab it left. */
+    :global([data-leap]) &::after {
+      transition: none;
+    }
     /* The chosen tab keeps its hover tint while its sheet covers it: were
        the tint to fall back to rest on the click, it would dim for a beat
        under the incoming sheet — two motions where there should be one. */
