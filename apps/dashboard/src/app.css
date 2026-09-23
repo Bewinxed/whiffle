@@ -324,6 +324,19 @@
    Collision-safe: names that already exist on the shadcn bridge (--background,
    --border, --accent, --secondary, --muted…) are NOT redeclared here.
    ========================================================================== */
+/* The edge fades of a scrolling tab track (TabsList), registered so the
+   scroll-driven animation can interpolate them as lengths. */
+@property --fade-start {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --fade-end {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
 :root {
   /* surfaces — light: sunken 241 < field 245 < raised 253 */
   --surface-sunken: var(--neutral-3);

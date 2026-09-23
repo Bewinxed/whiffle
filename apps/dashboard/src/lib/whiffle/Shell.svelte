@@ -583,8 +583,15 @@
      than the transcript, so the chosen tab — a sheet in the transcript's
      own surface — reads as the page it opens. The hairline sits in the
      bar's bottom pixel, where the sheet ends and covers it. */
+  /* Hosting the tabs on a wide screen, the bar gives the first tab no
+     extra inset: the track's own flare room is the margin. Narrower, the
+     menu button leads and keeps its inset. */
   .top.hosting {
     padding-inline-start: var(--space-4);
+
+    @media (width >= 900px) {
+      padding-inline-start: 0;
+    }
     border-bottom: 0;
     background:
       linear-gradient(var(--border-hairline), var(--border-hairline)) bottom /

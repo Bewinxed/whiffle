@@ -144,19 +144,15 @@
     z-index: 2;
   }
   /* Folder tabs stand behind the sheet in their own tint: a rounded-top
-     card under the sheet's layer, inset from the tab's edges by the room a
-     neighbouring sheet's flare needs, so the flare always curves into the
-     bar and never into a tint. The chosen tab's card fades out as the
-     sheet arrives, and fades back in as it leaves. */
+     card the size of the tab, under the sheet's layer, so the chosen
+     sheet's shoulders and flared foot draw over a neighbour's card rather
+     than being cut by it. The chosen tab's card fades out as the sheet
+     arrives, and fades back in as it leaves. */
   :global([data-variant="folder"]) .ff-tab {
-    --tab-inset: calc(var(--flare) - var(--gap));
-    padding-inline: var(--tab-inset);
-
     &::before {
       content: "";
       position: absolute;
-      inset-block: 0;
-      inset-inline: var(--tab-inset);
+      inset: 0;
       z-index: 0;
       border-radius: var(--radius) var(--radius) 0 0;
       background: var(--tab-rest, transparent);
