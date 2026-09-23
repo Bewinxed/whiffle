@@ -156,12 +156,12 @@
             · {att.chars} chars</Badge
           >
         {/each}
-        {#each message.metadata.images ?? [] as img, i (img.dataUri ?? `${img.mediaType}-${i}`)}
-          {#if img.dataUri}
+        {#each message.metadata.images ?? [] as img, i (img.src ?? `${img.mediaType}-${i}`)}
+          {#if img.src}
             <Shot
               alt="Attachment {i + 1} sent with this message"
               size="thumb"
-              src={img.dataUri}
+              src={img.src}
             />
           {:else}
             <!-- A stored transcript can name an image it no longer carries. -->

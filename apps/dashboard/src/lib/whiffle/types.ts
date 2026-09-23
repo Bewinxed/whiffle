@@ -94,7 +94,7 @@ export interface MessageMetadata {
   // Hook response
   hookName?: SDKHookResponseMessage["hook_name"];
   /** A stored transcript can name an image it no longer carries, hence the optional uri. */
-  images?: Array<{ mediaType: string; dataUri?: string }>;
+  images?: Array<{ mediaType: string; src?: string }>;
   isRedactedThinking?: boolean;
   // Model picker
   loading?: boolean;
@@ -144,7 +144,7 @@ export interface MessageMetadata {
   result?: string;
   resultErrors?: string[];
   /** Images returned by the tool, preserved as display data URIs. */
-  resultImages?: Array<{ mediaType: string; dataUri: string }>;
+  resultImages?: Array<{ mediaType: string; src: string }>;
   // Result errors
   resultSubtype?: string;
   /**

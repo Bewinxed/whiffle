@@ -32,7 +32,7 @@ type AssistantBlock = SDKAssistantMessage["message"]["content"][number];
 
 /** A tool result to fold into the `tool.use` message that opened it. */
 export interface ToolResult {
-  images?: Array<{ mediaType: string; dataUri: string }>;
+  images?: Array<{ mediaType: string; src: string }>;
   isError: boolean;
   /** The answer payload of an `AskUserQuestion`, normalised by the harness adapter. */
   questionResult?: UserQuestionResult;
@@ -373,10 +373,12 @@ function resultParts(content: unknown): {
   const images: NonNullable<ToolResult["images"]> = [];
   if (Array.isArray(content)) {
     for (const block of content) {
-      if (block.type === "image" && block.source.type === "base64") {
+      // The hub hands images over as references to its media store; the
+      // bytes are fetched when the picture is shown, not with the transcript.
+      if (block.type === "image" && block.source.type === "url") {
         images.push({
           mediaType: block.source.media_type,
-          dataUri: `data:${block.source.media_type};base64,${block.source.data}`,
+          src: block.source.url,
         });
       }
     }
@@ -1344,9 +1346,8 @@ function transcriptUserText(message: unknown): string | null {
 }
 
 /**
- * The images a user turn carried. A stored transcript keeps them whole, base64
- * data and all, so the bubble can show what was actually sent; a block sourced
- * from a URL has nothing to inline and is left for the placeholder to name.
+ * The images a user turn carried, as the hub's media references — the bubble
+ * shows what was actually sent, loading the bytes only when it is on screen.
  */
 function transcriptUserImages(message: unknown): MessageMetadata["images"] {
   const content = (message as { content?: unknown } | null)?.content;
@@ -1357,14 +1358,11 @@ function transcriptUserImages(message: unknown): MessageMetadata["images"] {
     .filter((block: unknown) => (block as { type?: string }).type === "image")
     .map((block: unknown) => {
       const { source } = block as {
-        source?: { media_type?: string; data?: string };
+        source?: { media_type?: string; url?: string };
       };
-      const mediaType = source?.media_type ?? "image/png";
       return {
-        mediaType,
-        dataUri: source?.data
-          ? `data:${mediaType};base64,${source.data}`
-          : undefined,
+        mediaType: source?.media_type ?? "image/png",
+        src: source?.url,
       };
     });
   return images.length ? images : undefined;
@@ -2168,7 +2166,7 @@ export function localUserMessage(
           })),
           images: images?.map(({ mediaType, data }) => ({
             mediaType,
-            dataUri: `data:${mediaType};base64,${data}`,
+            src: `data:${mediaType};base64,${data}`,
           })),
         }
       : undefined,

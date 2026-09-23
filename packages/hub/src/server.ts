@@ -88,6 +88,7 @@ import { delegateTypesRoutes, makeDelegateTypes } from "./delegate-types";
 import { hubHttpUrl } from "./delegation-actions";
 import { createDelegationMcp } from "./delegation-mcp";
 import { probe } from "./llm";
+import { externalizeImages, mediaContentType, mediaFilePath } from "./media";
 import type { PendingShape } from "./pending";
 import { answerWorkflow, onWorkflowAnswer } from "./pending";
 import { resolveMarketplacePlugins } from "./plugins";
@@ -3744,6 +3745,21 @@ export const createServer = ({
       )
       // Where a conversation lives, for a client that wants the answer without
       // the transcript — see `locateSession` for the resolution order.
+      // An image a transcript referenced, by the hash of its bytes: the same
+      // name can only ever mean the same picture, so the browser keeps it.
+      .get("/api/media/:name", async ({ params, status }) => {
+        const path = mediaFilePath(params.name);
+        const file = path ? Bun.file(path) : undefined;
+        if (!(file && (await file.exists()))) {
+          return status(404, "no such media");
+        }
+        return new Response(file, {
+          headers: {
+            "Content-Type": mediaContentType(params.name),
+            "Cache-Control": "public, max-age=31536000, immutable",
+          },
+        });
+      })
       .get("/api/instances/:id/location", ({ params }) => {
         const { id } = params;
         if (!id) {
@@ -3870,6 +3886,7 @@ export const createServer = ({
 
           // URI-encoded because a header is Latin-1 on the wire and a folder
           // path is not.
+          externalizeImages(transcript);
           return new Response(ndjsonNewestFirst(transcript), {
             headers: {
               "Content-Type": "application/x-ndjson",
@@ -6393,6 +6410,9 @@ export const createServer = ({
                   break;
                 }
               }
+              // From here on the message is bound for dashboards, which get
+              // images as references to fetch when shown, not as bytes.
+              externalizeImages(message.payload);
               // A control's reply that settles a Ledger command turns into that
               // command's `applied`/`failed` ack. Read BEFORE the routing below
               // but allowed to preempt nothing: if a dashboard is also waiting on

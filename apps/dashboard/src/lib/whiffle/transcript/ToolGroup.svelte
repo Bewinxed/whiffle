@@ -359,7 +359,7 @@
               <Shot
                 alt="Image {i + 1} from {m.metadata.toolName}"
                 size="card"
-                src={image.dataUri}
+                src={image.src}
               />
             {/each}
           </div>
