@@ -26,6 +26,8 @@ export { default as IconSuccess } from "~icons/solar/check-circle-linear";
 export { default as IconCheck } from "~icons/solar/check-read-linear";
 export { default as IconToolTodo } from "~icons/solar/checklist-bold-duotone";
 export { default as IconChecklist } from "~icons/solar/checklist-linear";
+export { default as IconReportDuo } from "~icons/solar/clipboard-check-bold-duotone";
+export { default as IconReportFailedDuo } from "~icons/solar/clipboard-remove-bold-duotone";
 export {
   default as IconClose,
   default as IconError,
@@ -85,6 +87,7 @@ export { default as IconGlobe } from "~icons/solar/global-linear";
 export { default as IconHistoryDuo } from "~icons/solar/history-bold-duotone";
 export { default as IconHistory } from "~icons/solar/history-linear";
 export { default as IconHome } from "~icons/solar/home-linear";
+export { default as IconHandoffDuo } from "~icons/solar/inbox-in-bold-duotone";
 export { default as IconInfo } from "~icons/solar/info-circle-linear";
 export { default as IconKey } from "~icons/solar/key-minimalistic-linear";
 /*
@@ -126,7 +129,10 @@ export { default as IconPlanetDuo } from "~icons/solar/planet-bold-duotone";
 export { default as IconPlay } from "~icons/solar/play-linear";
 export { default as IconToolMcp } from "~icons/solar/plug-circle-bold-duotone";
 export { default as IconPlug } from "~icons/solar/plug-circle-linear";
-export { default as IconToolQuestion } from "~icons/solar/question-circle-bold-duotone";
+export {
+  default as IconAskDuo,
+  default as IconToolQuestion,
+} from "~icons/solar/question-circle-bold-duotone";
 export { default as IconHelp } from "~icons/solar/question-circle-linear";
 export { default as IconDot } from "~icons/solar/record-circle-linear";
 export { default as IconRefresh } from "~icons/solar/refresh-linear";
@@ -148,6 +154,7 @@ export { default as IconServer } from "~icons/solar/server-2-linear";
 export { default as IconSettingsDuo } from "~icons/solar/settings-bold-duotone";
 export { default as IconSettings } from "~icons/solar/settings-linear";
 export { default as IconWorkflow } from "~icons/solar/share-circle-bold-duotone";
+export { default as IconRuleDuo } from "~icons/solar/shield-check-bold-duotone";
 /** Rules: a standing guard over what sessions say, distinct from bare `shield`. */
 export { default as IconRules } from "~icons/solar/shield-check-linear";
 export { default as IconShield } from "~icons/solar/shield-linear";

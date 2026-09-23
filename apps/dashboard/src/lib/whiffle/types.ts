@@ -22,6 +22,8 @@ export type MessageType =
   | "user"
   /** A message another session sent — reported speech, never the reader's own. */
   | "user.peer"
+  /** A rule that fired — whiffle's own standing instruction, never the reader's words. */
+  | "user.rule"
   /** A delegate's routed permission ask — plumbing between sessions, folded into its delegate's card. */
   | "user.delegate_ask"
   | "assistant"
@@ -147,12 +149,7 @@ export interface MessageMetadata {
   resultImages?: Array<{ mediaType: string; src: string }>;
   // Result errors
   resultSubtype?: string;
-  /**
-   * Set when the message is a rule firing rather than another session speaking.
-   * It rides the `user.peer` type because that type already means "not the
-   * reader's own words", which is the property that matters; this field is what
-   * lets the bubble say so accurately.
-   */
+  /** A `user.rule`'s rule name, read off its `[Rule: <name>]` marker line. */
   ruleName?: string;
   selectedMemoryType?: "project" | "user";
   selectedModel?: string;
@@ -221,6 +218,8 @@ export interface MessageMetadata {
   trigger?: "manual" | "auto";
   // Help menu
   version?: string;
+  /** Set when a `user.peer` is a workflow's notice: what happened, e.g. `step Build failed`. */
+  workflowEvent?: string;
 }
 
 /** An ask's life: parked on the parent, then allowed or refused by it. */

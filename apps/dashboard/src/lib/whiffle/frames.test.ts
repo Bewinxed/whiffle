@@ -362,7 +362,7 @@ test("a stored delegate ask parses to user.delegate_ask, dropping marker and ins
   expect(stored[0].content).not.toContain("Answer it with");
 });
 
-test("a live peer ask parses to user.delegate_ask, with the peer origin attached", () => {
+test("a live peer ask parses to exactly what its stored copy does", () => {
   const live = mapFrame(
     "i1",
     peerFrame(ASK_TEXT, ASK_INSTANCE, "whiffle")
@@ -371,19 +371,10 @@ test("a live peer ask parses to user.delegate_ask, with the peer origin attached
   expect(live[0].type).toBe("user.delegate_ask");
   expect(live[0].content).toBe(ASK_BODY);
   expect(live[0].metadata).toEqual({
-    peerFrom: ASK_INSTANCE,
-    peerName: "whiffle",
     peerSession: ASK_INSTANCE,
     askRequestId: ASK_REQUEST,
     askLabel: ASK_LABEL,
   });
-});
-
-test("a peer message without the ask markers still maps to user.peer", () => {
-  const live = mapFrame("i1", peerFrame("just a forwarded note")).messages;
-  expect(live).toHaveLength(1);
-  expect(live[0].type).toBe("user.peer");
-  expect(live[0].content).toBe("just a forwarded note");
 });
 
 test("a stored hand-off brief still upgrades to user.peer", () => {
@@ -476,7 +467,7 @@ test("a failed report keeps its failed kind", () => {
   expect(stored[0].content).toBe("provider_retry exhausted");
 });
 
-test("a live delegate report carries the full session id and the stripped body", () => {
+test("a live delegate report carries its short id and the stripped body, as stored", () => {
   const live = mapFrame(
     "i1",
     peerFrame(REPORT_TEXT, REPORT_ID, "whiffle")
@@ -484,7 +475,7 @@ test("a live delegate report carries the full session id and the stripped body",
   expect(live).toHaveLength(1);
   expect(live[0].type).toBe("user.peer");
   expect(live[0].content).toBe("All gates green.");
-  expect(live[0].metadata?.peerSession).toBe(REPORT_ID);
+  expect(live[0].metadata?.peerSession).toBe(REPORT_ID.slice(0, 8));
   expect(live[0].metadata?.reportKind).toBe("report");
 });
 
@@ -1181,28 +1172,19 @@ const ruleFrame = (text: string, name = "rule:Honest caveat"): SDKMessage =>
   }) as unknown as SDKMessage;
 
 test("a rule firing renders as a rule, never as the reader own words", () => {
-  const { messages } = mapFrame("i1", ruleFrame("your work is not done yet"));
+  const { messages } = mapFrame(
+    "i1",
+    ruleFrame("[Rule: Honest caveat]\n\nyour work is not done yet")
+  );
 
   expect(messages).toHaveLength(1);
-  expect(messages[0].type).toBe("user.peer");
+  expect(messages[0].type).toBe("user.rule");
   expect(messages[0].content).toBe("your work is not done yet");
-  // The label the bubble shows, with the `rule:` prefix stripped.
+  // The name the row shows, read off the marker line.
   expect(messages[0].metadata?.ruleName).toBe("Honest caveat");
   // No session ids: a rule is not a delegate, and no branch should claim it.
   expect(messages[0].metadata?.peerSession).toBeUndefined();
   expect(messages[0].metadata?.peerFrom).toBeUndefined();
-});
-
-test("a rule with no name still says what it is", () => {
-  // Built inline rather than through the helper: a default parameter would
-  // swallow the very absence this is checking.
-  const nameless = {
-    type: "user",
-    message: { role: "user", content: "do the thing" },
-    origin: { kind: "system" },
-  } as unknown as SDKMessage;
-  const { messages } = mapFrame("i1", nameless);
-  expect(messages[0].metadata?.ruleName).toBe("a rule");
 });
 
 /* ------------------------------------------------------------------ *

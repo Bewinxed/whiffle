@@ -130,3 +130,9 @@ always-included new installs), 14 tools, 2 MCP servers; 17 used skills fall outs
   Cause: stored transcripts drop `origin`; rule messages carry no text marker (hand-offs/asks do), so a reload renders them as
   the owner's turn; live they borrow the peer bubble. Fix briefed on `rule-ack`: `[Rule: <name>]` marker line on every rule
   message (hub rules + supervisor), a dedicated `user.rule` row for live and stored, styled as a system row.
+- 2026-09-23 — Owner: "the delegate auto responses should be styled like the app". Scope widened to all injected rows (rule,
+  delegate report, hand-off, delegate ask) as one system-row family; briefed on branch `auto-rows`.
+- 2026-09-23 — Share-within-kind ranking live (`0b4929a`): top 50 = 34 skills, 14 tools, 2 MCP servers. Live chip check on the
+  owner's dashboard with real Jev: make-interfaces-feel-better 0.88, interfaces:better-ui 0.86, ui-observer 0.85, claude-in-chrome
+  (skill) 0.76; setting restored to off. Found: MCP/tool candidates come only from a live `system.init`, so after a hub restart
+  or reload an idle session offers skills only. Fix queued: hub stores each instance's latest init tooling.

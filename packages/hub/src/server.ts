@@ -48,6 +48,7 @@ import {
   CONTROL_GET_SESSION_MESSAGES,
   CONTROL_LIST_SESSIONS,
   CONTROL_SEARCH_TRANSCRIPTS,
+  delegateAskText,
   deriveTitleFromFirstMessage,
   FLEET_STATUS,
   FLEET_SYNC,
@@ -71,6 +72,7 @@ import {
   RESTART_RESUMABLE,
   RULE_TEMPLATES,
   readProvenance,
+  reportMarker,
   ruleProblem,
   TOOL_CATALOG,
   toolSpec,
@@ -1601,7 +1603,6 @@ export const createServer = ({
   ): void => {
     const label = `${leaf(delegate.cwd)}#${delegate.id.slice(0, 8)}`;
     const body = renderDelegateAsk(ask.payload);
-    const marker = `[delegate-ask instance=${delegate.id} request=${ask.requestId}]`;
     const instruction =
       "Answer it with the answer_delegate tool: answer_delegate(target, requestId, answers) — " +
       "answers are keyed by the exact question text and the value is the chosen option label " +
@@ -1616,7 +1617,13 @@ export const createServer = ({
           type: "user",
           message: {
             role: "user",
-            content: `[Delegate ask from ${label}]\n\n${body}\n\n${marker}\n\n${instruction}`,
+            content: delegateAskText({
+              label,
+              body,
+              instance: delegate.id,
+              request: String(ask.requestId),
+              instruction,
+            }),
           },
           parent_tool_use_id: null,
           origin: {
@@ -6422,9 +6429,6 @@ export const createServer = ({
                       .find((r) => r.id === parentId);
                     if (parent) {
                       const label = `${leaf(row.cwd)}#${row.id.slice(0, 8)}`;
-                      const header = neutral.is_error
-                        ? `[Report from delegate ${label} — turn failed]`
-                        : `[Report from delegate ${label} — turn complete]`;
                       // A failed turn's report carries the harness's own error
                       // words — "(no text)" once stood in for a 403 that was
                       // sitting right in the result frame.
@@ -6444,7 +6448,7 @@ export const createServer = ({
                             type: "user",
                             message: {
                               role: "user",
-                              content: `${header}\n\n${body}`,
+                              content: `${reportMarker(label, !!neutral.is_error)}${body}`,
                             },
                             parent_tool_use_id: null,
                             origin: {

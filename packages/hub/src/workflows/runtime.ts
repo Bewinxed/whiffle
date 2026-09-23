@@ -18,6 +18,7 @@ import type {
   WorkflowGraph,
   WorkflowRun,
 } from "@whiffle/core";
+import { workflowNoticeMarker, workflowStepMarker } from "@whiffle/core";
 import { stepIdFor } from "@whiffle/core/workflow-program";
 import { writeProgram } from "@whiffle/core/workflow-sandbox";
 import type { WorkerOut, WorkerStart } from "@whiffle/core/workflow-worker";
@@ -403,7 +404,7 @@ export function createWorkflowRuntime(deps: WorkflowRuntimeDeps) {
     write(run);
     notify(
       run,
-      `[Workflow ${nameOf(run)} — ${run.status}]\n\n${run.failure ?? JSON.stringify(run.result, null, 2)}`
+      `${workflowNoticeMarker(nameOf(run), run.status)}${run.failure ?? JSON.stringify(run.result, null, 2)}`
     );
     if (run.parentRunId && run.parentStepId) {
       const waiter = waiters.get(run.id);
@@ -436,7 +437,7 @@ export function createWorkflowRuntime(deps: WorkflowRuntimeDeps) {
     const number = (latest(step)?.number ?? 0) + 1;
     const notes = (run.state.__notes as string[] | undefined) ?? [];
     run.state = { ...run.state, __notes: [] };
-    const body = `[Hand-off from the ${nameOf(run)} workflow — step ${spec.title}, not the user]\n\n${spec.prompt}\n\nWhen the work is done, call submit_result exactly once with an object matching this schema, then end your turn. Do not describe the result in prose instead of calling it.\n${JSON.stringify(spec.outputSchema, null, 2)}${run.supervisorInstanceId ? "" : "\nThere is nobody to ask. Decide, and record any assumption in your result."}${notes.length ? `\nSupervisor note: ${notes.join("\n")}` : ""}${previousError ? `\nPrevious attempt: ${previousError}\n${previousError === "no-result" ? "You ended without calling submit_result. Call it now with an object matching the schema." : "Correct the error and call submit_result."}` : ""}`;
+    const body = `${workflowStepMarker(nameOf(run), spec.title)}${spec.prompt}\n\nWhen the work is done, call submit_result exactly once with an object matching this schema, then end your turn. Do not describe the result in prose instead of calling it.\n${JSON.stringify(spec.outputSchema, null, 2)}${run.supervisorInstanceId ? "" : "\nThere is nobody to ask. Decide, and record any assumption in your result."}${notes.length ? `\nSupervisor note: ${notes.join("\n")}` : ""}${previousError ? `\nPrevious attempt: ${previousError}\n${previousError === "no-result" ? "You ended without calling submit_result. Call it now with an object matching the schema." : "Correct the error and call submit_result."}` : ""}`;
     let resume: SpawnPayload["resume"];
     const instance = step.instanceId
       ? db.getInstancesByIds([step.instanceId])[0]
@@ -603,7 +604,7 @@ export function createWorkflowRuntime(deps: WorkflowRuntimeDeps) {
       write(run, step, attempt);
       notify(
         run,
-        `[Workflow ${nameOf(run)} — step ${spec.title} passed]\n\n${JSON.stringify(step.result, null, 2)}`
+        `${workflowNoticeMarker(nameOf(run), `step ${spec.title} passed`)}${JSON.stringify(step.result, null, 2)}`
       );
       settleStep(step, { result: attempt.result });
       return;
@@ -624,7 +625,7 @@ export function createWorkflowRuntime(deps: WorkflowRuntimeDeps) {
     write(run, step, attempt);
     notify(
       run,
-      `[Workflow ${nameOf(run)} — step ${spec.title} failed]\n\n${step.failure}`
+      `${workflowNoticeMarker(nameOf(run), `step ${spec.title} failed`)}${step.failure}`
     );
     settleStep(step, {
       failure: {
@@ -684,7 +685,7 @@ export function createWorkflowRuntime(deps: WorkflowRuntimeDeps) {
     if (spec.answeredBy === "supervisor") {
       notify(
         run,
-        `[Workflow ${nameOf(run)} — question]\n${spec.question}\n${JSON.stringify(spec.options)}\nAnswer with steer_workflow using action {type:"answer",stepId:"${step.id}",choice:"<label>"}.`
+        `${workflowNoticeMarker(nameOf(run), "question")}${spec.question}\n${JSON.stringify(spec.options)}\nAnswer with steer_workflow using action {type:"answer",stepId:"${step.id}",choice:"<label>"}.`
       );
     }
     if (spec.waitFor) {
@@ -912,7 +913,7 @@ export function createWorkflowRuntime(deps: WorkflowRuntimeDeps) {
         write(run, undefined, undefined, checkpoint);
         notify(
           run,
-          `[Workflow ${nameOf(run)} — checkpoint ${checkpoint.label}]\n${JSON.stringify(checkpoint.data, null, 2)}`
+          `${workflowNoticeMarker(nameOf(run), `checkpoint ${checkpoint.label}`)}${JSON.stringify(checkpoint.data, null, 2)}`
         );
         return { result: checkpoint };
       }
@@ -934,7 +935,7 @@ export function createWorkflowRuntime(deps: WorkflowRuntimeDeps) {
       case "now":
         return { result: Date.now() };
       case "notify": {
-        const text = `[Workflow ${nameOf(run)}]\n${String(args.text)}`;
+        const text = `${workflowNoticeMarker(nameOf(run), "note")}${String(args.text)}`;
         if (run.supervisorInstanceId) {
           notify(run, text);
         } else {
@@ -1343,7 +1344,7 @@ export function createWorkflowRuntime(deps: WorkflowRuntimeDeps) {
           chosen.delegateType,
           options.workspace.path,
           options.workspace.machineId,
-          `Supervise workflow ${workflow.name}, run ${id}.\n${workflow.description}\nReceive its reports and answer its questions. Use steer_workflow for note, retry, answer, or cancel; the program controls routing.`
+          `${workflowNoticeMarker(workflow.name, "supervisor brief")}Supervise workflow ${workflow.name}, run ${id}.\n${workflow.description}\nReceive its reports and answer its questions. Use steer_workflow for note, retry, answer, or cancel; the program controls routing.`
         );
       }
       const run: WorkflowRunRow = {

@@ -23,6 +23,7 @@ import type {
 } from "@whiffle/core";
 import {
   delegateTypeProblem,
+  handoffMarker,
   IMAGE_GENERATION_TIMEOUT_MS,
   QUESTION_DISMISSED,
   WHIFFLE_ENV,
@@ -618,7 +619,7 @@ export const handoffActions = ({
       ? resolveDelegate(peers, target, instanceId)
       : resolve(peers, target);
     const from = leafOf(cwd);
-    const body = `[Hand-off from the ${from} session — another agent, not the user]\n\n${message}`;
+    const body = `${handoffMarker(from)}${message}`;
     const payload: SendPayload = {
       instanceId: peer.row.id,
       message: {
@@ -677,7 +678,7 @@ export const handoffActions = ({
     // `mapTranscript` → `handoffFrom()` can still detect the opening prompt as
     // a peer message and render it as `user.peer` instead of the reader's own
     // words — the same marker `handoff()` already uses.
-    const body = `[Hand-off from the ${from} session — another agent, not the user]\n\n${prompt}`;
+    const body = `${handoffMarker(from)}${prompt}`;
     const opening: SendPayload = {
       instanceId: id,
       message: {
@@ -804,7 +805,7 @@ export const handoffActions = ({
     // Same marker as `handoff()` and `startSession()` — survives SDK storage so
     // stored transcripts render the opening as `user.peer` and `mergePeerMessage`
     // deduplicates against the live echo that carries `origin`.
-    const body = `[Hand-off from the ${from} session — another agent, not the user]\n\n${prompt}`;
+    const body = `${handoffMarker(from)}${prompt}`;
     const opening: SendPayload = {
       instanceId: id,
       message: {

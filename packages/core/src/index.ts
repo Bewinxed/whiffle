@@ -19,6 +19,7 @@ export * from "./harness";
 // shared so the hub and the form refuse the same drafts for the same reasons —
 // this is the one row whose convergence executes code, so it is gated twice.
 export * from "./hooks";
+export * from "./injected";
 // How an `AskUserQuestion` answer is shaped, wherever it is answered from —
 // the dashboard, a parent session's `answer_delegate`, the Telegram bridge.
 // Shared because the tool's schema is unforgiving: the answers go back inside

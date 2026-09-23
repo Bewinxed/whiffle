@@ -2982,34 +2982,6 @@ function userMessage(text: string): SendPayload["message"] {
   };
 }
 
-/**
- * A message one session sends another. Two things make it a hand-off rather
- * than a second reader talking:
- *
- * - `origin: peer` marks it as reported speech, so the receiving agent weighs
- *   it as another agent's word and not as its user's authority.
- * - `shouldQuery: false` appends it without starting a turn. The target is
- *   usually mid-work; the note lands in its transcript now and is picked up
- *   when it next answers, instead of derailing what it was asked to do.
- */
-function peerMessage(
-  text: string,
-  from: { id: string; name: string }
-): SendPayload["message"] {
-  return {
-    type: "user",
-    message: { role: "user", content: text },
-    parent_tool_use_id: null,
-    origin: {
-      kind: "peer",
-      from: from.id,
-      name: from.name,
-      fromSession: from.id,
-    },
-    shouldQuery: false,
-  };
-}
-
 /** Spawns a session on `machineId` and registers the view it streams into. */
 function start({
   machineId,
@@ -3325,38 +3297,6 @@ export async function sendOrRevive(
 ): Promise<void> {
   await ensureAlive(instanceId, machineId);
   sendText(instanceId, machineId, text, extras);
-}
-
-/**
- * Hands a note to another session. The target is usually busy, so this never
- * interrupts it: the note lands in its transcript at once and is answered when
- * it next takes a turn (see {@link peerMessage}).
- *
- * A sleeping target is revived first. The alternative is a message that goes
- * nowhere and a sender told it was delivered — and a hand-off you cannot trust
- * to arrive is worse than no hand-off, because you stop checking.
- */
-export async function sendToPeer(
-  target: { instanceId: string; machineId: string },
-  from: { instanceId: string; label: string },
-  text: string
-): Promise<void> {
-  await ensureAlive(target.instanceId, target.machineId);
-  const payload: SendPayload = {
-    instanceId: target.instanceId,
-    message: peerMessage(text, { id: from.instanceId, name: from.label }),
-  };
-  send({
-    verb: "send",
-    machineId: target.machineId,
-    instanceId: target.instanceId,
-    payload,
-  });
-}
-
-/** Sessions this one can hand work to: every other live session in the fleet. */
-export function peerTargets(exceptInstanceId: string): InstanceRow[] {
-  return instances.filter((row) => row.id !== exceptInstanceId && isLive(row));
 }
 
 export function stopSession(instanceId: string, machineId: string): void {
