@@ -4008,7 +4008,13 @@ export const createServer = ({
                 message: string;
                 params?: { requiredProperties?: string[] };
               }[];
-              const at = first.path === "root" ? "" : `${first.path}.`;
+              // The issue's own path stops at the object missing the field;
+              // the error's `property` names that object from the root.
+              const { property } = error.payload as { property?: string };
+              const parent = property?.startsWith("/")
+                ? property.slice(1).replaceAll("/", ".")
+                : "";
+              const at = parent ? `${parent}.` : "";
               const missing = first.params?.requiredProperties?.join(", ");
               return status(
                 400,
