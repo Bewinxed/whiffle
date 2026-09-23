@@ -13,9 +13,36 @@
     live = false,
     announce = false,
   }: { text: string; live?: boolean; announce?: boolean } = $props();
-  const paragraphs = $derived(
-    text.split(/\n\s*\n/).filter((part) => part.trim())
-  );
+  const FENCE = /^\s*(```|~~~)/;
+
+  /**
+   * One step per block: blocks part on blank lines, except inside a fenced
+   * code block, where a blank line is part of the code.
+   */
+  function splitBlocks(source: string): string[] {
+    const blocks: string[] = [];
+    let current: string[] = [];
+    let fenced = false;
+    for (const line of source.split("\n")) {
+      if (FENCE.test(line)) {
+        fenced = !fenced;
+      }
+      if (!fenced && line.trim() === "") {
+        if (current.length) {
+          blocks.push(current.join("\n"));
+        }
+        current = [];
+        continue;
+      }
+      current.push(line);
+    }
+    if (current.some((line) => line.trim())) {
+      blocks.push(current.join("\n"));
+    }
+    return blocks;
+  }
+
+  const paragraphs = $derived(splitBlocks(text));
 </script>
 
 <div class="think">
@@ -37,6 +64,7 @@
         <ThinkingStep
           description={paragraph}
           isLast={i === paragraphs.length - 1}
+          markdown
           status={live && i === paragraphs.length - 1 ? "active" : "complete"}
         />
       {/each}

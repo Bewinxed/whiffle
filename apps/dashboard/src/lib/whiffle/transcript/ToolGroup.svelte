@@ -4,10 +4,13 @@
   import { toast } from "svelte-sonner";
   import {
     describeTool,
+    memoryResult,
     pathLeaf,
     type ToolDescriptor,
     type ToolStatus,
   } from "$lib/components/features/tool-cards/descriptors";
+  import MemoryBody from "$lib/components/features/tool-cards/MemoryBody.svelte";
+  import ToolProse from "$lib/components/features/tool-cards/ToolProse.svelte";
   import { Badge } from "$lib/components/ui/badge";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte convention for a component group.
   import * as Collapsible from "$lib/components/ui/collapsible";
@@ -124,6 +127,48 @@
       : { text, more: 0 };
   }
 
+  /* What a settled memory call has to open into: the document it wrote or
+     read, or the list it got back. A removal says everything in its sentence. */
+  function memoryHasBody(
+    input: Record<string, unknown> | undefined,
+    raw: unknown
+  ): boolean {
+    switch (input?.action) {
+      case "set":
+      case "set_doc":
+        return typeof input.content === "string";
+      case "get":
+        return memoryResult(raw).kind === "doc";
+      case "list_docs":
+        return memoryResult(raw).kind === "docs";
+      default:
+        return false;
+    }
+  }
+
+  /** A skill's arguments are prose the agent wrote for it; absent, nothing opens. */
+  const skillArgs = (input: Record<string, unknown> | undefined) =>
+    typeof input?.args === "string" && input.args.trim()
+      ? input.args
+      : undefined;
+
+  function bodyFor(
+    kind: ToolDescriptor["expanded"],
+    failed: boolean,
+    input: Record<string, unknown> | undefined,
+    fields: Field[],
+    result: { text: string } | undefined,
+    raw: unknown
+  ): boolean {
+    if (kind === "memory") {
+      return failed ? !!result : memoryHasBody(input, raw);
+    }
+    if (kind === "skill" && !failed) {
+      return !!skillArgs(input);
+    }
+    return fields.length > 0 || !!result;
+  }
+
   /* A diff fact is one string carrying two opposite meanings — `+14 −6` from an
      edit, a lone `+38` from a write. The descriptor's own `diff` tone is what
      licenses the coloring, not the shape of the string, so both rows agree on
@@ -173,7 +218,8 @@
     {@const failed = m.metadata?.toolStatus === 'error'}
     {@const fields = inputFields(m.metadata?.toolInput)}
     {@const result = resultText(m.metadata?.toolResult)}
-    {@const hasBody = fields.length > 0 || !!result}
+    {@const toolInput = (m.metadata?.toolInput ?? undefined) as Record<string, unknown> | undefined}
+    {@const hasBody = bodyFor(d.expanded, failed, toolInput, fields, result, m.metadata?.toolResult)}
     {#snippet line()}
       <span class="ic" class:err={failed}
         ><Reveal><Icon /></Reveal></span
@@ -256,25 +302,40 @@
               <span class="chev"><IconChevronRight /></span>
             </Collapsible.Trigger>
             <Collapsible.Content>
-              <div class="fields">
-                {#each fields as f (f.key)}
-                  <div class="field">
-                    <span class="k">{f.key}</span>
-                    <pre class="v">{f.text}</pre>
-                  </div>
-                {/each}
-                {#if result}
+              {#if d.expanded === 'memory' && !failed}
+                <MemoryBody input={toolInput} result={m.metadata?.toolResult} />
+              {:else if d.expanded === 'memory' && result}
+                <div class="fields">
                   <div class="field">
                     <span class="k">result</span>
                     <pre class="v">{result.text}</pre>
-                    {#if result.more}
-                      <span class="more"
-                        >… {result.more.toLocaleString()} more chars</span
-                      >
-                    {/if}
                   </div>
-                {/if}
-              </div>
+                </div>
+              {:else if d.expanded === 'skill' && !failed}
+                <div class="skill-args">
+                  <ToolProse source={skillArgs(toolInput) ?? ''} />
+                </div>
+              {:else}
+                <div class="fields">
+                  {#each fields as f (f.key)}
+                    <div class="field">
+                      <span class="k">{f.key}</span>
+                      <pre class="v">{f.text}</pre>
+                    </div>
+                  {/each}
+                  {#if result}
+                    <div class="field">
+                      <span class="k">result</span>
+                      <pre class="v">{result.text}</pre>
+                      {#if result.more}
+                        <span class="more"
+                          >… {result.more.toLocaleString()} more chars</span
+                        >
+                      {/if}
+                    </div>
+                  {/if}
+                </div>
+              {/if}
             </Collapsible.Content>
           </Collapsible.Root>
         {:else}
@@ -543,6 +604,12 @@
     padding: var(--space-3);
     border-radius: var(--radius-well);
     background: var(--surface-sunken);
+  }
+  /* A skill's arguments are the agent's own words to it: prose at the fields'
+     left edge, with no well around them. */
+  .skill-args {
+    margin: var(--space-1) 0 var(--space-3) calc(15px + var(--space-2));
+    max-width: 70ch;
   }
   .field {
     display: flex;

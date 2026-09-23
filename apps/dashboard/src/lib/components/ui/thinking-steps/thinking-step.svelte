@@ -4,6 +4,7 @@
 
 <script lang="ts">
   import type { Component, Snippet } from "svelte";
+  import { Markdown } from "$lib/components/ui/markdown";
   import { IconCheck, IconGlobe, IconSearch } from "$lib/icons";
   import Stream from "$lib/whiffle/motion/Stream.svelte";
   import { getSizeContext } from "../thinking-indicator/size-context";
@@ -16,6 +17,7 @@
     status = "complete",
     delay = 0.08,
     isLast = false,
+    markdown = false,
     children,
     class: className = "",
   }: {
@@ -26,6 +28,8 @@
     status?: StepStatus;
     delay?: number;
     isLast?: boolean;
+    /** Render the description as markdown rather than plain streamed text. */
+    markdown?: boolean;
     children?: Snippet;
     class?: string;
   } = $props();
@@ -65,7 +69,11 @@
           ><Stream text={label} /></span
         >
       {/if}
-      {#if description}
+      {#if description && markdown}
+        <div class="description md">
+          <Markdown source={description} streaming={status === "active"} />
+        </div>
+      {:else if description}
         <span class="description" class:shimmer={!label && status === "active"}
           ><Stream text={description} /></span
         >
@@ -129,6 +137,42 @@
   .description {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
+  }
+  /* Markdown keeps the plain description's type: prose-sm restates its own
+     size and colour on streamdown's root, so they are handed back here, and
+     block margins collapse so a step is exactly as tall as its text. */
+  .description.md {
+    white-space: normal;
+  }
+  .description.md :global(.prose) {
+    font-size: inherit;
+    line-height: inherit;
+    color: inherit;
+  }
+  .description.md :global(.prose > *),
+  .description.md :global(p),
+  .description.md :global(ul),
+  .description.md :global(ol) {
+    margin-block: 0;
+  }
+  .description.md :global(.prose > * + *) {
+    margin-top: var(--space-1);
+  }
+  .description.md :global(ul),
+  .description.md :global(ol) {
+    padding-left: var(--space-5);
+  }
+  .description.md :global(strong) {
+    color: var(--ink-body);
+  }
+  /* prose wraps inline code in literal backticks; the code face already
+     marks it. */
+  .description.md :global(code::before),
+  .description.md :global(code::after) {
+    content: none;
+  }
+  .description.md :global(code) {
+    font-family: var(--font-mono);
   }
   @media (prefers-reduced-motion: no-preference) {
     .copy {

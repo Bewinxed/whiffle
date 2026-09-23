@@ -6,6 +6,7 @@
  */
 import type { Component } from "svelte";
 import {
+  IconBookDuo,
   IconToolCode,
   IconToolEdit,
   IconToolFiles,
@@ -29,7 +30,15 @@ import {
 export type ToolStatus = "pending" | "success" | "error";
 
 /** Which body an expanded row opens: each family has one shape worth reading. */
-export type ExpandedKind = "bash" | "diff" | "read" | "web" | "code" | "params";
+export type ExpandedKind =
+  | "bash"
+  | "diff"
+  | "read"
+  | "web"
+  | "code"
+  | "memory"
+  | "skill"
+  | "params";
 
 export interface ToolDescriptor {
   /** A short aside after the sentence: `background`, an MCP server's name. */
@@ -70,6 +79,7 @@ export type FamilyId =
   | "navigate"
   | "js"
   | "mcp"
+  | "memory"
   | "task"
   | "todo"
   | "notebook"
@@ -175,6 +185,12 @@ const FAMILIES: Record<FamilyId, Omit<ToolFamily, "id">> = {
     color: "text-tool-mcp",
     one: "call",
     many: "calls",
+  },
+  memory: {
+    icon: IconBookDuo,
+    color: "text-tool-plan",
+    one: "memory edit",
+    many: "memory edits",
   },
   task: {
     icon: IconToolTask,
@@ -295,6 +311,9 @@ export function familyId(toolName: string | undefined): FamilyId {
   }
   if (name === "navigate") {
     return "navigate";
+  }
+  if (name === "manage_memory" || name === "whiffle_manage_memory") {
+    return "memory";
   }
   if (name === "javascript_tool" || name === "repl") {
     return "js";
@@ -688,11 +707,13 @@ function sentence(
 
     case "skill": {
       const skill = str(input?.skill);
+      const args = str(input?.args);
       return {
         ...base,
         label: "Ran skill",
         object: skill ? `/${skill}` : undefined,
-        expanded: "params",
+        detail: args ? oneLine(args) : undefined,
+        expanded: "skill",
       };
     }
 
@@ -771,6 +792,9 @@ function sentence(
       };
     }
 
+    case "memory":
+      return { ...base, ...memorySentence(input, output), expanded: "memory" };
+
     case "mcp": {
       const tool = MCP_NAME.exec(name)?.[2];
       return {
@@ -793,6 +817,144 @@ function sentence(
       };
     }
   }
+}
+
+const lineFact = (text: string | undefined): string | undefined =>
+  text === undefined ? undefined : `${spanLines(text)} lines`;
+
+/** One sentence per memory action; the live row before its arguments have
+ *  streamed in has no action yet and reads as the tool itself. */
+function memorySentence(
+  input: Record<string, unknown> | undefined,
+  output: string | undefined
+): Pick<
+  ToolDescriptor,
+  "label" | "object" | "detail" | "detailIsMono" | "fact"
+> {
+  const path = str(input?.path);
+  const content =
+    typeof input?.content === "string" ? input.content : undefined;
+  switch (input?.action) {
+    case "get": {
+      const parsed = memoryResult(output);
+      return {
+        label: "Read fleet memory",
+        object: "CLAUDE.md",
+        detailIsMono: false,
+        fact: parsed.kind === "doc" ? lineFact(parsed.content) : undefined,
+      };
+    }
+    case "set":
+      return {
+        label: "Updated fleet memory",
+        object: "CLAUDE.md",
+        detailIsMono: false,
+        fact: lineFact(content),
+      };
+    case "list_docs": {
+      const parsed = memoryResult(output);
+      return {
+        label: "Listed memory docs",
+        detailIsMono: false,
+        fact: parsed.kind === "docs" ? `${parsed.docs.length} docs` : undefined,
+      };
+    }
+    case "set_doc":
+      return {
+        label: "Wrote memory doc",
+        object: path ? pathLeaf(path) : undefined,
+        detail: path ? pathDir(path) : undefined,
+        detailIsMono: true,
+        fact: lineFact(content),
+      };
+    case "remove_doc":
+      return {
+        label: "Removed memory doc",
+        object: path ? pathLeaf(path) : undefined,
+        detail: path ? pathDir(path) : undefined,
+        detailIsMono: true,
+      };
+    default:
+      return { label: "Fleet memory", detailIsMono: false };
+  }
+}
+
+export interface MemoryDoc {
+  content: string;
+  path: string;
+  updatedAt?: string;
+}
+
+/** What a `manage_memory` call answered with, read off the hub's JSON. */
+export type MemoryResult =
+  | {
+      kind: "doc";
+      content: string;
+      hash?: string;
+      updatedAt?: string;
+      path?: string;
+    }
+  | { kind: "docs"; docs: MemoryDoc[] }
+  | { kind: "none" };
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const optStr = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+function memoryDoc(value: unknown): MemoryResult {
+  if (!(isRecord(value) && typeof value.content === "string")) {
+    return { kind: "none" };
+  }
+  return {
+    kind: "doc",
+    content: value.content,
+    hash: optStr(value.hash),
+    updatedAt: optStr(value.updatedAt),
+    path: optStr(value.path),
+  };
+}
+
+/**
+ * `get` answers `{memory}`, `list_docs` `{docs}`, and `set`/`set_doc` the
+ * saved record itself. The result arrives as the JSON text the tool printed;
+ * anything that does not parse into one of those shapes is `none`.
+ */
+export function memoryResult(raw: unknown): MemoryResult {
+  let value: unknown = raw;
+  if (typeof raw === "string") {
+    try {
+      value = JSON.parse(raw);
+    } catch {
+      return { kind: "none" };
+    }
+  }
+  if (!isRecord(value)) {
+    return { kind: "none" };
+  }
+  if (Array.isArray(value.docs)) {
+    return {
+      kind: "docs",
+      docs: value.docs.flatMap((doc): MemoryDoc[] =>
+        isRecord(doc) &&
+        typeof doc.path === "string" &&
+        typeof doc.content === "string"
+          ? [
+              {
+                path: doc.path,
+                content: doc.content,
+                updatedAt: optStr(doc.updatedAt),
+              },
+            ]
+          : []
+      ),
+    };
+  }
+  if ("memory" in value) {
+    return memoryDoc(value.memory);
+  }
+  return memoryDoc(value);
 }
 
 /** Where a JavaScript call keeps its source: `code` in the REPL, `text` in
