@@ -114,9 +114,11 @@
 <style>
   /* The measured box: the hit and whatever trails it. The overlays are
      aimed at this, so a trailing control sits inside the segment. */
+  /* The tab box makes no stacking context of its own: its contents rise
+     above the overlays (the sheet is z-index 1), while anything the box
+     paints behind them — a folder tab's tint — stays under the sheet. */
   .ff-tab {
     position: relative;
-    z-index: 2;
     display: flex;
     align-items: center;
     flex: 0 1 auto;
@@ -137,12 +139,39 @@
       transition: color 80ms linear;
     }
   }
-  /* Folder tabs not chosen stand behind the sheet in their own tint. */
-  :global([data-variant="folder"]) .ff-tab:not(.selected) {
-    background: var(--tab-rest, transparent);
+  .ff-tab > :global(*) {
+    position: relative;
+    z-index: 2;
+  }
+  /* Folder tabs stand behind the sheet in their own tint: a rounded-top
+     card under the sheet's layer, inset from the tab's edges by the room a
+     neighbouring sheet's flare needs, so the flare always curves into the
+     bar and never into a tint. The chosen tab's card fades out as the
+     sheet arrives, and fades back in as it leaves. */
+  :global([data-variant="folder"]) .ff-tab {
+    --tab-inset: calc(var(--flare) - var(--gap));
+    padding-inline: var(--tab-inset);
 
+    &::before {
+      content: "";
+      position: absolute;
+      inset-block: 0;
+      inset-inline: var(--tab-inset);
+      z-index: 0;
+      border-radius: var(--radius) var(--radius) 0 0;
+      background: var(--tab-rest, transparent);
+
+      @media (prefers-reduced-motion: no-preference) {
+        transition:
+          opacity 160ms var(--e-in),
+          background-color 80ms linear;
+      }
+    }
+    &.selected::before {
+      opacity: 0;
+    }
     @media (hover: hover) and (pointer: fine) {
-      &:hover {
+      &:not(.selected):hover::before {
         background: var(--tab-hover, transparent);
       }
     }
