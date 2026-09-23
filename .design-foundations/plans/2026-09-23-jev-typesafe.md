@@ -123,3 +123,10 @@ always-included new installs), 14 tools, 2 MCP servers; 17 used skills fall outs
 - 2026-09-23 — `eff3036` live. Measured: combined top-50 by raw decayed score was mostly browser tools (tool calls ≈270× skill
   invocations), dropping 37 of 47 used skills — misses "top 50 i'm actually using often". Orchestrator decision: rank by
   share within kind (score ÷ kind's total), no quotas. Briefed to the suggestions delegate.
+- 2026-09-23 — "Leaves a known problem unfixed" misfired 3× on progress updates whose open items were already delegated.
+  Sharpened its question (exclude "remaining work already handed to someone doing it now"): the misfiring reply 0.90 → 0.40;
+  eval true positives held (0.89/0.84/0.87); options-list false positive 0.85 → 0.77. Applied to rule 698fba22.
+- 2026-09-23 — "when an auto reply is triggered, after i refresh, it shows as if it's my own message … styling is inconsistent".
+  Cause: stored transcripts drop `origin`; rule messages carry no text marker (hand-offs/asks do), so a reload renders them as
+  the owner's turn; live they borrow the peer bubble. Fix briefed on `rule-ack`: `[Rule: <name>]` marker line on every rule
+  message (hub rules + supervisor), a dedicated `user.rule` row for live and stored, styled as a system row.
