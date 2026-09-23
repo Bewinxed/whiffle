@@ -152,6 +152,22 @@ const modelCatalog = async (): Promise<ModelInfo[]> =>
     contextWindow: model.contextWindow,
   }));
 
+/**
+ * A stored assistant message's blocks. A turn that failed stores no content,
+ * only its error; it reloads the way claude's stored API errors do — an
+ * assistant message whose text is the error — in the same words the live
+ * stream's `result.errors` carried.
+ */
+const assistantContent = (message: {
+  content?: unknown;
+}): ReturnType<typeof toBlocks> => {
+  const { errorMessage } = message as { errorMessage?: string };
+  return [
+    ...toBlocks(message.content),
+    ...(errorMessage ? [{ type: "text" as const, text: errorMessage }] : []),
+  ];
+};
+
 /** Thin adapter over the same hub-owned definitions and handlers as MCP. */
 const piHandoffTools = async (instanceId: string): Promise<ToolDefinition[]> =>
   (await delegationTools(instanceId)).map((tool) =>
@@ -668,7 +684,7 @@ export class PiHarness implements Harness {
           type: "assistant",
           uuid: entry.id,
           session_id: sessionKey,
-          message: { role: "assistant", content: toBlocks(message.content) },
+          message: { role: "assistant", content: assistantContent(message) },
           parent_tool_use_id: null,
           parent_agent_id: null,
         });
