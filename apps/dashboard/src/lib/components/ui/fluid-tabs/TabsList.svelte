@@ -324,7 +324,10 @@
     padding-block-end: 0;
     border-radius: 0;
     background: none;
-    --wipe: 220ms;
+    /* The app's own curve and the tab details' morph length, so the sheet
+       and the popover that follows it move as one. */
+    --wipe: 260ms;
+    --wipe-ease: cubic-bezier(0.32, 0.72, 0, 1);
     --wipe-in: left;
     --wipe-out: right;
 

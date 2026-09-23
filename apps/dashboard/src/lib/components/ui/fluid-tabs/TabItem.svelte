@@ -207,15 +207,18 @@
       mask-position: var(--wipe-out, right);
 
       @media (prefers-reduced-motion: no-preference) {
-        transition: mask-size var(--wipe) cubic-bezier(0.3, 0, 0, 1);
+        transition: mask-size var(--wipe) var(--wipe-ease);
       }
     }
     &.selected::after {
       mask-size: 100% 100%;
       mask-position: var(--wipe-in, left);
     }
+    /* The chosen tab keeps its hover tint while its sheet covers it: were
+       the tint to fall back to rest on the click, it would dim for a beat
+       under the incoming sheet — two motions where there should be one. */
     @media (hover: hover) and (pointer: fine) {
-      &:not(.selected):hover::before {
+      &:hover::before {
         background: var(--tab-hover, transparent);
       }
     }

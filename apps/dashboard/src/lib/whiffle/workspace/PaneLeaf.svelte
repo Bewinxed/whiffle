@@ -49,9 +49,8 @@
   const isFocusedLeaf = $derived(workspace.focusedLeafId === leaf.id);
 
   /* ── Slots ─────────────────────────────────────────────────────────
-     Opened on first sight and kept, so returning to a tab is free. The
-     conversations either side are asked for ahead of time, which is what
-     makes a swipe reveal something rather than nothing. */
+     The showing tab first, then every other open tab in the background,
+     and kept, so neither a first visit nor a return waits on a mount. */
 
   // Seeded with the showing tab so the server and the first client render
   // agree; later tabs are added by the effects below.
@@ -72,41 +71,41 @@
   });
 
   /**
-   * Mount the conversations either side, but only where they can be reached
-   * by a gesture, and never on the critical path of the switch itself.
-   *
-   * Prewarming exists so a swipe reveals something rather than nothing. A
-   * pointer cannot swipe, so on a desktop it buys nothing and costs a great
-   * deal: each neighbour is a whole pane, transcript and virtualiser, and
-   * mounting two of them synchronously put 224ms of flush behind a tab click
-   * that the handler itself finished in 1ms.
-   *
-   * Even where it IS wanted it waits: the switch settles first, and the
-   * neighbours arrive after, so the conversation the reader asked for is
-   * never behind the two they did not.
+   * Mount every other open conversation in the background, nearest first,
+   * one at a time, once the showing one has settled. A tab clicked for the
+   * first time after a reload then finds its pane already built and its
+   * history already fetched, and the switch only reveals it; mounting it on
+   * the click put the whole pane — fetch, rows, virtualiser — between the
+   * click and the paint. Nearest first also parks the swipe neighbours
+   * before anything further away. One pane per slot, so no single task
+   * carries more than one mount.
    */
   $effect(() => {
-    if (!swipeable) {
-      return;
-    }
     const here = leaf.active;
     if (!here) {
       return;
     }
-    const neighbours = [
-      workspace.step(here, 1, leaf.id),
-      workspace.step(here, -1, leaf.id),
-    ];
-    const warm = setTimeout(() => {
+    const at = leaf.tabs.indexOf(here);
+    const queue = leaf.tabs
+      .filter((id) => id !== here)
+      .sort(
+        (a, b) =>
+          Math.abs(leaf.tabs.indexOf(a) - at) -
+          Math.abs(leaf.tabs.indexOf(b) - at)
+      );
+    let timer: ReturnType<typeof setTimeout>;
+    const next = () => {
       untrack(() => {
-        for (const id of neighbours) {
-          if (id && !mounted.includes(id)) {
-            mounted.push(id);
-          }
+        const id = queue.find((q) => !mounted.includes(q));
+        if (!id) {
+          return;
         }
+        mounted.push(id);
+        timer = setTimeout(next, 120);
       });
-    }, 120);
-    return () => clearTimeout(warm);
+    };
+    timer = setTimeout(next, 120);
+    return () => clearTimeout(timer);
   });
 
   $effect(() => {
@@ -149,10 +148,10 @@
     <div aria-hidden="true" class="drop-preview drop-whole"></div>
   {/if}
 
-  <!-- Where the strip can be swiped, the two neighbours are parked either
-       side at rest — painted, and building their rows — so a swipe reveals
-       a current transcript rather than one that paints on the claim frame.
-       A pointer cannot swipe, so elsewhere only the active pane is shown. -->
+  <!-- Every open conversation has a slot, built in the background. Where
+       the strip can be swiped, the two neighbours are also painted, parked
+       either side, so a swipe reveals a current transcript; a pointer
+       cannot swipe, so elsewhere only the active pane is shown. -->
   <div class="stack" use:swipe.action={swipeable} use:paneDropTarget={leaf.id}>
     {#each mounted as paneId (paneId)}
       {@const isActive = paneId === viewId}
