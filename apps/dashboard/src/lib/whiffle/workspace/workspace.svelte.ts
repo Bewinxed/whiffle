@@ -607,6 +607,38 @@ export const workspace = {
   },
 
   /**
+   * Re-address a tab without moving it. A conversation opened by its session
+   * id — an old link, a message from the phone — lives at its instance's
+   * address once the instance list names one, the same address every link in
+   * the app already points at; until then the pane cannot tell it is live.
+   * The tab keeps its place and, if it was showing, keeps showing.
+   */
+  retarget(from: string, to: string): void {
+    const leaf = leafHolding(from);
+    if (!leaf) {
+      return;
+    }
+    const at = leaf.tabs.indexOf(from);
+    if (leaf.tabs.includes(to)) {
+      leaf.tabs.splice(at, 1);
+    } else {
+      leaf.tabs[at] = to;
+    }
+    if (leaf.active === from) {
+      leaf.active = to;
+    }
+    workingSet.forget(from);
+    workingSet.visit(to);
+    if (held.ctx) {
+      delete held.ctx[from];
+    }
+    save();
+    if (leaf.id === held.focusedLeaf && leaf.active === to) {
+      project(to, "replace");
+    }
+  },
+
+  /**
    * Close a tab. The group falls back to its neighbour rather than to the
    * board — closing the third of four conversations should leave you in the
    * strip, not back at the fleet.

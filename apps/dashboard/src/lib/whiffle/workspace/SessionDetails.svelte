@@ -89,18 +89,43 @@
    * The reading only arrives when something asks for it, and the transcript
    * asks at the end of a turn it watched. A tab opened after a reload, or a
    * session mid-way through a long turn, has had nothing ask — so opening the
-   * details asks, once per session shown, whenever the session can answer.
+   * details asks, once per session shown, as soon as the session can answer.
+   * Once: `editable` re-derives on every change to the running list, and each
+   * of those is not a reason to ask again.
    */
+  let asked: string | null = null;
   $effect(() => {
     const id = sessionId;
     const mid = machineId;
-    if (editable && mid) {
+    if (editable && mid && asked !== id) {
+      asked = id;
       // biome-ignore lint/complexity/noVoid: fire-and-forget — the reading lands in the session's state and the popover follows it
       untrack(() => void refreshContext(id, mid));
     }
   });
   const reading = $derived(
     !!session?.contextPending && stats.totalTokens === null
+  );
+  /** Why there is no reading, when the session said why. */
+  const refusal = $derived.by(() => {
+    const error = session?.contextError;
+    if (!error) {
+      return null;
+    }
+    // Custody: the agent restarted under a running turn and holds the session
+    // until that turn hands it back; the SDK cannot be asked until then.
+    return error.includes("(custody)")
+      ? "Unavailable until this turn ends"
+      : `Couldn't read: ${error}`;
+  });
+  /** When a session that can no longer answer was last read. */
+  const readAt = $derived(
+    !editable && session?.context?.readAt
+      ? new Date(session.context.readAt).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : null
   );
   const percent = $derived(
     stats.totalTokens !== null && stats.maxTokens
@@ -358,8 +383,13 @@
           <dd>
             {#if percent !== null && stats.totalTokens !== null && stats.maxTokens !== null}
               {`${percent}% · ${number(stats.totalTokens)} / ${number(stats.maxTokens)}`}
+              {#if readAt}
+                {` · read ${readAt}`}
+              {/if}
             {:else if reading}
               Reading…
+            {:else if refusal}
+              {refusal}
             {:else}
               Not reported
             {/if}

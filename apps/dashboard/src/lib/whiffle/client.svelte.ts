@@ -276,6 +276,8 @@ export interface SessionState {
   commandsPending: boolean;
   /** The last context reading, `null` until one has been asked for. */
   context: ContextUsage | null;
+  /** Why the last `getContextUsage` call was refused; null once one answers. */
+  contextError: string | null;
   /** A `getContextUsage` call is out; the meter keeps its last number meanwhile. */
   contextPending: boolean;
   /** The main loop's tool in flight, cleared by its result or the turn's end. */
@@ -631,6 +633,7 @@ export function blankSession(instanceId: string): SessionState {
     scratch: false,
     context: null,
     contextPending: false,
+    contextError: null,
     commands: { names: [], skills: [], detailed: null, at: 0 },
     commandsPending: false,
     mcp: null,
@@ -4520,8 +4523,12 @@ export async function refreshContext(
       ),
       readAt: Date.now(),
     };
-  } catch {
-    // A session that cannot answer keeps the last reading; the meter says when.
+    target.contextError = null;
+  } catch (cause) {
+    // A session that cannot answer keeps the last reading; the reason is kept
+    // beside it so the details can say why rather than "not reported".
+    target.contextError =
+      cause instanceof Error ? cause.message : String(cause);
   } finally {
     target.contextPending = false;
   }

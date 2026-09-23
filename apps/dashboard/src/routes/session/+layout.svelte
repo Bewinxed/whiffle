@@ -33,6 +33,7 @@
     whiffle,
   } from "$lib/whiffle/client.svelte";
   import FleetBoard from "$lib/whiffle/FleetBoard.svelte";
+  import { instanceForSession } from "$lib/whiffle/links";
   import PaneDeck from "$lib/whiffle/workspace/PaneDeck.svelte";
   import PaneGrid from "$lib/whiffle/workspace/PaneGrid.svelte";
   import PaneHost from "$lib/whiffle/workspace/PaneHost.svelte";
@@ -168,6 +169,28 @@
     const onPop = () => reconcileFromUrl();
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
+  });
+
+  /* ── Session id → instance ──────────────────────────────────────────
+     A tab opened by a conversation's session id is re-addressed to its
+     instance once the instance list names one — the address every link in
+     the app already uses. Until then the pane and its details cannot tell the
+     conversation is running, so nothing that only a live session answers is
+     ever asked. The list arrives over the socket after the first paint, so
+     this follows the list rather than checking once. */
+  $effect(() => {
+    const index = whiffle.instanceIndex;
+    untrack(() => {
+      for (const id of workspace.openIds) {
+        if (index.byId.has(id)) {
+          continue;
+        }
+        const row = instanceForSession(index, id);
+        if (row) {
+          workspace.retarget(id, row.id);
+        }
+      }
+    });
   });
 
   const queued = new Set<string>();
