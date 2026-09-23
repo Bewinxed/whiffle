@@ -158,11 +158,19 @@
       background: var(--tab-rest, transparent);
 
       @media (prefers-reduced-motion: no-preference) {
-        transition: background-color 80ms linear;
+        transition:
+          background-color 80ms linear,
+          opacity 0s;
       }
     }
+    /* Hidden once the sheet has covered it, so no tint fringes the
+       sheet's shoulders at rest; back at once when the sheet leaves. */
     &.selected::before {
       opacity: 0;
+
+      @media (prefers-reduced-motion: no-preference) {
+        transition: opacity 0s var(--wipe);
+      }
     }
     /* The chosen tab's sheet: the page below, continued. One outline —
        rounded shoulders and a foot that curves outward into the page —
@@ -171,7 +179,7 @@
        out, in the same frame, with nothing to travel or catch up. The
        tab box makes no stacking context, so the sheet (z-index 1) sits
        above every tab's tint and below every tab's contents. */
-    &.selected::after {
+    &::after {
       content: "";
       position: absolute;
       inset-block: 0;
@@ -189,6 +197,22 @@
         arc to 100% 100% of var(--flare) ccw,
         close
       );
+      /* The wipe: every tab owns a sheet, shown by a mask no wider than
+         the tab's own box. Switching grows the chosen tab's from the side
+         facing the old one and shrinks the old one's toward the new, so
+         no sheet is ever painted over a gap or a tab in between. */
+      mask-image: linear-gradient(#000 0 0);
+      mask-repeat: no-repeat;
+      mask-size: 0% 100%;
+      mask-position: var(--wipe-out, right);
+
+      @media (prefers-reduced-motion: no-preference) {
+        transition: mask-size var(--wipe) cubic-bezier(0.3, 0, 0, 1);
+      }
+    }
+    &.selected::after {
+      mask-size: 100% 100%;
+      mask-position: var(--wipe-in, left);
     }
     @media (hover: hover) and (pointer: fine) {
       &:not(.selected):hover::before {

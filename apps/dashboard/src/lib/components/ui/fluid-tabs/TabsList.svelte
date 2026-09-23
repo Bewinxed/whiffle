@@ -38,6 +38,18 @@
     list.optimisticIndex = selectedIndex >= 0 ? selectedIndex : null;
   });
 
+  // Which way the last switch went: a folder tab's sheet wipes in from the
+  // side facing the tab it came from, and the old one out toward it.
+  let direction = $state<"forward" | "back">("forward");
+  let lastIndex: number | null = null;
+  $effect.pre(() => {
+    const index = list.optimisticIndex;
+    if (index !== null && lastIndex !== null && index !== lastIndex) {
+      direction = index > lastIndex ? "forward" : "back";
+    }
+    lastIndex = index;
+  });
+
   const selectedRect = $derived(
     list.optimisticIndex === null
       ? undefined
@@ -180,6 +192,7 @@
 
 <div
   class={cn("ff-tabs-list", scrollable && "scrollable", className)}
+  data-direction={direction}
   {onfocusin}
   {onfocusout}
   {onkeydown}
@@ -311,6 +324,14 @@
     padding-block-end: 0;
     border-radius: 0;
     background: none;
+    --wipe: 220ms;
+    --wipe-in: left;
+    --wipe-out: right;
+
+    &[data-direction="back"] {
+      --wipe-in: right;
+      --wipe-out: left;
+    }
   }
 
   /* Placed by `transform`, not `left`/`top`: moving between tabs is then a
