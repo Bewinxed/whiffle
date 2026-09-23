@@ -205,16 +205,10 @@
         `opacity: ${t}; transform: scale(${0.96 + 0.04 * t});`,
     };
   }
-
-  /** The row's height follows its content, measured, so a wrap never jumps. */
-  let trackHeight = $state(0);
 </script>
 
-<div
-  class="suggest"
-  style:block-size={trackHeight ? `${trackHeight}px` : undefined}
->
-  <fieldset class="track" bind:clientHeight={trackHeight}>
+<div class="suggest">
+  <fieldset class="track">
     <legend class="sr-only">Suggested skills, tools and MCP servers</legend>
     {#each shown as { candidate, noul }, i (candidate.id)}
       <button
@@ -257,13 +251,23 @@
 </div>
 
 <style>
+  /* Out of flow, standing on the composer's top edge: chips arriving, leaving
+     or wrapping never change the composer's measured height, so the transcript
+     it clears never moves. A second row grows upward over the transcript. */
   .suggest {
-    interpolate-size: allow-keywords;
-    overflow: clip;
-    overflow-clip-margin: var(--space-2);
+    position: absolute;
+    inset-inline: 0;
+    bottom: calc(100% + var(--space-2));
 
-    @media (prefers-reduced-motion: no-preference) {
-      transition: block-size var(--c-300) var(--e-in);
+    /* The hint and a failure line are bare text over the transcript, so a row
+       with anything in it lifts off the page on the transcript's own field. */
+    &:has(.chip, .shimmer, .fail) {
+      padding-block-start: var(--space-4);
+      background: linear-gradient(
+        to top,
+        var(--surface-field) 55%,
+        oklch(from var(--surface-field) l c h / 0)
+      );
     }
   }
 
