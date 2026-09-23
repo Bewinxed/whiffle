@@ -27,6 +27,7 @@
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte component-group convention
   import * as Sidebar from "$lib/components/ui/sidebar";
+  import ThemeSwitcher from "$lib/components/ui/ThemeSwitcher.svelte";
   import {
     IconBookDuo,
     IconBoxDuo,
@@ -71,6 +72,9 @@
   import UsageMeter from "./UsageMeter.svelte";
   import { workflowState } from "./workflow-state.svelte";
   import { workspace } from "./workspace/workspace.svelte";
+
+  /** Opens the Jump palette, which Shell owns so ⌘K and this field open the same one. */
+  let { onjump }: { onjump: () => void } = $props();
 
   const path = $derived(page.url.pathname);
   /**
@@ -477,11 +481,16 @@
         >
           <IconSearch class={SLOT_GLYPH} />
         </span>
-        <Sidebar.Input
+        <!-- A button dressed as the field: it opens the palette, which has
+             the real input. A bare input here took typing and did nothing. -->
+        <button
           aria-label="Jump to session"
-          class="h-9 pl-[38px] pr-14 md:text-[length:var(--text-md)]"
-          placeholder="Jump…"
-        />
+          class="flex h-9 w-full items-center rounded-[var(--radius-control)] border border-[var(--border-control)] bg-[var(--surface-raised)] pl-[38px] pr-14 text-left text-muted-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 text-[length:var(--text-md)]"
+          onclick={onjump}
+          type="button"
+        >
+          Jump…
+        </button>
         <kbd
           class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 font-sans
                   text-[length:var(--text-sm)] text-muted-foreground opacity-0 transition-opacity duration-75
@@ -1014,24 +1023,29 @@
 
   <Sidebar.Footer>
     <UsageMeter />
-    <Sidebar.Menu aria-label="User">
-      <Sidebar.MenuItem>
-        <Sidebar.MenuButton class={NAV_ROW}>
-          <span
-            aria-hidden="true"
-            class="{SLOT} rounded-full bg-sidebar-accent text-[length:var(--text-xs)] font-semibold text-sidebar-accent-foreground"
-            >bw</span
-          >
-          <span class="min-w-0 flex-1 truncate text-foreground">bewinxed</span>
-          <span
-            class="shrink-0 text-[length:var(--text-sm)] text-muted-foreground"
-          >
-            {whiffle.machines.length}
-            machine{whiffle.machines.length === 1 ? '' : 's'}
-          </span>
-        </Sidebar.MenuButton>
-      </Sidebar.MenuItem>
-    </Sidebar.Menu>
+    <div class="flex items-center gap-1">
+      <Sidebar.Menu aria-label="User" class="min-w-0 flex-1">
+        <Sidebar.MenuItem>
+          <Sidebar.MenuButton class={NAV_ROW}>
+            <span
+              aria-hidden="true"
+              class="{SLOT} rounded-full bg-sidebar-accent text-[length:var(--text-xs)] font-semibold text-sidebar-accent-foreground"
+              >bw</span
+            >
+            <span class="min-w-0 flex-1 truncate text-foreground"
+              >bewinxed</span
+            >
+            <span
+              class="shrink-0 text-[length:var(--text-sm)] text-muted-foreground"
+            >
+              {whiffle.machines.length}
+              machine{whiffle.machines.length === 1 ? '' : 's'}
+            </span>
+          </Sidebar.MenuButton>
+        </Sidebar.MenuItem>
+      </Sidebar.Menu>
+      <ThemeSwitcher />
+    </div>
   </Sidebar.Footer>
 </div>
 <!-- end flex column wrapper -->

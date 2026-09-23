@@ -16,7 +16,6 @@
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte convention for component groups
   import * as Sheet from "$lib/components/ui/sheet";
   import { setSidebar } from "$lib/components/ui/sidebar/context.svelte";
-  import ThemeSwitcher from "$lib/components/ui/ThemeSwitcher.svelte";
   import { IsMobile, IsTouchPortrait } from "$lib/hooks/is-mobile.svelte";
   import { IconSearch, IconShield, IconSidebar } from "$lib/icons";
   import { isTyping } from "$lib/utils/typing";
@@ -26,8 +25,6 @@
   import { hubSocketUrl, reconnectNow, whiffle } from "./client.svelte";
   import JumpPalette from "./JumpPalette.svelte";
   import Sidebar from "./Sidebar.svelte";
-  import UsageMeter from "./UsageMeter.svelte";
-  import UsageRail from "./UsageRail.svelte";
   import PaneTabs from "./workspace/PaneTabs.svelte";
   import { type WorkspaceV1, workspace } from "./workspace/workspace.svelte";
 
@@ -242,7 +239,6 @@
     }
   }
 
-  const limits = $derived(whiffle.usageLimitsAny());
   const onSession = $derived(page.url.pathname.startsWith("/session"));
 
   /* ── The tabs, in the bar ──────────────────────────────────────────
@@ -364,7 +360,11 @@
      snap away from on hydration. -->
 <div class="shell" style="--sidebar-width: var(--rail-w, {railWidth}px)">
   <aside class="rail hidden min-[900px]:flex">
-    <Sidebar />
+    <Sidebar
+      onjump={() => {
+        jumpOpen = true;
+      }}
+    />
     <div
       aria-label="Resize sidebar"
       aria-orientation="vertical"
@@ -384,7 +384,12 @@
       <Sheet.Header class="sr-only">
         <Sheet.Title>Navigation</Sheet.Title>
       </Sheet.Header>
-      <Sidebar />
+      <Sidebar
+        onjump={() => {
+          railOpen = false;
+          jumpOpen = true;
+        }}
+      />
     </Sheet.Content>
   </Sheet.Root>
 
@@ -410,31 +415,10 @@
       {/if}
 
       <div class="right">
-        <!-- Desktop budget and fleet status — phone shows UsageMeter instead. -->
-        {#if limits && whiffle.status === 'connected'}
-          <span
-            class="desk-budget hidden min-[900px]:flex"
-            title="Today's spend vs. limit"
-          >
-            <span class="desk-budget-text">
-              Today ${(limits.spendUsed ?? 0).toFixed(2)}
-              {#if limits.spendLimit !== null}
-                <span class="desk-budget-cap"
-                  >/ ${limits.spendLimit.toFixed(0)}</span
-                >
-              {/if}
-            </span>
-            {#if limits.spendLimit !== null && limits.spendLimit > 0}
-              {@const pct = Math.min(100, ((limits.spendUsed ?? 0) / limits.spendLimit) * 100)}
-              <UsageRail compact label="Spend" value={pct} />
-            {/if}
-          </span>
-        {/if}
-
         <!-- Jump is a single entry: the one command surface the top bar opens.
              The old phone thumb bar duplicated it; that bar is gone. -->
         <Button
-          class="jump"
+          class="jump min-[900px]:hidden"
           onclick={() => {
             jumpOpen = true;
           }}
@@ -445,7 +429,6 @@
           <IconSearch />
           <span class="hidden sm:inline">Jump</span>
         </Button>
-        <span class="min-[900px]:hidden"><UsageMeter /></span>
         {#if whiffle.blockedCount > 0}
           <a
             class="icobtn"
@@ -465,8 +448,8 @@
         />
         <!-- No always-on hub dot: a green light that is green 99% of the time
              says nothing. Connection health folds into the banner below, which
-             is shown only when the hub is NOT connected. -->
-        <ThemeSwitcher />
+             is shown only when the hub is NOT connected. The theme toggle
+             lives in the rail's footer with the account row. -->
       </div>
     </header>
 
@@ -574,7 +557,9 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    padding: 0 var(--space-6) 0 var(--space-7);
+    /* The right inset equals the 8px above and below a 28px control in
+       the 44px bar, so the cluster sits in an even frame. */
+    padding: 0 calc((44px - 28px) / 2) 0 var(--space-7);
     background: var(--surface-raised);
     border-bottom: 1px solid var(--border-hairline);
     view-transition-name: topbar;
@@ -635,14 +620,14 @@
   /* One family: every control in the cluster is the same 28px box — the
      hairline, the raised surface, the control radius, the same type — so
      spend, Jump, the assistant and the theme toggle read as one row. */
-  .right > :global(:is(.desk-budget, .jump, [data-slot="button"])) {
+  .right > :global(:is(.jump, [data-slot="button"])) {
     height: 28px;
     min-width: 28px;
     border: 1px solid var(--border-hairline);
     border-radius: var(--radius-control);
     font-size: var(--text-sm);
   }
-  .right > :global(:is(.desk-budget, .jump, [data-slot="button"])) {
+  .right > :global(:is(.jump, [data-slot="button"])) {
     background: var(--surface-raised);
     box-shadow: none;
   }
@@ -652,13 +637,6 @@
   .right :global(.jump) {
     gap: var(--space-2);
     padding: 0 var(--space-3);
-  }
-  /* Hosting the tabs, the cluster centres on the tab labels, not on the
-     bar: the tabs stand on the bar's bottom edge, so their labels sit
-     2px below its middle. */
-  .top.hosting .right {
-    align-self: flex-end;
-    margin-bottom: 2px;
   }
   .right :global(.jump svg) {
     width: 15px;
@@ -733,17 +711,6 @@
     font-weight: var(--weight-strong);
     display: grid;
     place-items: center;
-  }
-
-  .desk-budget {
-    align-items: center;
-    gap: var(--space-2);
-    padding: 0 var(--space-3);
-    font-variant-numeric: tabular-nums;
-    color: var(--ink-muted);
-  }
-  .desk-budget-cap {
-    color: var(--ink-faint);
   }
 
   .banner {
