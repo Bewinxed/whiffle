@@ -57,12 +57,17 @@
   const pips = $derived(
     efforts.map((_, i) => ({ frac: frac(i), on: i > effortIdx }))
   );
-  const preview = $derived.by(() => {
-    if (hover < 0 || drag || hover === effortIdx) {
-      return { from: 0, span: 0 };
+  /**
+   * The span a hover would add or remove. It only fades — on a pick it keeps
+   * its last place while the fill grows over it, instead of shrinking back.
+   */
+  const previewing = $derived(hover >= 0 && !drag && hover !== effortIdx);
+  let preview = $state({ from: 0, span: 0 });
+  $effect.pre(() => {
+    if (previewing) {
+      const to = frac(hover);
+      preview = { from: Math.min(p, to), span: Math.abs(to - p) };
     }
-    const to = frac(hover);
-    return { from: Math.min(p, to), span: Math.abs(to - p) };
   });
   const label = $derived(n ? (efforts[effortIdx] ?? "") : "Default");
   function change(level: EffortLevel) {
@@ -187,7 +192,7 @@
       </div>
       <div
         class="preview"
-        style={`left:calc(var(--kw) + ${preview.from} * (100% - var(--kw)));width:calc(${preview.span} * (100% - var(--kw)))`}
+        style={`left:calc(var(--kw) + ${preview.from} * (100% - var(--kw)));width:calc(${preview.span} * (100% - var(--kw)));opacity:${previewing ? 1 : 0}`}
       ></div>
       {#each pips as pip, i (i)}
         <span
@@ -285,7 +290,8 @@
     background: var(--fai-hover-preview);
     transition:
       left 120ms var(--ns-ease-in-out),
-      width 120ms var(--ns-ease-in-out);
+      width 120ms var(--ns-ease-in-out),
+      opacity 120ms ease;
     pointer-events: none;
   }
   .pip {
