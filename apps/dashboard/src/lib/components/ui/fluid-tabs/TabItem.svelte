@@ -137,6 +137,16 @@
       transition: color 80ms linear;
     }
   }
+  /* Folder tabs not chosen stand behind the sheet in their own tint. */
+  :global([data-variant="folder"]) .ff-tab:not(.selected) {
+    background: var(--tab-rest, transparent);
+
+    @media (hover: hover) and (pointer: fine) {
+      &:hover {
+        background: var(--tab-hover, transparent);
+      }
+    }
+  }
   .hit {
     display: flex;
     align-items: center;

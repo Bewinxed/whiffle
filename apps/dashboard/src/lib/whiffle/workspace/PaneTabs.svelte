@@ -558,9 +558,9 @@
     min-inline-size: 0;
     padding-block: 4px 0;
     padding-inline: var(--space-7) var(--space-4);
-    background:
-      linear-gradient(var(--border-hairline), var(--border-hairline)) bottom /
-      100% 1px no-repeat;
+    /* One step darker than the transcript, so the chosen tab — in the
+       transcript's own surface — reads as the page it opens. */
+    background: var(--surface-sunken);
     view-transition-class: tabs;
   }
   :global(.session-tabs.hosted) {
@@ -582,6 +582,9 @@
     --px: 10px;
     --text: var(--text-base);
     --item: 32px;
+    --sheet: var(--surface-field);
+    --tab-rest: color-mix(in oklab, var(--surface-field) 40%, transparent);
+    --tab-hover: color-mix(in oklab, var(--surface-field) 70%, transparent);
   }
 
   .tab {

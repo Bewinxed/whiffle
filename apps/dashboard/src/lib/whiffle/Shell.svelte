@@ -579,17 +579,17 @@
     border-bottom: 1px solid var(--border-hairline);
     view-transition-name: topbar;
   }
-  /* Hosting the tabs, the bar is the shelf they stand on: the field, one
-     step below the bar's usual surface so the chosen tab's raised sheet
-     reads, with the hairline drawn in the bar's bottom pixel — where the
-     sheet ends and covers it — rather than as a border below it. */
+  /* Hosting the tabs, the bar is the shelf they stand on: one step darker
+     than the transcript, so the chosen tab — a sheet in the transcript's
+     own surface — reads as the page it opens. The hairline sits in the
+     bar's bottom pixel, where the sheet ends and covers it. */
   .top.hosting {
     padding-inline-start: var(--space-4);
     border-bottom: 0;
     background:
       linear-gradient(var(--border-hairline), var(--border-hairline)) bottom /
       100% 1px no-repeat,
-      var(--surface-field);
+      var(--surface-sunken);
   }
   .burger {
     width: 44px;

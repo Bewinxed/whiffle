@@ -288,6 +288,11 @@
      lies below, so it opens into it. */
   :global([data-variant="folder"]) .ff-tabs-list {
     --shape: var(--radius) var(--radius) 0 0;
+    /* The chosen sheet flares outward at its foot into the page below;
+       the track keeps that much room at each end so a scrolling track
+       does not clip the first or last flare. */
+    --flare: var(--radius);
+    padding-inline: var(--flare);
     padding-block-end: 0;
     border-radius: 0;
     background: none;
@@ -326,17 +331,39 @@
         opacity 80ms linear;
     }
   }
-  /* As a folder tab the sheet has an edge, not a shadow, and no bottom
-     edge at all: it is the page below, continued. It does not step back
-     for a hover — a page is not a control. */
+  /* As a folder tab the sheet is the page below, continued: no edge, no
+     shadow, the page's own surface, and its foot curves outward into the
+     page on both sides. It does not step back for a hover — a page is not
+     a control. */
   :global([data-variant="folder"]) .segment {
-    box-sizing: border-box;
-    border: 1px solid var(--border-hairline);
-    border-block-end: 0;
     box-shadow: none;
 
     &.dim {
       opacity: 1;
+    }
+    &::before,
+    &::after {
+      content: "";
+      position: absolute;
+      inset-block-end: 0;
+      inline-size: var(--flare);
+      block-size: var(--flare);
+    }
+    &::before {
+      inset-inline-start: calc(-1 * var(--flare));
+      background: radial-gradient(
+        circle at 0 0,
+        transparent calc(var(--flare) - 0.5px),
+        var(--sheet) var(--flare)
+      );
+    }
+    &::after {
+      inset-inline-end: calc(-1 * var(--flare));
+      background: radial-gradient(
+        circle at 100% 0,
+        transparent calc(var(--flare) - 0.5px),
+        var(--sheet) var(--flare)
+      );
     }
   }
   /* The hover field, one register down and one tier quicker. */
