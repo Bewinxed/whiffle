@@ -39,6 +39,17 @@ export interface SuggestCandidate {
 }
 
 /**
+ * The name a candidate's usage is recorded under. MCP usage is keyed by the
+ * `mcp__<server>__` tool-name prefix, which is the server's display name with
+ * everything outside `[A-Za-z0-9_-]` replaced by `_` (`Exa.ai` → `Exa_ai`).
+ */
+function usageName(candidate: SuggestCandidate): string {
+  return candidate.kind === "mcp"
+    ? candidate.name.replace(/[^A-Za-z0-9_-]/g, "_")
+    : candidate.name;
+}
+
+/**
  * The candidates worth asking about: the top {@link SUGGEST_CANDIDATE_LIMIT}
  * by each one's share of its own kind's usage, never-used ones dropped except
  * skills installed in the last {@link NEW_SKILL_DAYS} days.
@@ -69,7 +80,7 @@ export function rankCandidates(
     )
     .map((candidate) => ({
       candidate,
-      score: scores.get(`${candidate.kind}:${candidate.name}`) ?? 0,
+      score: scores.get(`${candidate.kind}:${usageName(candidate)}`) ?? 0,
       fresh: candidate.kind === "skill" && fresh.has(candidate.name),
     }));
   const kindTotal = { skill: 0, tool: 0, mcp: 0 };
@@ -118,8 +129,10 @@ export async function suggest(
               name: candidate.name,
               description: candidate.description,
             },
-            question:
-              "To carry out `prompt`, would the agent need to use `candidate`?",
+            // "Would the agent need to use" scored deep-research 0.39 for
+            // "we should really research this"; this wording scored it 0.74
+            // and kept typo/rename/commit prompts under the threshold.
+            question: "Is `candidate` made for the task `prompt` describes?",
           },
         },
       ])
