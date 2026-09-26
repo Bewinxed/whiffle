@@ -140,6 +140,11 @@
     }
   }
 
+  function shortcuts(node: HTMLElement) {
+    node.addEventListener("keydown", keydown);
+    return () => node.removeEventListener("keydown", keydown);
+  }
+
   /**
    * The body is a shortcut into the editor, not a trap: a link in the markdown
    * is still a link, and text somebody is selecting to copy is not an edit.
@@ -225,8 +230,9 @@
   </header>
 
   {#if editing}
-    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-    <div class="max-h-[60vh] overflow-y-auto" onkeydown={keydown} role="group">
+    <!-- Catches the editor's shortcuts as they bubble; the labelled group is
+         the editor section inside. -->
+    <div class="max-h-[60vh] overflow-y-auto" {@attach shortcuts}>
       <MarkdownEditor label={path} bind:value={draft} />
     </div>
   {:else if content !== null && summary}

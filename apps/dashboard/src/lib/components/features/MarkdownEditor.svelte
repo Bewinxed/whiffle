@@ -26,7 +26,7 @@
     label?: string;
   } = $props();
 
-  let host = $state<HTMLDivElement | null>(null);
+  let host = $state<HTMLElement | null>(null);
   let failed = $state<string | null>(null);
 
   onMount(() => {
@@ -75,7 +75,7 @@
     The editor did not load: {failed}
   </p>
 {/if}
-<div aria-label={label} class="crepe-host" bind:this={host}></div>
+<section aria-label={label} class="crepe-host" bind:this={host}></section>
 
 <style>
   /* Crepe's structural CSS reads these off `.milkdown` itself, so they are set
