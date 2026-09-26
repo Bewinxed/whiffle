@@ -146,9 +146,7 @@
 
 <div class="fault" class:hub={group.origin === 'hub'}>
   <div class="top">
-    <IconWarningTriangle
-      class="size-4 shrink-0 {group.origin === 'hub' ? 'text-destructive' : 'text-warning'}"
-    />
+    <IconWarningTriangle class="size-4 shrink-0" />
     <span class="title">{copy.title}</span>
     <!-- Where, never left implicit: the whole point of the investigation this
          came out of was that a badge named no machine. -->
@@ -275,29 +273,26 @@
 </div>
 
 <style>
-  /* Tinted ink on tinted ground, the pairing every other callout on this page
-     uses (`warnAlert` in FleetMcp/FleetSkills/FleetHooks): warning-3 under
-     warning-11. Neutral ink on a coloured ground was measurably weaker and off
-     the page's own vocabulary. */
+  /* The alert recipe: a compact status-tinted row, status ink on its own
+     tint, no edge. */
   .fault {
-    --tone-bg: var(--warning-3);
-    --tone-edge: var(--warning-9);
-    --tone-ink: var(--warning-11);
+    --tone-bg: var(--status-attn-bg);
+    --tone-ink: var(--status-attn-ink);
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--tone-edge);
+    border-radius: var(--radius-md);
     background: var(--tone-bg);
-    padding: var(--space-3);
+    color: var(--tone-ink);
+    padding: 10px 12px;
+    font: var(--type-body);
     min-width: 0;
   }
   /* A hub fault is not a machine's problem and does not wear a machine's tint:
      nothing downstream of it can be fixed until it is. */
   .fault.hub {
-    --tone-bg: var(--error-3);
-    --tone-edge: var(--error-9);
-    --tone-ink: var(--error-11);
+    --tone-bg: var(--status-fail-bg);
+    --tone-ink: var(--status-fail-ink);
   }
   .top {
     display: flex;

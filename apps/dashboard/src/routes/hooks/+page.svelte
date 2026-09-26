@@ -25,6 +25,7 @@
     saveHook,
   } from "$lib/whiffle/hooks";
   import { newId } from "$lib/whiffle/id";
+  import StatTile from "$lib/whiffle/StatTile.svelte";
   import type { PageData } from "./$types";
 
   /**
@@ -104,8 +105,6 @@
   /* Quiet Ledger dressing for shadcn primitives — see routes/rules/+page.svelte. */
   const panelClass =
     "gap-0 overflow-visible rounded-[var(--radius-lg)] bg-[var(--surface-raised)] p-[var(--space-5)] shadow-[var(--shadow-tile)] ring-0";
-  const tileClass =
-    "h-full gap-0 overflow-visible rounded-[var(--radius-lg)] bg-[var(--surface-raised)] p-[var(--c-card-pad)] shadow-[var(--shadow-tile)] ring-0";
 
   async function useTemplate(template: (typeof HOOK_TEMPLATES)[number]) {
     seeding = template.title;
@@ -144,17 +143,6 @@
 
 <svelte:head><title>Hooks &middot; Whiffle</title></svelte:head>
 
-{#snippet stat(label: string, value: string | number, unit?: string)}
-  <Card.Root class={tileClass}>
-    <div class="well">
-      <span class="k">{label}</span>
-      <span class="v">{value}</span>
-      {#if unit}
-        <span class="u">{unit}</span>
-      {/if}
-    </div>
-  </Card.Root>
-{/snippet}
 <Tooltip.Provider>
   <div class="page">
     <div class="col">
@@ -172,10 +160,18 @@
       </header>
 
       <section aria-label="Hook library at a glance" class="stats">
-        {@render stat('Hooks', hooks.length)}
-        {@render stat('Enabled', enabledTotal, `of ${hooks.length}`)}
-        {@render stat('Events covered', eventsCovered, 'of 31')}
-        {@render stat('Machines applied', machinesApplied, `of ${whiffle.machines.length}`)}
+        <StatTile label="Hooks" value={hooks.length} />
+        <StatTile
+          label="Enabled"
+          unit={`of ${hooks.length}`}
+          value={enabledTotal}
+        />
+        <StatTile label="Events covered" unit="of 31" value={eventsCovered} />
+        <StatTile
+          label="Machines applied"
+          unit={`of ${whiffle.machines.length}`}
+          value={machinesApplied}
+        />
       </section>
 
       {#if data.error}
@@ -322,33 +318,6 @@
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
     gap: var(--space-4);
-  }
-  .well {
-    flex: 1 1 auto;
-    display: flex;
-    flex-direction: column;
-    gap: var(--c-card-gap);
-    justify-content: center;
-    background: var(--surface-recess);
-    border: 1px solid var(--border-hairline);
-    border-radius: var(--radius-sm);
-    padding: var(--c-card-pad);
-  }
-  .well .k {
-    color: var(--ink-muted);
-    font-size: var(--text-label);
-    font-weight: var(--weight-medium);
-  }
-  .well .v {
-    font-size: var(--text-kpi);
-    font-weight: var(--weight-strong);
-    line-height: var(--leading-numeric);
-    color: var(--ink-strong);
-    font-variant-numeric: tabular-nums;
-  }
-  .well .u {
-    color: var(--ink-muted);
-    font-size: var(--text-label);
   }
   .phead {
     display: flex;

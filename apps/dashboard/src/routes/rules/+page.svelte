@@ -25,6 +25,7 @@
     since,
     times,
   } from "$lib/whiffle/rules";
+  import StatTile from "$lib/whiffle/StatTile.svelte";
   import type { PageData } from "./$types";
 
   /**
@@ -103,8 +104,6 @@
      as unmodified shadcn. */
   const panelClass =
     "gap-0 overflow-visible rounded-[var(--radius-lg)] bg-[var(--surface-raised)] p-[var(--space-5)] shadow-[var(--shadow-tile)] ring-0";
-  const tileClass =
-    "h-full gap-0 overflow-visible rounded-[var(--radius-lg)] bg-[var(--surface-raised)] p-[var(--c-card-pad)] shadow-[var(--shadow-tile)] ring-0";
   // The never-flat primary action: graphite brand fill + top-light gradient + inset edge.
   // The quiet secondary action: raised surface + control border.
 
@@ -135,19 +134,6 @@
 
 <svelte:head><title>Rules &middot; Whiffle</title></svelte:head>
 
-<!-- Stat tile: a raised shadcn Card whose body is a sunken hairline well — the
-     Quiet Ledger recessed-field signature, a number set *in* the surface. -->
-{#snippet stat(label: string, value: string | number, unit?: string)}
-  <Card.Root class={tileClass}>
-    <div class="well">
-      <span class="k">{label}</span>
-      <span class="v">{value}</span>
-      {#if unit}
-        <span class="u">{unit}</span>
-      {/if}
-    </div>
-  </Card.Root>
-{/snippet}
 <div class="page">
   <div class="col">
     <header class="head">
@@ -163,10 +149,18 @@
     </header>
 
     <section aria-label="Rule library at a glance" class="stats">
-      {@render stat('Rules', rules.length)}
-      {@render stat('Enabled', enabledTotal, `of ${rules.length}`)}
-      {@render stat('Waiting on an answer', pendingTotal, 'sessions')}
-      {@render stat('Times fired', firesTotal, 'all time')}
+      <StatTile label="Rules" value={rules.length} />
+      <StatTile
+        label="Enabled"
+        unit={`of ${rules.length}`}
+        value={enabledTotal}
+      />
+      <StatTile
+        label="Waiting on an answer"
+        unit="sessions"
+        value={pendingTotal}
+      />
+      <StatTile label="Times fired" unit="all time" value={firesTotal} />
     </section>
 
     {#if pendingTotal > 0}
@@ -327,35 +321,6 @@
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
     gap: var(--space-4);
-  }
-  /* The sunken well inside each raised stat Card — the recessed-field signature.
-     flex:1 keeps a tile with a unit line the same height as one without. */
-  .well {
-    flex: 1 1 auto;
-    display: flex;
-    flex-direction: column;
-    gap: var(--c-card-gap);
-    justify-content: center;
-    background: var(--surface-recess);
-    border: 1px solid var(--border-hairline);
-    border-radius: var(--radius-sm);
-    padding: var(--c-card-pad);
-  }
-  .well .k {
-    color: var(--ink-muted);
-    font-size: var(--text-label);
-    font-weight: var(--weight-medium);
-  }
-  .well .v {
-    font-size: var(--text-kpi);
-    font-weight: var(--weight-strong);
-    line-height: var(--leading-numeric);
-    color: var(--ink-strong);
-    font-variant-numeric: tabular-nums;
-  }
-  .well .u {
-    color: var(--ink-muted);
-    font-size: var(--text-label);
   }
   .phead {
     display: flex;
