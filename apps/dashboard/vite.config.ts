@@ -152,16 +152,11 @@ function previewMatch(req: http.IncomingMessage): {
   return null;
 }
 
+const HUB_URL = new URL(process.env.WHIFFLE_HUB_URL || "http://localhost:3456");
+
 /**
- * Proxies the dashboard's `/ws` upgrade and `/preview/` paths to the hub.
- *
- * Vite's built-in `server.proxy['/ws'] { ws: true }` stopped upgrading the
- * socket under rolldown-vite — the handshake returns 404/no-101 and the
- * dashboard reads the hub as unreachable even while it is up. Rather than fight
- * the proxy internals, this claims the `/ws` upgrade itself: it opens an Upgrade
- * request to the hub, replays the hub's 101 back to the browser, and pipes the
- * two raw sockets together. HMR (a different path / the `vite-hmr` protocol) is
- * never `/ws`, so returning early leaves it entirely to Vite.
+ * Proxies the dashboard's `/preview/` paths to the hub. The hub's `/ws` socket
+ * goes through `server.proxy` below.
  *
  * Preview requests (`/preview/<id>/…` and Referer-routed root-absolute fetches)
  * are forwarded to the hub's preview listener on `WHIFFLE_PREVIEW_PORT`.
@@ -175,8 +170,7 @@ function previewMatch(req: http.IncomingMessage): {
 const hubProxy = (): Plugin => ({
   name: "whiffle:hub-proxy",
   configureServer(server) {
-    const hub = new URL(process.env.WHIFFLE_HUB_URL || "http://localhost:3456");
-    const hubPort = Number(hub.port || 80);
+    const hubPort = Number(HUB_URL.port || 80);
     const pvPort = Number(process.env.WHIFFLE_PREVIEW_PORT || hubPort + 1);
 
     // HTTP middleware: intercept preview requests before Vite/SvelteKit.
@@ -197,13 +191,13 @@ const hubProxy = (): Plugin => ({
         return;
       }
       const options: http.RequestOptions = {
-        hostname: hub.hostname,
+        hostname: HUB_URL.hostname,
         port: pvPort,
         path: info.stripped,
         method: req.method,
         headers: {
           ...req.headers,
-          host: `${hub.hostname}:${pvPort}`,
+          host: `${HUB_URL.hostname}:${pvPort}`,
           "x-whiffle-preview": info.id,
         },
       };
@@ -247,13 +241,13 @@ const hubProxy = (): Plugin => ({
       const info = previewMatch(req);
       if (info) {
         const proxyReq = http.request({
-          host: hub.hostname,
+          host: HUB_URL.hostname,
           port: pvPort,
           path: info.stripped,
           method: req.method,
           headers: {
             ...req.headers,
-            host: `${hub.hostname}:${pvPort}`,
+            host: `${HUB_URL.hostname}:${pvPort}`,
             "x-whiffle-preview": info.id,
           },
         });
@@ -283,46 +277,8 @@ const hubProxy = (): Plugin => ({
           socket.destroy();
         });
         proxyReq.end();
-        return;
       }
-
-      // Only /ws is ours; HMR's upgrade is left for Vite to answer.
-      if (!req.url?.startsWith("/ws")) {
-        return;
-      }
-      const proxyReq = http.request({
-        host: hub.hostname,
-        port: hub.port,
-        path: req.url,
-        method: req.method,
-        headers: req.headers,
-      });
-      proxyReq.on("upgrade", (proxyRes, proxySocket, proxyHead) => {
-        const lines = ["HTTP/1.1 101 Switching Protocols"];
-        for (let i = 0; i < proxyRes.rawHeaders.length; i += 2) {
-          lines.push(
-            `${proxyRes.rawHeaders[i]}: ${proxyRes.rawHeaders[i + 1]}`
-          );
-        }
-        socket.write(`${lines.join("\r\n")}\r\n\r\n`);
-        if (proxyHead?.length) {
-          socket.write(proxyHead);
-        }
-        if (head?.length) {
-          proxySocket.write(head);
-        }
-        proxySocket.pipe(socket).pipe(proxySocket);
-        proxySocket.on("error", () => socket.destroy());
-        socket.on("error", () => proxySocket.destroy());
-      });
-      proxyReq.on("error", (error: NodeJS.ErrnoException) => {
-        server.config.logger.warn(
-          `[whiffle] hub ws proxy could not reach ${hub.host}: ${error.code ?? error.message}`,
-          { timestamp: true }
-        );
-        socket.destroy();
-      });
-      proxyReq.end();
+      // `/ws` is left to `server.proxy`, and HMR's upgrade to Vite.
     });
   },
 });
@@ -343,9 +299,11 @@ export default defineConfig({
     // named here; `.ts.net` covers this tailnet's MagicDNS names without
     // pinning the machine's own hostname into the repo.
     allowedHosts: [".ts.net", "localhost"],
-    // NOTE: the /ws websocket is proxied by hubWsProxy() above, not here —
-    // rolldown-vite's built-in ws proxy fails the 101 upgrade. REST /api is
-    // handled by SvelteKit's own route (routes/api/[...path]).
+    // The hub's live socket. REST /api is handled by SvelteKit's own route
+    // (routes/api/[...path]).
+    proxy: {
+      "/ws": { target: HUB_URL.origin, ws: true },
+    },
   },
   /**
    * The browsers this dashboard is actually opened in — an iPad on iPadOS 15.6
