@@ -432,9 +432,7 @@
         value={draft.handler.type}
       >
         {#each Object.entries(HANDLER_LABEL) as [value, label] (value)}
-          <ToggleGroup.Item class="flex-1" {value}
-            >{label}</ToggleGroup.Item
-          >
+          <ToggleGroup.Item class="flex-1" {value}>{label}</ToggleGroup.Item>
         {/each}
       </ToggleGroup.Root>
 
@@ -487,7 +485,9 @@
               }}
             />
             <span class="flex flex-col gap-0.5">
-              <span class="text-meta text-muted-foreground">Run in the background</span>
+              <span class="text-meta text-muted-foreground"
+                >Run in the background</span
+              >
               <span class="max-w-prose text-label text-muted-foreground">
                 Claude Code does not wait for it before continuing.
               </span>
@@ -504,12 +504,8 @@
             type="single"
             value={draft.handler.shell ?? 'bash'}
           >
-            <ToggleGroup.Item value="bash"
-              >bash</ToggleGroup.Item
-            >
-            <ToggleGroup.Item value="powershell"
-              >PowerShell</ToggleGroup.Item
-            >
+            <ToggleGroup.Item value="bash">bash</ToggleGroup.Item>
+            <ToggleGroup.Item value="powershell">PowerShell</ToggleGroup.Item>
           </ToggleGroup.Root>
         </div>
       {:else if draft.handler.type === 'http'}
@@ -739,9 +735,7 @@
                 class="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-md)] bg-muted/40 p-3"
               >
                 <span class="flex flex-col gap-0.5">
-                  <span class="text-meta text-foreground"
-                    >{version.name}</span
-                  >
+                  <span class="text-meta text-foreground">{version.name}</span>
                   <span class="text-label text-muted-foreground">
                     {new Date(version.createdAt).toLocaleString()}
                     · <span class="font-mono">{version.hash.slice(0, 7)}</span>

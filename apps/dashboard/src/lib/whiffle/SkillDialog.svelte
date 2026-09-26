@@ -105,7 +105,9 @@
       >
     </Dialog.Header>
     <form class="flex flex-col gap-3" onsubmit={submit}>
-      <label class="flex flex-col gap-1.5 text-meta text-muted-foreground" for="skill-source"
+      <label
+        class="flex flex-col gap-1.5 text-meta text-muted-foreground"
+        for="skill-source"
         >Source
         <Input
           autocomplete="off"
@@ -136,7 +138,9 @@
           {/if}
         </span>
       </label>
-      <label class="flex flex-col gap-1.5 text-meta text-muted-foreground" for="skill-name"
+      <label
+        class="flex flex-col gap-1.5 text-meta text-muted-foreground"
+        for="skill-name"
         >Name
         <Input
           aria-invalid={skillName !== '' && nameProblem ? 'true' : undefined}

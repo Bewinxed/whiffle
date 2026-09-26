@@ -180,8 +180,7 @@
 
       {#if data.error}
         <Alert.Root variant="destructive">
-          <Alert.Description
-          >
+          <Alert.Description>
             {data.error}
           </Alert.Description>
         </Alert.Root>
@@ -205,9 +204,9 @@
                   </div>
                   <div class="rowactions">
                     <Button
-                      variant="outline"
                       disabled={seeding !== null}
                       onclick={() => useTemplate(template)}
+                      variant="outline"
                     >
                       {seeding === template.title ? 'Adding…' : 'Add'}
                     </Button>
@@ -216,7 +215,7 @@
               {/each}
             </ul>
             <div>
-              <Button variant="outline" onclick={() => goto('/hooks/new')}>
+              <Button onclick={() => goto('/hooks/new')} variant="outline">
                 Or write one from scratch
               </Button>
             </div>
@@ -399,10 +398,6 @@
     flex-direction: column;
     gap: var(--space-1);
   }
-  .rowtext.off .name,
-  .rowtext.off .line {
-    color: var(--ink-muted);
-  }
   .off-label {
     font: var(--type-meta);
     color: var(--ink-muted);
@@ -432,6 +427,10 @@
   .line {
     max-width: 68ch;
     font-size: var(--text-label);
+    color: var(--ink-muted);
+  }
+  .rowtext.off .name,
+  .rowtext.off .line {
     color: var(--ink-muted);
   }
   .rowactions {

@@ -64,8 +64,16 @@ export const CURVES = {
     css: "cubic-bezier(0.77, 0, 0.175, 1)",
     note: "Movement on screen, not entry or exit.",
   },
-  eIn: { label: "--ease-out", css: "var(--ease-out)", note: "DESIGN.md entry." },
-  eOut: { label: "--ease-out", css: "var(--ease-out)", note: "DESIGN.md exit." },
+  eIn: {
+    label: "--ease-out",
+    css: "var(--ease-out)",
+    note: "DESIGN.md entry.",
+  },
+  eOut: {
+    label: "--ease-out",
+    css: "var(--ease-out)",
+    note: "DESIGN.md exit.",
+  },
   eToggle: {
     label: "--ease-in-out",
     css: "var(--ease-in-out)",
@@ -83,12 +91,6 @@ export interface Arrival {
   contentDelayMs: number;
   contentEase: Easing;
   contentMs: number;
-  /** Rail head start (negative reads as the rail lagging the space). */
-  railDelayMs: number;
-  railEase: Easing;
-  /** How long the rail takes to draw through that space. */
-  railMs: number;
-  reserveEase: Easing;
   /**
    * How fast the bottom edge is allowed to travel while a space opens, px/s.
    *
@@ -101,6 +103,12 @@ export interface Arrival {
    * so the two mechanisms move the page at one speed.
    */
   openVelocity: number;
+  /** Rail head start (negative reads as the rail lagging the space). */
+  railDelayMs: number;
+  railEase: Easing;
+  /** How long the rail takes to draw through that space. */
+  railMs: number;
+  reserveEase: Easing;
   /** The ceiling on that. Past it a tall row is waiting, not arriving. */
   reserveMaxMs: number;
   /** How long the row's height takes to open. The space reservation. */

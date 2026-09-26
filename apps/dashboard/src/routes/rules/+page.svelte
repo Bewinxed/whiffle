@@ -171,8 +171,7 @@
 
     {#if pendingTotal > 0}
       <Alert.Root variant="warning">
-        <Alert.Description
-        >
+        <Alert.Description>
           {pendingTotal}
           {pendingTotal === 1 ? 'session has' : 'sessions have'}
           been told something and not answered for it yet.
@@ -182,8 +181,7 @@
 
     {#if data.error}
       <Alert.Root variant="destructive">
-        <Alert.Description
-        >
+        <Alert.Description>
           {data.error}
         </Alert.Description>
       </Alert.Root>
@@ -207,9 +205,9 @@
                 </div>
                 <div class="rowactions">
                   <Button
-                    variant="outline"
                     disabled={seeding !== null}
                     onclick={() => useTemplate(template)}
+                    variant="outline"
                   >
                     {seeding === template.title ? 'Adding…' : 'Add'}
                   </Button>
@@ -218,7 +216,7 @@
             {/each}
           </ul>
           <div>
-            <Button variant="outline" onclick={() => goto('/rules/new')}>
+            <Button onclick={() => goto('/rules/new')} variant="outline">
               Or write one from scratch
             </Button>
           </div>

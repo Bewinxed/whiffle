@@ -269,16 +269,10 @@ spawnSession({
 
 ## Modal-Relevant Tokens
 
-All values below are defined in `app.css:327-554`, with the light/dark ramps at `app.css:50-95,195-234`.
-
-- Surfaces: `--surface-sunken: var(--neutral-3)`; `--surface-field: color-mix(in oklab, var(--neutral-2), var(--neutral-3))`; `--surface-raised: var(--neutral-1)`; `--surface-overlay: var(--neutral-1)`; `--surface-hover: var(--neutral-3)`; `--surface-active: var(--neutral-4)`; `--surface-well: var(--surface-field)`.
-- Borders: `--border-hairline: color-mix(in oklab, var(--neutral-4) 34%, var(--neutral-3))`; `--border-divider: color-mix(in oklab, var(--neutral-4) 72%, var(--neutral-3))`; `--border-control: var(--neutral-4)`.
-- Text: `--ink-strong: var(--neutral-12)`; `--ink-row: color-mix(in oklab, var(--neutral-12) 68%, var(--neutral-11))`; `--ink-stat: color-mix(in oklab, var(--neutral-12) 60%, var(--neutral-11))`; `--ink-body: color-mix(in oklab, var(--neutral-12) 46%, var(--neutral-11))`; `--ink-muted: var(--neutral-11)`; `--ink-label: color-mix(in oklab, var(--neutral-11) 74%, var(--neutral-12))`; `--text-xs: .6875rem`; `--text-sm: .78125rem`; `--text-base: .84375rem`; `--text-md: .9375rem`; `--leading-body: 1.4`; `--leading-ui: 1.25`.
-- Shape: `--radius-well: 7px`; `--radius-control: 8px`; `--radius-modal: 12px`; `--radius-pill: 999px`.
-- Motion: `--c-100: 100ms`; `--c-300: 300ms`; `--c-500: 500ms`; `--e-in: cubic-bezier(0.16, 1, 0.3, 1)`; `--e-out: cubic-bezier(0.7, 0, 0.84, 0)`; `--e-toggle: cubic-bezier(0.65, 0, 0.35, 1)`.
-- Brand/focus/action: `--focus-ring: var(--accent-solid)`; `--brand-solid: var(--neutral-12)`; `--brand-hi: oklch(from var(--neutral-12) calc(l + .075) c h)`; `--brand-lo: oklch(from var(--neutral-12) calc(l - .012) c h)`; `--brand-edge: oklch(from var(--neutral-12) calc(l - .045) c h)`; `--on-brand: var(--neutral-1)`; `--gradient-action: linear-gradient(var(--brand-hi), var(--brand-lo))`; `--scrim: oklch(from var(--neutral-12) l c h / .32)`.
-- Status: `--status-live-bg: color-mix(in oklab, var(--info-3) var(--tint-depth), var(--info-9))`; `--status-attn-bg: color-mix(in oklab, var(--warning-3) var(--tint-depth), var(--warning-9))`; `--status-attn-ink: color-mix(in oklab, var(--warning-11) var(--ink-depth), var(--neutral-12))`; other available pairs are done/fail/idle at `app.css:393-425`.
-- Elevation used by the modal: `--shadow-modal: var(--shadow-overlay)`; `--shadow-overlay: 0 18px 48px var(--shadow-tint-3), 0 2px 6px var(--shadow-tint)`; `--shadow-inset-sel: inset 0 1px 1px var(--shadow-tint)`; `--shadow-action: inset 0 -1px 0 var(--brand-edge), 0 1px 2px var(--shadow-tint-2)` (`app.css:466-481`).
+The dialog reads the root tokens in `app.css` directly; `DESIGN.md` lists them
+(surfaces, ink, radius, type roles, shadows, scrim, curves, durations). Only the
+dialog's own motion tunables (`--ns-*-ms`, staggers, distances) stay in
+`ns-theme.css`.
 
 ## Must-Keep Checklist
 

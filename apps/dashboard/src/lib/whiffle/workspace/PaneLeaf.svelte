@@ -136,13 +136,10 @@
         .querySelector<HTMLElement>(
           `:scope > .pane[data-pane="${CSS.escape(id)}"]`
         )
-        ?.animate(
-          [{ opacity: 0.4 }, { opacity: 1 }],
-          {
-            duration: 120,
-            easing: getComputedStyle(stack).getPropertyValue("--ease-out"),
-          }
-        );
+        ?.animate([{ opacity: 0.4 }, { opacity: 1 }], {
+          duration: 120,
+          easing: getComputedStyle(stack).getPropertyValue("--ease-out"),
+        });
     });
   });
 

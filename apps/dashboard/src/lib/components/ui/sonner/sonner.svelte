@@ -1,10 +1,16 @@
 <script lang="ts">
-  import { IconError, IconInfo, IconSpinner, IconSuccess, IconWarningTriangle } from "$lib/icons";
   import { mode } from "mode-watcher";
   import {
     Toaster as Sonner,
     type ToasterProps as SonnerProps,
   } from "svelte-sonner";
+  import {
+    IconError,
+    IconInfo,
+    IconSpinner,
+    IconSuccess,
+    IconWarningTriangle,
+  } from "$lib/icons";
 
   let { ...restProps }: SonnerProps = $props();
 </script>
@@ -16,20 +22,16 @@
   {...restProps}
 >
   {#snippet loadingIcon()}
-    <IconSpinner
-      class="size-4 animate-spin" />
+    <IconSpinner class="size-4 animate-spin" />
   {/snippet}
   {#snippet successIcon()}
-    <IconSuccess
-      class="size-4" />
+    <IconSuccess class="size-4" />
   {/snippet}
   {#snippet errorIcon()}
-    <IconError
-      class="size-4" />
+    <IconError class="size-4" />
   {/snippet}
   {#snippet infoIcon()}
-    <IconInfo
-      class="size-4" />
+    <IconInfo class="size-4" />
   {/snippet}
   {#snippet warningIcon()}
     <IconWarningTriangle class="size-4" />

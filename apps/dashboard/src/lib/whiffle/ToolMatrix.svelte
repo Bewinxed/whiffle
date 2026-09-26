@@ -204,7 +204,10 @@
       <Tooltip.Root>
         <Tooltip.Trigger>
           {#snippet child({ props })}
-            <Badge {...props} class="{CHIP} text-[var(--ink-subtle)]" variant="ghost"
+            <Badge
+              {...props}
+              class="{CHIP} text-[var(--ink-subtle)]"
+              variant="ghost"
               >Unknown</Badge
             >
           {/snippet}
@@ -270,9 +273,7 @@
     >WHIFFLE_HUB_URL=ws://&lt;this-host&gt;:3456/ws whiffle up</pre>
   </Card>
 {:else}
-  <Card
-    class="gap-0 overflow-hidden rounded-[var(--radius-lg)] py-0 shadow-md"
-  >
+  <Card class="gap-0 overflow-hidden rounded-[var(--radius-lg)] py-0 shadow-md">
     <Table.Root class="border-collapse text-left">
       <Table.Header>
         <Table.Row class="align-top hover:bg-transparent">
@@ -346,8 +347,7 @@
                 />
                 <span class="flex min-w-0 flex-col">
                   <span class="flex items-center gap-[var(--space-2)]">
-                    <span
-                      class="truncate text-meta font-medium text-foreground"
+                    <span class="truncate text-meta font-medium text-foreground"
                       >{machineLabel(machine.hostname)}</span
                     >
                     <span

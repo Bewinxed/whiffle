@@ -12,7 +12,6 @@
   import { Textarea } from "$lib/components/ui/textarea";
   import { IconArrowRight, IconTrash } from "$lib/icons";
   import { confirm } from "$lib/whiffle/confirm.svelte";
-  import ModelCombobox from "$lib/whiffle/ModelCombobox.svelte";
   import type { DelegateType } from "$lib/whiffle/delegate-types";
   import {
     blankDelegateType,
@@ -23,6 +22,7 @@
     removeDelegateType,
     saveDelegateType,
   } from "$lib/whiffle/delegate-types";
+  import ModelCombobox from "$lib/whiffle/ModelCombobox.svelte";
   import type { PageData } from "./$types";
 
   /**
@@ -240,7 +240,9 @@
           </NativeSelect>
         </label>
 
-        <div class="flex min-w-0 flex-col gap-1.5 text-meta text-muted-foreground">
+        <div
+          class="flex min-w-0 flex-col gap-1.5 text-meta text-muted-foreground"
+        >
           <span>Model</span>
           <ModelCombobox
             class="w-full min-w-0 text-foreground"
@@ -330,10 +332,8 @@
       </label>
     </section>
 
-    <Alert.Root
-    >
-      <Alert.Description
-      >
+    <Alert.Root>
+      <Alert.Description>
         Changes apply to new sessions only — running sessions keep the type list
         they started with.
       </Alert.Description>

@@ -227,15 +227,13 @@
   {#if editing}
     <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <!-- biome-ignore lint/a11y/noStaticElementInteractions: a key handler over the editor, whose own controls are the interactive elements -->
-    <div
-      class="max-h-[60vh] overflow-y-auto"
-      onkeydown={keydown}
-      role="group"
-    >
+    <div class="max-h-[60vh] overflow-y-auto" onkeydown={keydown} role="group">
       <MarkdownEditor label={path} bind:value={draft} />
     </div>
   {:else if content !== null && summary}
-    <p class="px-[var(--space-4)] py-[var(--space-2)] text-meta text-muted-foreground">
+    <p
+      class="px-[var(--space-4)] py-[var(--space-2)] text-meta text-muted-foreground"
+    >
       {summary}
     </p>
   {:else if content !== null}
@@ -264,7 +262,9 @@
       {emptyText}
     </Button>
   {:else}
-    <p class="text-meta text-muted-foreground px-[var(--space-4)] py-[var(--space-6)]">
+    <p
+      class="text-meta text-muted-foreground px-[var(--space-4)] py-[var(--space-6)]"
+    >
       {emptyText}
     </p>
   {/if}

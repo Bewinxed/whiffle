@@ -131,7 +131,9 @@
   <div class="flex items-center justify-between gap-2">
     <div>
       <h2 class="text-title">Daily</h2>
-      <p class="text-meta text-muted-foreground">Tokens per day, stacked by harness.</p>
+      <p class="text-meta text-muted-foreground">
+        Tokens per day, stacked by harness.
+      </p>
     </div>
     <div class="flex gap-1 rounded-[var(--radius-sm)] bg-muted p-0.5">
       {#each RANGES as r (r.id)}

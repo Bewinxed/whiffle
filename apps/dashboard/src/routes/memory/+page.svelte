@@ -134,9 +134,7 @@
     path === FLEET ? "CLAUDE.md" : path.replace(/^models\//, "");
 
   const stateOf = (machine: (typeof machines)[number], path: string) =>
-    path === FLEET
-      ? machine.fleet?.memory
-      : machine.fleet?.memoryDocs?.[path];
+    path === FLEET ? machine.fleet?.memory : machine.fleet?.memoryDocs?.[path];
   const appliedOn = (path: string) =>
     machines.filter((row) => stateOf(row, path)?.state === "applied");
   const driftedOn = (path: string) =>
@@ -287,7 +285,7 @@
 <Tooltip.Provider>
   <div class="shell">
     <!-- The rail. Never scrolls with the file it is pointing at. -->
-    <nav class="rail" aria-label="Memory documents">
+    <nav aria-label="Memory documents" class="rail">
       <div class="railhead">
         <Input
           aria-label="Filter documents"
@@ -323,7 +321,7 @@
             <Input
               aria-label="New document path"
               autofocus
-               class="font-mono"
+              class="font-mono"
               onblur={() => (drafting = false)}
               placeholder="models/deepseek-v4.md"
               bind:value={newPath}
@@ -342,115 +340,128 @@
     </nav>
 
     <!-- The file. One pane, always the editor. -->
-    <section class="detail" aria-label="Document editor">
-      <Card.Root class="memory-panel min-h-0 flex-1 gap-0 rounded-[var(--radius-lg)] bg-[var(--surface-raised)] p-[var(--space-2)] shadow-[var(--shadow-hairline)] ring-0">
-      <header class="dhead">
-        <span class="path" title={labelOf(selected)}>{labelOf(selected)}</span>
-        <div class="metadata" aria-label="Document details">
-        <span class="stat">{formatBytes(bytes)}</span>
-        <Tooltip.Root>
-          <Tooltip.Trigger>
-            {#snippet child({ props })}
-              <button type="button" class="stat token-estimate" {...props}>~{tokens.toLocaleString()} tokens</button
-              >
-            {/snippet}
-          </Tooltip.Trigger>
-          <Tooltip.Content
-            >Roughly what this file costs every session that loads it, estimated
-            at about four bytes a token</Tooltip.Content
+    <section aria-label="Document editor" class="detail">
+      <Card.Root
+        class="memory-panel min-h-0 flex-1 gap-0 rounded-[var(--radius-lg)] bg-[var(--surface-raised)] p-[var(--space-2)] shadow-[var(--shadow-hairline)] ring-0"
+      >
+        <header class="dhead">
+          <span class="path" title={labelOf(selected)}
+            >{labelOf(selected)}</span
           >
-        </Tooltip.Root>
-        {@render sync(selected)}
-        </div>
-        <span class="spacer"></span>
-        <Tooltip.Root>
-          <Tooltip.Trigger>
-            {#snippet child({ props })}
-              <Button
-                {...props}
-                aria-label="Delete this document"
-                class="memory-action delete-action"
-                disabled={busy || (selected === FLEET && memory === null)}
-                onclick={drop}
-                size="icon-sm"
-                variant="secondary"><IconTrash /></Button
+          <div aria-label="Document details" class="metadata">
+            <span class="stat">{formatBytes(bytes)}</span>
+            <Tooltip.Root>
+              <Tooltip.Trigger>
+                {#snippet child({ props })}
+                  <button class="stat token-estimate" type="button" {...props}>
+                    ~{tokens.toLocaleString()}
+                    tokens
+                  </button>
+                {/snippet}
+              </Tooltip.Trigger>
+              <Tooltip.Content
+                >Roughly what this file costs every session that loads it,
+                estimated at about four bytes a token</Tooltip.Content
               >
-            {/snippet}
-          </Tooltip.Trigger>
-          <Tooltip.Content
-            >Takes it off every machine that still has Whiffle's copy</Tooltip.Content
-          >
-        </Tooltip.Root>
-      </header>
-
-      <div class="editor-well">
-      <div class="editor">
-      {#if driftedOn(selected).length > 0}
-        <div class="drift">
-          {#each driftedOn(selected) as machine (machine.machineId)}
-            {@const online = machine.status === 'online'}
-            <div class="driftrow">
-              <IconWarningTriangle class="attention-glyph" />
-              <span class="dname">{machineLabel(machine.hostname)}</span>
-              <span class="dsay"
-                >kept its own copy{online ? '' : ' — offline, it syncs when back'}</span
-              >
-              <Button
-                class="memory-action"
-                disabled={!online || busy}
-                onclick={() => adopt(machine.machineId)}
-                size="xs"
-                variant="outline">Adopt theirs</Button
-              >
-              <Button
-                class="memory-action"
-                disabled={!online || busy}
-                onclick={() => overwrite(machine.machineId)}
-                size="xs"
-                variant="outline">Send ours</Button
-              >
-            </div>
-          {/each}
-        </div>
-      {/if}
-
-      {#if data.fleetError}
-        <div class="pad">
-          <Alert.Root class="items-center"
-          >
-            <IconWarningTriangle />
-            <Alert.Description
-              >{data.fleetError}</Alert.Description
+            </Tooltip.Root>
+            {@render sync(selected)}
+          </div>
+          <span class="spacer"></span>
+          <Tooltip.Root>
+            <Tooltip.Trigger>
+              {#snippet child({ props })}
+                <Button
+                  {...props}
+                  aria-label="Delete this document"
+                  class="memory-action delete-action"
+                  disabled={busy || (selected === FLEET && memory === null)}
+                  onclick={drop}
+                  size="icon-sm"
+                  variant="secondary"
+                  ><IconTrash /></Button
+                >
+              {/snippet}
+            </Tooltip.Trigger>
+            <Tooltip.Content
+              >Takes it off every machine that still has Whiffle's
+              copy</Tooltip.Content
             >
-          </Alert.Root>
+          </Tooltip.Root>
+        </header>
+
+        <div class="editor-well">
+          <div class="editor">
+            {#if driftedOn(selected).length > 0}
+              <div class="drift">
+                {#each driftedOn(selected) as machine (machine.machineId)}
+                  {@const online = machine.status === 'online'}
+                  <div class="driftrow">
+                    <IconWarningTriangle class="attention-glyph" />
+                    <span class="dname">{machineLabel(machine.hostname)}</span>
+                    <span class="dsay"
+                      >kept its own copy{online ? '' : ' — offline, it syncs when back'}</span
+                    >
+                    <Button
+                      class="memory-action"
+                      disabled={!online || busy}
+                      onclick={() => adopt(machine.machineId)}
+                      size="xs"
+                      variant="outline"
+                      >Adopt theirs</Button
+                    >
+                    <Button
+                      class="memory-action"
+                      disabled={!online || busy}
+                      onclick={() => overwrite(machine.machineId)}
+                      size="xs"
+                      variant="outline"
+                      >Send ours</Button
+                    >
+                  </div>
+                {/each}
+              </div>
+            {/if}
+
+            {#if data.fleetError}
+              <div class="pad">
+                <Alert.Root class="items-center">
+                  <IconWarningTriangle />
+                  <Alert.Description>{data.fleetError}</Alert.Description>
+                </Alert.Root>
+              </div>
+            {/if}
+
+            {#key selected}
+              <MarkdownEditor label={labelOf(selected)} bind:value={text} />
+            {/key}
+          </div>
         </div>
-      {/if}
 
-        {#key selected}
-          <MarkdownEditor label={labelOf(selected)} bind:value={text} />
-        {/key}
-      </div>
-      </div>
-
-      <footer class="dfoot">
-        <span role="status" class="save-status">
-        {#if busy}
-          <span class="say">Saving…</span>
-        {:else if dirty}
-          <span class="say say-dirty">Unsaved changes</span>
-        {:else}
-          <span class="say"
-             ><IconCheck />Saved{#if selected === FLEET && memory}
-               <span>{formatDistanceToNow(new Date(memory.updatedAt))}</span>{/if}</span
+        <footer class="dfoot">
+          <span class="save-status" role="status">
+            {#if busy}
+              <span class="say">Saving…</span>
+            {:else if dirty}
+              <span class="say say-dirty">Unsaved changes</span>
+            {:else}
+              <span class="say"
+                ><IconCheck />Saved
+                {#if selected === FLEET && memory}
+                  <span>{formatDistanceToNow(new Date(memory.updatedAt))}</span>
+                {/if}</span
+              >
+            {/if}
+          </span>
+          <span class="spacer"></span>
+          <kbd class="kbd">⌘S</kbd>
+          <Button
+            class="memory-action save-action"
+            disabled={!dirty || busy}
+            onclick={commit}
+            size="xs"
+            >Save</Button
           >
-        {/if}
-        </span>
-        <span class="spacer"></span>
-        <kbd class="kbd">⌘S</kbd>
-        <Button class="memory-action save-action" disabled={!dirty || busy} onclick={commit} size="xs"
-          >Save</Button
-        >
-      </footer>
+        </footer>
       </Card.Root>
     </section>
   </div>
@@ -462,20 +473,24 @@
   <button
     aria-current={selected === path ? 'page' : undefined}
     class="rrow"
-    class:on={selected === path}
     onclick={() => pick(path)}
     type="button"
+    class:on={selected === path}
   >
     {#if selected === path}
       <span class="rowsel"></span>
     {/if}
     <span class="rname">{shortOf(path)}</span>
     {#if drifted.length > 0}
-      <span class="row-state" title={names(drifted)}><IconWarningTriangle /><span class="sr-only">Kept own copy</span></span>
+      <span class="row-state" title={names(drifted)}
+        ><IconWarningTriangle /><span class="sr-only">Kept own copy</span></span
+      >
     {:else if applied.length > 0}
-      <span class="row-state" title={names(applied)}><IconCheck /><span class="sr-only">In sync</span></span>
+      <span class="row-state" title={names(applied)}
+        ><IconCheck /><span class="sr-only">In sync</span></span
+      >
     {:else}
-      <span class="dot" role="img" aria-label="Not synced"></span>
+      <span aria-label="Not synced" class="dot" role="img"></span>
     {/if}
     {#if path === selected ? dirty : drafts[path] !== undefined && drafts[path] !== savedFor(path)}
       <span class="draft-label">Unsaved</span>
@@ -488,10 +503,13 @@
   {@const drifted = driftedOn(path)}
   {#if drifted.length > 0}
     <span class="chip chip-warn" title={names(drifted)}
-      ><IconWarningTriangle />{drifted.length} kept own</span
+      ><IconWarningTriangle />{drifted.length}
+      kept own</span
     >
   {:else if applied.length > 0}
-    <span class="chip" title={names(applied)}><IconCheck />in sync on {applied.length}</span>
+    <span class="chip" title={names(applied)}
+      ><IconCheck />in sync on {applied.length}</span
+    >
   {/if}
 {/snippet}
 

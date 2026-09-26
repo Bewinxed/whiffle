@@ -269,7 +269,8 @@
       grid-template-rows var(--ghost-fail-reveal) var(--ease-out)
       var(--ghost-fail-delay),
       opacity var(--ghost-fail-reveal) var(--ease-out) var(--ghost-fail-delay),
-      margin-top var(--ghost-fail-reveal) var(--ease-out) var(--ghost-fail-delay);
+      margin-top var(--ghost-fail-reveal) var(--ease-out)
+      var(--ghost-fail-delay);
   }
   .turn.you.failed .failure {
     grid-template-rows: 1fr;

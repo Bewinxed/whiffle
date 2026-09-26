@@ -767,7 +767,8 @@
         >
           {#if whiffle.machines.length === 0}
             Run
-            <code class="font-mono text-[length:var(--text-label)] text-foreground"
+            <code
+              class="font-mono text-[length:var(--text-label)] text-foreground"
               >whiffle</code
             >
             on a machine, then group its checkouts here.

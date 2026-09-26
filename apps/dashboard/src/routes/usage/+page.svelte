@@ -926,8 +926,8 @@
       inset: 0 auto 0 0;
       border-radius: var(--radius-pill);
       width: 100%;
-    transform-origin: left;
-    transition: transform var(--dur-panel) var(--ease-out);
+      transform-origin: left;
+      transition: transform var(--dur-panel) var(--ease-out);
     }
     .q-table .fill.ok {
       background: var(--data-ok);

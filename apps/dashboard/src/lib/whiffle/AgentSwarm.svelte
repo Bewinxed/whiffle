@@ -100,7 +100,9 @@
       </span>
     {/each}
     {#if rest > 0}
-      <span class="shrink-0 text-label text-[var(--ink-subtle)]" data-tabular>+{rest}</span>
+      <span class="shrink-0 text-label text-[var(--ink-subtle)]" data-tabular
+        >+{rest}</span
+      >
     {/if}
   </span>
 </button>

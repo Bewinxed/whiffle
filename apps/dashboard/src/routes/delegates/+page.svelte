@@ -123,8 +123,7 @@
 
     {#if data.error}
       <Alert.Root variant="destructive">
-        <Alert.Description
-        >
+        <Alert.Description>
           {data.error}
         </Alert.Description>
       </Alert.Root>

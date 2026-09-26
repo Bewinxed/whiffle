@@ -3,10 +3,10 @@
 </script>
 
 <script lang="ts">
-  import { IconClose } from "$lib/icons";
   import { Dialog as SheetPrimitive } from "bits-ui";
   import type { ComponentProps, Snippet } from "svelte";
   import { Button } from "$lib/components/ui/button/index.js";
+  import { IconClose } from "$lib/icons";
   import { cn, type WithoutChildrenOrChild } from "$lib/utils.js";
   import SheetOverlay from "./sheet-overlay.svelte";
   import SheetPortal from "./sheet-portal.svelte";

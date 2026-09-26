@@ -306,7 +306,9 @@
                 ></span>
               {/if}
             </span>
-            <span class="min-w-0 flex-1 truncate text-label">{server.name}</span>
+            <span class="min-w-0 flex-1 truncate text-label"
+              >{server.name}</span
+            >
             <span class="shrink-0 text-label text-muted-foreground"
               >{server.status}</span
             >

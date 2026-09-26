@@ -112,9 +112,7 @@
 {#if loadError}
   <Alert.Root variant="warning">
     <IconWarningTriangle />
-    <Alert.Description
-      >{loadError}</Alert.Description
-    >
+    <Alert.Description>{loadError}</Alert.Description>
   </Alert.Root>
 {:else if hooks.length === 0}
   <Card.Root class={panelPad}>

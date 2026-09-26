@@ -1,8 +1,8 @@
 // Not solar: the set has no bare plus (only circled/squared "add"), and an
 // enclosed glyph double-encloses inside pill buttons. Local, set-matched.
 // biome-ignore lint/performance/noBarrelFile: central icon barrel — every consumer imports icons from this index
-export { default as IconPlus } from "$lib/components/icons/Plus.svelte";
 export { default as IconMinus } from "$lib/components/icons/Minus.svelte";
+export { default as IconPlus } from "$lib/components/icons/Plus.svelte";
 export { default as IconTick } from "$lib/components/icons/Tick.svelte";
 export { default as IconAlignLeft } from "~icons/solar/align-left-linear";
 export { default as IconChevronDown } from "~icons/solar/alt-arrow-down-linear";

@@ -150,7 +150,9 @@
       <span>Loading diff...</span>
     </div>
   {:else if diffError}
-    <div class="flex items-center justify-center gap-2 p-8 text-label text-error">
+    <div
+      class="flex items-center justify-center gap-2 p-8 text-label text-error"
+    >
       <IconAlert class="w-5 h-5" />
       <span>{diffError}</span>
     </div>

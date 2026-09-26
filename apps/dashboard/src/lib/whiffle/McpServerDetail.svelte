@@ -94,7 +94,9 @@
       >{server.status}</span
     >
     {#if server.scope}
-      <span class="ml-auto text-meta text-muted-foreground">{server.scope}</span>
+      <span class="ml-auto text-meta text-muted-foreground"
+        >{server.scope}</span
+      >
     {/if}
   </div>
 

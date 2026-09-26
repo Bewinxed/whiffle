@@ -203,7 +203,9 @@
               {#if item.cwd}
                 <!-- The path is what tells two blocked sessions on the same
                      machine apart — TX-02, like every other path in the app. -->
-                <span class="text-meta text-muted-foreground truncate font-mono">{item.cwd}</span>
+                <span class="text-meta text-muted-foreground truncate font-mono"
+                  >{item.cwd}</span
+                >
               {/if}
               <span
                 class="text-label shrink-0 text-muted-foreground tabular-nums"

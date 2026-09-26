@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { IconSearch } from "$lib/icons";
   import { Command as CommandPrimitive } from "bits-ui";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte convention for importing a component group
   import * as InputGroup from "$lib/components/ui/input-group/index.js";
+  import { IconSearch } from "$lib/icons";
   import { cn } from "$lib/utils.js";
 
   let {
@@ -29,8 +29,7 @@
       {/snippet}
     </CommandPrimitive.Input>
     <InputGroup.Addon>
-      <IconSearch
-        class="size-4 shrink-0 opacity-50" />
+      <IconSearch class="size-4 shrink-0 opacity-50" />
     </InputGroup.Addon>
   </InputGroup.Root>
 </div>

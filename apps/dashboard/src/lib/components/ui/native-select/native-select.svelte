@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { IconUnfold } from "$lib/icons";
   import type { HTMLSelectAttributes } from "svelte/elements";
+  import { IconUnfold } from "$lib/icons";
   import { cn, type WithElementRef } from "$lib/utils.js";
 
   type NativeSelectProps = Omit<

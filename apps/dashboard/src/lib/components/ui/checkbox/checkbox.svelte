@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { IconMinus, IconTick } from "$lib/icons";
   import { Checkbox as CheckboxPrimitive } from "bits-ui";
+  import { IconMinus, IconTick } from "$lib/icons";
   import { cn, type WithoutChildrenOrChild } from "$lib/utils.js";
 
   let {
@@ -13,10 +13,7 @@
 </script>
 
 <CheckboxPrimitive.Root
-  class={cn(
-		"peer relative flex size-4 shrink-0 items-center justify-center rounded-[var(--radius-xs)] border border-input outline-none transition-shadow after:absolute after:-inset-x-3 after:-inset-y-2 disabled:cursor-not-allowed disabled:opacity-50 group-has-disabled/field:opacity-50 aria-invalid:border-destructive aria-invalid:ring-[3px] aria-invalid:ring-destructive/20 aria-invalid:aria-checked:border-primary data-checked:border-primary data-checked:bg-primary data-checked:text-primary-foreground dark:bg-input/30 dark:data-checked:bg-primary dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 focus-ring",
-		className
-	)}
+  class={cn("peer relative flex size-4 shrink-0 items-center", "justify-center rounded-[var(--radius-xs)] border", "border-input outline-none transition-shadow after:absolute", "after:-inset-x-3 after:-inset-y-2", "disabled:cursor-not-allowed disabled:opacity-50", "group-has-disabled/field:opacity-50", "aria-invalid:border-destructive aria-invalid:ring-[3px]", "aria-invalid:ring-destructive/20", "aria-invalid:aria-checked:border-primary", "data-checked:border-primary data-checked:bg-primary", "data-checked:text-primary-foreground dark:bg-input/30", "dark:data-checked:bg-primary", "dark:aria-invalid:border-destructive/50", "focus-ring dark:aria-invalid:ring-destructive/40", className)}
   data-slot="checkbox"
   bind:checked
   bind:indeterminate

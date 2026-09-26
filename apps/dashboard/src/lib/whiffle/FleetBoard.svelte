@@ -211,14 +211,13 @@
     notRunningOpen = !notRunningOpen;
     localStorage.setItem(NOT_RUNNING_OPEN, String(notRunningOpen));
   }
+  /** When a not-running row last changed, as epoch ms (0 when unknown). */
+  const rowTime = (row: (typeof notRunning)[number]) =>
+    row.updatedAt ? new Date(row.updatedAt).getTime() : 0;
   /** The most recently active of the not-running rows, for the summary hint. */
   const latestNotRunning = $derived(
     notRunning.reduce<(typeof notRunning)[number] | undefined>(
-      (best, row) =>
-        !best ||
-        (row.lastEventAt ?? row.startedAt) > (best.lastEventAt ?? best.startedAt)
-          ? row
-          : best,
+      (best, row) => (!best || rowTime(row) > rowTime(best) ? row : best),
       undefined
     )
   );
@@ -673,8 +672,12 @@
                   </Table.Cell>
                   <Table.Cell class="mut c-mach">{row.machine}</Table.Cell>
                   <Table.Cell class="mut c-harn">{row.harnessLabel}</Table.Cell>
-                  <Table.Cell class="num c-turns">{row.turns ?? '—'}</Table.Cell>
-                  <Table.Cell class={cn('num c-ctx', contextClass(row.contextPct))}>
+                  <Table.Cell class="num c-turns"
+                    >{row.turns ?? '—'}</Table.Cell
+                  >
+                  <Table.Cell
+                    class={cn('num c-ctx', contextClass(row.contextPct))}
+                  >
                     {row.contextPct === null ? '—' : `${Math.round(row.contextPct)}%`}
                   </Table.Cell>
                   <Table.Cell class="c-when">
@@ -754,8 +757,10 @@
           <span class="nr-count">Not running · {notRunning.length}</span>
           {#if latestNotRunning}
             <span class="nr-hint">
-              {latestTitle} ·
-              {formatDistanceToNow(latestNotRunning.lastEventAt ?? latestNotRunning.startedAt)}
+              {latestTitle}
+              {#if rowTime(latestNotRunning) > 0}
+                · {formatDistanceToNow(new Date(rowTime(latestNotRunning)))}
+              {/if}
             </span>
           {/if}
           <Button
@@ -788,8 +793,6 @@
             </button>
           {/if}
         {/if}
-      </div>
-    {/if}
       </div>
     {/if}
   </div>

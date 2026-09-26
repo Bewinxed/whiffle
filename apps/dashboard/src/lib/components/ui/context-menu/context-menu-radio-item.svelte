@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { IconTick } from "$lib/icons";
   import { ContextMenu as ContextMenuPrimitive } from "bits-ui";
+  import { IconTick } from "$lib/icons";
   import { cn, type WithoutChild } from "$lib/utils.js";
 
   let {
@@ -15,10 +15,7 @@
 </script>
 
 <ContextMenuPrimitive.RadioItem
-  class={cn(
-		"kit-item relative flex cursor-default select-none items-center gap-2 pr-8 text-label outline-hidden data-disabled:pointer-events-none data-inset:pl-9.5 data-disabled:opacity-50 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0 pl-2.5",
-		className
-	)}
+  class={cn("kit-item relative flex cursor-default select-none items-center gap-2 pr-8 pl-2.5 text-label outline-hidden data-disabled:pointer-events-none data-inset:pl-9.5 data-disabled:opacity-50 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0", className)}
   data-inset={inset}
   data-slot="context-menu-radio-item"
   bind:ref

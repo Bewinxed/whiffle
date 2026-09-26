@@ -304,9 +304,7 @@
 {#if hubError}
   <Alert.Root variant="warning">
     <IconWarningTriangle />
-    <Alert.Description
-      >{hubError}</Alert.Description
-    >
+    <Alert.Description>{hubError}</Alert.Description>
   </Alert.Root>
 {:else}
   <section class="flex flex-col gap-3">
@@ -340,8 +338,7 @@
               <div class="flex items-start gap-[var(--space-3)]">
                 <div class="flex min-w-0 flex-1 flex-col gap-0.5">
                   <span class="flex flex-wrap items-baseline gap-x-2">
-                    <span
-                      class="truncate text-meta font-medium text-foreground"
+                    <span class="truncate text-meta font-medium text-foreground"
                       >{row.name}</span
                     >
                     {#if row.bytes !== undefined}
@@ -497,8 +494,7 @@
             >
               <div class="flex items-start gap-[var(--space-3)]">
                 <div class="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <span
-                    class="truncate text-meta font-medium text-foreground"
+                  <span class="truncate text-meta font-medium text-foreground"
                     >{row.name}</span
                   >
                   <span
@@ -570,9 +566,7 @@
                     role="status"
                   >
                     {#each [0, 1, 2] as line (line)}
-                      <Skeleton
-                        class="h-8 w-full rounded-[var(--radius-sm)]"
-                      />
+                      <Skeleton class="h-8 w-full rounded-[var(--radius-sm)]" />
                     {/each}
                   </div>
                 {:else if unread[row.name]}
@@ -594,8 +588,7 @@
                       >
                         <div class="flex min-w-0 flex-1 flex-col gap-0.5">
                           <span class="flex flex-wrap items-baseline gap-x-2">
-                            <span
-                              class="text-meta font-medium text-foreground"
+                            <span class="text-meta font-medium text-foreground"
                               >{plugin.name}</span
                             >
                             {#if plugin.version}
@@ -667,7 +660,10 @@
                 <span
                   class="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2"
                 >
-                  <span class="truncate font-mono text-meta text-muted-foreground">{row.id}</span>
+                  <span
+                    class="truncate font-mono text-meta text-muted-foreground"
+                    >{row.id}</span
+                  >
                   <!-- What the hub resolved this to, the same three facts a skill
                      row shows. A plugin with neither is one no machine has been
                      handed bytes for. -->

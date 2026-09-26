@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { IconClose } from "$lib/icons";
   import { Dialog as DialogPrimitive } from "bits-ui";
   import type { ComponentProps, Snippet } from "svelte";
   import { Button } from "$lib/components/ui/button/index.js";
+  import { IconClose } from "$lib/icons";
   import { cn, type WithoutChildrenOrChild } from "$lib/utils.js";
   import DialogPortal from "./dialog-portal.svelte";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte convention for importing a component group

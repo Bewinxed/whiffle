@@ -87,9 +87,7 @@ You are a <role>, working in one repository at a time.
 </script>
 
 <Dialog.Root bind:open>
-  <Dialog.Content
-    class="sm:max-w-2xl"
-  >
+  <Dialog.Content class="sm:max-w-2xl">
     <Dialog.Header>
       <Dialog.Title>{agent ? agent.name : 'New subagent'}</Dialog.Title>
       <Dialog.Description>

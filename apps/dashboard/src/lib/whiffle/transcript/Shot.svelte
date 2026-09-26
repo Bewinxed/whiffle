@@ -110,7 +110,8 @@
     position: absolute;
     inset: 0;
     background: var(--surface-recess);
-    animation: pulse calc(var(--dur-control) * 10) var(--ease-out) infinite alternate;
+    animation: pulse calc(var(--dur-control) * 10) var(--ease-out) infinite
+      alternate;
   }
   .missing {
     flex-direction: column;

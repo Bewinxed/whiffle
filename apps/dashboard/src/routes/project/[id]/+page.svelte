@@ -304,7 +304,9 @@
               onsubmit={(e) => { e.preventDefault(); startSession(false); }}
             >
               <!-- biome-ignore lint/a11y/noLabelWithoutControl: the <Input> component renders a native input as its only child; Biome can't see through the component boundary -->
-              <label class="flex flex-col gap-1 text-meta text-muted-foreground">
+              <label
+                class="flex flex-col gap-1 text-meta text-muted-foreground"
+              >
                 First prompt (optional)
                 <Input
                   autocomplete="off"
@@ -371,9 +373,7 @@
         class="flex min-w-0 flex-1 flex-col gap-4 lg:-m-px lg:overflow-y-auto lg:p-px"
       >
         {#if docs.length === 0 && !docsError}
-          <Card
-            class="rounded-[var(--radius-lg)] p-[var(--space-6)] shadow-md"
-          >
+          <Card class="rounded-[var(--radius-lg)] p-[var(--space-6)] shadow-md">
             <p class="text-body text-muted-foreground">
               No markdown yet. Add a README.md at the top of the checkout and it
               shows up here.
@@ -381,9 +381,7 @@
           </Card>
         {:else if docsError}
           <Alert variant="warning">
-            <AlertDescription
-              >{docsError}</AlertDescription
-            >
+            <AlertDescription>{docsError}</AlertDescription>
           </Alert>
         {:else}
           <!-- Doc nav: Select on mobile -->
@@ -479,9 +477,7 @@
               </nav>
 
               {#if open}
-                <Card
-                  class="gap-0 rounded-[var(--radius-lg)] py-0 shadow-md"
-                >
+                <Card class="gap-0 rounded-[var(--radius-lg)] py-0 shadow-md">
                   <header
                     class="flex items-center gap-[var(--space-3)] px-[var(--space-4)] py-[var(--space-2)]"
                   >

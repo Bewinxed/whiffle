@@ -126,7 +126,8 @@
   --shadow-md: 0 2px 8px var(--shadow-tint), 0 1px 2px var(--shadow-tint);
   --shadow-lg: 0 8px 28px var(--shadow-tint-2), 0 2px 8px var(--shadow-tint);
   --shadow-xl: 0 24px 64px var(--shadow-tint-3), 0 6px 16px var(--shadow-tint);
-  --shadow-2xl: 0 24px 64px var(--shadow-tint-3), 0 6px 16px var(--shadow-tint-2);
+  --shadow-2xl:
+    0 24px 64px var(--shadow-tint-3), 0 6px 16px var(--shadow-tint-2);
 
   /* Chrome materials. */
   --material-panel: color-mix(in oklab, var(--neutral-1) 72%, transparent);

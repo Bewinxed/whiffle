@@ -109,9 +109,7 @@
   </p>
 
   {#if online.length === 0}
-    <p class="text-meta text-muted-foreground">
-      No machine is online to ask.
-    </p>
+    <p class="text-meta text-muted-foreground">No machine is online to ask.</p>
   {:else}
     <Card
       class="gap-0 rounded-[var(--radius-lg)] py-0 shadow-md [--card-spacing:var(--space-4)]"
@@ -153,9 +151,7 @@
                   this machine…
                 </p>
               {:else if unread[machine.machineId]}
-                <Alert
-                  variant="warning"
-                >
+                <Alert variant="warning">
                   <AlertDescription
                     >{unread[machine.machineId]}</AlertDescription
                   >
@@ -177,7 +173,8 @@
                         <span
                           class="flex flex-wrap items-center gap-x-2 gap-y-1"
                         >
-                          <span class="truncate font-mono text-meta text-muted-foreground"
+                          <span
+                            class="truncate font-mono text-meta text-muted-foreground"
                             >{row.name}</span
                           >
                           <Badge variant="outline">{row.scope}</Badge>

@@ -341,7 +341,9 @@
         icon: machineIcon(row.os),
         online,
         load: loadLabel(online, running),
-        hue: online ? HUES[i % 3] : "color-mix(in oklab, var(--neutral-8) 62%, var(--neutral-11))",
+        hue: online
+          ? HUES[i % 3]
+          : "color-mix(in oklab, var(--neutral-8) 62%, var(--neutral-11))",
       };
     })
   );

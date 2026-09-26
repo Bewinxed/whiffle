@@ -325,7 +325,9 @@
         out:fade={{ duration: painted ? 140 : 0 }}
       >
         {#if !target}
-          <p class="m-auto max-w-[28ch] px-6 text-center text-meta text-muted-foreground">
+          <p
+            class="m-auto max-w-[28ch] px-6 text-center text-meta text-muted-foreground"
+          >
             Pick a session to see what it is doing. Enter or a double-click
             opens it.
           </p>

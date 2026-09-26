@@ -11,10 +11,7 @@
 </script>
 
 <div
-  class={cn(
-		"text-muted-foreground text-label/relaxed text-label/relaxed [&>a:hover]:text-primary [&>a]:underline [&>a]:underline-offset-4",
-		className
-	)}
+  class={cn("text-label/relaxed text-label/relaxed text-muted-foreground [&>a:hover]:text-primary [&>a]:underline [&>a]:underline-offset-4", className)}
   data-slot="empty-description"
   bind:this={ref}
   {...restProps}

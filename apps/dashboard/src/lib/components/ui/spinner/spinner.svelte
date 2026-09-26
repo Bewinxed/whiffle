@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { IconSpinner } from "$lib/icons";
   import type { SVGAttributes } from "svelte/elements";
+  import { IconSpinner } from "$lib/icons";
   import { cn } from "$lib/utils.js";
 
   let {
@@ -18,8 +18,9 @@
 <IconSpinner
   aria-label={ariaLabel}
   class={cn("size-4 animate-spin", className)}
-  style:color={color === null ? undefined : color}
   name={name === null ? undefined : name}
   {role}
   stroke={stroke === null ? undefined : stroke}
-  {...(restProps as Record<string, unknown>)} />
+  style:color={color === null ? undefined : color}
+  {...(restProps as Record<string, unknown>)}
+/>

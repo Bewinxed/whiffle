@@ -285,9 +285,9 @@
       </Button>
       <Button
         class={dismiss}
-        variant="outline"
         disabled={!answerable}
         onclick={() => answer('deny')}
+        variant="outline"
         >Dismiss</Button
       >
     </div>
@@ -327,17 +327,17 @@
     <div class="choice">
       <Button
         class={grant}
-        variant="secondary"
         disabled={!answerable}
         onclick={() => answer('allow')}
+        variant="secondary"
       >
         <IconCheck />Approve
       </Button>
       <Button
         class={refuse}
-        variant="secondary"
         disabled={!answerable}
         onclick={() => answer('deny')}
+        variant="secondary"
       >
         <IconClose />Deny
       </Button>
@@ -359,9 +359,9 @@
         </p>
         <Button
           class={widen}
-        variant="outline"
           disabled={!answerable}
           onclick={() => answer('always')}
+          variant="outline"
         >
           <IconShield />Always allow {rule.short}
         </Button>

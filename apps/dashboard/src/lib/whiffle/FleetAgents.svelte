@@ -199,9 +199,7 @@
 {#if loadError}
   <Alert.Root variant="warning">
     <IconWarningTriangle />
-    <Alert.Description
-      >{loadError}</Alert.Description
-    >
+    <Alert.Description>{loadError}</Alert.Description>
   </Alert.Root>
 {:else}
   <section class="flex flex-col gap-3">

@@ -509,10 +509,7 @@
             value={draft.watch}
           >
             {#each WATCH as option (option.value)}
-              <ToggleGroup.Item
-                class="flex-1"
-                value={option.value}
-              >
+              <ToggleGroup.Item class="flex-1" value={option.value}>
                 {option.label}
               </ToggleGroup.Item>
             {/each}
@@ -644,7 +641,9 @@
           <label class="flex items-start gap-3">
             <Switch class="mt-0.5" bind:checked={draft.interrupt} />
             <span class="flex flex-col gap-0.5">
-              <span class="text-meta text-muted-foreground">Interrupt the running turn</span>
+              <span class="text-meta text-muted-foreground"
+                >Interrupt the running turn</span
+              >
               <span class="max-w-prose text-label text-muted-foreground">
                 A claude session reads it mid-turn without stopping. Other
                 harnesses cut the turn short to deliver it, which loses whatever

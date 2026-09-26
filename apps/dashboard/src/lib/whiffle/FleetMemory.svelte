@@ -424,7 +424,9 @@
   async function showDoc(path: string) {
     openDocs[path] = true;
     await tick();
-    document.getElementById(docAnchor(path))?.scrollIntoView({ block: "center" });
+    document
+      .getElementById(docAnchor(path))
+      ?.scrollIntoView({ block: "center" });
   }
 
   function startDoc() {
@@ -564,7 +566,8 @@
     type="button"
   >
     <IconChevronRight class="size-3.5 shrink-0 text-muted-foreground" />
-    <span class="min-w-0 flex-1 truncate font-mono text-label text-muted-foreground"
+    <span
+      class="min-w-0 flex-1 truncate font-mono text-label text-muted-foreground"
       >~/.claude/memories/{doc.path}</span
     >
     <span class="shrink-0 text-label text-muted-foreground"
@@ -581,7 +584,8 @@
         title={names(drifted)}
       >
         <IconWarningTriangle class="size-3.5 shrink-0" />
-        {drifted.length} kept own
+        {drifted.length}
+        kept own
       </span>
     {:else if synced.length > 0}
       <span
@@ -626,7 +630,8 @@
         class="text-muted-foreground"
         onclick={() => toggleDoc(doc.path)}
         size="icon-sm"
-        variant="ghost"><IconChevronDown /></Button
+        variant="ghost"
+        ><IconChevronDown /></Button
       >
       <Tooltip.Root>
         <Tooltip.Trigger>
@@ -723,9 +728,7 @@
         >
           <Alert.Root variant="warning">
             <IconWarningTriangle />
-            <Alert.Description
-              >{pathProblem}</Alert.Description
-            >
+            <Alert.Description>{pathProblem}</Alert.Description>
           </Alert.Root>
           {#if taken}
             <Button
@@ -752,9 +755,7 @@
 {#if loadError}
   <Alert.Root variant="warning">
     <IconWarningTriangle />
-    <Alert.Description
-      >{loadError}</Alert.Description
-    >
+    <Alert.Description>{loadError}</Alert.Description>
   </Alert.Root>
 {:else}
   <MemoryCard
