@@ -199,6 +199,41 @@
 
   let search = $state("");
   let showAllNotRunning = $state(false);
+
+  /* Not running starts folded to one summary row; the choice is this
+     browser's and survives a reload. */
+  const NOT_RUNNING_OPEN = "whiffle.fleet.notRunningOpen";
+  let notRunningOpen = $state(
+    typeof localStorage !== "undefined" &&
+      localStorage.getItem(NOT_RUNNING_OPEN) === "true"
+  );
+  function toggleNotRunning() {
+    notRunningOpen = !notRunningOpen;
+    localStorage.setItem(NOT_RUNNING_OPEN, String(notRunningOpen));
+  }
+  /** The most recently active of the not-running rows, for the summary hint. */
+  const latestNotRunning = $derived(
+    notRunning.reduce<(typeof notRunning)[number] | undefined>(
+      (best, row) =>
+        !best ||
+        (row.lastEventAt ?? row.startedAt) > (best.lastEventAt ?? best.startedAt)
+          ? row
+          : best,
+      undefined
+    )
+  );
+  const latestTitle = $derived.by(() => {
+    const row = latestNotRunning;
+    if (!row) {
+      return "";
+    }
+    const info = row.sessionId
+      ? whiffle
+          .catalogOf(row.machineId)
+          .find((entry) => entry.sessionId === row.sessionId)
+      : undefined;
+    return info ? sessionTitle(info) : (row.title ?? "untitled session");
+  });
   /** '' is "All machines"; otherwise a machineId. */
   let machineFilter = $state("");
   const STATES: { value: PillStatus | ""; label: string }[] = [
@@ -715,23 +750,46 @@
       {@const CAP = 20}
       {@const capped = showAllNotRunning ? notRunning : notRunning.slice(0, CAP)}
       <div class="not-running">
-        <div class="sec">Not running ({notRunning.length})</div>
-        <div class="not-running-rows">
-          {#each capped as row (row.id)}
-            <LiveSessionRow instance={row} />
-          {/each}
-        </div>
-        {#if !showAllNotRunning && notRunning.length > CAP}
-          <button
-            class="show-all"
-            onclick={() => {
-              showAllNotRunning = true;
-            }}
-            type="button"
+        <div class="nr-head">
+          <span class="nr-count">Not running · {notRunning.length}</span>
+          {#if latestNotRunning}
+            <span class="nr-hint">
+              {latestTitle} ·
+              {formatDistanceToNow(latestNotRunning.lastEventAt ?? latestNotRunning.startedAt)}
+            </span>
+          {/if}
+          <Button
+            aria-expanded={notRunningOpen}
+            class="ml-auto"
+            onclick={toggleNotRunning}
+            size="sm"
+            variant="outline"
           >
-            Show all {notRunning.length} sessions
-          </button>
+            {notRunningOpen ? 'Hide' : 'Show'}
+          </Button>
+        </div>
+        {#if notRunningOpen}
+          <div class="not-running-rows">
+            {#each capped as row (row.id)}
+              <div class="nr-row">
+                <LiveSessionRow instance={row} />
+              </div>
+            {/each}
+          </div>
+          {#if !showAllNotRunning && notRunning.length > CAP}
+            <button
+              class="show-all"
+              onclick={() => {
+                showAllNotRunning = true;
+              }}
+              type="button"
+            >
+              Show all {notRunning.length} sessions
+            </button>
+          {/if}
         {/if}
+      </div>
+    {/if}
       </div>
     {/if}
   </div>
@@ -845,20 +903,40 @@
     padding: var(--space-3);
     box-shadow: var(--shadow-tile);
   }
-  .not-running .sec {
-    font-size: var(--text-meta);
-    color: var(--ink-muted);
-    font-weight: var(--weight-strong);
-    text-transform: uppercase;
-    letter-spacing: var(--track-caps);
-    /* 1rem, not --space-4 (14px): LiveSessionRow's own inset is Tailwind's
-       plain px-4 (16px), so the heading matches that, not the --space scale. */
-    padding: 0 1rem;
-    margin: var(--space-1) 0 var(--space-2);
+  .nr-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
+    padding: 0 var(--space-2) 0 1rem;
   }
+  .nr-count {
+    flex: none;
+    font: var(--type-label);
+    color: var(--ink-strong);
+  }
+  .nr-hint {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font: var(--type-meta);
+    color: var(--ink-muted);
+  }
+  /* The list mounts on Show; rows fade in, nothing animates height. */
+  .nr-row {
+    animation: nr-in var(--dur-exit) var(--ease-out) both;
+  }
+  @keyframes nr-in {
+    from {
+      opacity: 0;
+    }
+  }
+
   .not-running-rows {
     display: flex;
     flex-direction: column;
+    margin-top: var(--space-2);
   }
   .show-all {
     padding: var(--space-3) var(--space-4);
