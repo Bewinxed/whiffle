@@ -23,7 +23,6 @@
     "@codemirror/view": "^6",
     "@dagrejs/dagre": "^1.1.8",
     "@fontsource-variable/geist": "^5.3.0",
-    "@fontsource-variable/geist-mono": "^5.3.0",
     "@lezer/highlight": "^1",
     "@milkdown/crepe": "^7.22.1",
     "@pierre/diffs": "^1.0.4",
@@ -40,13 +39,9 @@
     "virtua": "^0.50.0"
   },
   "devDependencies": {
-    "@fontsource-variable/public-sans": "^5.3.0",
-    "@hugeicons/core-free-icons": "^4.3.0",
-    "@hugeicons/svelte": "^1.1.5",
     "@iconify-json/logos": "^1.2.12",
     "@iconify-json/solar": "^1.2.5",
     "@iconify-json/thesvg-color": "^1.2.2",
-    "@internationalized/date": "^3.12.0",
     "@sveltejs/adapter-node": "^5.2.0",
     "@sveltejs/kit": "^2.49.3",
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
