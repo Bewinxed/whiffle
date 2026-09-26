@@ -23,6 +23,7 @@ import type {
 } from "@whiffle/core";
 import {
   delegateTypeProblem,
+  handoffMarker,
   IMAGE_GENERATION_TIMEOUT_MS,
   QUESTION_DISMISSED,
   WHIFFLE_ENV,
@@ -274,6 +275,7 @@ export const SPAWNING_TOOLS: ReadonlySet<string> = new Set([
   "create_workflow",
   "update_workflow",
   "start_session",
+  "continue_session",
   "delegate",
   "stop_delegate",
   "interrupt_delegate",
@@ -327,6 +329,23 @@ export interface HandoffActions {
     answers?: Record<string, string>,
     deny?: boolean
   ): Promise<string>;
+  /**
+   * Summarises a session (this one when `session` is omitted) with the chosen
+   * summariser and starts a new session seeded with the summary, through the
+   * hub's own continuation.
+   */
+  readonly continueSession: (input: {
+    session?: string;
+    summarizer_harness: "claude" | "opencode" | "pi";
+    summarizer_model: string;
+    target_harness: "claude" | "opencode" | "pi";
+    target_model: string;
+    note?: string;
+  }) => Promise<{
+    summariserInstanceId: string | null;
+    targetInstanceId: string;
+    text: string;
+  }>;
   readonly createWorkflow: (name: string, program: string) => Promise<unknown>;
   // biome-ignore lint/style/useConsistentMethodSignatures: implemented below; property-style would change parameter variance against that implementation
   delegate(
@@ -460,6 +479,59 @@ export const handoffActions = ({
   harness: callerHarness,
   emit,
 }: HandoffDeps): HandoffActions => ({
+  async continueSession(input) {
+    let source = instanceId;
+    if (input.session) {
+      const { rows, hosts } = await fetchInstances();
+      source = resolve(
+        rows.map((row) => toPeer(row, hosts)),
+        input.session
+      ).row.id;
+    }
+    const response = await fetch(
+      `${hubHttpUrl()}/api/instances/${encodeURIComponent(source)}/continue`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          summarizer: {
+            harness: input.summarizer_harness,
+            model: input.summarizer_model,
+          },
+          target: { harness: input.target_harness, model: input.target_model },
+          ...(input.note ? { note: input.note } : {}),
+        }),
+      }
+    );
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+    // NDJSON: stage and heartbeat lines while it runs, then one `result` or `error`.
+    const lines = (await response.text()).trim().split("\n");
+    const last = JSON.parse(lines.at(-1) ?? "{}") as {
+      result?: {
+        summariserInstanceId: string | null;
+        targetInstanceId: string;
+        opening: string;
+      };
+      error?: string;
+    };
+    if (!last.result) {
+      throw new Error(last.error);
+    }
+    const { result: done } = last;
+    return {
+      summariserInstanceId: done.summariserInstanceId,
+      targetInstanceId: done.targetInstanceId,
+      text:
+        `Continued session ${source} in a new ${input.target_harness} session ` +
+        `${done.targetInstanceId} on ${input.target_model}. ` +
+        (done.summariserInstanceId
+          ? `${input.summarizer_harness}/${input.summarizer_model} summarised it. `
+          : "It was short enough that no summary was needed. ") +
+        `The source session was not touched. The new session opened with:\n\n${done.opening}`,
+    };
+  },
   createWorkflow(name, program) {
     return saveWorkflowProgram("POST", "/api/workflows", { name, program });
   },
@@ -618,7 +690,7 @@ export const handoffActions = ({
       ? resolveDelegate(peers, target, instanceId)
       : resolve(peers, target);
     const from = leafOf(cwd);
-    const body = `[Hand-off from the ${from} session — another agent, not the user]\n\n${message}`;
+    const body = `${handoffMarker(from)}${message}`;
     const payload: SendPayload = {
       instanceId: peer.row.id,
       message: {
@@ -677,7 +749,7 @@ export const handoffActions = ({
     // `mapTranscript` → `handoffFrom()` can still detect the opening prompt as
     // a peer message and render it as `user.peer` instead of the reader's own
     // words — the same marker `handoff()` already uses.
-    const body = `[Hand-off from the ${from} session — another agent, not the user]\n\n${prompt}`;
+    const body = `${handoffMarker(from)}${prompt}`;
     const opening: SendPayload = {
       instanceId: id,
       message: {
@@ -804,7 +876,7 @@ export const handoffActions = ({
     // Same marker as `handoff()` and `startSession()` — survives SDK storage so
     // stored transcripts render the opening as `user.peer` and `mergePeerMessage`
     // deduplicates against the live echo that carries `origin`.
-    const body = `[Hand-off from the ${from} session — another agent, not the user]\n\n${prompt}`;
+    const body = `${handoffMarker(from)}${prompt}`;
     const opening: SendPayload = {
       instanceId: id,
       message: {

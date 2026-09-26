@@ -24,6 +24,7 @@ import {
   type AgentSession,
   type AgentSessionEvent,
   createAgentSession,
+  createAgentSessionServices,
   defineTool,
   ModelRuntime,
   SessionManager,
@@ -35,6 +36,7 @@ import type {
   FleetSyncReport,
   HarnessCapabilities,
   HarnessReport,
+  ModelInfo,
   NeutralAssistantBlock,
   NeutralContentBlock,
   NeutralSessionInfo,
@@ -47,7 +49,9 @@ import type {
 import {
   CONTROL_CONTEXT_USAGE,
   CONTROL_INTERRUPT,
+  CONTROL_MODEL_CATALOG,
   CONTROL_SET_MODEL,
+  CONTROL_SUPPORTED_MODELS,
 } from "@whiffle/core";
 import { callDelegationTool, delegationTools } from "../delegation";
 import type { Harness, HarnessContext, HarnessSession } from "../harness";
@@ -139,6 +143,30 @@ const contentOf = (content: unknown): string | NeutralContentBlock[] => {
 // biome-ignore lint/suspicious/noExplicitAny: Model<T>'s config shape varies per provider; only `id` is read here, across every provider
 const modelIdOf = (model: Model<any>): string =>
   String((model as { id?: unknown }).id ?? "");
+
+/** Every model pi's configured providers can run, with pi's own context window for each. */
+const modelCatalog = async (): Promise<ModelInfo[]> =>
+  (await (await PiHarness.runtime()).getAvailable()).map((model) => ({
+    value: modelIdOf(model),
+    displayName: String((model as { name?: unknown }).name ?? modelIdOf(model)),
+    contextWindow: model.contextWindow,
+  }));
+
+/**
+ * A stored assistant message's blocks. A turn that failed stores no content,
+ * only its error; it reloads the way claude's stored API errors do — an
+ * assistant message whose text is the error — in the same words the live
+ * stream's `result.errors` carried.
+ */
+const assistantContent = (message: {
+  content?: unknown;
+}): ReturnType<typeof toBlocks> => {
+  const { errorMessage } = message as { errorMessage?: string };
+  return [
+    ...toBlocks(message.content),
+    ...(errorMessage ? [{ type: "text" as const, text: errorMessage }] : []),
+  ];
+};
 
 /** Thin adapter over the same hub-owned definitions and handlers as MCP. */
 const piHandoffTools = async (instanceId: string): Promise<ToolDefinition[]> =>
@@ -399,6 +427,8 @@ class PiSession implements HarnessSession {
         await this.#session.setModel(model);
         return undefined;
       }
+      case CONTROL_SUPPORTED_MODELS:
+        return await modelCatalog();
       case CONTROL_CONTEXT_USAGE: {
         const last = [...this.#session.messages]
           .reverse()
@@ -458,26 +488,46 @@ export class PiHarness implements Harness {
   readonly capabilities = PI_CAPABILITIES;
   auth: AuthState = "authenticated";
 
+  /**
+   * The machine's model runtime with pi's extensions loaded, as pi's own CLI
+   * builds it: an extension may register providers (pi-cliproxyapi registers
+   * `anthropic` through a local proxy), and a runtime without them offers
+   * none of those models — to the picker or to a spawn.
+   */
   static runtime(): Promise<ModelRuntime> {
     if (!runtimePromise) {
-      runtimePromise = ModelRuntime.create({ refreshOnCreate: false }).catch(
-        (error) => {
-          runtimePromise = null;
-          throw error;
+      runtimePromise = (async () => {
+        const services = await createAgentSessionServices({
+          cwd: homedir(),
+          modelRuntime: await ModelRuntime.create({ refreshOnCreate: false }),
+        });
+        for (const diagnostic of services.diagnostics) {
+          console.warn(`[pi] ${diagnostic.type}: ${diagnostic.message}`);
         }
-      );
+        return services.modelRuntime;
+      })().catch((error) => {
+        runtimePromise = null;
+        throw error;
+      });
     }
     return runtimePromise;
   }
 
-  // biome-ignore lint/suspicious/useAwait: implements Harness.detect's Promise<HarnessReport> contract; the bin probe is synchronous
   async detect(): Promise<HarnessReport> {
     const installed = resolveBin("pi") !== undefined;
+    // The catalog the machine reports, so a picker lists pi's models with no
+    // pi session running.
+    const models = installed
+      ? await modelCatalog().catch((error: unknown) => {
+          console.warn(`[pi] model catalog unavailable: ${error}`);
+        })
+      : undefined;
     return {
       harness: "pi",
       installed,
       auth: installed ? "authenticated" : "unauthenticated",
       capabilities: PI_CAPABILITIES,
+      ...(models ? { models } : {}),
     };
   }
 
@@ -549,15 +599,16 @@ export class PiHarness implements Harness {
       return [];
     }
     const sessions = await SessionManager.list(dir);
+    // pi's `SessionInfo`: `created`/`modified` are Dates, `cwd` is where the
+    // session ran (`path` is its file), `firstMessage` its opening prompt.
     return sessions.map((info) => ({
       sessionId: info.id,
       harness: "pi",
-      lastModified:
-        (info as { updatedAt?: number }).updatedAt ??
-        (info as { createdAt?: number }).createdAt ??
-        Date.now(),
+      createdAt: info.created.getTime(),
+      lastModified: info.modified.getTime(),
+      cwd: info.cwd || dir,
+      ...(info.firstMessage ? { firstPrompt: info.firstMessage } : {}),
       ...(info.name ? { customTitle: info.name } : {}),
-      ...(info.path ? { cwd: info.path } : {}),
     }));
   }
 
@@ -584,7 +635,31 @@ export class PiHarness implements Harness {
     }
     const manager = SessionManager.open(path, undefined, dir);
     const entries: SessionMessage[] = [];
+    // A compaction's summary is what the model reads in place of everything
+    // before its first kept entry, so it is placed there: reading from the
+    // last summary on is reading what the session holds in context.
+    const summaries = new Map<string, { id: string; summary: string }>();
     for (const entry of manager.getEntries()) {
+      if (entry.type === "compaction") {
+        summaries.set(entry.firstKeptEntryId, {
+          id: entry.id,
+          summary: entry.summary,
+        });
+      }
+    }
+    for (const entry of manager.getEntries()) {
+      const compacted = summaries.get(entry.id);
+      if (compacted) {
+        entries.push({
+          type: "user",
+          uuid: compacted.id,
+          session_id: sessionKey,
+          message: { role: "user", content: compacted.summary },
+          parent_tool_use_id: null,
+          parent_agent_id: null,
+          compactSummary: true,
+        });
+      }
       if (entry.type !== "message") {
         continue;
       }
@@ -609,7 +684,7 @@ export class PiHarness implements Harness {
           type: "assistant",
           uuid: entry.id,
           session_id: sessionKey,
-          message: { role: "assistant", content: toBlocks(message.content) },
+          message: { role: "assistant", content: assistantContent(message) },
           parent_tool_use_id: null,
           parent_agent_id: null,
         });
@@ -659,6 +734,11 @@ export class PiHarness implements Harness {
   // biome-ignore lint/suspicious/useAwait: implements Harness.dispose's Promise<void> contract; this teardown is synchronous
   async dispose(): Promise<void> {
     runtimePromise = null;
+  }
+
+  // biome-ignore lint/suspicious/useAwait: Harness.machine returns Promise<unknown>; the unclaimed branch returns bare undefined
+  async machine(method: string): Promise<unknown> {
+    return method === CONTROL_MODEL_CATALOG ? modelCatalog() : undefined;
   }
 
   async syncFleet(config: FleetConfig): Promise<FleetSyncReport> {

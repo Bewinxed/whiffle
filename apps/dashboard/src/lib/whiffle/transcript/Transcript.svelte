@@ -974,6 +974,8 @@
     "user",
     "assistant",
     "user.peer",
+    "user.rule",
+    "user.delegate_ask",
     "ui.command_output",
     "ui.error",
     "ui.session_error",

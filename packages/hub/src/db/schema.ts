@@ -14,6 +14,7 @@ import type {
   RuleTiming,
   RuleTrigger,
   RuleWatch,
+  SessionTooling,
   SkillFile,
   ToolStatus,
   WorkflowEffectKind,
@@ -220,6 +221,13 @@ export const instances = sqliteTable("instances", {
    * back to the transcript's own title, then to where it runs.
    */
   title: text("title"),
+  /**
+   * The MCP servers and tool names the session's newest `init` announced, as
+   * JSON — overwritten on every `init` that carries them, so a reload or a hub
+   * restart still knows what the session has. Null for a harness whose `init`
+   * carries neither.
+   */
+  tooling: text("tooling", { mode: "json" }).$type<SessionTooling>(),
   /**
    * What the session called itself by what it was first asked to do: the first
    * user message, cleaned by core's `deriveTitleFromFirstMessage`. Written once,
@@ -875,3 +883,15 @@ export const capabilityUsageDaily = sqliteTable(
   },
   (table) => [primaryKey({ columns: [table.kind, table.name, table.day] })]
 );
+
+/**
+ * The context window each claude model last reported, from a turn's
+ * `modelUsage[model].contextWindow`. Claude's model catalog carries no window,
+ * so this is the only honest source: a model no turn has run on is absent,
+ * which reads as "unknown", never as a guess.
+ */
+export const claudeContextWindows = sqliteTable("claude_context_windows", {
+  model: text("model").primaryKey(),
+  contextWindow: integer("context_window").notNull(),
+  observedAt: timestamp("observed_at").notNull(),
+});

@@ -16,7 +16,15 @@ import type {
   SlashCommand,
   UserQuestionResult,
 } from "@whiffle/core";
-import { MESSAGE_DEQUEUED, MESSAGE_QUEUED } from "@whiffle/core";
+import {
+  MESSAGE_DEQUEUED,
+  MESSAGE_QUEUED,
+  parseDelegateAsk,
+  parseHandoffMarker,
+  parseReportMarker,
+  parseRuleMarker,
+  parseWorkflowNotice,
+} from "@whiffle/core";
 import type { SubagentState } from "$lib/utils/flow-types";
 import { getToolGlance } from "$lib/utils/tool-display";
 import { newId } from "./id";
@@ -595,127 +603,32 @@ export function mapFrame(instanceId: string, sdk: SDKMessage): FrameMapping {
       // have one, added on send, so it is skipped — except when it isn't the
       // human's at all, which nothing echoes either.
       const text = transcriptUserText(sdk.message);
-      // A message from another session is nobody's local echo, so nothing else
-      // will render it — and it must not render as the reader's own words.
-      // Whiffle's own word rather than another session's: a rule that fired.
-      // Nothing else will ever render it — the reader never typed it, so there
-      // is no local copy — and it must not read as the reader's own sentence.
-      // It borrows the peer machinery for exactly that reason, minus the
-      // session ids, so no delegate branch tries to claim it as its own.
-      const rule =
-        "origin" in sdk && sdk.origin?.kind === "system" ? sdk.origin : null;
-      if (rule && text) {
-        mapping.messages.push({
-          ...base,
-          type: "user.peer",
-          content: text,
-          metadata: {
-            peerName: ruleLabel(rule.name),
-            ruleName: ruleLabel(rule.name),
-          },
-        });
-        break;
-      }
-      const peer =
-        "origin" in sdk && sdk.origin?.kind === "peer" ? sdk.origin : null;
-      if (peer && text) {
-        // A delegate's routed ask is peer-origin too, but it is plumbing rather
-        // than speech: the marker carries the delegate's ids, and the body is
-        // the ask itself. Using the marker's instance (not `peer.fromSession`)
-        // keeps the live and stored copies carrying identical metadata.
-        const ask = delegateAsk(text);
-        if (ask) {
-          mapping.messages.push({
-            ...base,
-            type: "user.delegate_ask",
-            content: ask.body,
-            metadata: {
-              peerFrom: peer.from,
-              peerName: peer.name,
-              peerSession: ask.instance,
-              askRequestId: ask.request,
-              askLabel: ask.label,
-            },
-          });
-          break;
-        }
-        // A delegate's auto-report carries its own header; the body alone is
-        // what the reader (and the card's Report section) should see.
-        const report = delegateReport(text);
-        if (report) {
-          mapping.messages.push({
-            ...base,
-            type: "user.peer",
-            content: report.body,
-            metadata: {
-              peerFrom: peer.from,
-              peerName: `${report.name}#${report.short}`,
-              peerSession: peer.fromSession ?? report.short,
-              reportKind: report.failed ? "failed" : "report",
-            },
-          });
-          break;
-        }
-        mapping.messages.push({
-          ...base,
-          type: "user.peer",
-          content: peer.body ?? text,
-          metadata: {
-            peerFrom: peer.from,
-            peerName: peer.name,
-            peerSession: peer.fromSession,
-          },
-        });
+      // Anything whiffle put into the session on someone else's behalf — a rule,
+      // a hand-off, a workflow notice, a delegate's report or ask. Nothing else
+      // will ever render it: the reader never typed it, so there is no local
+      // copy, and it must not read as the reader's own words. It is classified
+      // off its marker line exactly as a stored copy is, so the live and stored
+      // rows carry identical content and metadata.
+      const injected =
+        text &&
+        "origin" in sdk &&
+        (sdk.origin?.kind === "peer" || sdk.origin?.kind === "system")
+          ? injectedMessage(text, base)
+          : null;
+      if (injected) {
+        mapping.messages.push(injected);
         break;
       }
       // A message queued for a busy session loses its `origin` and is re-wrapped
       // as human speech at drain time, so it arrives here as a plain user frame
-      // whose text still carries the peer marker under the wrapper. Unwrap and
-      // classify it the same way the peer branch above does — a genuinely human
-      // mid-turn message has no marker and falls through to the echo path below
-      // with the wrapper intact.
-      if (text) {
-        const inner = unwrapMidTurn(text);
-        if (inner) {
-          const ask = delegateAsk(inner);
-          if (ask) {
-            mapping.messages.push({
-              ...base,
-              type: "user.delegate_ask",
-              content: ask.body,
-              metadata: {
-                peerSession: ask.instance,
-                askRequestId: ask.request,
-                askLabel: ask.label,
-              },
-            });
-            break;
-          }
-          const report = delegateReport(inner);
-          if (report) {
-            mapping.messages.push({
-              ...base,
-              type: "user.peer",
-              content: report.body,
-              metadata: {
-                peerName: `${report.name}#${report.short}`,
-                peerSession: report.short,
-                reportKind: report.failed ? "failed" : "report",
-              },
-            });
-            break;
-          }
-          const peerName = handoffFrom(inner);
-          if (peerName) {
-            mapping.messages.push({
-              ...base,
-              type: "user.peer",
-              content: inner,
-              metadata: { peerName },
-            });
-            break;
-          }
-        }
+      // whose text still carries its marker under the wrapper. Unwrapped, it is
+      // classified the same way — a genuinely human mid-turn message has no
+      // marker and falls through to the echo path below with the wrapper intact.
+      const inner = text ? unwrapMidTurn(text) : null;
+      const queued = inner ? injectedMessage(inner, base) : null;
+      if (queued) {
+        mapping.messages.push(queued);
+        break;
       }
       // A turn the session had to QUEUE carries the id it waited under. It has
       // no local copy left to render it — the queued row replaced that copy the
@@ -830,9 +743,7 @@ export function mapFrame(instanceId: string, sdk: SDKMessage): FrameMapping {
               model: sdk.model,
               permissionMode: sdk.permissionMode,
               cwd: sdk.cwd,
-              tools: sdk.tools,
               sessionId: sdk.session_id,
-              mcpServers: sdk.mcp_servers,
               // Re-listed every turn, and the only source of which of them are
               // skills — `supportedCommands` describes the commands but does
               // not say where any of them came from.
@@ -1495,27 +1406,6 @@ export interface Transcript {
  * results arriving for a `tool.use` that is on the other side of the cut. A turn
  * that was nothing but an image still opened one.
  */
-/**
- * The rule's own name, out of the `rule:<name>` or `supervisor:<name>` the
- * origin carries. Supervisor origins render for the operator only (C7 opacity):
- * `supervisor:autopilot` → "Autopilot"; `supervisor:<rule>` → "Supervisor — <rule>".
- * Falls back to something honest rather than empty when a hub predates the naming.
- */
-const RULE_PREFIX = /^rule:/;
-
-const ruleLabel = (name?: string): string => {
-  if (!name) {
-    return "a rule";
-  }
-  if (name.startsWith("supervisor:")) {
-    const tail = name.slice("supervisor:".length).trim();
-    return tail === "autopilot"
-      ? "Autopilot"
-      : `Supervisor — ${tail || "a rule"}`;
-  }
-  return name.replace(RULE_PREFIX, "").trim() || "a rule";
-};
-
 export function turnStart(
   entry: SessionMessage
 ): { text: string; images?: MessageMetadata["images"] } | null {
@@ -1531,97 +1421,81 @@ export function turnStart(
 }
 
 /**
- * The hand-off brief's marker prefix (packages/agent `handoff-shared.ts`):
- * `[Hand-off from the <name> session — another agent, not the user]`. It is the
- * only peer signal to survive SDK storage — `getSessionMessages` returns the
- * entry with its origin gone, so a stored hand-off is otherwise just a user
- * turn. Reading the sender name back out of it is what lets a stored copy
- * render as `user.peer` instead of as the reader's own words.
+ * A message whiffle put into the session on someone else's behalf, read off
+ * the marker line it opens with (`@whiffle/core` builds and parses every one).
+ * This is the one classification the live stream, a mid-turn delivery and a
+ * stored transcript share, so each renders the same row. Null for text with no
+ * marker: the reader's own words.
  */
-const HANDOFF_MARKER = "[Hand-off from the ";
-const HANDOFF_SENDER_NAME = /^\[Hand-off from the (.*?) session/;
-
-function handoffFrom(text: string): string | null {
-  if (!text.startsWith(HANDOFF_MARKER)) {
-    return null;
+function injectedMessage(
+  text: string,
+  base: Omit<Message, "type" | "content">
+): Message | null {
+  const rule = parseRuleMarker(text);
+  if (rule) {
+    return {
+      ...base,
+      type: "user.rule",
+      content: rule.body,
+      metadata: { ruleName: rule.name },
+    };
   }
-  const name = HANDOFF_SENDER_NAME.exec(text)?.[1]?.trim();
-  return name || null;
-}
-
-/**
- * A delegate's permission ask, routed to its parent by the hub's
- * `deliverDelegateAsk` (packages/hub/src/server.ts). Legacy: the hub's
- * `delegate_events` table is the record now, and this reads the same ask back
- * out of transcripts that predate it. The marker line — the
- * `[delegate-ask instance=… request=…]` the parent's model reads the ids back
- * off — is the only signal that survives SDK storage: `getSessionMessages`
- * returns the entry with its origin gone, so a stored ask is otherwise just a
- * user turn. Reading the ids and body back out of it is what lets a stored ask
- * render as `user.delegate_ask` instead of the reader's own words. The marker
- * and the instruction boilerplate that follows it are dropped; `body` is what
- * sits strictly between the opening line and the marker line.
- */
-const DELEGATE_ASK_OPENING = /^\[Delegate ask from (.+?)\]\n/;
-const DELEGATE_ASK_MARKER =
-  /\n\[delegate-ask instance=([0-9a-f-]{36}) request=(\S+)\]/;
-
-function delegateAsk(text: string): {
-  label: string;
-  instance: string;
-  request: string;
-  body: string;
-} | null {
-  const opening = DELEGATE_ASK_OPENING.exec(text);
-  if (!opening) {
-    return null;
+  const ask = parseDelegateAsk(text);
+  if (ask) {
+    return {
+      ...base,
+      type: "user.delegate_ask",
+      content: ask.body,
+      metadata: {
+        peerSession: ask.instance,
+        askRequestId: ask.request,
+        askLabel: ask.label,
+      },
+    };
   }
-  const marker = DELEGATE_ASK_MARKER.exec(text);
-  if (!marker) {
-    return null;
+  // Only the short id survives storage; `matchesSession` pairs it with the
+  // delegate's full id wherever a consumer needs the row.
+  const report = parseReportMarker(text);
+  if (report) {
+    return {
+      ...base,
+      type: "user.peer",
+      content: report.body,
+      metadata: {
+        peerName: `${report.name}#${report.short}`,
+        peerSession: report.short,
+        reportKind: report.failed ? "failed" : "report",
+      },
+    };
   }
-  return {
-    label: opening[1].trim(),
-    instance: marker[1],
-    request: marker[2],
-    body: text.slice(opening[0].length, marker.index).trim(),
-  };
-}
-
-/**
- * A delegate's auto-report header, written by the hub when a parented session's
- * turn ends (packages/hub `server.ts`): `[Report from delegate <name>#<short8>
- * — turn complete|failed]`. Legacy, like the ask marker: a report is a
- * `delegate_events` row now, and this reads one back off a transcript written
- * before the table existed. The marker is the only signal that survives SDK
- * storage — and the 8-char short id is all a stored copy carries, so consumers
- * match it against full ids with {@link matchesSession}.
- */
-const DELEGATE_REPORT_MARKER =
-  /^\[Report from delegate (.+?)#([0-9a-f]{8}) — turn (complete|failed)\]\n/;
-
-function delegateReport(
-  text: string
-): { name: string; short: string; failed: boolean; body: string } | null {
-  const marker = DELEGATE_REPORT_MARKER.exec(text);
-  if (!marker) {
-    return null;
+  const notice = parseWorkflowNotice(text);
+  if (notice) {
+    return {
+      ...base,
+      type: "user.peer",
+      content: notice.body,
+      metadata: { peerName: notice.workflow, workflowEvent: notice.event },
+    };
   }
-  return {
-    name: marker[1],
-    short: marker[2],
-    failed: marker[3] === "failed",
-    body: text.slice(marker[0].length).trim(),
-  };
+  const handoff = parseHandoffMarker(text);
+  if (handoff) {
+    return {
+      ...base,
+      type: "user.peer",
+      content: handoff.body,
+      metadata: { peerName: handoff.from },
+    };
+  }
+  return null;
 }
 
 /**
  * The CLI's mid-turn delivery wrapper, reversed. A message queued for a busy
  * session loses its `origin` inside the native binary, which re-materializes
  * it wrapped as human speech at drain time. The wrapper prose is stable, so
- * it is stripped here before the peer markers are consulted — and a report's
- * id still has to name one of this transcript's own delegates downstream
- * (isDelegateReport), so ordinary prose cannot impersonate peer traffic.
+ * it is stripped here before the peer markers are consulted — and a report
+ * only reaches a delegate card whose own id it names, so ordinary prose cannot
+ * impersonate peer traffic.
  */
 const MID_TURN_PREFIXES = [
   "The user sent a new message while you were working:\n",
@@ -1862,43 +1736,6 @@ export function answerVerdict(toolInput: JsonValue | undefined): {
 }
 
 /**
- * The delegate row a hand-off target names — full id, short id (≥8 chars), or
- * the directory's last path segment, the same resolution the daemon's own
- * harnesses use — scoped to THIS session's delegates, so a follow-up card can
- * say who it went to instead of printing a raw uuid.
- */
-export function delegateOf(
-  target: string,
-  parentInstanceId: string,
-  instances: ReadonlyArray<{
-    id: string;
-    cwd: string;
-    parentInstanceId?: string | null;
-  }>
-): { id: string; cwd: string } | null {
-  const needle = target.trim().toLowerCase();
-  if (!needle) {
-    return null;
-  }
-  for (const row of instances) {
-    if (row.parentInstanceId !== parentInstanceId) {
-      continue;
-    }
-    const leafName = (
-      row.cwd.split("/").filter(Boolean).pop() ?? row.cwd
-    ).toLowerCase();
-    if (
-      row.id === needle ||
-      (needle.length >= 8 && row.id.startsWith(needle)) ||
-      leafName === needle
-    ) {
-      return { id: row.id, cwd: row.cwd };
-    }
-  }
-  return null;
-}
-
-/**
  * The entries between a tool call and the result answering it, marked so no
  * chunk boundary can land inside one. A turn start is nearly always outside them
  * already, but the harness writes its own user-role text mid-turn (a skill's
@@ -2016,77 +1853,27 @@ export function mapTranscript(
     const fromPeer = injectedKind === "peer" || injectedKind === "system";
     const opening = fromPeer ? null : turnStart(entry);
     if (opening) {
-      // A stored ask's marker is all that survives storage — the `[delegate-ask
-      // …]` line names the delegate and request, and it is upgraded to a
-      // `user.delegate_ask` here rather than rendered as the reader's own turn.
-      // Storage lost the peer origin, so only the marker-derived metadata (not
-      // peerFrom/peerName) is carried.
+      // Storage stripped the origin, so a message whiffle injected is known
+      // only by its marker line — classified exactly as the live frame was.
       //
       // The SDK filters queued entries out of stored reads today, so a wrapped
       // mid-turn delivery is theoretical here — but if a future version surfaces
-      // one, classify on the unwrapped text. The fallback userBody below keeps
-      // the ORIGINAL wrapped text, so a stored human message renders as stored.
-      const text = unwrapMidTurn(opening.text) ?? opening.text;
-      const ask = delegateAsk(text);
-      if (ask) {
-        messages.push({
-          id: entry.uuid,
-          instanceId,
-          type: "user.delegate_ask",
-          content: ask.body,
-          ...(recorded ? { timestamp: recorded } : {}),
-          sdkUuid: entry.uuid,
-          metadata: {
-            peerSession: ask.instance,
-            askRequestId: ask.request,
-            askLabel: ask.label,
-          },
-        });
-        continue;
-      }
-      // A stored report has only its header's short id left; `matchesSession`
-      // is how consumers pair it with the delegate's full id.
-      const report = delegateReport(text);
-      if (report) {
-        messages.push({
-          id: entry.uuid,
-          instanceId,
-          type: "user.peer",
-          content: report.body,
-          ...(recorded ? { timestamp: recorded } : {}),
-          sdkUuid: entry.uuid,
-          metadata: {
-            peerName: `${report.name}#${report.short}`,
-            peerSession: report.short,
-            reportKind: report.failed ? "failed" : "report",
-          },
-        });
-        continue;
-      }
-      // A stored hand-off has no origin left to say who sent it — the marker
-      // prefix is all that survives storage — so it is upgraded to a peer
-      // message here rather than rendered as the reader's own turn. Its body is
-      // the whole text, marker included, so it dedups against the live echo by
-      // exact text.
-      const peerName = handoffFrom(text);
+      // one, classify on the unwrapped text. The userBody fallback keeps the
+      // ORIGINAL wrapped text, so a stored human message renders as stored.
+      const stored = {
+        id: entry.uuid,
+        instanceId,
+        ...(recorded ? { timestamp: recorded } : {}),
+        sdkUuid: entry.uuid,
+      };
       messages.push(
-        peerName
-          ? {
-              id: entry.uuid,
-              instanceId,
-              type: "user.peer",
-              content: text,
-              ...(recorded ? { timestamp: recorded } : {}),
-              sdkUuid: entry.uuid,
-              metadata: { peerName },
-            }
-          : {
-              id: entry.uuid,
-              instanceId,
-              ...userBody(opening.text, opening.images),
-              ...(recorded ? { timestamp: recorded } : {}),
-              sdkUuid: entry.uuid,
-            }
+        injectedMessage(
+          unwrapMidTurn(opening.text) ?? opening.text,
+          stored
+        ) ?? {
+          ...stored,
+          ...userBody(opening.text, opening.images),
+        }
       );
       continue;
     }
@@ -2200,16 +1987,14 @@ export function sessionFailedMessage(
 }
 
 /**
- * Folds a `user.peer` (or `user`) message into the transcript without doubling
- * it. A hand-off brief reaches the reader twice — once as the live echo, which
- * carries no uuid, and once as the stored copy, which does — and both map to a
- * peer message with the same body. Identical text is the same brief, so the
- * second arrival merges into the first: one bubble, and the uuid (edit/fork's
- * anchor) is attached whichever way round they arrived. A `user.delegate_ask`
- * reaches the reader the same two ways, but its body is not the whole wire text
- * (markers are dropped), so it is matched by its `askRequestId` instead of by
- * exact content. Returns true when the message was folded in and must not be
- * appended.
+ * Folds an injected message (`user.rule`, `user.peer`, `user.delegate_ask`)
+ * into the transcript without doubling it. Each reaches the reader twice —
+ * once live, with no uuid, and once as the stored copy, which has one — and
+ * both are classified to the same row, so the second arrival merges into the
+ * first: one row, and the uuid (edit/fork's anchor) attached whichever way
+ * round they arrived. Rules and peers pair by exact text ({@link sameArrival});
+ * an ask pairs by its `askRequestId`. Returns true when the message was folded
+ * in and must not be appended.
  */
 export function mergePeerMessage(
   messages: Message[],
@@ -2234,17 +2019,19 @@ export function mergePeerMessage(
     }
     return true;
   }
-  if (incoming.type !== "user.peer" && incoming.type !== "user") {
+  if (incoming.type !== "user.rule" && incoming.type !== "user.peer") {
     return false;
   }
   const existing = messages.find(
     (message) =>
-      message.type === "user.peer" && message.content === incoming.content
+      message.type === incoming.type &&
+      message.content === incoming.content &&
+      sameArrival(message, incoming)
   );
   if (!existing) {
     return false;
   }
-  if (!existing.sdkUuid && incoming.sdkUuid) {
+  if (!existing.sdkUuid) {
     existing.sdkUuid = incoming.sdkUuid;
     existing.id = incoming.id;
   }
@@ -2252,30 +2039,13 @@ export function mergePeerMessage(
 }
 
 /**
- * Whether a `user.peer` is one of this transcript's own delegates reporting
- * back, rather than a handoff handed in from another session. A delegate is an
- * instances row whose `parentInstanceId` names the transcript holding the
- * message; the peer's `peerSession` names the row. Pure — rows, not the store —
- * so a bubble's fate can be decided without reading any state.
+ * Whether two rows with the same text are one message arriving twice rather
+ * than two messages that happen to read alike (a rule that nags resends the
+ * same words). The live copy carries no uuid and the stored copy does, so they
+ * pair; two stored copies pair only on the same uuid, and two live ones never.
  */
-export function isDelegateReport(
-  message: Message,
-  parentInstanceId: string,
-  instances: ReadonlyArray<{ id: string; parentInstanceId?: string | null }>
-): boolean {
-  if (message.type !== "user.peer") {
-    return false;
-  }
-  const peerSession = message.metadata?.peerSession;
-  if (!peerSession) {
-    return false;
-  }
-  return instances.some(
-    (row) =>
-      matchesSession(peerSession, row.id) &&
-      row.parentInstanceId === parentInstanceId
-  );
-}
+const sameArrival = (a: Message, b: Message): boolean =>
+  a.sdkUuid ? a.sdkUuid === b.sdkUuid || !b.sdkUuid : !!b.sdkUuid;
 
 /** Folds a tool result into the `tool.use` it answers. */
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: one dispatch over every tool-result shape a `tool.use` can be answered by

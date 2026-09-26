@@ -15,6 +15,7 @@ import type {
   FramePayload,
   FsImage,
   FsPayload,
+  GitChanges,
   HarnessKind,
   HarnessReport,
   HookDraft,
@@ -22,6 +23,7 @@ import type {
   InstanceRow,
   InstanceSpec,
   MachineMemorySet,
+  ModelInfo,
   NeutralSessionInfo,
   PermissionMode,
   PreviewSource,
@@ -30,7 +32,9 @@ import type {
   Rule,
   RuleDraft,
   SendPayload,
+  SessionMessage,
   SessionPulse,
+  SessionTooling,
   SkillFile,
   SpawnPayload,
   SupervisorEvent,
@@ -44,11 +48,17 @@ import {
   AGENT_BUSY,
   ASK_USER_QUESTION,
   agentProblem,
+  CONTROL_CONTEXT_USAGE,
   CONTROL_GET_SESSION_INFO,
   CONTROL_GET_SESSION_MESSAGES,
+  CONTROL_GIT_CHANGES,
   CONTROL_LIST_SESSIONS,
+  CONTROL_MODEL_CATALOG,
   CONTROL_SEARCH_TRANSCRIPTS,
+  contextFitRefusal,
+  delegateAskText,
   deriveTitleFromFirstMessage,
+  estimateTokens,
   FLEET_STATUS,
   FLEET_SYNC,
   GENERATE_IMAGE,
@@ -71,16 +81,30 @@ import {
   RESTART_RESUMABLE,
   RULE_TEMPLATES,
   readProvenance,
+  reportMarker,
   ruleProblem,
+  SUMMARISER_OUTPUT_RESERVE_TOKENS,
+  SUMMARY_CAP_TOKENS,
+  TARGET_HEADROOM_TOKENS,
   TOOL_CATALOG,
   toolSpec,
   UPDATE_WHIFFLE,
   validateWorkflow,
 } from "@whiffle/core";
-import { Elysia, t } from "elysia";
+import { Elysia, t, ValidationError } from "elysia";
 import { websocket } from "elysia/websocket";
 import { buildInfo } from "./build";
 import { HUB_VERSION } from "./config";
+import {
+  type ContinuationSource,
+  extractTranscript,
+  gitSection,
+  liveScope,
+  openingMessage,
+  scopeChars,
+  summariserPrompt,
+  transcriptModel,
+} from "./continuation";
 import type { AgentAuth, DbShape, DelegateEvent, InstanceKind } from "./db";
 import { usageBucketFromRow } from "./db";
 import { delegateTypesRoutes, makeDelegateTypes } from "./delegate-types";
@@ -178,6 +202,51 @@ const UPDATE_TIMEOUT_MS = 10 * 60_000;
 
 /** Reading one file off a machine: it answers about as fast as a disk does. */
 const READ_TIMEOUT_MS = 10_000;
+/**
+ * How long a continuation waits for a session it spawned to be in place. A
+ * cold harness (opencode starting its server, claude its CLI) takes seconds;
+ * past this the machine is not going to answer.
+ */
+const CONTINUE_SPAWN_TIMEOUT_MS = 120_000;
+/** How often a running continuation's stream says it is still there. */
+const CONTINUE_HEARTBEAT_MS = 20_000;
+/** The largest frame a machine may send the hub (see the agent socket). */
+const AGENT_FRAME_LIMIT_BYTES = 512 * 1024 * 1024;
+
+/** What "continue in new session" is asked: who summarises, what starts. */
+interface ContinueRequest {
+  note?: string;
+  summarizer: { harness: HarnessKind; model: string };
+  /** The same options a dashboard spawn sends; machine and cwd default to the source's. */
+  target: {
+    bootstrap?: { repo: string; baseDir: string };
+    cwd?: string;
+    effort?: EffortLevel;
+    harness: HarnessKind;
+    machineId?: string;
+    model: string;
+    permissionMode?: PermissionMode;
+    projectId?: string;
+    scratch?: { worktree?: boolean; baseCwd?: string };
+  };
+}
+
+interface ContinueOutcome {
+  /** Whether the source had been compacted: its live context starts at a summary. */
+  compacted: boolean;
+  /** Messages read: the live chain, the whole transcript, and the live scope. */
+  entries: { live: number; whole: number; scope: number };
+  liveContextTokens: number;
+  /** The new session's first message, as sent. */
+  opening: string;
+  openingTokens: number;
+  sizes: { artifacts: number; middle: number; tail: number };
+  summariseInputTokens: number;
+  /** Null when there was nothing before the tail, so no summariser ran. */
+  summariserInstanceId: string | null;
+  summary: string | null;
+  targetInstanceId: string;
+}
 
 /**
  * Where a conversation lives, resolved from its id alone. `sessionId` is the
@@ -208,6 +277,53 @@ const TRANSCRIPT_FLUSH = 25;
  * and strictly by `ruleProblem`, so the form and the hub refuse in the same
  * sentences.
  */
+const harnessSchema = t.Union([
+  t.Literal("claude"),
+  t.Literal("opencode"),
+  t.Literal("pi"),
+]);
+/** Continue in new session: every field of the summariser and target is the caller's to name. */
+const continueBody = t.Object({
+  summarizer: t.Object({
+    harness: harnessSchema,
+    model: t.String({ minLength: 1 }),
+  }),
+  target: t.Object({
+    harness: harnessSchema,
+    model: t.String({ minLength: 1 }),
+    machineId: t.Optional(t.String({ minLength: 1 })),
+    cwd: t.Optional(t.String({ minLength: 1 })),
+    effort: t.Optional(
+      t.Union([
+        t.Literal("low"),
+        t.Literal("medium"),
+        t.Literal("high"),
+        t.Literal("xhigh"),
+        t.Literal("max"),
+      ])
+    ),
+    permissionMode: t.Optional(
+      t.Union([
+        t.Literal("default"),
+        t.Literal("acceptEdits"),
+        t.Literal("bypassPermissions"),
+        t.Literal("plan"),
+        t.Literal("dontAsk"),
+        t.Literal("auto"),
+      ])
+    ),
+    scratch: t.Optional(
+      t.Object({
+        worktree: t.Optional(t.Boolean()),
+        baseCwd: t.Optional(t.String()),
+      })
+    ),
+    bootstrap: t.Optional(t.Object({ repo: t.String(), baseDir: t.String() })),
+    projectId: t.Optional(t.String()),
+  }),
+  note: t.Optional(t.String()),
+});
+
 const ruleBody = t.Object({
   name: t.String(),
   enabled: t.Boolean(),
@@ -1181,7 +1297,9 @@ const peekQueue = (
 
 const peekInit = (
   payload: unknown
-): { sessionId: string; cwd?: string } | undefined => {
+):
+  | { sessionId: string; cwd?: string; tooling?: SessionTooling }
+  | undefined => {
   if (typeof payload !== "object" || payload === null) {
     return undefined;
   }
@@ -1199,6 +1317,27 @@ const peekInit = (
   return {
     sessionId: sdk.session_id,
     cwd: typeof sdk.cwd === "string" ? sdk.cwd : undefined,
+    tooling: initTooling(sdk),
+  };
+};
+
+/**
+ * The MCP servers (name and status) and tool names an `init` announced. Claude
+ * sends both on every `init`; OpenCode and pi send neither, and their rows keep
+ * no tooling.
+ */
+const initTooling = (
+  sdk: Record<string, unknown>
+): SessionTooling | undefined => {
+  if (!Array.isArray(sdk.tools)) {
+    return undefined;
+  }
+  const servers = Array.isArray(sdk.mcp_servers)
+    ? (sdk.mcp_servers as { name: string; status: string }[])
+    : [];
+  return {
+    servers: servers.map(({ name, status }) => ({ name, status })),
+    tools: sdk.tools as string[],
   };
 };
 
@@ -1601,7 +1740,6 @@ export const createServer = ({
   ): void => {
     const label = `${leaf(delegate.cwd)}#${delegate.id.slice(0, 8)}`;
     const body = renderDelegateAsk(ask.payload);
-    const marker = `[delegate-ask instance=${delegate.id} request=${ask.requestId}]`;
     const instruction =
       "Answer it with the answer_delegate tool: answer_delegate(target, requestId, answers) — " +
       "answers are keyed by the exact question text and the value is the chosen option label " +
@@ -1616,7 +1754,13 @@ export const createServer = ({
           type: "user",
           message: {
             role: "user",
-            content: `[Delegate ask from ${label}]\n\n${body}\n\n${marker}\n\n${instruction}`,
+            content: delegateAskText({
+              label,
+              body,
+              instance: delegate.id,
+              request: String(ask.requestId),
+              instruction,
+            }),
           },
           parent_tool_use_id: null,
           origin: {
@@ -1956,6 +2100,473 @@ export const createServer = ({
     // the fleet. A machine coming online clears this (see `locations`).
     locations.set(id, null);
     return null;
+  };
+
+  /**
+   * Summariser turns a continuation is waiting on, by instance id. Settled by
+   * frames the hub already reads: the turn's `result` (with the assistant
+   * text accumulated for delegate reports), an `error` frame, or the session
+   * stopping before it answered.
+   */
+  const turnWaiters = new Map<
+    string,
+    { resolve: (text: string) => void; reject: (error: Error) => void }
+  >();
+
+  /** Sends something a machine answers under `requestId`, and waits for that answer. */
+  const awaitReply = (
+    machineId: string,
+    requestId: string,
+    timeoutMs: number,
+    send: () => void
+  ): Promise<ControlResult | "timeout"> =>
+    new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        waiting.delete(requestId);
+        waitingMachines.delete(requestId);
+        resolve("timeout");
+      }, timeoutMs);
+      waitingMachines.set(requestId, machineId);
+      waiting.set(requestId, (frame) => {
+        clearTimeout(timer);
+        waiting.delete(requestId);
+        waitingMachines.delete(requestId);
+        resolve(frame);
+      });
+      send();
+    });
+
+  /**
+   * Spawns a session from the hub itself — a continuation's summarisers and
+   * its target — recorded exactly like a dashboard's spawn, and resolved once
+   * the machine says the session is in place. A refusal is the machine's own
+   * words.
+   */
+  const spawnFromHub = async (
+    machineId: string,
+    payload: SpawnPayload
+  ): Promise<void> => {
+    const agent = registry.agent(machineId);
+    if (!agent) {
+      throw new Error(`machine ${machineId} is not connected`);
+    }
+    const requestId = crypto.randomUUID();
+    db.openInstance({
+      id: payload.instanceId,
+      machineId,
+      cwd: payload.cwd,
+      harness: payload.harness,
+      projectId: payload.projectId,
+      title: payload.title,
+      kind: payload.scratch ? "scratch" : "mainline",
+      permissionMode: payload.permissionMode,
+      model: payload.model,
+      effort: payload.effort,
+    });
+    publishInstances(machineId);
+    const reply = await awaitReply(
+      machineId,
+      requestId,
+      CONTINUE_SPAWN_TIMEOUT_MS,
+      () =>
+        agent.send({
+          verb: "spawn",
+          machineId,
+          instanceId: payload.instanceId,
+          payload: { ...payload, requestId },
+        } satisfies Envelope<SpawnPayload>)
+    );
+    if (reply === "timeout") {
+      throw new Error(
+        `the ${payload.harness} session on ${machineId} did not start within ${CONTINUE_SPAWN_TIMEOUT_MS / 1000}s`
+      );
+    }
+    if (!reply.ok) {
+      throw new Error(reply.error ?? "the session failed to start");
+    }
+  };
+
+  /** Puts one user message into a session, from the session it continues. */
+  const sendFromHub = (
+    machineId: string,
+    instanceId: string,
+    content: string,
+    from: { id: string; cwd: string }
+  ): void => {
+    registry.agent(machineId)?.send({
+      verb: "send",
+      machineId,
+      instanceId,
+      payload: {
+        instanceId,
+        message: {
+          type: "user",
+          message: { role: "user", content },
+          parent_tool_use_id: null,
+          origin: {
+            kind: "peer",
+            from: from.id,
+            name: leaf(from.cwd),
+            fromSession: from.id,
+          },
+        },
+      },
+    } satisfies Envelope<SendPayload>);
+  };
+
+  const stopFromHub = (machineId: string, instanceId: string): void => {
+    registry.agent(machineId)?.send({
+      verb: "stop",
+      machineId,
+      instanceId,
+      payload: { instanceId },
+    });
+  };
+
+  /**
+   * The summariser, start to stop: a fresh session on the chosen harness and
+   * model in the source's directory, asked `prompt`, answered with its turn's
+   * text, then stopped whatever happened.
+   */
+  const summariserRun = async (
+    source: ContinuationSource & { machineId: string },
+    summarizer: { harness: HarnessKind; model: string },
+    prompt: string
+  ): Promise<{ id: string; text: string }> => {
+    const id = crypto.randomUUID();
+    const answered = new Promise<string>((resolve, reject) => {
+      turnWaiters.set(id, { resolve, reject });
+    });
+    // Never unhandled: a spawn that fails first leaves this to be abandoned.
+    answered.catch(() => undefined);
+    try {
+      await spawnFromHub(source.machineId, {
+        instanceId: id,
+        cwd: source.cwd,
+        harness: summarizer.harness,
+        model: summarizer.model,
+        title: `Summary of ${source.title}`,
+        spawnedBy: { instanceId: source.instanceId },
+      });
+      sendFromHub(source.machineId, id, prompt, {
+        id: source.instanceId,
+        cwd: source.cwd,
+      });
+      return { id, text: await answered };
+    } finally {
+      turnWaiters.delete(id);
+      stopFromHub(source.machineId, id);
+    }
+  };
+
+  /**
+   * A model's context window as the fleet knows it: claude's from the turns
+   * the hub has seen (its catalog has none), every other harness's from the
+   * machine's own model catalog. Undefined is unknown — never a guess.
+   */
+  const contextWindowOf = async (
+    machineId: string,
+    harness: HarnessKind,
+    model: string
+  ): Promise<number | undefined> => {
+    if (harness === "claude") {
+      return db.claudeContextWindows()[model];
+    }
+    const answer = await callAgent(
+      machineId,
+      CONTROL_MODEL_CATALOG,
+      [],
+      READ_TIMEOUT_MS,
+      harness
+    );
+    if (answer === "offline") {
+      throw new Error(`machine ${machineId} is not connected`);
+    }
+    if (answer === "timeout") {
+      throw new Error(
+        `machine ${machineId} did not list its ${harness} models in time`
+      );
+    }
+    if (!answer.ok) {
+      throw new Error(answer.error ?? `${harness} could not list its models`);
+    }
+    return (answer.result as ModelInfo[]).find((row) => row.value === model)
+      ?.contextWindow;
+  };
+
+  /** How many tokens a running session holds right now, as its harness reads it. */
+  const liveContextTokensOf = async (row: InstanceRow): Promise<number> => {
+    const requestId = crypto.randomUUID();
+    const answer = await awaitReply(
+      row.machineId,
+      requestId,
+      READ_TIMEOUT_MS,
+      () =>
+        registry.agent(row.machineId)?.send({
+          verb: "control",
+          machineId: row.machineId,
+          instanceId: row.id,
+          requestId,
+          payload: {
+            instanceId: row.id,
+            requestId,
+            method: CONTROL_CONTEXT_USAGE,
+            args: [],
+          },
+        } satisfies Envelope<ControlPayload>)
+    );
+    if (answer === "timeout") {
+      throw new Error(`session ${row.id} did not report its context in time`);
+    }
+    if (!answer.ok) {
+      throw new Error(answer.error ?? "the session could not read its context");
+    }
+    return (answer.result as { totalTokens: number }).totalTokens;
+  };
+
+  /** When the session started, as its own harness records it. */
+  const sessionStartOf = async (where: SessionLocation): Promise<string> => {
+    const answer = await callAgent(
+      where.machineId,
+      CONTROL_GET_SESSION_INFO,
+      [where.sessionId, where.cwd || undefined],
+      READ_TIMEOUT_MS,
+      where.harness
+    );
+    if (answer === "offline" || answer === "timeout" || !answer.ok) {
+      throw new Error(
+        `machine ${where.machineId} could not say when session ${where.sessionId} started: ${
+          answer === "offline" || answer === "timeout"
+            ? answer
+            : (answer.error ?? "no answer")
+        }`
+      );
+    }
+    const created = (answer.result as NeutralSessionInfo | null)?.createdAt;
+    if (!created) {
+      throw new Error(
+        `${where.harness} does not report when session ${where.sessionId} started`
+      );
+    }
+    return new Date(created).toISOString();
+  };
+
+  /** What git says changed in the session's directory since it started. */
+  const gitChangesOf = async (
+    where: SessionLocation,
+    since: string
+  ): Promise<GitChanges> => {
+    const answer = await callAgent(
+      where.machineId,
+      CONTROL_GIT_CHANGES,
+      [where.cwd, since],
+      READ_TIMEOUT_MS
+    );
+    if (answer === "offline" || answer === "timeout" || !answer.ok) {
+      throw new Error(
+        `machine ${where.machineId} could not read git in ${where.cwd}: ${
+          answer === "offline" || answer === "timeout"
+            ? answer
+            : (answer.error ?? "no answer")
+        }`
+      );
+    }
+    return answer.result as GitChanges;
+  };
+
+  /** One read of a session's stored messages through its own machine. */
+  const readMessages = async (
+    where: SessionLocation,
+    whole: boolean
+  ): Promise<SessionMessage[]> => {
+    const answer = await callAgent(
+      where.machineId,
+      CONTROL_GET_SESSION_MESSAGES,
+      [
+        where.sessionId,
+        { dir: where.cwd || undefined, ...(whole ? { whole } : {}) },
+      ],
+      READ_TIMEOUT_MS,
+      where.harness
+    );
+    if (answer === "offline") {
+      throw new Error(`machine ${where.machineId} is not connected`);
+    }
+    if (answer === "timeout") {
+      throw new Error(`machine ${where.machineId} did not answer in time`);
+    }
+    if (!answer.ok) {
+      throw new Error(answer.error ?? "the transcript could not be read");
+    }
+    return (
+      Array.isArray(answer.result) ? answer.result : []
+    ) as SessionMessage[];
+  };
+
+  /**
+   * A continuation's inputs, read and sized: the source's live context (last
+   * compaction summary on), the artifact index over its whole transcript, and
+   * the token counts the pickers and the run are both held to. The source is
+   * only read.
+   */
+  const prepareContinuation = async (sourceId: string, note?: string) => {
+    const [row] = db.getInstancesByIds([sourceId]);
+    const where = await locateSession(sourceId);
+    if (!where) {
+      throw new Error(
+        row
+          ? `session ${sourceId} has no transcript yet`
+          : `no session ${sourceId}`
+      );
+    }
+    const since = await sessionStartOf(where);
+    const [live, whole, git] = await Promise.all([
+      readMessages(where, false),
+      readMessages(where, true),
+      gitChangesOf(where, since),
+    ]);
+    const scope = liveScope(live);
+    // Named by what it was first asked in words — the whole transcript's first
+    // prompt, not the compaction summary its live context starts with, nor a
+    // bare slash command (`/clear`) that names nothing.
+    const first = whole
+      .map(userTurnText)
+      .find(
+        (text) => text && !deriveTitleFromFirstMessage(text).startsWith("/")
+      );
+    const source: ContinuationSource & { machineId: string } = {
+      instanceId: sourceId,
+      machineId: where.machineId,
+      cwd: where.cwd,
+      harness: where.harness,
+      model: row?.model ?? transcriptModel(live) ?? "model not recorded",
+      title:
+        row?.title ||
+        row?.derivedTitle ||
+        (first ? deriveTitleFromFirstMessage(first) : "") ||
+        leaf(where.cwd),
+    };
+    const extracted = extractTranscript(scope, whole);
+    extracted.artifacts = `${extracted.artifacts}\n\n${gitSection(git, since)}`;
+    const prompt = extracted.middle.length
+      ? summariserPrompt(extracted.middle, note)
+      : undefined;
+    const running =
+      row?.status === "running" && registry.agent(row.machineId) !== undefined;
+    return {
+      source,
+      extracted,
+      prompt,
+      liveContextTokens:
+        row && running
+          ? await liveContextTokensOf(row)
+          : estimateTokens(scopeChars(scope)),
+      summariseInputTokens: prompt ? estimateTokens(prompt.length) : 0,
+      openingTokens:
+        estimateTokens(openingMessage(source, "", extracted, note).length) +
+        SUMMARY_CAP_TOKENS,
+      compacted: scope[0]?.compactSummary === true,
+      entries: { live: live.length, whole: whole.length, scope: scope.length },
+    };
+  };
+
+  /**
+   * Whether the chosen models fit, by the same rule the dashboard's pickers
+   * show: a refusal naming the model and why, or nothing.
+   */
+  const continuationRefusal = async (
+    prepared: Awaited<ReturnType<typeof prepareContinuation>>,
+    request: ContinueRequest
+  ): Promise<string | undefined> => {
+    if (prepared.prompt) {
+      const { harness, model } = request.summarizer;
+      const refusal = contextFitRefusal(
+        await contextWindowOf(prepared.source.machineId, harness, model),
+        prepared.summariseInputTokens + SUMMARISER_OUTPUT_RESERVE_TOKENS
+      );
+      if (refusal) {
+        return `Summarise with ${model}: ${refusal}`;
+      }
+    }
+    const { harness, model, machineId } = request.target;
+    const refusal = contextFitRefusal(
+      await contextWindowOf(
+        machineId ?? prepared.source.machineId,
+        harness,
+        model
+      ),
+      prepared.openingTokens + TARGET_HEADROOM_TOKENS
+    );
+    return refusal ? `Continue on ${model}: ${refusal}` : undefined;
+  };
+
+  /**
+   * Continue in new session: summarise the source's live context once with
+   * the summariser the caller chose (skipped when there is nothing before the
+   * tail), then start the target session seeded with the summary, the
+   * artifact index and the tail. The source is only read.
+   */
+  const continueSession = async (
+    prepared: Awaited<ReturnType<typeof prepareContinuation>>,
+    request: ContinueRequest,
+    stage: (name: "summarising" | "starting") => void,
+    cancelled: () => boolean
+  ): Promise<ContinueOutcome> => {
+    const { source, extracted, prompt } = prepared;
+    if (prompt) {
+      stage("summarising");
+    }
+    const summariser = prompt
+      ? await summariserRun(source, request.summarizer, prompt)
+      : undefined;
+    if (cancelled()) {
+      throw new Error("the continuation was cancelled");
+    }
+    stage("starting");
+    const { target } = request;
+    const targetMachine = target.machineId ?? source.machineId;
+    const targetId = crypto.randomUUID();
+    await spawnFromHub(targetMachine, {
+      instanceId: targetId,
+      cwd: target.cwd ?? source.cwd,
+      harness: target.harness,
+      model: target.model,
+      ...(target.effort ? { effort: target.effort } : {}),
+      ...(target.permissionMode
+        ? { permissionMode: target.permissionMode }
+        : {}),
+      ...(target.scratch ? { scratch: target.scratch } : {}),
+      ...(target.bootstrap ? { bootstrap: target.bootstrap } : {}),
+      ...(target.projectId ? { projectId: target.projectId } : {}),
+      title: `${source.title} (continued)`,
+      spawnedBy: { instanceId: source.instanceId },
+    });
+    const opening = openingMessage(
+      source,
+      summariser?.text,
+      extracted,
+      request.note
+    );
+    sendFromHub(targetMachine, targetId, opening, {
+      id: source.instanceId,
+      cwd: source.cwd,
+    });
+    return {
+      summariserInstanceId: summariser?.id ?? null,
+      targetInstanceId: targetId,
+      summary: summariser?.text ?? null,
+      opening,
+      liveContextTokens: prepared.liveContextTokens,
+      summariseInputTokens: prepared.summariseInputTokens,
+      openingTokens: prepared.openingTokens,
+      compacted: prepared.compacted,
+      entries: prepared.entries,
+      sizes: {
+        artifacts: extracted.artifacts.length,
+        middle: extracted.middle.join("\n\n").length,
+        tail: extracted.tail.length,
+      },
+    };
   };
 
   /** Relays a dashboard envelope to its machine; reports back if nobody is home. */
@@ -3390,7 +4001,10 @@ export const createServer = ({
             name: string;
             arguments?: Record<string, unknown>;
           };
-          if (input.name === "generate_image") {
+          if (
+            input.name === "generate_image" ||
+            input.name === "continue_session"
+          ) {
             server?.timeout(request, 0);
           }
           return delegationMcp.call(
@@ -3441,6 +4055,134 @@ export const createServer = ({
             return status(422, answer.error ?? "Image generation failed.");
           }
           return answer.result;
+        }
+      )
+      // Claude models' context windows as their turns last reported them; the
+      // dashboard's model list carries them for claude rows.
+      .get("/api/model-windows", () => ({
+        claude: db.claudeContextWindows(),
+      }))
+      // What a continuation of this session would carry, sized — for the
+      // dialog's pickers, which enable only models that fit.
+      .get("/api/instances/:id/continue", async ({ params, query, status }) => {
+        try {
+          const prepared = await prepareContinuation(
+            params.id,
+            typeof query.note === "string" ? query.note : undefined
+          );
+          return {
+            liveContextTokens: prepared.liveContextTokens,
+            summariseInputTokens: prepared.summariseInputTokens,
+            openingTokens: prepared.openingTokens,
+            compacted: prepared.compacted,
+            entries: prepared.entries,
+          };
+        } catch (error) {
+          return status(
+            422,
+            error instanceof Error ? error.message : String(error)
+          );
+        }
+      })
+      // Continue in new session. The fit of both models is checked before
+      // anything starts (a plain 409); the answer is then NDJSON:
+      // `{stage: "summarising" | "starting"}` as each begins, `{heartbeat}`
+      // every 20s, and last `{result: ContinueOutcome}` or `{error}` carrying
+      // the failure's own words.
+      .post(
+        "/api/instances/:id/continue",
+        {
+          body: continueBody,
+          // A 400 that names the missing or malformed field, in words.
+          error({ error, status }) {
+            if (error instanceof ValidationError) {
+              const [first] = error.all as {
+                path: string;
+                message: string;
+                params?: { requiredProperties?: string[] };
+              }[];
+              // The issue's own path stops at the object missing the field;
+              // the error's `property` names that object from the root.
+              const { property } = error.payload as { property?: string };
+              const parent = property?.startsWith("/")
+                ? property.slice(1).replaceAll("/", ".")
+                : "";
+              const at = parent ? `${parent}.` : "";
+              const missing = first.params?.requiredProperties?.join(", ");
+              return status(
+                400,
+                missing
+                  ? `${at}${missing} is required`
+                  : `${first.path}: ${first.message}`
+              );
+            }
+          },
+        },
+        async ({ params, body, request, server, status }) => {
+          server?.timeout(request, 0);
+          let prepared: Awaited<ReturnType<typeof prepareContinuation>>;
+          let refusal: string | undefined;
+          try {
+            prepared = await prepareContinuation(params.id, body.note);
+            refusal = await continuationRefusal(prepared, body);
+          } catch (error) {
+            return status(
+              422,
+              error instanceof Error ? error.message : String(error)
+            );
+          }
+          if (refusal) {
+            return status(409, refusal);
+          }
+          const encoder = new TextEncoder();
+          let gone = false;
+          let heartbeat: ReturnType<typeof setInterval> | undefined;
+          const stream = new ReadableStream<Uint8Array>({
+            async start(controller) {
+              const line = (value: unknown) => {
+                if (!gone) {
+                  controller.enqueue(
+                    encoder.encode(`${JSON.stringify(value)}\n`)
+                  );
+                }
+              };
+              // A proxy between here and the caller (the dashboard's) drops a
+              // body that goes quiet for minutes; a summariser can take that.
+              heartbeat = setInterval(
+                () => line({ heartbeat: Date.now() }),
+                CONTINUE_HEARTBEAT_MS
+              );
+              try {
+                line({
+                  result: await continueSession(
+                    prepared,
+                    body,
+                    (stage) => line({ stage }),
+                    () => gone
+                  ),
+                });
+              } catch (error) {
+                line({
+                  error: error instanceof Error ? error.message : String(error),
+                });
+              }
+              clearInterval(heartbeat);
+              if (!gone) {
+                controller.close();
+              }
+            },
+            cancel() {
+              // The caller walked away: nothing after this point may start.
+              gone = true;
+              clearInterval(heartbeat);
+            },
+          });
+          return new Response(stream, {
+            headers: {
+              "Content-Type": "application/x-ndjson",
+              "Cache-Control": "no-store",
+            },
+          });
         }
       )
       .get("/api/instances/:id/preview", ({ params, status }) => {
@@ -4326,7 +5068,6 @@ export const createServer = ({
         {
           body: t.Object({
             text: t.String(),
-            recent: t.String(),
             candidates: t.Array(
               t.Object({
                 id: t.String(),
@@ -4353,7 +5094,6 @@ export const createServer = ({
             db,
             connection.apiKey,
             body.text,
-            body.recent,
             body.candidates
           );
           if ("error" in result) {
@@ -5774,6 +6514,10 @@ export const createServer = ({
         };
       })
       .ws("/ws", {
+        // A machine answers a full transcript read in one frame, and a long
+        // session's is tens of MB (a 45MB claude transcript). Past Bun's 16MB
+        // default the socket is closed under the reply and the machine drops.
+        maxPayloadLength: AGENT_FRAME_LIMIT_BYTES,
         // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: dispatches every agent socket verb (register, frames, pulse, control_result, etc.) through one handler; splitting it would scatter the ordering guarantees across several functions.
         message(ws, message) {
           if (!isEnvelope(message)) {
@@ -6156,6 +6900,13 @@ export const createServer = ({
               }
               const kind = peek(message.payload, "kind");
               if (kind === "stopped" && message.instanceId) {
+                turnWaiters
+                  .get(message.instanceId)
+                  ?.reject(
+                    new Error(
+                      "the summariser session stopped before it answered"
+                    )
+                  );
                 heldSessions.delete(message.instanceId);
                 closePreview(message.instanceId).catch(console.error);
                 if (peekDiscard(message.payload)) {
@@ -6297,7 +7048,8 @@ export const createServer = ({
                     message.instanceId,
                     init.sessionId,
                     init.cwd,
-                    peek(message.payload, "harness")
+                    peek(message.payload, "harness"),
+                    init.tooling
                   );
                   // The session naming its own conversation is the daemon's word
                   // that a process exists — first-hand, and the earliest such word
@@ -6393,9 +7145,45 @@ export const createServer = ({
                     }
                   }
                 } else if (neutral.type === "result") {
+                  // Claude reports each model's window only here; kept so a
+                  // picker can say whether a model fits (claude's catalog
+                  // carries no window of its own).
+                  if (peek(message.payload, "harness") === "claude") {
+                    const { modelUsage } = neutral as {
+                      modelUsage?: Record<string, { contextWindow?: number }>;
+                    };
+                    for (const [model, usage] of Object.entries(
+                      modelUsage ?? {}
+                    )) {
+                      if (usage.contextWindow) {
+                        db.noteClaudeContextWindow(model, usage.contextWindow);
+                      }
+                    }
+                  }
                   const parts = lastAssistant.get(message.instanceId);
                   lastAssistant.delete(message.instanceId);
                   const text = parts?.length ? parts.join("\n\n") : undefined;
+                  // A continuation's summariser: its turn's text is the answer.
+                  const waiter = turnWaiters.get(message.instanceId);
+                  if (waiter) {
+                    const { errors } = neutral as { errors?: string[] };
+                    if (neutral.is_error) {
+                      waiter.reject(
+                        new Error(
+                          errors?.length
+                            ? errors.join("\n")
+                            : (neutral.result ??
+                                `Harness error (${neutral.subtype}).`)
+                        )
+                      );
+                    } else if (text) {
+                      waiter.resolve(text);
+                    } else {
+                      waiter.reject(
+                        new Error("the summariser answered with no text")
+                      );
+                    }
+                  }
                   const row = db
                     .listInstances()
                     .find((r) => r.id === message.instanceId);
@@ -6422,9 +7210,6 @@ export const createServer = ({
                       .find((r) => r.id === parentId);
                     if (parent) {
                       const label = `${leaf(row.cwd)}#${row.id.slice(0, 8)}`;
-                      const header = neutral.is_error
-                        ? `[Report from delegate ${label} — turn failed]`
-                        : `[Report from delegate ${label} — turn complete]`;
                       // A failed turn's report carries the harness's own error
                       // words — "(no text)" once stood in for a 403 that was
                       // sitting right in the result frame.
@@ -6444,7 +7229,7 @@ export const createServer = ({
                             type: "user",
                             message: {
                               role: "user",
-                              content: `${header}\n\n${body}`,
+                              content: `${reportMarker(label, !!neutral.is_error)}${body}`,
                             },
                             parent_tool_use_id: null,
                             origin: {
@@ -6484,6 +7269,7 @@ export const createServer = ({
               ) {
                 const reason =
                   peek(message.payload, "message") ?? "the session failed";
+                turnWaiters.get(message.instanceId)?.reject(new Error(reason));
                 db.failInstance(message.instanceId, reason);
                 workflowRuntime.observe(message.instanceId, reason);
                 forgetPending(message.instanceId);

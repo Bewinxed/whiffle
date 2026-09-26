@@ -1,14 +1,17 @@
+<script lang="ts" module>
+  const HOME = /^\/(home|Users)\/[^/]+/;
+</script>
+
 <script lang="ts">
   import type { EffortLevel, HarnessKind, PermissionMode } from "@whiffle/core";
   import { untrack } from "svelte";
+  import { cubicOut } from "svelte/easing";
+  import { MediaQuery } from "svelte/reactivity";
+  import type { TransitionConfig } from "svelte/transition";
+  import { TextMorph } from "torph/svelte";
   import ProviderLogo from "$lib/components/features/ProviderLogo.svelte";
   import Down from "~icons/solar/alt-arrow-down-linear";
-  import External from "~icons/solar/arrow-right-up-linear";
-  import Close from "~icons/solar/close-circle-bold-duotone";
-  import Copy from "~icons/solar/copy-bold-duotone";
   import Link from "~icons/solar/link-bold-duotone";
-  import Machine from "~icons/solar/server-square-bold-duotone";
-  import Shield from "~icons/solar/shield-check-bold-duotone";
   import {
     latestCommandFor,
     refreshContext,
@@ -17,13 +20,15 @@
     submitCommand,
     whiffle,
   } from "../client.svelte";
+  import { continueInNewSession, continueSourceOf } from "../continue.svelte";
   import { copyToClipboard } from "../copy";
   import HarnessLogo from "../HarnessLogo.svelte";
-  import { describingRow, ensureModels, modelLabel } from "../models.svelte";
+  import { describingRow, ensureModels } from "../models.svelte";
   import { PERMISSION_MODES } from "../permission-modes";
-  import EffortPips from "../spawn/EffortPips.svelte";
   import ModelSection from "../spawn/ModelSection.svelte";
-  import PermissionSection from "../spawn/PermissionSection.svelte";
+  import { modelName } from "../spawn/model-entries";
+  import NsPopover from "../spawn/NsPopover.svelte";
+  import ToolChips from "../spawn/ToolChips.svelte";
   import "../spawn/ns-theme.css";
   import SessionStatus from "./SessionStatus.svelte";
   import { contextOf } from "./workspace.svelte";
@@ -33,12 +38,28 @@
     title,
     href,
     onclose,
+    dir,
   }: {
     sessionId: string;
     title: string;
     href: string;
     onclose: () => void;
+    /** Which way the card moved to reach this session: 1 rightward, -1 leftward. */
+    dir: 1 | -1;
   } = $props();
+  const reduceMotion = new MediaQuery("(prefers-reduced-motion: reduce)");
+  const morphMs = $derived(reduceMotion.current ? 0 : 150);
+  let metaEl = $state<HTMLElement>();
+  let statsEl = $state<HTMLElement>();
+  /** The harness mark arrives from the side the card moved toward. */
+  function harnessIn(_node: Element): TransitionConfig {
+    return {
+      duration: reduceMotion.current ? 0 : 180,
+      easing: cubicOut,
+      css: (t) =>
+        `transform: translateX(calc(${(1 - t) * 8}px * var(--dir))); opacity: ${t}`,
+    };
+  }
   const uid = $props.id();
   const session = $derived(whiffle.session(sessionId));
   const row = $derived(whiffle.instanceIndex.byId.get(sessionId));
@@ -74,16 +95,15 @@
       !!machineId &&
       whiffle.runningInstances.some((item) => item.id === sessionId)
   );
-  const harnessName = $derived(
-    harness
-      ? { claude: "Claude Code", opencode: "OpenCode", pi: "Pi" }[harness]
-      : "Not reported"
-  );
-  const permissionNames: Record<string, string> = {
-    default: "Ask before edits",
-    plan: "Plan first",
-    acceptEdits: "Auto-accept edits",
-    bypassPermissions: "Full access",
+  const harnessNames: Record<HarnessKind, string> = {
+    claude: "Claude Code",
+    opencode: "OpenCode",
+    pi: "Pi",
+  };
+  /** `~/…/leaf`: the folder name is what tells sessions apart. */
+  const shortPath = (path: string) => {
+    const parts = path.replace(HOME, "~").split("/");
+    return parts.length > 3 ? `${parts[0]}/…/${parts.at(-1)}` : parts.join("/");
   };
   /*
    * The reading only arrives when something asks for it, and the transcript
@@ -132,27 +152,64 @@
       ? Math.min(100, Math.round((stats.totalTokens / stats.maxTokens) * 100))
       : null
   );
-  const number = (value: number) =>
-    new Intl.NumberFormat(undefined, {
-      notation: "compact",
-      maximumFractionDigits: 1,
-    }).format(value);
+  function tokens(value: number) {
+    if (value >= 1_000_000) {
+      return `${Number((value / 1_000_000).toFixed(1))}M`;
+    }
+    return value >= 1000 ? `${Math.round(value / 1000)}k` : `${value}`;
+  }
   type Slot = "model" | "permission" | "effort";
   const kinds = {
     model: "set-model",
     permission: "set-permission-mode",
     effort: "set-effort",
   } as const;
+  let modelOpen = $state(false);
   let relaunching = $state(false);
   let relaunchFailure = $state<string | null>(null);
   let permissionBeforeRelaunch = $state<PermissionMode | null>(null);
+  /*
+   * The card stays mounted while it moves between tabs, so what belonged to
+   * the previous session is cleared when the session changes.
+   */
+  let clearedFor = untrack(() => sessionId);
+  $effect.pre(() => {
+    const id = sessionId;
+    if (id === clearedFor) {
+      return;
+    }
+    clearedFor = id;
+    untrack(() => {
+      relaunching = false;
+      relaunchFailure = null;
+      permissionBeforeRelaunch = null;
+    });
+  });
+  /* A session change nudges the meta line and the stats in from the side the card moved toward. */
+  let nudgedFor = untrack(() => sessionId);
+  $effect(() => {
+    const id = sessionId;
+    if (id === nudgedFor) {
+      return;
+    }
+    nudgedFor = id;
+    untrack(() => {
+      if (reduceMotion.current) {
+        return;
+      }
+      for (const el of [metaEl, statsEl]) {
+        el?.animate(
+          [
+            { transform: `translateX(${8 * dir}px)`, opacity: 0.6 },
+            { transform: "none", opacity: 1 },
+          ],
+          { duration: 180, easing: "cubic-bezier(0.215, 0.61, 0.355, 1)" }
+        );
+      }
+    });
+  });
   const shownPermission = $derived(
     relaunching ? permissionBeforeRelaunch : (session?.permissionMode ?? null)
-  );
-  const permissionName = $derived(
-    shownPermission
-      ? (permissionNames[shownPermission] ?? shownPermission)
-      : "Not reported"
   );
 
   $effect(() => {
@@ -215,16 +272,28 @@
     // Full access is a launch-time decision for the harness.
     permissionBeforeRelaunch = session?.permissionMode ?? null;
     relaunching = true;
+    const id = sessionId;
     try {
-      await relaunchSession(sessionId, machineId, next);
+      await relaunchSession(id, machineId, next);
     } catch (error) {
-      relaunchFailure =
-        error instanceof Error ? error.message : "Change refused. Try again.";
+      if (id === sessionId) {
+        relaunchFailure =
+          error instanceof Error ? error.message : "Change refused. Try again.";
+      }
     } finally {
-      relaunching = false;
+      if (id === sessionId) {
+        relaunching = false;
+      }
     }
   }
 </script>
+
+{#snippet modelChip()}
+  <ProviderLogo model={model ?? ''} size={15} />
+  <span class="chip-label"
+    >{model ? modelName(model, modelInfo?.displayName).name : 'Model not reported'}</span
+  >
+{/snippet}
 
 {#snippet feedback(slot: Slot)}
   {#if failure(slot)}
@@ -234,194 +303,181 @@
   {/if}
 {/snippet}
 
-<div class="session-details ns-theme">
+<div class="session-details ns-theme" style:--dir={dir}>
   <div class="details-body">
     <div class="identity">
-      <h2 id={`${uid}-title`}>{title}</h2>
-      <button
-        aria-label="Close session details"
-        class="icon-action dismiss"
-        onclick={onclose}
-        type="button"
-      >
-        <Close />
-      </button>
-      <SessionStatus {sessionId} />
-    </div>
-    <div class="location">
-      <span class="machine"
-        ><Machine />
-        {machine?.hostname || machineId || 'Machine not reported'}</span
-      >
-      <div class="directory">
-        <code>{cwd || 'Working directory not reported'}</code>
-        {#if cwd}
-          <button
-            aria-label="Copy working directory"
-            class="icon-action"
-            onclick={() => copyToClipboard('Working directory', cwd)}
-            type="button"
-          >
-            <Copy />
-          </button>
-        {/if}
+      <div class="title">
+        <h2 id={`${uid}-title`} {title}>
+          <TextMorph as="span" duration={morphMs} text={title} />
+        </h2>
+        <button
+          aria-label="Copy link"
+          class="icon-action"
+          onclick={() => copyToClipboard('Link', new URL(href, location.origin).href)}
+          type="button"
+        >
+          <Link />
+        </button>
       </div>
+      {#if harness}
+        <span
+          aria-label={harnessNames[harness]}
+          class="harness"
+          role="img"
+          title={harnessNames[harness]}
+        >
+          {#key harness}
+            <span class="harness-mark" in:harnessIn>
+              <HarnessLogo {harness} />
+            </span>
+          {/key}
+        </span>
+      {/if}
     </div>
+    <p class="meta" bind:this={metaEl}>
+      <SessionStatus duration={morphMs} {sessionId} />
+      {#if machine?.hostname || machineId}
+        <span aria-hidden="true" class="sep">·</span>
+        <span class="host"
+          ><TextMorph
+            as="span"
+            duration={morphMs}
+            text={machine?.hostname || machineId || ''}
+          /></span
+        >
+      {/if}
+      {#if cwd}
+        <span aria-hidden="true" class="sep">·</span>
+        <button
+          aria-label={`Copy working directory ${cwd}`}
+          class="cwd"
+          onclick={() => copyToClipboard('Working directory', cwd)}
+          title={cwd}
+          type="button"
+        >
+          <TextMorph as="span" duration={morphMs} text={shortPath(cwd)} />
+        </button>
+      {/if}
+    </p>
 
-    <div class="configuration">
-      <details class="setting" name={`${uid}-settings`}>
-        <summary>
-          <span class="setting-icon"
-            ><ProviderLogo model={model ?? ''} size={20} /></span
-          ><span class="setting-text"
-            ><span class="label">Model</span
-            ><span class="value"
-              >{model ? modelLabel(model) : 'Not reported'}</span
-            ></span
-          ><Down />
-        </summary>
-        {#if harness}
-          <fieldset
-            aria-busy={pending('model')}
-            disabled={!editable || pending('model')}
-          >
-            <ModelSection
-              {harness}
-              installed={[harness]}
-              machineName={machine?.hostname ?? ''}
-              model={model ?? ''}
-              onharness={() => { /* Running sessions retain their harness. */ }}
-              onmodel={changeModel}
-              runtime
-            />
-          </fieldset>
-        {/if}
-      </details>
-      {@render feedback('model')}
-      <details class="setting" name={`${uid}-settings`}>
-        <summary>
-          <span class="setting-icon"><Shield /></span
-          ><span class="setting-text"
-            ><span class="label">Permissions</span
-            ><span class="value">{permissionName}</span></span
-          ><Down />
-        </summary>
-        {#if modes.length}
-          <fieldset
-            aria-busy={pending('permission')}
-            disabled={!editable || pending('permission')}
-          >
-            <PermissionSection
-              embedded
-              modes={modes.map(mode => ({ value: mode.value, disabled: !editable || pending('permission') }))}
-              onchange={changePermission}
-              value={shownPermission}
-            />
-          </fieldset>
-        {:else}
-          <p class="feedback">
-            This harness has not reported its permission choices.
-          </p>
-        {/if}
-      </details>
-      {@render feedback('permission')}
-      {#if report?.capabilities.effort !== false}
-        <div class="effort">
-          <span class="label"
-            >Reasoning effort
-            {#if !efforts.length}
-              <span class="applied">{session?.effort ?? 'Not reported'}</span>
-            {/if}</span
-          >
-          {#if efforts.length && session?.effort}
-            <fieldset
-              aria-busy={pending('effort')}
-              disabled={!editable || pending('effort')}
+    {#if harness}
+      <div class="configuration">
+        <div class="settings">
+          {#if editable}
+            <NsPopover
+              aria-label="Models"
+              haspopup="listbox"
+              id="details-model"
+              onchange={(value) => { modelOpen = value; }}
+              open={modelOpen}
+              triggerClass="ns-chip-btn tool"
+              width={360}
             >
-              <EffortPips
-                {efforts}
-                embedded
-                onchange={changeEffort}
-                oncommit={changeEffort}
-                value={session.effort}
-              />
-            </fieldset>
+              {#snippet trigger()}
+                {@render modelChip()}
+                <Down class="chevron" />
+              {/snippet}
+              <div class="model-pop">
+                <ModelSection
+                  {harness}
+                  installed={[harness]}
+                  machineName={machine?.hostname ?? ''}
+                  model={model ?? ''}
+                  onharness={() => { /* Running sessions retain their harness. */ }}
+                  onmodel={(id) => { changeModel(id); modelOpen = false; }}
+                  runtime
+                />
+              </div>
+            </NsPopover>
           {:else}
-            <p class="feedback">
-              {efforts.length ? 'Waiting for the applied effort level.' : 'No effort scale reported for this model.'}
-            </p>
+            <span class="ns-chip-btn tool static">{@render modelChip()}</span>
           {/if}
-          {@render feedback('effort')}
+          <ToolChips
+            closeOnCommit
+            id="details"
+            readonly={!editable}
+            tools={{
+            efforts,
+            effort: session?.effort ?? null,
+            oneffort: changeEffort,
+            modes: modes.map(mode => ({ value: mode.value, disabled: !editable || pending('permission') })),
+            permission: shownPermission,
+            onpermission: changePermission,
+          }}
+          />
         </div>
-      {/if}
-      {#if !editable}
-        <p class="feedback">
-          Runtime controls are available when this session is running and
-          connected.
-        </p>
-      {/if}
-    </div>
-
-    <div class="readings">
-      <div class="harness">
-        {#if harness}
-          <HarnessLogo {harness} />
+        {@render feedback('model')}
+        {@render feedback('effort')}
+        {@render feedback('permission')}
+        {#if !editable}
+          <p class="feedback">Controls unlock while the session is running.</p>
         {/if}
-        <span>{harnessName}</span>
       </div>
-      <dl>
-        <div>
-          <dt>Turns</dt>
-          <dd>{stats.turns ?? '—'}</dd>
-        </div>
-        <div>
-          <dt>Cost</dt>
-          <dd>{stats.cost === null ? '—' : `$${stats.cost.toFixed(2)}`}</dd>
-        </div>
-        <div class="context">
-          <dt>Context used</dt>
-          <dd>
-            {#if percent !== null && stats.totalTokens !== null && stats.maxTokens !== null}
-              {`${percent}% · ${number(stats.totalTokens)} / ${number(stats.maxTokens)}`}
-              {#if readAt}
-                {` · read ${readAt}`}
-              {/if}
-            {:else if reading}
-              Reading…
-            {:else if refusal}
-              {refusal}
-            {:else}
-              Not reported
-            {/if}
-          </dd>
-          {#if percent !== null}
-            <meter aria-label="Context used" max="100" min="0" value={percent}>
-              {percent}%
-            </meter>
-          {/if}
-        </div>
-      </dl>
+    {/if}
+  </div>
+  <div class="stats" bind:this={statsEl}>
+    <div class="context">
+      {#if percent !== null && stats.totalTokens !== null && stats.maxTokens !== null}
+        <!-- biome-ignore lint/a11y/useSemanticElements: a native meter's fill cannot transition its width -->
+        <span
+          aria-label="Context used"
+          aria-valuemax={100}
+          aria-valuemin={0}
+          aria-valuenow={percent}
+          class="context-meter"
+          role="meter"
+          title={readAt ? `Read at ${readAt}` : undefined}
+        >
+          <span
+            class="context-fill"
+            style:transform={`scaleX(${percent / 100})`}
+          ></span>
+        </span>
+        <TextMorph
+          as="span"
+          duration={morphMs}
+          text={`${percent}% · ${tokens(stats.totalTokens)}/${tokens(stats.maxTokens)}`}
+        />
+      {:else if reading}
+        <span>Reading…</span>
+      {:else if refusal}
+        <span class="refusal" title={refusal}>{refusal}</span>
+      {:else}
+        <span>Context not reported</span>
+      {/if}
     </div>
+    {#if session?.mcp}
+      <a class="tools" href="/tools"
+        ><TextMorph
+          as="span"
+          duration={morphMs}
+          text={`${session.mcp.length} MCP`}
+        /></a
+      >
+    {/if}
+    {#if stats.cost !== null}
+      <span class="cost"
+        ><TextMorph
+          as="span"
+          duration={morphMs}
+          text={`$${stats.cost.toFixed(2)}`}
+        /></span
+      >
+    {/if}
   </div>
   <div class="footer">
-    <a href="/tools"
-      >{session?.mcp ? `${session.mcp.length} connected servers` : 'Connected tools'}<External
-        aria-hidden="true"
-      /></a
-    >
     <button
-      onclick={() => copyToClipboard('Link', new URL(href, location.origin).href)}
+      class="ns-btn primary xs"
+      onclick={() => { onclose(); continueInNewSession(continueSourceOf(sessionId, title)); }}
       type="button"
     >
-      <Link />
-      Copy link
+      Continue in new session…
     </button>
   </div>
 </div>
 
 <style>
   .session-details {
-    --permission-row-height: 58px;
     color: var(--ink-strong);
     min-width: 0;
     min-height: 0;
@@ -440,60 +496,70 @@
     scrollbar-color: var(--border-control) transparent;
   }
   .identity {
-    position: relative;
-    display: grid;
-    gap: var(--space-2);
-    padding: var(--space-5) var(--space-5) var(--space-3);
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-5) var(--space-1);
   }
+  .title {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-1);
+  }
+  /* Wraps; only a title past three lines is cut. */
   h2 {
-    padding-right: var(--space-8);
+    min-width: 0;
     margin: 0;
     color: var(--ink-strong);
     font-size: var(--text-title);
     font-weight: var(--weight-strong);
     line-height: var(--leading-body);
+    text-wrap: pretty;
     overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    overflow: hidden;
   }
-  .dismiss {
-    position: absolute;
-    top: var(--space-3);
-    right: var(--space-3);
+  /* TextMorph keeps one line by default; the title wraps between words. */
+  h2 :global([torph-root]) {
+    display: inline;
+    white-space: normal;
   }
-  .location {
-    padding: 0 var(--space-5) var(--space-4);
-    display: grid;
-    gap: var(--space-2);
+  /* Level with the title's first line, like the copy button beside it. */
+  .harness {
+    display: inline-flex;
+    align-items: center;
+    flex: none;
+    height: 28px;
   }
-  .machine {
+  .harness-mark {
+    display: inline-flex;
+  }
+  .meta {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    font-size: var(--text-label);
-    overflow-wrap: anywhere;
-  }
-  .machine :global(svg) {
-    flex: none;
-    width: 16px;
-    height: 16px;
-    color: var(--ink-muted);
-  }
-  .directory {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
-    background: var(--surface-recess);
-    border-radius: var(--radius-sm);
-  }
-  code {
-    flex: 1;
-    min-width: 0;
-    align-self: center;
-    font-family: var(--font-mono);
+    margin: 0;
+    padding: 0 var(--space-5) var(--space-3);
+    flex-wrap: wrap;
     font-size: var(--text-label);
     line-height: var(--leading-body);
+    color: var(--ink-muted);
+  }
+  .cwd {
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font-family: var(--font-mono);
+    font-size: var(--text-label);
+    text-align: left;
     overflow-wrap: anywhere;
-    white-space: pre-wrap;
   }
   button {
     cursor: pointer;
@@ -515,82 +581,45 @@
   }
   .configuration {
     border-top: 1px solid var(--border-hairline);
-    padding: var(--space-3) var(--space-5) var(--space-4);
+    padding: var(--space-3) var(--space-5);
   }
-  .setting + .setting {
-    margin-top: var(--space-1);
-  }
-  summary {
+  /* Model, effort and permission on one line, wrapping between chips. */
+  .settings {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-2);
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    list-style: none;
+    gap: 6px;
   }
-  summary::-webkit-details-marker {
-    display: none;
+  .settings :global(.ns-chip-btn) {
+    height: 28px;
   }
-  .setting summary > :global(svg) {
-    width: 14px;
-    height: 14px;
-    flex: none;
-    transition: transform var(--dur-control) var(--ease-out);
+  /* The model list, sized to its widest row and scrolled in whole rows. */
+  :global(.ns-theme.ns-pop:has(> .model-pop)) {
+    width: max-content;
+    min-width: min(360px, calc(100vw - 24px));
+    max-width: calc(100vw - 24px);
+    max-height: none;
+    overflow: visible;
   }
-  details[open] summary > :global(svg) {
-    transform: rotate(180deg);
-  }
-  .setting-icon {
-    display: grid;
-    place-items: center;
-    width: 32px;
-    height: 32px;
-    border-radius: var(--radius-sm);
-    background: var(--surface-recess);
-    flex: none;
-  }
-  .setting-icon :global(svg) {
-    width: 20px;
-    height: 20px;
-  }
-  .setting-text {
-    flex: 1;
-    min-width: 0;
-    display: grid;
-    gap: 2px;
-  }
-  .label {
-    font-size: var(--text-label);
-    color: var(--ink-muted);
-  }
-  .value {
-    color: var(--ink-strong);
-    font-weight: var(--weight-medium);
-    overflow-wrap: anywhere;
-    line-height: var(--leading-body);
-  }
-  fieldset {
-    min-width: 0;
-    padding: 0;
+  .model-pop :global(.picker) {
     border: 0;
-    margin: var(--space-2) 0;
+    box-shadow: none;
+    background: transparent;
   }
-  fieldset:disabled {
-    opacity: 0.55;
-    pointer-events: none;
+  .model-pop :global(.search input) {
+    field-sizing: content;
   }
-  .effort {
-    margin-top: var(--space-3);
+  .model-pop :global(.list) {
+    height: auto;
+    /* Five whole rows: 4px padding, five 44px rows, four 2px gaps. */
+    max-height: 232px;
+    overflow: hidden auto;
+    scroll-snap-type: y mandatory;
+    /* The 2px row gap, so a snapped row's neighbour shows none of itself. */
+    scroll-padding: 2px;
   }
-  .effort > .label {
-    display: flex;
-    justify-content: space-between;
-    gap: var(--space-2);
-  }
-  .applied {
-    text-transform: capitalize;
-    color: var(--ink-strong);
+  .model-pop :global(.row) {
+    scroll-snap-align: start;
   }
   .feedback,
   .failure {
@@ -605,108 +634,76 @@
   .failure {
     color: var(--status-fail-ink);
   }
-  .session-details :global(.perms .desc) {
-    white-space: normal;
-    overflow: visible;
-  }
-  .readings {
-    padding: var(--space-4) var(--space-5);
-    border-top: 1px solid var(--border-hairline);
-    background: var(--surface-recess);
-  }
-  .harness {
+  .stats {
+    flex: none;
     display: flex;
     align-items: center;
-    gap: var(--space-2);
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-5);
+    border-top: 1px solid var(--border-hairline);
+    background: var(--surface-recess);
     font-size: var(--text-label);
-    color: var(--ink-strong);
-  }
-  dl {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-3);
-    margin-top: var(--space-3);
-  }
-  dl > div {
-    display: grid;
-    gap: var(--space-1);
-  }
-  dt {
-    font-size: var(--text-label);
-    color: var(--ink-muted);
-  }
-  dd {
-    font-size: var(--text-label);
-    font-weight: var(--weight-medium);
+    line-height: var(--leading-body);
     font-variant-numeric: tabular-nums;
+    flex-wrap: wrap;
+    row-gap: var(--space-2);
     color: var(--ink-strong);
   }
   .context {
-    grid-column: 1 / -1;
-    grid-template-columns: auto 1fr;
-    align-items: baseline;
-  }
-  .context dd {
-    text-align: right;
-    font-size: var(--text-label);
-  }
-  meter {
-    grid-column: 1 / -1;
-    width: 100%;
-    height: 8px;
-    appearance: none;
-    background: var(--border-control);
-    border-radius: var(--radius-pill);
-    overflow: hidden;
-  }
-  meter::-webkit-meter-bar {
-    background: var(--border-control);
-    border: 0;
-  }
-  meter::-webkit-meter-optimum-value {
-    background: var(--ink-muted);
-  }
-  meter::-moz-meter-bar {
-    background: var(--ink-muted);
-  }
-  .footer {
-    flex: none;
-    background: var(--surface-raised);
+    flex: 1;
+    min-width: 0;
     display: flex;
-    justify-content: space-between;
-    gap: var(--space-3);
-    padding: var(--space-2) var(--space-5);
-    border-top: 1px solid var(--border-hairline);
-  }
-  .footer a,
-  .footer button {
-    display: inline-flex;
-    gap: var(--space-2);
     align-items: center;
-    min-height: 32px;
-    font-size: var(--text-label);
-    text-decoration: none;
-    background: transparent;
-    border: 0;
+    gap: var(--space-2);
+  }
+  .tools {
+    display: inline-flex;
+    align-items: center;
     color: var(--ink-strong);
   }
-  .footer :global(svg) {
-    width: 16px;
-    height: 16px;
+  .cost {
+    margin-left: auto;
+    color: var(--ink-strong);
+    font-weight: var(--weight-medium);
+  }
+  .context-meter {
+    flex: 1;
+    min-width: 48px;
+    max-width: 96px;
+    height: 4px;
+    border-radius: var(--radius-pill);
+    overflow: hidden;
+    background: var(--border-control);
+  }
+  .context-fill {
+    display: block;
+    height: 100%;
+    background: var(--ink-muted);
+    transform-origin: left;
+    transition: transform var(--dur-panel) var(--ease-out);
+  }
+  /* The modal's action row (SessionFooter): right-aligned, 8px apart. */
+  .footer {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: var(--space-4) var(--space-5);
+    border-top: 1px solid var(--border-hairline);
+    background: var(--surface-raised);
   }
   button:focus-visible,
-  summary:focus-visible,
   a:focus-visible {
     outline: 2px solid var(--focus-ring);
     outline-offset: 2px;
   }
   @media (hover: hover) {
-    summary:hover,
     .icon-action:hover {
       background: var(--surface-hover);
     }
-    .footer a:hover,
-    .footer button:hover {
+    .cwd:hover,
+    .tools:hover {
       color: var(--ink-strong);
     }
   }
@@ -715,17 +712,17 @@
       width: 44px;
       height: 44px;
     }
-    h2 {
-      padding-right: 44px;
-    }
-    .footer a,
-    .footer button {
-      min-height: 44px;
-    }
   }
-  @media (prefers-reduced-motion: reduce) {
-    .setting summary > :global(svg) {
-      transition: none;
+  @media (max-width: 640px) {
+    .footer {
+      padding-bottom: max(var(--space-4), env(safe-area-inset-bottom));
+    }
+    .ns-btn,
+    .settings :global(.ns-chip-btn) {
+      height: 44px;
+    }
+    .ns-btn {
+      flex: 1;
     }
   }
 </style>

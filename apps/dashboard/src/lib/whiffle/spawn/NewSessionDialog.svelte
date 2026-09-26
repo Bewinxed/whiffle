@@ -5,11 +5,14 @@
    * the exact `spawnSession` payload — and composes the designed sections.
    */
   import {
+    contextFitRefusal,
     type EffortLevel,
     HARNESSES,
     type HarnessKind,
     type PermissionMode,
     repoPath,
+    SUMMARISER_OUTPUT_RESERVE_TOKENS,
+    TARGET_HEADROOM_TOKENS,
   } from "@whiffle/core";
   import { Dialog as DialogPrimitive } from "bits-ui";
   import { tick, untrack } from "svelte";
@@ -33,20 +36,26 @@
     spawnSession,
     whiffle,
   } from "../client.svelte";
+  import type { ContinueSource } from "../continue.svelte";
   import { EFFORT_LEVELS } from "../effort-levels";
   import { type FleetSnapshot, inspectMachine } from "../fleet";
   import { conversationHref } from "../links";
-  import { models } from "../models.svelte";
+  import { loadModelWindows, models } from "../models.svelte";
   import { PERMISSION_MODES } from "../permission-modes";
   import { rememberSpawn, spawnPrefs } from "../spawnPrefs.svelte";
   import LifetimeChip from "./LifetimeChip.svelte";
   import LocationChip from "./LocationChip.svelte";
   import MachinesChip from "./MachinesChip.svelte";
   import ModelSection from "./ModelSection.svelte";
-  import { deriveModelEntries } from "./model-entries";
+  import { deriveModelEntries, type ModelEntry } from "./model-entries";
   import { lastSpawnAt, lastUsedAt, recordModelUse } from "./modelUse.svelte";
   import NsPopoverGroup from "./NsPopoverGroup.svelte";
-  import type { MachineItem, MenuItem, ProjectItem } from "./ns-types";
+  import type {
+    LeadChip,
+    MachineItem,
+    MenuItem,
+    ProjectItem,
+  } from "./ns-types";
   import ProjectChip from "./ProjectChip.svelte";
   import PromptEditor from "./PromptEditor.svelte";
   import SectionHeader from "./SectionHeader.svelte";
@@ -56,11 +65,20 @@
   let {
     open,
     prefill,
+    continueFrom,
     onclose,
+    onexitcontinue,
   }: {
     open: boolean;
     prefill?: { machineId?: string; cwd?: string; projectId?: string };
+    /**
+     * Continue in new session: the form starts a session seeded with a summary
+     * of this one. Mutually exclusive with `prefill` — the source says where.
+     */
+    continueFrom?: ContinueSource;
     onclose: () => void;
+    /** The operator deleted the source chip: the dialog stays open as a plain New Session. */
+    onexitcontinue?: () => void;
   } = $props();
   const REPO = /^[\w.-]+\/[\w.-]+$/;
   let card = $state<HTMLElement | null>(null);
@@ -215,6 +233,17 @@
   let menuOpen = $state(false);
   let skills = $state<string[]>([]);
   let plugins = $state<string[]>([]);
+  /** Continue mode: who writes the summary. Reset on every open; never remembered. */
+  let summarizerHarness = $state<HarnessKind>(spawnPrefs.harness);
+  let summarizerModel = $state("");
+  /** Continue mode: the hub's sizing of what the continuation carries. */
+  let estimate = $state<{
+    liveContextTokens: number;
+    summariseInputTokens: number;
+    openingTokens: number;
+  } | null>(null);
+  /** The continuation request in flight, aborted when the dialog closes. */
+  let inflight: AbortController | null = null;
   const machineId = $derived(machineIds[0] ?? "");
   const locationKey = $derived(JSON.stringify([machineIds, cwd.trim()]));
   const locationUnverified = $derived(
@@ -301,7 +330,11 @@
   );
   const locked = $derived(
     Boolean(
-      (prefill?.machineId || prefill?.cwd || prefill?.projectId || projectId) &&
+      (prefill?.machineId ||
+        prefill?.cwd ||
+        prefill?.projectId ||
+        projectId ||
+        continueFrom) &&
         !editing
     ) && repo === undefined
   );
@@ -386,8 +419,47 @@
         whiffle.hub === "connected"
     )
   );
+  const summarizerEntries = $derived(
+    deriveModelEntries(models.forHarness(summarizerHarness), {
+      lastSpawnAt: lastSpawnAt(summarizerHarness),
+      lastUsedAt: {},
+    })
+  );
+  const summarizerSelected = $derived(
+    summarizerEntries.find((row) => row.id === summarizerModel) ??
+      (summarizerModel
+        ? undefined
+        : summarizerEntries.find((row) => row.isDefault))
+  );
+  /** Why a model cannot summarise this session: it would not fit what it reads. */
+  const summarizerRefusal = (entry: ModelEntry) =>
+    estimate?.summariseInputTokens
+      ? contextFitRefusal(
+          entry.contextWindow,
+          estimate.summariseInputTokens + SUMMARISER_OUTPUT_RESERVE_TOKENS
+        )
+      : undefined;
+  /** Why a model cannot continue this session: its opening would leave no room. */
+  const targetRefusal = (entry: ModelEntry) =>
+    estimate
+      ? contextFitRefusal(
+          entry.contextWindow,
+          estimate.openingTokens + TARGET_HEADROOM_TOKENS
+        )
+      : undefined;
+  const tokens = (count: number) =>
+    count < 1000 ? String(count) : `${Math.round(count / 1000)}k`;
+  const continueBlocked = $derived(
+    Boolean(continueFrom) &&
+      (!(estimate && selected) ||
+        Boolean(targetRefusal(selected)) ||
+        (estimate.summariseInputTokens > 0 &&
+          (!summarizerSelected ||
+            Boolean(summarizerRefusal(summarizerSelected)))))
+  );
   const cantStart = $derived(
-    busy ||
+    continueBlocked ||
+      busy ||
       whiffle.hub !== "connected" ||
       machineIds.length === 0 ||
       Boolean(offlineMachine) ||
@@ -395,11 +467,26 @@
       locationUnverified ||
       (repo !== undefined && !REPO.test(repo.trim()))
   );
-  const startLabel = $derived(
-    machineIds.length > 1
-      ? `Start ${machineIds.length} sessions`
-      : "Start session"
+  /** The source as the prompt's opening chip; a session title is often its first prompt, so it is cut short. */
+  const sourceChip = $derived<LeadChip | undefined>(
+    continueFrom && {
+      key: "continue-source",
+      harness: continueFrom.harness,
+      label:
+        continueFrom.title.length > 28
+          ? `${continueFrom.title.slice(0, 27).trimEnd()}…`
+          : continueFrom.title,
+      title: continueFrom.title,
+    }
   );
+  const startLabel = $derived.by(() => {
+    if (continueFrom) {
+      return "Continue";
+    }
+    return machineIds.length > 1
+      ? `Start ${machineIds.length} sessions`
+      : "Start session";
+  });
   function chooseHarness(value: HarnessKind) {
     harness = value;
     model = "";
@@ -447,14 +534,18 @@
         : undefined;
       projectId = seeded?.id;
       const first =
+        continueFrom?.machineId ||
         prefill?.machineId ||
         seeded?.machineId ||
         whiffle.onlineMachines[0]?.machineId ||
         "";
       machineIds = first ? [first] : [];
       machinesTouched = false;
-      cwd = prefill?.cwd || seeded?.cwd || "";
+      cwd = continueFrom?.cwd || prefill?.cwd || seeded?.cwd || "";
       ({ harness, permissionMode } = spawnPrefs);
+      summarizerHarness = spawnPrefs.harness;
+      summarizerModel = "";
+      estimate = null;
       model = "";
       effort = null;
       prompt = "";
@@ -466,7 +557,9 @@
       popover = null;
       menuOpen = false;
       verifiedLocation = "";
-      if (
+      if (continueFrom) {
+        loadEstimate(continueFrom.instanceId, submission);
+      } else if (
         !(prefill?.machineId || prefill?.cwd || prefill?.projectId) &&
         spawnPrefs.machineId &&
         spawnPrefs.cwd
@@ -481,6 +574,7 @@
     });
     return () => {
       submission += 1;
+      inflight?.abort();
     };
   });
   // The fleet arrives over the websocket, so the dialog can open before any
@@ -493,6 +587,29 @@
       });
     }
   });
+  /**
+   * What continuing `instanceId` would carry, sized by the hub, and the claude
+   * windows the pickers size models by. The source is only read.
+   */
+  async function loadEstimate(instanceId: string, request: number) {
+    try {
+      const [response] = await Promise.all([
+        fetch(`/api/instances/${encodeURIComponent(instanceId)}/continue`),
+        loadModelWindows(),
+      ]);
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+      const sized = (await response.json()) as NonNullable<typeof estimate>;
+      if (request === submission) {
+        estimate = sized;
+      }
+    } catch (cause) {
+      if (request === submission) {
+        error = cause instanceof Error ? cause.message : String(cause);
+      }
+    }
+  }
   async function loadFleetMenu(request: number) {
     try {
       const response = await fetch("/api/fleet");
@@ -590,6 +707,7 @@
   }
   function close() {
     submission += 1;
+    inflight?.abort();
     onclose();
   }
   function toggleMachine(id: string) {
@@ -739,6 +857,7 @@
     prompt: string;
     repo: string | undefined;
     scratch: { baseCwd: string; worktree: boolean } | undefined;
+    summarizer: { harness: HarnessKind; model: string };
     usedModel: string;
   }
 
@@ -787,12 +906,20 @@
       scratch: sideQuest ? { worktree: false, baseCwd: workdir } : undefined,
       repo: repo?.trim(),
       projectId,
+      summarizer: {
+        harness: summarizerHarness,
+        model: summarizerSelected?.id ?? summarizerModel,
+      },
       usedModel: selected?.id ?? model,
     };
     busy = true;
     popover = null;
     let first = "";
     try {
+      if (continueFrom) {
+        await startContinue(continueFrom, draft, current);
+        return;
+      }
       for (const target of draft.machineIds) {
         // biome-ignore lint/performance/noAwaitInLoops: each machine is verified, then spawned, in order — one failure must stop the batch before the next spawn.
         const ok = await verifyBeforeSpawn(target, draft.baseCwd, current);
@@ -822,6 +949,79 @@
       error = cause instanceof Error ? cause.message : String(cause);
       busy = false;
     }
+  }
+  /**
+   * Continue in new session: the hub summarises the source with the chosen
+   * summariser and starts the new session with this form's options, then the
+   * dialog leaves for it exactly as a spawn does.
+   */
+  async function startContinue(
+    source: ContinueSource,
+    draft: Draft,
+    current: () => boolean
+  ) {
+    const [target] = draft.machineIds;
+    const ok = await verifyBeforeSpawn(target, draft.baseCwd, current);
+    if (!(ok && current())) {
+      return;
+    }
+    const request = new AbortController();
+    inflight = request;
+    const toAttach =
+      draft.projectId && whiffle.project(draft.projectId)?.machineId === target
+        ? draft.projectId
+        : undefined;
+    const response = await fetch(
+      `/api/instances/${encodeURIComponent(source.instanceId)}/continue`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        signal: request.signal,
+        body: JSON.stringify({
+          summarizer: draft.summarizer,
+          target: {
+            machineId: target,
+            cwd: draft.cwd,
+            harness: draft.harness,
+            model: draft.usedModel,
+            permissionMode: draft.permissionMode,
+            ...(draft.effort ? { effort: draft.effort } : {}),
+            ...(draft.scratch ? { scratch: draft.scratch } : {}),
+            ...(draft.repo === undefined
+              ? {}
+              : { bootstrap: { repo: draft.repo, baseDir: draft.baseCwd } }),
+            ...(toAttach ? { projectId: toAttach } : {}),
+          },
+          ...(draft.prompt.trim() ? { note: draft.prompt.trim() } : {}),
+        }),
+      }
+    );
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+    // NDJSON: stage and heartbeat lines while it runs, then `result` or `error`.
+    const lines = (await response.text()).trim().split("\n");
+    const last = JSON.parse(lines.at(-1) ?? "{}") as {
+      result?: { targetInstanceId: string };
+      error?: string;
+    };
+    if (!last.result) {
+      throw new Error(last.error);
+    }
+    if (!current()) {
+      return;
+    }
+    recordModelUse(draft.summarizer.harness, draft.summarizer.model);
+    recordModelUse(draft.harness, draft.usedModel);
+    rememberSpawn({
+      machineId: target,
+      cwd: draft.cwd,
+      harness: draft.harness,
+      model: draft.model,
+      permissionMode: draft.permissionMode,
+      effort: draft.effort,
+    });
+    await exitTo(last.result.targetInstanceId, current);
   }
   async function exitTo(instanceId: string, current: () => boolean) {
     if (!current()) {
@@ -907,7 +1107,9 @@
   <div class="head">
     <div class="head-left">
       <span class="bolt"><Bolt /></span>
-      <span class="title">Sessions · New</span>
+      <span class="title"
+        >{continueFrom ? "Sessions · Continue" : "Sessions · New"}</span
+      >
     </div>
     <button
       aria-label="Close"
@@ -926,7 +1128,7 @@
       <SectionHeader
         hue="var(--hue-blue-500)"
         icon={Chat}
-        label="First prompt"
+        label={continueFrom ? "Next step (optional)" : "First prompt"}
       />
       <div class="fai-comb"></div>
       <div
@@ -934,7 +1136,9 @@
         class:focus={editor === document.activeElement || menuOpen}
       >
         <PromptEditor
+          lead={sourceChip}
           {menuItems}
+          onleadremove={onexitcontinue}
           onmenu={(value) => { menuOpen = value; }}
           onsubmit={start}
           bind:element={editor}
@@ -994,15 +1198,38 @@
     </section>
     <div class="fai-comb comb-gap"></div>
     <div class="stack">
-      <div class="sec" style="--delay:80ms">
-        <ModelSection
-          {harness}
-          installed={installedHarnesses}
-          machineName={machine?.hostname ?? machineId}
-          {model}
-          onharness={chooseHarness}
-          onmodel={(id) => { model = id; effort = null; }}
-          tools={{
+      {#if continueFrom}
+        <p aria-live="polite" class="sizing">
+          {estimate
+            ? `Current context ${tokens(estimate.liveContextTokens)} → ${tokens(estimate.summariseInputTokens)} to summarise`
+            : "Reading the session's context…"}
+        </p>
+      {/if}
+      <div class="models" class:pair={Boolean(continueFrom)}>
+        {#if continueFrom}
+          <div class="sec" style="--delay:60ms">
+            <ModelSection
+              harness={summarizerHarness}
+              installed={installedHarnesses}
+              label="Summarise with"
+              machineName={machine?.hostname ?? machineId}
+              model={summarizerModel}
+              onharness={(value) => { summarizerHarness = value; summarizerModel = ""; }}
+              onmodel={(id) => { summarizerModel = id; }}
+              unavailable={summarizerRefusal}
+            />
+          </div>
+        {/if}
+        <div class="sec" style="--delay:80ms">
+          <ModelSection
+            {harness}
+            installed={installedHarnesses}
+            label={continueFrom ? "Continue on" : "Model"}
+            machineName={machine?.hostname ?? machineId}
+            {model}
+            onharness={chooseHarness}
+            onmodel={(id) => { model = id; effort = null; }}
+            tools={{
             efforts,
             effort: effortShown,
             oneffort: (level) => { effort = level; },
@@ -1010,13 +1237,16 @@
             permission: permissionMode,
             onpermission: (value) => { permissionMode = value; },
           }}
-        />
+            unavailable={continueFrom ? targetRefusal : undefined}
+          />
+        </div>
       </div>
     </div>
   </div>
   <div class="footer" data-vaul-no-drag>
     <SessionFooter
       {busy}
+      busyLabel={continueFrom ? "Summarising…" : "Starting…"}
       disabled={cantStart}
       oncancel={close}
       onstart={start}
@@ -1048,7 +1278,7 @@
     display: flex;
     flex-direction: column;
     background: var(--surface-recess);
-    border-radius: var(--radius-modal);
+    border-radius: var(--radius-lg);
     padding: 7px;
     box-shadow: var(--shadow-modal);
     outline: none;
@@ -1157,6 +1387,18 @@
     gap: 18px;
     margin-top: 18px;
   }
+  .sizing {
+    margin: 0;
+    font: var(--type-meta);
+    color: var(--ink-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  /* Continue mode: who summarises beside who continues, read left to right. */
+  .models.pair {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
   .reading {
     margin: 0;
     font: var(--type-meta);
@@ -1242,6 +1484,9 @@
     }
     .head {
       touch-action: none;
+    }
+    .models.pair {
+      grid-template-columns: minmax(0, 1fr);
     }
     .body {
       padding: 14px 12px 16px;

@@ -208,7 +208,7 @@
   {#if message.content.trim()}
     <Thinking text={message.content} />
   {/if}
-{:else if kind === 'user.peer'}
+{:else if kind === 'user.peer' || kind === 'user.rule' || kind === 'user.delegate_ask'}
   <Peer {message} />
 {:else}
   <SystemLine {message} />

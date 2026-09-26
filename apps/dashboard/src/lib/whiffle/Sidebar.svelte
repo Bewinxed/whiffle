@@ -27,7 +27,9 @@
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte component-group convention
   import * as Sidebar from "$lib/components/ui/sidebar";
+  import ThemeSwitcher from "$lib/components/ui/ThemeSwitcher.svelte";
   import {
+    IconAssistantDuo,
     IconBookDuo,
     IconBoxDuo,
     IconChevronRight,
@@ -59,6 +61,7 @@
     type ProjectRow,
     whiffle,
   } from "./client.svelte";
+  import { continuing } from "./continue.svelte";
   import FolderMenu from "./FolderMenu.svelte";
   import { conversationHref } from "./links";
   import MachineMenu from "./MachineMenu.svelte";
@@ -71,6 +74,18 @@
   import UsageMeter from "./UsageMeter.svelte";
   import { workflowState } from "./workflow-state.svelte";
   import { workspace } from "./workspace/workspace.svelte";
+
+  /** Opens the Jump palette, which Shell owns so ⌘K and this field open the same one. */
+  let {
+    onjump,
+    onassistant,
+    assistantOpen,
+  }: {
+    onjump: () => void;
+    /** Toggles the assistant, which Shell owns so ⌘J and this row share it. */
+    onassistant: () => void;
+    assistantOpen: boolean;
+  } = $props();
 
   const path = $derived(page.url.pathname);
   /**
@@ -477,11 +492,16 @@
         >
           <IconSearch class={SLOT_GLYPH} />
         </span>
-        <Sidebar.Input
+        <!-- A button dressed as the field: it opens the palette, which has
+             the real input. A bare input here took typing and did nothing. -->
+        <button
           aria-label="Jump to session"
-          class="h-9 pl-[38px] pr-14 md:text-[length:var(--text-body)]"
-          placeholder="Jump…"
-        />
+          class="focus-ring flex h-9 w-full items-center rounded-md border border-[var(--border-control)] bg-[var(--surface-raised)] pr-14 pl-[38px] text-left text-body text-muted-foreground shadow-xs outline-none [transition:var(--transition-control)]"
+          onclick={onjump}
+          type="button"
+        >
+          Jump…
+        </button>
         <kbd
           class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 font-sans
                   text-[length:var(--text-label)] text-muted-foreground opacity-0 transition-opacity duration-75
@@ -503,6 +523,34 @@
                   <kbd
                     class="font-sans text-[length:var(--text-label)] text-muted-foreground"
                     >⇧⌘N</kbd
+                  >
+                </span>
+              </button>
+            {/snippet}
+          </Sidebar.MenuButton>
+        </Sidebar.MenuItem>
+        <!-- The assistant beside "New session": the two things you start
+             from anywhere. Its glyph keeps the accent the summon has always
+             carried; the row is otherwise a row like any other. -->
+        <Sidebar.MenuItem>
+          <Sidebar.MenuButton
+            class={NAV_ROW}
+            isActive={assistantOpen}
+            onclick={onassistant}
+          >
+            {#snippet child({ props })}
+              <button {...props} aria-expanded={assistantOpen} type="button">
+                <span class="{SLOT} text-[var(--accent-11)]"
+                  ><IconAssistantDuo class={SLOT_GLYPH} /></span
+                >
+                <span class="flex-1">Assistant</span>
+                <span
+                  class="inline-flex opacity-0 transition-opacity duration-75
+                           group-hover/menu-item:opacity-100 group-focus-within/menu-item:opacity-100"
+                >
+                  <kbd
+                    class="font-sans text-[length:var(--text-label)] text-muted-foreground"
+                    >⌘J</kbd
                   >
                 </span>
               </button>
@@ -1015,32 +1063,43 @@
 
   <Sidebar.Footer>
     <UsageMeter />
-    <Sidebar.Menu aria-label="User">
-      <Sidebar.MenuItem>
-        <Sidebar.MenuButton class={NAV_ROW}>
-          <span
-            aria-hidden="true"
-            class="{SLOT} rounded-full bg-sidebar-accent text-[length:var(--text-meta)] font-medium text-sidebar-accent-foreground"
-            >bw</span
-          >
-          <span class="min-w-0 flex-1 truncate text-foreground">bewinxed</span>
-          <span
-            class="shrink-0 text-[length:var(--text-label)] text-muted-foreground"
-          >
-            {whiffle.machines.length}
-            machine{whiffle.machines.length === 1 ? '' : 's'}
-          </span>
-        </Sidebar.MenuButton>
-      </Sidebar.MenuItem>
-    </Sidebar.Menu>
+    <div class="flex items-center gap-1">
+      <Sidebar.Menu aria-label="User" class="min-w-0 flex-1">
+        <Sidebar.MenuItem>
+          <Sidebar.MenuButton class={NAV_ROW}>
+            <span
+              aria-hidden="true"
+              class="{SLOT} rounded-full bg-sidebar-accent text-[length:var(--text-meta)] font-medium text-sidebar-accent-foreground"
+              >bw</span
+            >
+            <span class="min-w-0 flex-1 truncate text-foreground"
+              >bewinxed</span
+            >
+            <span
+              class="shrink-0 text-[length:var(--text-label)] text-muted-foreground"
+            >
+              {whiffle.machines.length}
+              machine{whiffle.machines.length === 1 ? '' : 's'}
+            </span>
+          </Sidebar.MenuButton>
+        </Sidebar.MenuItem>
+      </Sidebar.Menu>
+      <ThemeSwitcher />
+    </div>
   </Sidebar.Footer>
 </div>
 <!-- end flex column wrapper -->
 
 <NewSessionDialog
+  continueFrom={continuing.source ?? undefined}
   onclose={() => {
     spawnOpen = false;
+    continuing.source = null;
   }}
-  open={spawnOpen}
-  prefill={spawnPrefill}
+  onexitcontinue={() => {
+    spawnOpen = true;
+    continuing.source = null;
+  }}
+  open={spawnOpen || continuing.source !== null}
+  prefill={continuing.source ? undefined : spawnPrefill}
 />

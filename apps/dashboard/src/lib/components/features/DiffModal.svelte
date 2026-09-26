@@ -168,7 +168,7 @@
         {#if isOpen}
           <div
             {...props}
-            class="fixed top-1/2 left-1/2 z-50 w-[95vw] h-[90vh] max-w-7xl -translate-x-1/2 -translate-y-1/2 bg-background rounded-[var(--radius-modal)] shadow-2xl border border-border flex flex-col overflow-hidden"
+            class="fixed top-1/2 left-1/2 z-50 w-[95vw] h-[90vh] max-w-7xl -translate-x-1/2 -translate-y-1/2 bg-background rounded-[var(--radius-lg)] shadow-2xl border border-border flex flex-col overflow-hidden"
             in:scale={{ duration: 200, start: 0.96, easing: quintOut }}
             out:scale={{ duration: 150, start: 0.96, easing: quintOut }}
           >

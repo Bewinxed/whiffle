@@ -500,3 +500,40 @@ export function ruleInScope(scope: RuleScope, facts: RuleFacts): boolean {
   }
   return true;
 }
+
+/**
+ * The first line of every message a rule sends, followed by a blank line:
+ * `[Rule: <name>]`. Storage strips a message's origin, so this line is what
+ * lets a transcript read back off disk render the message as the rule that
+ * sent it rather than as the reader's own turn. Hub and dashboard share it.
+ */
+export const ruleMarker = (name: string): string => `[Rule: ${name}]\n\n`;
+
+/**
+ * The line a rule that waits on an acknowledgement ends with, naming the
+ * acknowledging tool in the harness's own spelling.
+ */
+export const ruleAckLine = (tool: string): string =>
+  `\n\nWhen you have acted on this, call ${tool} with one or two sentences saying what you changed.`;
+
+const RULE_MARKER = /^\[Rule: (.+?)\]\n\n/;
+const RULE_ACK_LINE =
+  /\n\nWhen you have acted on this, call \S+ with one or two sentences saying what you changed\.$/;
+
+/**
+ * A rule message read back into its rule's name and the reply itself — the
+ * marker line and the trailing acknowledgement line are both dropped. Null
+ * when the text does not open with {@link ruleMarker}.
+ */
+export function parseRuleMarker(
+  text: string
+): { name: string; body: string } | null {
+  const marker = RULE_MARKER.exec(text);
+  if (!marker) {
+    return null;
+  }
+  return {
+    name: marker[1],
+    body: text.slice(marker[0].length).replace(RULE_ACK_LINE, "").trim(),
+  };
+}

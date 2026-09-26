@@ -16,6 +16,7 @@
   import * as Dialog from "$lib/components/ui/dialog";
   import { Input } from "$lib/components/ui/input";
   import {
+    IconArrowRight,
     IconCopy,
     IconExternal,
     IconFork,
@@ -28,6 +29,7 @@
     machineControl,
     whiffle,
   } from "./client.svelte";
+  import { continueInNewSession } from "./continue.svelte";
   import { copyToClipboard } from "./copy";
   import { conversationHref, sessionTitle } from "./links";
 
@@ -115,6 +117,12 @@
     <ContextMenu.Item onSelect={() => goto(href)}>
       <IconExternal />
       Open
+    </ContextMenu.Item>
+    <ContextMenu.Item
+      onSelect={() => continueInNewSession({ instanceId: info.sessionId, machineId, cwd: info.cwd ?? '', harness: info.harness, title: sessionTitle(info) })}
+    >
+      <IconArrowRight />
+      Continue in new session…
     </ContextMenu.Item>
     <ContextMenu.Item onSelect={() => window.open(href, '_blank', 'noopener')}>
       <IconExternal />

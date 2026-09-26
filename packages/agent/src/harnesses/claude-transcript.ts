@@ -25,6 +25,8 @@ import { cache } from "./transcript-cache.ts";
 
 /** The shape the SDK's `getSessionMessages` returns — kept structurally identical. */
 export interface SDKSessionMessage {
+  /** The summary a `/compact` wrote (`isCompactSummary` on the record). */
+  compactSummary?: true;
   message: unknown;
   parent_agent_id: string | null;
   parent_tool_use_id: string | null;
@@ -472,6 +474,9 @@ function toSDKMessage(r: RawRecord): SDKSessionMessage | null {
   if (r.toolUseResult !== undefined) {
     msg.toolUseResult = r.toolUseResult;
   }
+  if (r.isCompactSummary === true) {
+    msg.compactSummary = true;
+  }
   return msg;
 }
 
@@ -509,6 +514,21 @@ export async function readSessionFull(
   const messages = locatedToMessages(entry.records);
   entry.walkedMessages = messages;
   return messages;
+}
+
+/**
+ * Every user/assistant record of the main transcript, in file order — no
+ * chain walk, so the history before each compaction and every abandoned
+ * branch is there too. For readers that index what a session ever did.
+ */
+export async function readSessionWhole(
+  path: string
+): Promise<SDKSessionMessage[]> {
+  const entry = await cache.get(path);
+  return entry.records.flatMap((located) => {
+    const msg = toSDKMessage(located.record as unknown as RawRecord);
+    return msg ? [msg] : [];
+  });
 }
 
 /**

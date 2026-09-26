@@ -339,24 +339,3 @@ export function taskProgress(snapshot: TaskSnapshot): {
       snapshot.tasks.find((task) => task.status === "in_progress") ?? null,
   };
 }
-
-/**
- * The task standing in this one's way, if one still is. A blocker that has
- * left the ledger was deleted, and work nobody has to do blocks nothing.
- */
-export function blockerOf(
-  task: SessionTask,
-  tasks: SessionTask[]
-): string | null {
-  if (task.status === "completed") {
-    return null;
-  }
-  return (
-    task.blockedBy.find((id) =>
-      tasks.some((other) => other.id === id && other.status !== "completed")
-    ) ?? null
-  );
-}
-
-export const isBlocked = (task: SessionTask, tasks: SessionTask[]): boolean =>
-  blockerOf(task, tasks) !== null;

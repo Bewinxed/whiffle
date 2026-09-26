@@ -1,0 +1,121 @@
+<script lang="ts" module>
+  import type { EffortLevel, PermissionMode } from "@whiffle/core";
+
+  /** The run settings that ride on a model: its effort and the session's permission mode. */
+  export interface ModelTools {
+    effort: EffortLevel | null;
+    efforts: EffortLevel[];
+    modes: { value: PermissionMode; disabled: boolean; reason?: string }[];
+    oneffort: (level: EffortLevel) => void;
+    onpermission: (mode: PermissionMode) => void;
+    permission: PermissionMode | null;
+  }
+</script>
+
+<script lang="ts">
+  /**
+   * Effort and permission as chips that open their pickers on one shared
+   * popover surface. Read-only, they are the same chips as plain text.
+   */
+  import Down from "~icons/solar/alt-arrow-down-linear";
+  import Tuning from "~icons/solar/tuning-2-bold-duotone";
+  import EffortPips from "./EffortPips.svelte";
+  import NsPopover from "./NsPopover.svelte";
+  import NsPopoverGroup from "./NsPopoverGroup.svelte";
+  import PermissionSection from "./PermissionSection.svelte";
+  import { permissionLook } from "./permission-look";
+
+  let {
+    tools,
+    id = "session",
+    closeOnCommit = false,
+    readonly = false,
+  }: {
+    tools: ModelTools;
+    /** Prefix for the chips' popover ids. */
+    id?: string;
+    /** Apply the effort once the level is let go, then close the picker. */
+    closeOnCommit?: boolean;
+    readonly?: boolean;
+  } = $props();
+  let pop = $state<"effort" | "permission" | null>(null);
+  const look = $derived(permissionLook(tools.permission ?? ""));
+</script>
+
+{#snippet effortChip()}
+  <Tuning style="color:var(--hue-orange-500)" />
+  <span class="chip-label level">{tools.effort ?? "Default"}</span>
+{/snippet}
+{#snippet permissionChip()}
+  {@const Icon = look.icon}
+  <Icon style={`color:${look.hue}`} />
+  <span class="chip-label">{look.short}</span>
+{/snippet}
+
+{#if readonly}
+  {#if tools.efforts.length}
+    <span class="ns-chip-btn tool static">{@render effortChip()}</span>
+  {/if}
+  {#if tools.modes.length}
+    <span class="ns-chip-btn tool static">{@render permissionChip()}</span>
+  {/if}
+{:else}
+  <NsPopoverGroup>
+    {#if tools.efforts.length}
+      <NsPopover
+        align="end"
+        id={`${id}-effort`}
+        label="Effort"
+        onchange={(value) => { pop = value ? 'effort' : null; }}
+        open={pop === "effort"}
+        triggerClass="ns-chip-btn tool"
+        width={300}
+      >
+        {#snippet trigger()}
+          {@render effortChip()}
+          <Down class="chevron" />
+        {/snippet}
+        <div class="effort-pop">
+          <EffortPips
+            efforts={tools.efforts}
+            embedded
+            onchange={tools.oneffort}
+            oncommit={closeOnCommit ? (level) => { tools.oneffort(level); pop = null; } : undefined}
+            value={tools.effort}
+          />
+        </div>
+      </NsPopover>
+    {/if}
+    {#if tools.modes.length}
+      <NsPopover
+        align="end"
+        id={`${id}-permission`}
+        label="Permission mode"
+        onchange={(value) => { pop = value ? 'permission' : null; }}
+        open={pop === "permission"}
+        triggerClass="ns-chip-btn tool"
+        width={340}
+      >
+        {#snippet trigger()}
+          {@render permissionChip()}
+          <Down class="chevron" />
+        {/snippet}
+        <PermissionSection
+          embedded
+          modes={tools.modes}
+          onchange={(mode) => { tools.onpermission(mode); pop = null; }}
+          value={tools.permission}
+        />
+      </NsPopover>
+    {/if}
+  </NsPopoverGroup>
+{/if}
+
+<style>
+  .level {
+    text-transform: capitalize;
+  }
+  .effort-pop {
+    padding: 8px 6px 6px;
+  }
+</style>

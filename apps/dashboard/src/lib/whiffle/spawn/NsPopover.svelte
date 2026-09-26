@@ -23,6 +23,7 @@
     label,
     triggerClass = "",
     triggerStyle,
+    haspopup,
     onmousemove,
     onmouseleave,
     ...rest
@@ -40,6 +41,8 @@
     label?: string;
     triggerClass?: string;
     triggerStyle?: string;
+    /** What the trigger opens, when it is not a dialog. */
+    haspopup?: "listbox" | "menu";
     onmousemove?: (event: MouseEvent) => void;
     onmouseleave?: (event: MouseEvent) => void;
     "aria-label"?: string;
@@ -116,7 +119,12 @@
         {id}
         style={triggerStyle}
       >
-        {@render trigger()}
+        {#snippet child({ props })}
+          <!-- bits-ui marks every trigger as opening a dialog; a list says so. -->
+          <button {...props} aria-haspopup={haspopup ?? "dialog"} type="button">
+            {@render trigger()}
+          </button>
+        {/snippet}
       </PopoverPrimitive.Trigger>
     {/if}
     <PopoverPrimitive.Portal>

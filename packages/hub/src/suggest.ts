@@ -39,9 +39,23 @@ export interface SuggestCandidate {
 }
 
 /**
+ * The name a candidate's usage is recorded under. MCP usage is keyed by the
+ * `mcp__<server>__` tool-name prefix, which is the server's display name with
+ * everything outside `[A-Za-z0-9_-]` replaced by `_` (`Exa.ai` → `Exa_ai`).
+ */
+function usageName(candidate: SuggestCandidate): string {
+  return candidate.kind === "mcp"
+    ? candidate.name.replace(/[^A-Za-z0-9_-]/g, "_")
+    : candidate.name;
+}
+
+/**
  * The candidates worth asking about: the top {@link SUGGEST_CANDIDATE_LIMIT}
  * by each one's share of its own kind's usage, never-used ones dropped except
- * skills installed in the last {@link NEW_SKILL_DAYS} days.
+ * skills installed in the last {@link NEW_SKILL_DAYS} days. An MCP server's own
+ * tools (`mcp__<server>__…`) are never candidates: the server's chip stands for
+ * them, and its description already lists their names — asking about both
+ * filled the chip row with one server three times.
  *
  * Share within kind, not raw score: tool calls outnumber skill invocations by
  * ~270× (measured on the owner's last 30 days), so raw decayed scores cannot
@@ -64,12 +78,12 @@ export function rankCandidates(
         !(
           candidate.kind === "tool" &&
           (NEVER_SUGGEST_TOOLS.has(candidate.name) ||
-            candidate.name.startsWith("mcp__whiffle__"))
+            candidate.name.startsWith("mcp__"))
         )
     )
     .map((candidate) => ({
       candidate,
-      score: scores.get(`${candidate.kind}:${candidate.name}`) ?? 0,
+      score: scores.get(`${candidate.kind}:${usageName(candidate)}`) ?? 0,
       fresh: candidate.kind === "skill" && fresh.has(candidate.name),
     }));
   const kindTotal = { skill: 0, tool: 0, mcp: 0 };
@@ -96,7 +110,6 @@ export async function suggest(
   db: DbShape,
   key: string,
   text: string,
-  recent: string,
   candidates: SuggestCandidate[]
 ): Promise<
   { suggestions: { id: string; noul: number }[] } | { error: string }
@@ -107,7 +120,7 @@ export async function suggest(
   }
   const result = await askNouls(
     key,
-    { prompt: text, last_agent_message: recent },
+    { prompt: text },
     Object.fromEntries(
       asked.map((candidate) => [
         candidate.id,
@@ -118,8 +131,10 @@ export async function suggest(
               name: candidate.name,
               description: candidate.description,
             },
-            question:
-              "To carry out `prompt`, would the agent need to use `candidate`?",
+            // "Would the agent need to use" scored deep-research 0.39 for
+            // "we should really research this"; this wording scored it 0.74
+            // and kept typo/rename/commit prompts under the threshold.
+            question: "Is `candidate` made for the task `prompt` describes?",
           },
         },
       ])
@@ -131,11 +146,26 @@ export async function suggest(
   console.debug(
     `[suggest] ${asked.length} of ${candidates.length} candidates asked, ${result.inputTokens} input tokens, cost=$${result.costUsd}`
   );
+  // One chip per capability: a name offered as both an MCP server and a skill
+  // (claude-in-chrome) keeps only its likelier entry.
+  const named = new Set<string>();
   return {
-    suggestions: Object.entries(result.answers)
-      .filter(([, noul]) => noul >= SUGGEST_THRESHOLD)
-      .sort(([, a], [, b]) => b - a)
+    suggestions: asked
+      .map((candidate) => ({
+        id: candidate.id,
+        name: candidate.name.toLowerCase(),
+        noul: result.answers[candidate.id],
+      }))
+      .filter((entry) => entry.noul >= SUGGEST_THRESHOLD)
+      .sort((a, b) => b.noul - a.noul)
+      .filter((entry) => {
+        if (named.has(entry.name)) {
+          return false;
+        }
+        named.add(entry.name);
+        return true;
+      })
       .slice(0, SUGGEST_MAX)
-      .map(([id, noul]) => ({ id, noul })),
+      .map(({ id, noul }) => ({ id, noul })),
   };
 }

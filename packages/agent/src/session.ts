@@ -16,6 +16,7 @@ import type {
   FramePayload,
   FrameProvenance,
   FsPayload,
+  GitChanges,
   HarnessKind,
   IngestMark,
   InstanceSpec,
@@ -34,6 +35,7 @@ import type {
 import {
   AGENT_BUSY,
   alreadyIngested,
+  CONTROL_GIT_CHANGES,
   FLEET_STATUS,
   FLEET_SYNC,
   GENERATE_IMAGE,
@@ -52,6 +54,7 @@ import { expandHome, runFs } from "./fs";
 import type { Harness, HarnessContext, HarnessSession } from "./harness";
 import { harnesses, harness as harnessOf } from "./harnesses";
 import { generateImage } from "./image-generation";
+import { isMachineAgent } from "./machine-agent";
 import { startPreview, stopPreview, stopPreviews } from "./preview";
 import { installTool, probeTools } from "./tools";
 import { type UpdateOptions, updateCheckout } from "./update";
@@ -216,6 +219,27 @@ const ghAvailable = async (): Promise<boolean> =>
  * decides what that is — the private ones included, which is the point of
  * asking the machine rather than GitHub.
  */
+/**
+ * {@link CONTROL_GIT_CHANGES}: exactly two read-only git commands in `cwd`.
+ * `git status` refusing (exit 128: no work tree here) answers `{ repo: false }`.
+ */
+const gitChanges = async (cwd: string, since: string): Promise<GitChanges> => {
+  const dir = expandHome(cwd);
+  const status = await Bun.$`git -C ${dir} status --porcelain`
+    .quiet()
+    .nothrow();
+  if (status.exitCode !== 0) {
+    return { repo: false };
+  }
+  const log =
+    await Bun.$`git -C ${dir} log --since=${since} --name-status ${"--format=%h %s"}`.quiet();
+  return {
+    repo: true,
+    status: status.stdout.toString(),
+    log: log.stdout.toString(),
+  };
+};
+
 const listRepos = async (): Promise<ReposResult> => {
   if (!(await ghAvailable())) {
     return { error: "gh-missing" };
@@ -1533,6 +1557,9 @@ export class SessionSupervisor {
       if (method === "listRepos") {
         return await listRepos();
       }
+      if (method === CONTROL_GIT_CHANGES) {
+        return await gitChanges(args[0] as string, args[1] as string);
+      }
       if (method === "listTools") {
         return await probeTools();
       }
@@ -1547,6 +1574,13 @@ export class SessionSupervisor {
       // sends one desired state, and each harness converges the parts it
       // understands onto its own files. Reports merge into one machine word.
       if (method === FLEET_SYNC) {
+        // Fleet sync writes machine-wide harness config (claude's, opencode's
+        // and pi's); only the machine's own agent may (see machine-agent.ts).
+        if (!(await isMachineAgent())) {
+          throw new Error(
+            "fleet sync skipped: this is not the machine's agent, so machine-wide harness config is left to the agent that is"
+          );
+        }
         return await this.#syncFleet(args[0] as FleetConfig, "syncFleet");
       }
       if (method === FLEET_STATUS) {
@@ -1568,7 +1602,8 @@ export class SessionSupervisor {
             return await adapter.getSessionMessages(
               args[0] as string,
               dirOf(args[1]),
-              (args[1] as { tail?: number } | undefined)?.tail
+              (args[1] as { tail?: number } | undefined)?.tail,
+              (args[1] as { whole?: boolean } | undefined)?.whole
             );
           case "renameSession":
             return await adapter.renameSession(

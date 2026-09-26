@@ -4,21 +4,14 @@
    * list with the slide-swap on harness change. Codex is shown but disabled
    * ("Coming soon"); the list is the app's catalogue, canonical names only.
    */
-  import {
-    type EffortLevel,
-    HARNESSES,
-    type HarnessKind,
-    type PermissionMode,
-  } from "@whiffle/core";
+  import { HARNESSES, type HarnessKind } from "@whiffle/core";
   import { untrack } from "svelte";
   import ProviderLogo from "$lib/components/features/ProviderLogo.svelte";
   import OpenAiMark from "~icons/logos/openai-icon";
-  import Down from "~icons/solar/alt-arrow-down-linear";
   import Clear from "~icons/solar/close-square-linear";
   import Code from "~icons/solar/code-square-bold-duotone";
   import Cpu from "~icons/solar/cpu-bolt-bold-duotone";
   import Search from "~icons/solar/magnifer-linear";
-  import Tuning from "~icons/solar/tuning-2-bold-duotone";
   import HarnessLogo from "../HarnessLogo.svelte";
   import {
     ensureModels,
@@ -27,7 +20,6 @@
     rememberModel,
   } from "../models.svelte";
   import { reducedMotion } from "../motion.svelte";
-  import EffortPips from "./EffortPips.svelte";
   import { FollowHover } from "./follow-hover.svelte";
   import {
     deriveModelEntries,
@@ -37,25 +29,8 @@
     matchesQuery,
   } from "./model-entries";
   import { lastSpawnAt, lastUsedAt, type ModelUse } from "./modelUse.svelte";
-  import NsPopover from "./NsPopover.svelte";
-  import NsPopoverGroup from "./NsPopoverGroup.svelte";
-  import PermissionSection from "./PermissionSection.svelte";
-  import { permissionLook } from "./permission-look";
   import SectionHeader from "./SectionHeader.svelte";
-
-  /**
-   * The run settings that ride on the chosen model: its effort and the
-   * session's permission mode, as chips on the selected row. Only the new
-   * session form passes them; a running session sets these elsewhere.
-   */
-  interface ModelTools {
-    effort: EffortLevel | null;
-    efforts: EffortLevel[];
-    modes: { value: PermissionMode; disabled: boolean; reason?: string }[];
-    oneffort: (level: EffortLevel) => void;
-    onpermission: (mode: PermissionMode) => void;
-    permission: PermissionMode;
-  }
+  import ToolChips, { type ModelTools } from "./ToolChips.svelte";
 
   let {
     harness,
@@ -66,6 +41,8 @@
     onmodel,
     runtime = false,
     tools,
+    label = "Model",
+    unavailable,
   }: {
     harness: HarnessKind;
     onharness: (harness: HarnessKind) => void;
@@ -75,6 +52,10 @@
     onmodel: (id: string) => void;
     runtime?: boolean;
     tools?: ModelTools;
+    /** The section's heading. */
+    label?: string;
+    /** Why a model cannot be picked here, shown on its row; nothing when it can. */
+    unavailable?: (entry: ModelEntry) => string | undefined;
   } = $props();
   const uid = $props.id();
   type TabId = HarnessKind | "codex";
@@ -146,9 +127,7 @@
     const at = Math.floor((event.clientY - box.top - RAIL_PAD) / RAIL_STEP);
     tip = at >= 0 && at < TABS.length ? at : -1;
   }
-  let pop = $state<"effort" | "permission" | null>(null);
   let toolsWidth = $state(0);
-  const look = $derived(permissionLook(tools?.permission ?? ""));
   const fhModels = new FollowHover("y");
 
   $effect(() => {
@@ -286,7 +265,7 @@
 
 <section class="model">
   {#if !runtime}
-    <SectionHeader hue="var(--hue-cyan-500)" icon={Cpu} label="Model" />
+    <SectionHeader hue="var(--hue-cyan-500)" icon={Cpu} {label} />
   {/if}
   <div class="picker" class:railed={!runtime}>
     {#if !runtime}
@@ -408,57 +387,7 @@
             style={`transform:translateY(calc(${modelIdx} * 46px));opacity:${hiOpacity}`}
             bind:clientWidth={toolsWidth}
           >
-            <NsPopoverGroup>
-              {#if tools.efforts.length}
-                <NsPopover
-                  align="end"
-                  id="session-effort"
-                  label="Effort"
-                  onchange={(value) => { pop = value ? 'effort' : null; }}
-                  open={pop === "effort"}
-                  triggerClass="ns-chip-btn tool"
-                  width={300}
-                >
-                  {#snippet trigger()}
-                    <Tuning style="color:var(--hue-orange-500)" />
-                    <span class="chip-label level"
-                      >{tools.effort ?? "Default"}</span
-                    >
-                    <Down class="chevron" />
-                  {/snippet}
-                  <div class="effort-pop">
-                    <EffortPips
-                      efforts={tools.efforts}
-                      embedded
-                      onchange={tools.oneffort}
-                      value={tools.effort}
-                    />
-                  </div>
-                </NsPopover>
-              {/if}
-              <NsPopover
-                align="end"
-                id="session-permission"
-                label="Permission mode"
-                onchange={(value) => { pop = value ? 'permission' : null; }}
-                open={pop === "permission"}
-                triggerClass="ns-chip-btn tool"
-                width={340}
-              >
-                {#snippet trigger()}
-                  {@const Icon = look.icon}
-                  <Icon style={`color:${look.hue}`} />
-                  <span class="chip-label">{look.short}</span>
-                  <Down class="chevron" />
-                {/snippet}
-                <PermissionSection
-                  embedded
-                  modes={tools.modes}
-                  onchange={(mode) => { tools.onpermission(mode); pop = null; }}
-                  value={tools.permission}
-                />
-              </NsPopover>
-            </NsPopoverGroup>
+            <ToolChips {tools} />
           </div>
         {/if}
         {#if leaving.length}
@@ -486,18 +415,21 @@
           </button>
         {/if}
         {#each rows as entry, i (`${gen}:${entry.id}`)}
+          {@const reason = unavailable?.(entry)}
           <button
+            aria-disabled={reason ? true : undefined}
             aria-selected={entry.id === selectedId}
             class="row"
             data-fh="1"
             data-model={entry.id}
+            disabled={Boolean(reason)}
             onclick={() => pick(entry)}
             role="option"
             style={`animation:${rowAnim(i)}`}
             type="button"
             class:picked={entry.id === selectedId}
           >
-            {@render rowBody(entry)}
+            {@render rowBody(entry, reason)}
           </button>
         {/each}
         {#if noResults}
@@ -514,7 +446,7 @@
   </div>
 </section>
 
-{#snippet rowBody(entry: ModelEntry)}
+{#snippet rowBody(entry: ModelEntry, reason?: string)}
   {@const provider = providerOf(entry.id)}
   {#if mixedMakers}
     <span class="ns-tile tile vendor">
@@ -527,10 +459,14 @@
   {/if}
   <span class="text">
     <span class="name" class:mono={entry.mono}>{entry.name}</span>
-    <span class="meta"
-      ><span class="mono">{entry.id}</span>
-      {vendor(entry.id) ? ` · ${vendor(entry.id)}` : ""}</span
-    >
+    {#if reason}
+      <span class="meta reason">{reason}</span>
+    {:else}
+      <span class="meta"
+        ><span class="mono">{entry.id}</span>
+        {vendor(entry.id) ? ` · ${vendor(entry.id)}` : ""}</span
+      >
+    {/if}
   </span>
   {#if ctx(entry)}
     <span class="ctx">{ctx(entry)}</span>
@@ -749,12 +685,6 @@
     height: 28px;
     background: var(--surface-raised);
   }
-  .tools .level {
-    text-transform: capitalize;
-  }
-  .effort-pop {
-    padding: 8px 6px 6px;
-  }
   .row {
     position: relative;
     display: flex;
@@ -817,6 +747,17 @@
     font-family: var(--font-mono);
   }
   .custom .meta {
+    color: var(--ink-muted);
+  }
+  /* A model that cannot take the job stays listed, with why, but inert. */
+  .row:disabled {
+    cursor: not-allowed;
+  }
+  .row:disabled .name,
+  .row:disabled .tile {
+    opacity: 0.5;
+  }
+  .reason {
     color: var(--ink-muted);
   }
   .hint,

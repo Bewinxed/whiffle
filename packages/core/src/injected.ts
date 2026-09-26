@@ -1,0 +1,134 @@
+/**
+ * The marker lines whiffle opens every message it puts into a session with,
+ * on someone else's behalf — another session's hand-off, a workflow's brief or
+ * notice, a delegate's report or ask. (A rule's marker lives beside the rest
+ * of rules, in `rules.ts`.)
+ *
+ * A message's `origin` says who sent it while it streams, but storage strips
+ * it: a transcript read back off disk returns every one of these as a plain
+ * user turn. The marker is the part that survives, so the hub builds it here
+ * and the dashboard parses it here, and a stored copy renders exactly as the
+ * live one did — never as the reader's own words.
+ */
+
+/** A hand-off from another session. */
+export const handoffMarker = (from: string): string =>
+  `[Hand-off from the ${from} session — another agent, not the user]\n\n`;
+
+/** A workflow step's brief, handed to the session that runs the step. */
+export const workflowStepMarker = (workflow: string, step: string): string =>
+  `[Hand-off from the ${workflow} workflow — step ${step}, not the user]\n\n`;
+
+const HANDOFF =
+  /^\[Hand-off from the (.+?) (?:session — another agent|workflow — step (.+?)), not the user\]\n\n/;
+
+/**
+ * A hand-off read back into who sent it and what it says. `from` names the
+ * sending session, or the workflow and step for a step's brief.
+ */
+export function parseHandoffMarker(
+  text: string
+): { from: string; body: string } | null {
+  const marker = HANDOFF.exec(text);
+  if (!marker) {
+    return null;
+  }
+  const [line, from, step] = marker;
+  return {
+    from: step === undefined ? from : `${from} workflow · ${step}`,
+    body: text.slice(line.length).trim(),
+  };
+}
+
+/**
+ * A workflow telling its supervising session what happened: a step passed or
+ * failed, the run finished, a question or checkpoint came up.
+ */
+export const workflowNoticeMarker = (workflow: string, event: string): string =>
+  `[Workflow ${workflow} — ${event}]\n\n`;
+
+const WORKFLOW_NOTICE = /^\[Workflow (.+?) — (.+?)\]\n\n/;
+
+/** A workflow notice read back into the workflow, the event and the detail. */
+export function parseWorkflowNotice(
+  text: string
+): { workflow: string; event: string; body: string } | null {
+  const marker = WORKFLOW_NOTICE.exec(text);
+  if (!marker) {
+    return null;
+  }
+  return {
+    workflow: marker[1],
+    event: marker[2],
+    body: text.slice(marker[0].length).trim(),
+  };
+}
+
+/**
+ * The header of a delegate's report to its parent, written when the
+ * delegate's turn ends. `label` is `<name>#<first 8 of its id>`.
+ */
+export const reportMarker = (label: string, failed: boolean): string =>
+  `[Report from delegate ${label} — turn ${failed ? "failed" : "complete"}]\n\n`;
+
+const REPORT =
+  /^\[Report from delegate (.+?)#([0-9a-f]{8}) — turn (complete|failed)\]\n\n/;
+
+/**
+ * A report read back. Only the 8-character short id survives, so consumers
+ * pair it with the delegate's full id by prefix.
+ */
+export function parseReportMarker(text: string): {
+  name: string;
+  short: string;
+  failed: boolean;
+  body: string;
+} | null {
+  const marker = REPORT.exec(text);
+  if (!marker) {
+    return null;
+  }
+  return {
+    name: marker[1],
+    short: marker[2],
+    failed: marker[3] === "failed",
+    body: text.slice(marker[0].length).trim(),
+  };
+}
+
+/**
+ * A delegate's permission ask, routed to its parent: an opening line naming
+ * the delegate, the ask itself, then the tag line carrying the ids the
+ * parent's `answer_delegate` call copies, then how to answer.
+ */
+export const delegateAskText = (ask: {
+  label: string;
+  body: string;
+  instance: string;
+  request: string;
+  instruction: string;
+}): string =>
+  `[Delegate ask from ${ask.label}]\n\n${ask.body}\n\n[delegate-ask instance=${ask.instance} request=${ask.request}]\n\n${ask.instruction}`;
+
+const ASK_OPENING = /^\[Delegate ask from (.+?)\]\n\n/;
+const ASK_TAG = /\n\n\[delegate-ask instance=([0-9a-f-]{36}) request=(\S+)\]/;
+
+/** An ask read back: who asked, its ids, and the ask alone (no tag, no instruction). */
+export function parseDelegateAsk(text: string): {
+  label: string;
+  instance: string;
+  request: string;
+  body: string;
+} | null {
+  const opening = ASK_OPENING.exec(text);
+  const tag = opening ? ASK_TAG.exec(text) : null;
+  if (!(opening && tag)) {
+    return null;
+  }
+  return {
+    label: opening[1],
+    instance: tag[1],
+    request: tag[2],
+    body: text.slice(opening[0].length, tag.index).trim(),
+  };
+}

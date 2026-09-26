@@ -27,6 +27,7 @@ import type {
   SendPayload,
   SessionMessage,
   SessionPulse,
+  SessionTooling,
   SlashCommand,
   SpawnPayload,
   StopPayload,
@@ -392,11 +393,6 @@ export interface SessionState {
    */
   thinkingStream: string;
   /**
-   * The MCP servers and tool names the newest `system.init` announced — what
-   * the composer's suggestions offer. Empty for a harness that sends neither.
-   */
-  tooling: SessionTooling;
-  /**
    * The cumulative cost the latest `result` frame reported, in dollars.
    * `undefined` until a turn has closed with one. Frames, not transcript
    * scraping: a successful turn's cost has no transcript line.
@@ -638,7 +634,6 @@ export function blankSession(instanceId: string): SessionState {
     commandsPending: false,
     mcp: null,
     mcpPending: false,
-    tooling: { servers: [], tools: [] },
     lastTurnFailed: false,
     sdkStatus: null,
     lastCompaction: null,
@@ -1417,7 +1412,6 @@ function handleFrame(frame: FramePayload): void {
             message.metadata?.slashCommands ?? target.commands.names;
           target.commands.skills =
             message.metadata?.skills ?? target.commands.skills;
-          harvestTooling(target, message);
           // A relaunch can change the MCP set; null makes the header ask again.
           target.mcp = null;
           // The process behind a relaunch is up: this is the frame it opens with.
@@ -2982,34 +2976,6 @@ function userMessage(text: string): SendPayload["message"] {
   };
 }
 
-/**
- * A message one session sends another. Two things make it a hand-off rather
- * than a second reader talking:
- *
- * - `origin: peer` marks it as reported speech, so the receiving agent weighs
- *   it as another agent's word and not as its user's authority.
- * - `shouldQuery: false` appends it without starting a turn. The target is
- *   usually mid-work; the note lands in its transcript now and is picked up
- *   when it next answers, instead of derailing what it was asked to do.
- */
-function peerMessage(
-  text: string,
-  from: { id: string; name: string }
-): SendPayload["message"] {
-  return {
-    type: "user",
-    message: { role: "user", content: text },
-    parent_tool_use_id: null,
-    origin: {
-      kind: "peer",
-      from: from.id,
-      name: from.name,
-      fromSession: from.id,
-    },
-    shouldQuery: false,
-  };
-}
-
 /** Spawns a session on `machineId` and registers the view it streams into. */
 function start({
   machineId,
@@ -3327,38 +3293,6 @@ export async function sendOrRevive(
   sendText(instanceId, machineId, text, extras);
 }
 
-/**
- * Hands a note to another session. The target is usually busy, so this never
- * interrupts it: the note lands in its transcript at once and is answered when
- * it next takes a turn (see {@link peerMessage}).
- *
- * A sleeping target is revived first. The alternative is a message that goes
- * nowhere and a sender told it was delivered — and a hand-off you cannot trust
- * to arrive is worse than no hand-off, because you stop checking.
- */
-export async function sendToPeer(
-  target: { instanceId: string; machineId: string },
-  from: { instanceId: string; label: string },
-  text: string
-): Promise<void> {
-  await ensureAlive(target.instanceId, target.machineId);
-  const payload: SendPayload = {
-    instanceId: target.instanceId,
-    message: peerMessage(text, { id: from.instanceId, name: from.label }),
-  };
-  send({
-    verb: "send",
-    machineId: target.machineId,
-    instanceId: target.instanceId,
-    payload,
-  });
-}
-
-/** Sessions this one can hand work to: every other live session in the fleet. */
-export function peerTargets(exceptInstanceId: string): InstanceRow[] {
-  return instances.filter((row) => row.id !== exceptInstanceId && isLive(row));
-}
-
 export function stopSession(instanceId: string, machineId: string): void {
   const payload: StopPayload = { instanceId };
   send({ verb: "stop", machineId, instanceId, payload });
@@ -3672,19 +3606,6 @@ export async function loadCatalog(machineId: string): Promise<void> {
  * `system.init` is re-emitted every turn and carries the current list, so the
  * newest one in what was just mapped is the session's own word for it.
  */
-/** What an `init` says about MCP servers and tools, kept for the composer. */
-export interface SessionTooling {
-  servers: { name: string; status: string }[];
-  tools: string[];
-}
-
-function harvestTooling(target: SessionState, init: Message): void {
-  target.tooling = {
-    servers: init.metadata?.mcpServers ?? target.tooling.servers,
-    tools: init.metadata?.tools ?? target.tooling.tools,
-  };
-}
-
 function harvestCommands(target: SessionState, messages: Message[]): void {
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     const init = messages[i];
@@ -3697,7 +3618,6 @@ function harvestCommands(target: SessionState, messages: Message[]): void {
     if (init.metadata?.skills) {
       target.commands.skills = init.metadata.skills;
     }
-    harvestTooling(target, init);
     return;
   }
 }
@@ -3801,96 +3721,6 @@ export function clearReadFault(instanceId: string): void {
   const held = state.sessions[instanceId];
   if (held) {
     held.readFault = null;
-  }
-}
-
-/** Loads a stored session's transcript into the view it is being browsed under. */
-export async function openTranscript({
-  viewId,
-  machineId,
-  sessionId,
-  cwd,
-  harness = "claude",
-}: {
-  viewId: string;
-  machineId: string;
-  /**
-   * The key the transcript is read under: the hub row's own, or the catalog
-   * entry's the reader chose. Never the view id — and absent, there is no read.
-   */
-  sessionId?: string;
-  cwd: string;
-  harness?: HarnessKind;
-}): Promise<TranscriptOutcome> {
-  const target = session(viewId);
-  target.machineId = machineId;
-  target.cwd = cwd;
-  if (sessionId) {
-    target.sessionId = sessionId;
-  }
-  target.harness = harness;
-  // A stored session's plan is still on its machine, and no frame will ever
-  // arrive to say so — opening it is the only moment there is to ask.
-  refreshTasks(viewId);
-  // Re-opening what is already read — or still hydrating, which has published
-  // its newest turns by now — must not start a second read over the top of it.
-  if (target.messages.length > 0 || target.loading) {
-    return { ok: true, skipped: true };
-  }
-  // Nothing names the transcript, and the view id is not a name for it: a
-  // read sent under one comes back empty or wrong, so this is refused outright.
-  if (!sessionId) {
-    target.readFault = {
-      reason: "failed",
-      message: `no session key on record for ${viewId}; cannot read`,
-    };
-    return { ok: false, ...target.readFault };
-  }
-
-  // Asked before the call rather than inferred from its failure: a machine the
-  // hub has not heard from cannot answer, and "offline" is a different sentence
-  // from "the read failed" — the first is a state, the second is a fault.
-  const machine = state.machines.find((row) => row.machineId === machineId);
-  if (machine && machine.status !== "online") {
-    target.readFault = {
-      reason: "offline",
-      message: `${machine.hostname || machineId} is offline — its stored transcript can't be read right now.`,
-    };
-    return { ok: false, ...target.readFault };
-  }
-
-  const epoch = claimTranscript(viewId);
-  target.loading = true;
-  target.readFault = null;
-  try {
-    const transcript = await machineControl<SessionMessage[]>(
-      machineId,
-      "getSessionMessages",
-      [sessionId, { dir: cwd || undefined }],
-      CONTROL_TIMEOUT_MS,
-      harness
-    );
-    await ingestTranscript(viewId, target, transcript, epoch);
-    return { ok: true };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    // The newest turns may already be on screen; a failure reading the rest
-    // joins them rather than taking the transcript down with it. With nothing
-    // on screen there is no transcript to join, so the failure is handed back
-    // for the pane to state outright — a lone error row in an otherwise empty
-    // scroller is the blank this exists to stop.
-    if (target.messages.length > 0) {
-      target.messages = [
-        errorMessage(viewId, `could not read transcript: ${message}`),
-        ...target.messages,
-      ];
-      return { ok: true };
-    }
-    target.readFault = { reason: "failed", message };
-    return { ok: false, reason: "failed", message };
-  } finally {
-    target.loading = false;
-    target.hydrating = false;
   }
 }
 
@@ -4035,7 +3865,7 @@ export function preloadHistory(viewId: string): Promise<TranscriptOutcome> {
 /**
  * A session's stored transcript over HTTP, published as it arrives.
  *
- * The socket path (`backfillSession`, `openTranscript`) cannot answer until the
+ * The socket path (`backfillSession`) cannot answer until the
  * WebSocket is up, which is why a reload showed an empty transcript until the
  * hub reconnected. The hub answers `GET /api/instances/:id/messages` with the
  * same `getSessionMessages` read, so this needs nothing but a page.
@@ -5469,9 +5299,13 @@ export const whiffle = {
     };
   },
   /** What a session offers behind `/`, grouped the way the palette lists it. */
-  /** The MCP servers and tools the session's newest `init` announced. */
+  /**
+   * The MCP servers and tools the session's newest `init` announced, as the hub
+   * stored them on its row — so a reload or a hub restart keeps them. Empty for
+   * a harness whose `init` carries neither.
+   */
   toolingOf: (instanceId: string): SessionTooling =>
-    state.sessions[instanceId]?.tooling ?? { servers: [], tools: [] },
+    instanceIndex.byId.get(instanceId)?.tooling ?? { servers: [], tools: [] },
   commandsOf: (instanceId: string): AvailableCommand[] => {
     const target = state.sessions[instanceId];
     return target ? availableCommands(target.commands) : [];

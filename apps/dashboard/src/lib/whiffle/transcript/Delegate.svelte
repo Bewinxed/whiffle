@@ -118,7 +118,9 @@
       }
       const peers = (parent?.messages ?? []).filter(
         (m) =>
-          m.type === "user.peer" && matchesSession(m.metadata?.peerSession, id)
+          m.type === "user.peer" &&
+          m.metadata?.reportKind !== undefined &&
+          matchesSession(m.metadata?.peerSession, id)
       );
       const latest = peers.at(-1);
       if (!latest) {

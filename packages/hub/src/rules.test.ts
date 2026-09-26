@@ -101,8 +101,8 @@ function turn(engine: InstanceType<typeof RuleEngine>, text: string) {
 }
 
 /** What a claude session reads when a rule waits on its acknowledgement. */
-const asked = (reply: string): string =>
-  `${reply}\n\nWhen you have acted on this, call mcp__whiffle__note_for_user with one or two sentences saying what you changed.`;
+const asked = (rule: Rule): string =>
+  `[Rule: ${rule.name}]\n\n${rule.reply}\n\nWhen you have acted on this, call mcp__whiffle__note_for_user with one or two sentences saying what you changed.`;
 
 const body = (envelope: Envelope<SendPayload>): string => {
   const { content } = envelope.payload.message.message;
@@ -144,7 +144,7 @@ test("a turn rule fires when the turn ends, and wakes the session", () => {
   const { message } = sent[0]!.payload;
   // The reply, then the line asking for an acknowledgement through the tool.
   // biome-ignore lint/style/noNonNullAssertion: toHaveLength(1) above guarantees sent[0] exists.
-  expect(body(sent[0]!)).toBe(asked(rule.reply));
+  expect(body(sent[0]!)).toBe(asked(rule));
   // `shouldQuery` is the whole point of the `turn` timing: the session is idle,
   // and a queued append it never reads changes nothing.
   expect(message.shouldQuery).toBe(true);
@@ -153,7 +153,7 @@ test("a turn rule fires when the turn ends, and wakes the session", () => {
   expect(sent[0]!.payload.urgent).toBeFalsy();
 });
 
-test("the session is asked to acknowledge, but never told which rule fired", () => {
+test("the session reads which rule sent it and is asked to acknowledge", () => {
   const rule = addRule({
     name: "Honest caveat",
     reply: "your work is not done yet",
@@ -163,13 +163,13 @@ test("the session is asked to acknowledge, but never told which rule fired", () 
   turn(engine, "One honest caveat: the error path is untested.");
 
   // biome-ignore lint/style/noNonNullAssertion: the default pattern "honest caveat" is in the turn above, so the rule fired and sent[0] exists.
-  const text = body(sent[0]!).toLowerCase();
-  // The tool is named so the session acknowledges; the rule itself is not.
-  for (const tell of [rule.name, rule.id]) {
-    expect(text).not.toContain(tell.toLowerCase());
-  }
+  const text = body(sent[0]!);
+  // The marker names the rule so a stored transcript can render it as one;
+  // the rule's id never leaves the hub.
+  expect(text.startsWith(`[Rule: ${rule.name}]\n\n`)).toBe(true);
+  expect(text).not.toContain(rule.id);
   // biome-ignore lint/style/noNonNullAssertion: the default pattern "honest caveat" is in the turn above, so the rule fired and sent[0] exists.
-  expect(body(sent[0]!)).toBe(asked(rule.reply));
+  expect(body(sent[0]!)).toBe(asked(rule));
 });
 
 test("it says nothing when the session says nothing matching", () => {
@@ -203,7 +203,7 @@ test("it keeps firing, and counts up, until the session acknowledges", () => {
   // Every fire reads identically: a counter in the text would tell the session
   // it is being watched, which is the one thing that must not happen.
   for (const envelope of sent) {
-    expect(body(envelope)).toBe(asked(rule.reply));
+    expect(body(envelope)).toBe(asked(rule));
   }
   // The escalation is real, it just lives where the reader can see it and the
   // session cannot.

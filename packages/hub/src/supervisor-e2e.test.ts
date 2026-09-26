@@ -508,8 +508,10 @@ describe("supervisor e2e", () => {
     expect(payload.message.origin.kind).toBe("system");
     expect(payload.message.origin.name).toBe("supervisor:test-whip");
     expect(payload.message.shouldQuery).toBe(true);
-    // Body is the verdict message verbatim — no header, no prefix (opacity).
-    expect(payload.message.message.content).toBe(replyMessage);
+    // Body is the rule's marker line, then the verdict message verbatim.
+    expect(payload.message.message.content).toBe(
+      `[Rule: test-whip]\n\n${replyMessage}`
+    );
     expect(payload.message.message.role).toBe("user");
     expect(payload.urgent).toBe(false);
 

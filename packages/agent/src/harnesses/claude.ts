@@ -97,6 +97,7 @@ import { claudeConfigDirs } from "../usage/scan-claude";
 import {
   readSessionEnd,
   readSessionFull,
+  readSessionWhole,
   type SDKSessionMessage,
 } from "./claude-transcript";
 
@@ -1128,6 +1129,9 @@ const toEntry = (
     parent_tool_use_id: entry.parent_tool_use_id,
     parent_agent_id: entry.parent_agent_id,
     ...(typeof written === "string" ? { timestamp: written } : {}),
+    ...((entry as { compactSummary?: true }).compactSummary
+      ? { compactSummary: true as const }
+      : {}),
   };
 };
 
@@ -1684,7 +1688,10 @@ async function probeModels(): Promise<ModelInfo[] | undefined> {
   // An alias resolves to a concrete model (`sonnet` → `claude-sonnet-5`, with
   // or without a `[1m]` context suffix), so it carries that model's release.
   const releasedById = new Map(
-    (accountModels ?? []).map((model) => [model.id, model.created_at.slice(0, 10)])
+    (accountModels ?? []).map((model) => [
+      model.id,
+      model.created_at.slice(0, 10),
+    ])
   );
   const dated = (aliases ?? []).map((alias) => {
     const released = releasedById.get(
@@ -2133,11 +2140,15 @@ export class ClaudeHarness implements Harness {
   async getSessionMessages(
     sessionKey: string,
     dir?: string,
-    tailCount?: number
+    tailCount?: number,
+    whole?: boolean
   ): Promise<SessionMessage[]> {
     const file = await claudeSessionFile(sessionKey, dir);
     if (!file) {
       return [];
+    }
+    if (whole) {
+      return (await readSessionWhole(file)).map(toEntry);
     }
     // A tail read scans backward from EOF and parses only the newest window —
     // ~4ms on a 97MB transcript vs ~150ms for the full parse. Callers that

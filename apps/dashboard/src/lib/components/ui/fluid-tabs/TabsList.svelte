@@ -42,12 +42,59 @@
   // side facing the tab it came from, and the old one out toward it.
   let direction = $state<"forward" | "back">("forward");
   let lastIndex: number | null = null;
+  /**
+   * A switch past a neighbour. The two wipes would play at either end of
+   * the row with bare tabs between them, so instead the chosen sheet is
+   * shown whole at once and slides over from the tab it left, on the same
+   * --wipe and curve. Set before the tabs re-render, so the masks skip
+   * their transition in the same frame the choice moves.
+   */
+  let leap = $state<{ from: number; to: number } | null>(null);
   $effect.pre(() => {
     const index = list.optimisticIndex;
     if (index !== null && lastIndex !== null && index !== lastIndex) {
       direction = index > lastIndex ? "forward" : "back";
+      leap =
+        Math.abs(index - lastIndex) > 1 ? { from: lastIndex, to: index } : null;
     }
     lastIndex = index;
+  });
+  $effect(() => {
+    const jump = leap;
+    if (
+      !(jump && node) ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      return;
+    }
+    const tab = (i: number) =>
+      node?.querySelector<HTMLElement>(`[data-proximity-index="${i}"]`);
+    const from = tab(jump.from);
+    const to = tab(jump.to);
+    if (!(from && to)) {
+      return;
+    }
+    const dx =
+      from.getBoundingClientRect().left - to.getBoundingClientRect().left;
+    const slide = to.animate(
+      [{ transform: `translateX(${dx}px)` }, { transform: "none" }],
+      {
+        duration: 260,
+        easing: getComputedStyle(to).getPropertyValue("--ease-drawer"),
+        pseudoElement: "::after",
+      }
+    );
+    slide.finished.then(
+      () => {
+        if (leap === jump) {
+          leap = null;
+        }
+      },
+      () => {
+        /* a newer switch cancelled it and owns `leap` now */
+      }
+    );
+    return () => slide.cancel();
   });
 
   const selectedRect = $derived(
@@ -159,23 +206,88 @@
     // segment sliding into place is the motion here.
     const pad = 8;
     if (rect.left - pad < node.scrollLeft) {
+      stopGlide();
       node.scrollLeft = rect.left - pad;
     } else if (rect.left + rect.width + pad > node.scrollLeft + width) {
+      stopGlide();
       node.scrollLeft = rect.left + rect.width + pad - width;
     }
   });
 
+  /**
+   * A vertical wheel over the track moves it sideways on a spring: each
+   * notch pushes the target along and the track glides after it, carrying
+   * its speed into the next notch, instead of jumping 100px a click.
+   * Critically damped at the app's 0.3s response, so it lands without
+   * overshoot. A sideways trackpad swipe is the browser's own scroll and
+   * is left alone.
+   */
+  const GLIDE = 0.3;
+  const STIFFNESS = ((2 * Math.PI) / GLIDE) ** 2;
+  const DAMPING = (4 * Math.PI) / GLIDE;
+  let stopGlide = () => {
+    /* replaced once the track is mounted */
+  };
+
   function sideways(el: HTMLElement) {
+    let target = 0;
+    let at = 0;
+    let velocity = 0;
+    let frame: number | null = null;
+    let last = 0;
+
+    const stop = () => {
+      if (frame !== null) {
+        cancelAnimationFrame(frame);
+        frame = null;
+      }
+    };
+    stopGlide = stop;
+
+    const step = (now: number) => {
+      const dt = Math.min(0.032, (now - last) / 1000);
+      last = now;
+      velocity += (STIFFNESS * (target - at) - DAMPING * velocity) * dt;
+      at += velocity * dt;
+      if (Math.abs(target - at) < 0.5 && Math.abs(velocity) < 10) {
+        el.scrollLeft = target;
+        frame = null;
+        return;
+      }
+      el.scrollLeft = at;
+      frame = requestAnimationFrame(step);
+    };
+
     const onwheel = (event: WheelEvent) => {
       if (event.deltaX !== 0 || el.scrollWidth <= el.clientWidth) {
+        stop();
         return;
       }
       event.preventDefault();
-      el.scrollLeft += event.deltaY;
+      let delta = event.deltaY;
+      if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+        delta *= 16;
+      } else if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+        delta *= el.clientWidth;
+      }
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        el.scrollLeft += delta;
+        return;
+      }
+      if (frame === null) {
+        at = el.scrollLeft;
+        target = at;
+        velocity = 0;
+        last = performance.now();
+        frame = requestAnimationFrame(step);
+      }
+      const max = el.scrollWidth - el.clientWidth;
+      target = Math.max(0, Math.min(max, target + delta));
     };
     el.addEventListener("wheel", onwheel, { passive: false });
     return {
       destroy() {
+        stop();
         el.removeEventListener("wheel", onwheel);
       },
     };
@@ -193,6 +305,7 @@
 <div
   class={cn("ff-tabs-list", scrollable && "scrollable", className)}
   data-direction={direction}
+  data-leap={leap ? '' : undefined}
   {onfocusin}
   {onfocusout}
   {onkeydown}

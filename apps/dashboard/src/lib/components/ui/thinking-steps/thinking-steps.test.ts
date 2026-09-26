@@ -33,7 +33,7 @@ test("thinking steps controlled state, inheritance, pending and streaming identi
   const result = await Bun.build({
     entrypoints: ["steps-test-entry"],
     target: "browser",
-    conditions: ["browser"],
+    conditions: ["browser", "svelte"],
     plugins: [
       {
         name: "svelte-fixture",
@@ -83,7 +83,10 @@ test("thinking steps controlled state, inheritance, pending and streaming identi
             };
           });
           build.onResolve({ filter: /^\$lib\// }, ({ path }) => ({
-            path: resolve(import.meta.dir, "../../..", path.slice(5)),
+            path: Bun.resolveSync(
+              resolve(import.meta.dir, "../../..", path.slice(5)),
+              import.meta.dir
+            ),
           }));
           build.onLoad({ filter: /\.svelte$/ }, async ({ path }) => ({
             contents: compile(await Bun.file(path).text(), {

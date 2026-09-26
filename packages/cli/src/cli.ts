@@ -411,7 +411,9 @@ const up = async (args: Args): Promise<number> => {
   const { currentBusy, runDaemon, watchDeployment } = await import(
     "@whiffle/agent"
   );
-  runDaemon(auth);
+  // A hub the operator named is never swapped; only a discovered one may be
+  // rediscovered on sustained reconnect failure.
+  runDaemon(auth, hub.source !== "flag" && hub.source !== "env");
   // The git-pull path is DEVELOPER MODE now, and off unless asked for.
   //
   // It used to run unconditionally: a machine with a deployment clone tracked

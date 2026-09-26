@@ -31,7 +31,6 @@
       type === "ui.session_error" ||
       type === "result.error"
   );
-  const isDelegateAsk = $derived(type === "user.delegate_ask");
   /** The operator's own stop, acknowledged — never a failure card. */
   const isInterrupted = $derived(type === "ui.interrupted");
   const title = $derived(
@@ -131,13 +130,6 @@
     <b>{failTitle}</b>
     <span class="handoff">{message?.content}</span>
   </div>
-{:else if isDelegateAsk}
-  <div class="note">
-    <span class="tag"
-      ><IconInfo /> {message?.metadata?.askLabel ?? 'delegate'}</span
-    >
-    <span class="body">{message?.content}</span>
-  </div>
 {:else if foldCommand || foldBody}
   <div class="note fold">
     <Collapsible.Root bind:open>
@@ -202,13 +194,6 @@
     background: var(--rail-head, var(--rail)) left top / 2px 100% no-repeat;
     font-size: var(--text-label);
     color: var(--ink-muted);
-  }
-  .note .tag {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    color: var(--accent-text);
-    margin-right: var(--space-2);
   }
   .note :global(svg) {
     width: 12px;

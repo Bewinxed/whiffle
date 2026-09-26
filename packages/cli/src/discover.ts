@@ -48,7 +48,8 @@ export interface DiscoverOptions {
  *
  * The mDNS browse, the tailscale walk, and the probe itself live in
  * `@whiffle/agent`'s `discovery` module — they are shared with the daemon's
- * own re-discovery on a sustained reconnect failure. This file keeps only the
+ * own re-discovery on a sustained reconnect failure (for a hub found by a
+ * discovery rung, never one named by `--hub` or env). This file keeps only the
  * rungs that are specific to a `whiffle up`: being told outright, the CLI's
  * cached config, and localhost.
  */

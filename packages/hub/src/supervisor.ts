@@ -11,6 +11,7 @@ import {
   RULE_FIRE_CEILING,
   RULE_SCAN_LIMIT,
   ruleInScope,
+  ruleMarker,
   ruleMatches,
 } from "@whiffle/core";
 import type { DbShape } from "./db";
@@ -163,6 +164,19 @@ const composeOriginName = (
     return `supervisor:${matched[0].name}`;
   }
   return "supervisor:rules";
+};
+
+/**
+ * The name a supervisor reply's `[Rule: …]` marker line carries, read off its
+ * origin name: the matched rule's own name, or "Autopilot" / "Supervisor" when
+ * the reply speaks for the autopilot or for several rules at once.
+ */
+const markerName = (originName: string): string => {
+  const tail = originName.slice("supervisor:".length);
+  if (tail === "autopilot") {
+    return "Autopilot";
+  }
+  return tail === "rules" ? "Supervisor" : tail;
 };
 
 /**
@@ -594,7 +608,10 @@ export class SupervisorEngine {
             instanceId,
             message: {
               type: "user",
-              message: { role: "user", content: verdict.message },
+              message: {
+                role: "user",
+                content: `${ruleMarker(markerName(originName))}${verdict.message}`,
+              },
               parent_tool_use_id: null,
               origin: { kind: "system", name: originName },
               shouldQuery: true,
@@ -780,7 +797,10 @@ export class SupervisorEngine {
             instanceId,
             message: {
               type: "user",
-              message: { role: "user", content: verdict.message },
+              message: {
+                role: "user",
+                content: `${ruleMarker(rule.name)}${verdict.message}`,
+              },
               parent_tool_use_id: null,
               origin: { kind: "system", name: `supervisor:${rule.name}` },
               shouldQuery: true,

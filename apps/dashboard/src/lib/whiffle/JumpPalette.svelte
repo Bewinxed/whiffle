@@ -354,7 +354,7 @@
     flex-direction: column;
     overflow: hidden;
     border: 1px solid var(--border-hairline);
-    border-radius: calc(var(--radius-modal) - var(--jump-inset));
+    border-radius: calc(var(--radius-lg) - var(--jump-inset));
     background: var(--surface-recess);
   }
   :global(.jump-list) {

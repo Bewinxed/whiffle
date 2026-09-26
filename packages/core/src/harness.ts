@@ -99,6 +99,13 @@ export interface McpServerStatus {
 
 /** One model a harness offers. `value` is the wire id; `resolvedModel` the alias. */
 export interface ModelInfo {
+  /**
+   * The model's context window in tokens, exactly as the harness reports it
+   * (opencode's provider `limit.context`, pi's `Model.contextWindow`, and for
+   * claude the `modelUsage` window the hub last observed). Absent means
+   * unknown — never a guess.
+   */
+  contextWindow?: number;
   description?: string;
   displayName: string;
   /** ISO date the model was released, when the catalog source says. */
@@ -262,6 +269,15 @@ export type SDKSessionInfo = NeutralSessionInfo;
 
 /** A stored transcript entry. `message` is the {@link NeutralMessage} the turn wrote. */
 export interface SessionMessage {
+  /**
+   * This entry is a compaction summary: the text the harness condensed the
+   * conversation before it into. Everything from the last such entry on is
+   * what the session's model holds in context now. Claude: the record after a
+   * `compact_boundary` (`isCompactSummary`); opencode: the assistant message
+   * with `summary: true`; pi: a `compaction` entry's `summary`, placed where
+   * its first kept entry begins.
+   */
+  compactSummary?: true;
   message: unknown;
   parent_agent_id: string | null;
   parent_tool_use_id: string | null;
@@ -688,3 +704,24 @@ export const CONTROL_SEARCH_TRANSCRIPTS = "searchTranscripts";
 
 /** A session's plan, answered by whichever harness owns it (`NeutralTask[]`). */
 export const CONTROL_GET_TODOS = "getTodos";
+
+/**
+ * The models a harness can run on this machine, each with the context window
+ * the harness itself reports for it (`ModelInfo[]`). Machine-scoped: answered
+ * without a running session, for the hub to check a model's window before it
+ * starts one. Harnesses whose models carry no reported window (claude) do not
+ * answer it.
+ */
+export const CONTROL_MODEL_CATALOG = "modelCatalog";
+
+/**
+ * What git says changed in a directory, for a continuation's artifact index:
+ * `git status --porcelain` and `git log --since=<iso> --name-status` — those
+ * two commands, nothing else (`GitChanges`). Machine-scoped.
+ */
+export const CONTROL_GIT_CHANGES = "gitChanges";
+
+/** A directory's git state as {@link CONTROL_GIT_CHANGES} answers it. */
+export type GitChanges =
+  | { repo: false }
+  | { repo: true; status: string; log: string };

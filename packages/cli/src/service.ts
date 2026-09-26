@@ -1761,7 +1761,15 @@ export const deployInit = async ({
   await chmod(join(root, DEPLOY_MARKER), 0o600);
   note(`wrote ${join(root, DEPLOY_MARKER)}`);
 
-  await step(runner, "bun install", [process.execPath, "install"], root, note);
+  // Frozen: the deployment clone must never be modified by its own install,
+  // or the updater later refuses to pull a dirty checkout.
+  await step(
+    runner,
+    "bun install",
+    [process.execPath, "install", "--frozen-lockfile"],
+    root,
+    note
+  );
   if (ids.includes("dashboard")) {
     await step(
       runner,

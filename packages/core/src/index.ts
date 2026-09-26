@@ -1,9 +1,11 @@
 import type { FleetSyncReport } from "./fleet";
 import type { ToolStatus } from "./tools";
 
+// "Continue in new session": the size rules the hub and the dashboard share.
+// biome-ignore lint/performance/noBarrelFile: this is the package's public API surface — packages/core's consumers (hub, cli, dashboard) import from "@whiffle/core" as one module, not per-file.
+export * from "./continuation";
 // Delegate types: named presets the `delegate` tool's `type` param resolves,
 // so routing is by description instead of a raw model string.
-// biome-ignore lint/performance/noBarrelFile: this is the package's public API surface — packages/core's consumers (hub, cli, dashboard) import from "@whiffle/core" as one module, not per-file.
 export * from "./delegate-types";
 // Fleet MCP + skills desired state, sync reports, and the `/` menu (NEW.md §11).
 export * from "./fleet";
@@ -19,6 +21,7 @@ export * from "./harness";
 // shared so the hub and the form refuse the same drafts for the same reasons —
 // this is the one row whose convergence executes code, so it is gated twice.
 export * from "./hooks";
+export * from "./injected";
 // How an `AskUserQuestion` answer is shaped, wherever it is answered from —
 // the dashboard, a parent session's `answer_delegate`, the Telegram bridge.
 // Shared because the tool's schema is unforgiving: the answers go back inside
@@ -493,6 +496,12 @@ export type InstanceStatus =
 /**
  * A session the hub knows about — one row of its `instances` table.
  */
+/** What a session's `init` says about its MCP servers and tools. */
+export interface SessionTooling {
+  servers: { name: string; status: string }[];
+  tools: string[];
+}
+
 export interface InstanceRow {
   /**
    * The supervisor's standing autopilot for this session, set from the
@@ -551,6 +560,12 @@ export interface InstanceRow {
    * delegate's brief headline. Null on a session that was started without one.
    */
   title?: string | null;
+  /**
+   * The MCP servers and tool names the session's newest `init` announced,
+   * stored by the hub as each one passes. Null for a harness whose `init`
+   * carries neither (OpenCode, pi) and for a session that has not started.
+   */
+  tooling?: SessionTooling | null;
   /** When the row last moved. */
   updatedAt?: string | number | Date | null;
   workflowRunId?: string | null;

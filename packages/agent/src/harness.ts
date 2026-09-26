@@ -122,11 +122,19 @@ export interface Harness {
     sessionKey: string,
     dir?: string
   ): Promise<NeutralSessionInfo | undefined>;
+  /**
+   * The session's messages, oldest first. By default what the harness shows
+   * as the conversation (claude: its active chain, which begins at the last
+   * compaction); `whole` asks for every message the session ever stored,
+   * across compactions and abandoned branches — for readers that index the
+   * whole history rather than show it. `tail` keeps only the newest.
+   */
   // biome-ignore lint/style/useConsistentMethodSignatures: method-style kept so implementers (opencode.ts, pi.ts) keep contravariant parameter checking; property-style would change signature variance
   getSessionMessages(
     sessionKey: string,
     dir?: string,
-    tail?: number
+    tail?: number,
+    whole?: boolean
   ): Promise<SessionMessage[]>;
   readonly kind: HarnessKind;
   /** The stored sessions this harness can resume. */

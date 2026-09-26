@@ -508,9 +508,6 @@
 
   const commands = $derived(whiffle.commandsOf(viewId));
 
-  /** How much of the last reply the suggestions read for context. */
-  const RECENT_LIMIT = 1500;
-
   /**
    * What the composer may suggest: the session's skills, its connected MCP
    * servers described by their tool names, and its tools. Whiffle's own
@@ -547,20 +544,17 @@
           ),
         };
       });
-    // Every tool by name alone; the hub drops the ones never worth pointing at.
-    const tools: SuggestCandidate[] = tooling.tools.map((tool) => ({
-      id: `tool:${tool}`,
-      kind: "tool",
-      name: tool,
-      description: "",
-    }));
-    const said = session?.messages.findLast(
-      (message) => message.type === "assistant"
-    );
-    return {
-      candidates: [...skills, ...servers, ...tools],
-      recent: (said?.content ?? "").slice(-RECENT_LIMIT),
-    };
+    // Every non-MCP tool by name alone; an MCP server's tools ride on its chip.
+    // The hub drops the ones never worth pointing at.
+    const tools: SuggestCandidate[] = tooling.tools
+      .filter((tool) => !tool.startsWith("mcp__"))
+      .map((tool) => ({
+        id: `tool:${tool}`,
+        kind: "tool",
+        name: tool,
+        description: "",
+      }));
+    return { candidates: [...skills, ...servers, ...tools] };
   });
 
   /**

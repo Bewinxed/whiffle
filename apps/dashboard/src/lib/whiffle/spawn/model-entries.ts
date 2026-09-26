@@ -3,6 +3,8 @@ import type { ModelUse } from "./modelUse.svelte";
 
 export interface ModelEntry {
   aliases: string[];
+  /** Tokens of context the harness reports for this model; absent is unknown. */
+  contextWindow?: number;
   effort: EffortLevel[];
   id: string;
   isCustom: boolean;
@@ -20,7 +22,8 @@ const VERSION = /^v?\d+(?:\.\d+)*$/;
 const VERSION_PREFIX = /^v/;
 const ID_SHAPE = /^[\w.\-/[\]:]+$/;
 
-function modelName(id: string, displayName?: string) {
+/** A model's display name as the picker lists it, e.g. "Opus 5.5 · 1M". */
+export function modelName(id: string, displayName?: string) {
   const slash = id.lastIndexOf("/");
   const provider = slash < 0 ? null : id.slice(0, slash);
   const raw = id.slice(slash + 1);
@@ -86,6 +89,7 @@ export function deriveModelEntries(
       released: dates.at(-1),
       lastUsedAt: use.lastUsedAt[id],
       isDefault: group.some((row) => row.value === "default"),
+      contextWindow: group.find((row) => row.contextWindow)?.contextWindow,
       isCustom: false,
       effort: [
         ...new Set(group.flatMap((row) => row.supportedEffortLevels ?? [])),

@@ -245,9 +245,9 @@ test("the beat carries a state change, and republishes the board when it does", 
         .find(
           (message) =>
             (message.payload as { kind?: string } | undefined)?.kind ===
-            "instances"
+            "instances_delta"
         ),
-    "the instances frame the deploy change publishes"
+    "the instances_delta frame the deploy change publishes"
   );
   const { agents } = frame.payload as { agents: AgentRow[] };
   expect(agents.find((row) => row.machineId === MACHINE)?.deploy?.kind).toBe(

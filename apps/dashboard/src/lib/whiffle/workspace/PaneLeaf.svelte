@@ -190,6 +190,7 @@
   <div
     class="stack"
     bind:this={stack}
+    class:swipe={swipeable}
     use:swipe.action={swipeable}
     use:paneDropTarget={leaf.id}
   >
@@ -306,17 +307,22 @@
   }
   /* Parked by delta, flush, so the seam between two panes never shows. The
      swipe writes its travel inline over these and clears it after; only a
-     pane that can be seen is promised to the compositor. */
-  .pane:not(.pane-hidden) {
+     pane that can be seen is promised to the compositor.
+     Swipe groups only. A desktop pane is never parked or promoted: a
+     transcript held on its own GPU layer cannot snap its text to the pixel
+     grid, and wherever the rail's width leaves the pane on a fractional x
+     the whole transcript reads soft and hazy. The switch glide promotes the
+     pane only for its 260ms. */
+  .swipe > .pane:not(.pane-hidden) {
     will-change: transform;
   }
-  .pane[data-delta="-1"] {
+  .swipe > .pane[data-delta="-1"] {
     transform: translate3d(-100%, 0, 0);
   }
-  .pane[data-delta="0"] {
+  .swipe > .pane[data-delta="0"] {
     transform: translate3d(0, 0, 0);
   }
-  .pane[data-delta="1"] {
+  .swipe > .pane[data-delta="1"] {
     transform: translate3d(100%, 0, 0);
   }
 

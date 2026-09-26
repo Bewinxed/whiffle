@@ -61,7 +61,7 @@ export async function saveSuggestSetting(enabled: boolean): Promise<void> {
 
 /** One ask. Resolves to the ranked ids, or throws the hub's error text. */
 export async function askSuggestions(
-  body: { text: string; recent: string; candidates: SuggestCandidate[] },
+  body: { text: string; candidates: SuggestCandidate[] },
   signal: AbortSignal
 ): Promise<{ id: string; noul: number }[]> {
   const response = await fetch("/api/suggest", {
@@ -81,8 +81,12 @@ export async function askSuggestions(
 
 /** How long the composer waits after the last keystroke before asking. */
 export const SUGGEST_PAUSE_MS = 1500;
-/** The most of a candidate's description Jev is sent. */
-export const SUGGEST_DESC_CHARS = 150;
+/**
+ * The most of a candidate's description Jev is sent. At 150 a description lost
+ * the noun saying what it is for (impeccable's "…improve a frontend
+ * interface"), and Jev matched on its verb list instead.
+ */
+export const SUGGEST_DESC_CHARS = 300;
 
 /** Cut to {@link SUGGEST_DESC_CHARS} at a word boundary, with an ellipsis. */
 export function clip(text: string): string {

@@ -1,3 +1,4 @@
+import type { HarnessKind } from "@whiffle/core";
 import type { Component } from "svelte";
 
 /** One row of the `@` / `/` trigger menu (PORT-SPEC §2.3). */
@@ -30,4 +31,14 @@ export interface ProjectItem {
   machineId: string;
   name: string;
   path: string;
+}
+
+/** A chip the prompt editor opens with, sent as nothing (continue mode's source session). */
+export interface LeadChip {
+  /** Drawn as the chip's icon. */
+  harness: HarnessKind;
+  key: string;
+  label: string;
+  /** The full name, shown on hover. */
+  title: string;
 }

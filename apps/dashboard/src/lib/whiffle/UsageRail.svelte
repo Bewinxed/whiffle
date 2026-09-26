@@ -2,16 +2,14 @@
   import { band } from "./usage";
 
   /**
-   * The tick rail: the one renderer for a limit fill. A segmented strip of
-   * pipes, each tick lit by the band of the position it occupies — green down
-   * the quiet end of the rail, amber through the warning band, red where the
-   * limit bites. Lit ticks are instant state changes; nothing sweeps.
-   *
-   * Colour rides the locked status tokens (success / warning / destructive),
-   * never a local hue. Unlit ticks sit on the muted surface.
+   * The one renderer for a limit fill: a thin continuous track and a single
+   * fill. The fill stays neutral while there is room and only takes a status
+   * colour once the window is actually tight — amber from 70%, red from 90% —
+   * so colour on this bar always means "look at me", never decoration.
+   * Colour rides the status tokens (warning / destructive), never a local hue.
    */
   interface Props {
-    /** Narrow chrome gets fewer, shorter ticks. */
+    /** Narrow chrome gets the thinner track. */
     compact?: boolean;
     /** Named for the reader: "5-hour", "Weekly · Fable", "Spend". */
     label: string;
@@ -21,33 +19,52 @@
 
   let { value, label, compact = false }: Props = $props();
 
-  const TICKS = $derived(compact ? 28 : 48);
-  const ticks = $derived.by(() =>
-    Array.from({ length: TICKS }, (_, i) => ((i + 0.5) / TICKS) * 100)
-  );
-
-  const litClass = (pos: number): string => {
-    if (band(pos) === "critical") {
-      return "bg-destructive";
-    }
-    if (band(pos) === "warn") {
-      return "bg-warning";
-    }
-    return "bg-success";
-  };
+  const pct = $derived(Math.max(0, Math.min(100, value)));
+  const tone = $derived(band(pct));
 </script>
 
 <span
   aria-label="{label} limit"
   aria-valuemax={100}
   aria-valuemin={0}
-  aria-valuenow={Math.round(value)}
-  class="{compact ? 'h-2' : 'h-2.5'} flex min-w-0 flex-1 items-stretch gap-px"
+  aria-valuenow={Math.round(pct)}
+  class={compact ? "track compact" : "track"}
   role="progressbar"
 >
-  {#each ticks as pos}
-    <i
-      class="min-w-0 flex-1 rounded-[1px] {value >= pos ? litClass(pos) : 'bg-muted'}"
-    ></i>
-  {/each}
+  <span class="fill {tone}" style:transform="scaleX({pct / 100})"></span>
 </span>
+
+<style>
+  .track {
+    position: relative;
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 6px;
+    border-radius: var(--radius-pill);
+    background: var(--surface-hover);
+    overflow: hidden;
+  }
+  .track.compact {
+    height: 4px;
+  }
+  .fill {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--ink-muted);
+    transform-origin: left;
+
+    @media (prefers-reduced-motion: no-preference) {
+      transition:
+        transform var(--dur-pop) var(--ease-drawer),
+        background-color var(--dur-exit) linear;
+    }
+  }
+  .fill.warn {
+    background: var(--warning);
+  }
+  .fill.critical {
+    background: var(--destructive);
+  }
+</style>

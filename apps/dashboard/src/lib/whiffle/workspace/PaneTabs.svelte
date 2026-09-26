@@ -15,9 +15,7 @@
    * brings its own row.
    */
   import { onDestroy, untrack } from "svelte";
-  import { cubicOut } from "svelte/easing";
   import { MediaQuery } from "svelte/reactivity";
-  import type { TransitionConfig } from "svelte/transition";
   import { page } from "$app/state";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte convention for component groups
   import * as ContextMenu from "$lib/components/ui/context-menu";
@@ -29,7 +27,7 @@
     TabsList,
     type TabsTravel,
   } from "$lib/components/ui/fluid-tabs";
-  import { IconChevronDown, IconClose } from "$lib/icons";
+  import { IconArrowRight, IconChevronDown, IconClose } from "$lib/icons";
   import {
     ACTIVITY_LABEL,
     type Activity,
@@ -37,6 +35,7 @@
     UNKNOWN_LABEL,
   } from "../activity";
   import { isFailed, isStale, whiffle } from "../client.svelte";
+  import { continueInNewSession, continueSourceOf } from "../continue.svelte";
   import { copyToClipboard } from "../copy";
   import { conversationHref } from "../links";
   import { sessionName } from "../session-name";
@@ -139,9 +138,13 @@
   let pinned = $state(false);
   /** Set once the open popover retargets another tab; it glides instead of reopening. */
   let morphing = $state(false);
+  /** Which way the card moved between tabs: 1 rightward, -1 leftward. */
+  let detailDir = $state<1 | -1>(1);
   let detailsHeight = $state(0);
   let restoreFocus = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  /** A tab's context menu is open; hovering must not open the card under it. */
+  let menuOpen = false;
   const detailTab = $derived(tabs.find((tab) => tab.id === detailId));
   function closeDetails() {
     clearTimeout(timer);
@@ -154,6 +157,11 @@
     clearTimeout(timer);
     if (detailsOpen && detailId !== id) {
       morphing = true;
+      detailDir =
+        tabs.findIndex((tab) => tab.id === id) >
+        tabs.findIndex((tab) => tab.id === detailId)
+          ? 1
+          : -1;
     }
     detailId = id;
     detailAnchor = anchor;
@@ -161,7 +169,7 @@
     detailsOpen = true;
   }
   function hoverTab(id: string, event: PointerEvent) {
-    if (touch.current || event.pointerType !== "mouse" || pinned) {
+    if (touch.current || event.pointerType !== "mouse" || pinned || menuOpen) {
       return;
     }
     clearTimeout(timer);
@@ -171,6 +179,15 @@
       return;
     }
     timer = setTimeout(() => showDetails(id, anchor, false), 350);
+  }
+  function menuOpenChange(open: boolean) {
+    menuOpen = open;
+    if (open) {
+      clearTimeout(timer);
+      if (detailsOpen && !pinned) {
+        closeDetails();
+      }
+    }
   }
   function leaveDetails() {
     clearTimeout(timer);
@@ -207,19 +224,6 @@
     }
   });
   onDestroy(() => clearTimeout(timer));
-  /** The incoming tab's details fade in over the glide; a first open has its own entrance. */
-  function detailsIn(_node: Element): TransitionConfig {
-    if (!morphing || reduceMotion.current) {
-      return { duration: 0 };
-    }
-    return {
-      duration: 180,
-      delay: 60,
-      easing: cubicOut,
-      css: (t) => `opacity: ${t}`,
-    };
-  }
-  const reduceMotion = new MediaQuery("(prefers-reduced-motion: reduce)");
 </script>
 
 <!-- `''` when the board is showing: a value no segment carries, so nothing
@@ -236,7 +240,7 @@
 >
   <TabsList aria-label="Open sessions in this group" scrollable>
     {#each tabs as tab, i (tab.id)}
-      <ContextMenu.Root>
+      <ContextMenu.Root onOpenChange={menuOpenChange}>
         <ContextMenu.Trigger class="contents">
           <!-- The caret marks where a drop would land, drawn on the side the
                pointer is nearest. Graphite, like every structural mark here:
@@ -308,6 +312,12 @@
           }}
             >Session details</ContextMenu.Item
           >
+          <ContextMenu.Item
+            onSelect={() => continueInNewSession(continueSourceOf(tab.id, tab.label))}
+          >
+            <IconArrowRight />
+            Continue in new session…
+          </ContextMenu.Item>
           <!-- Every gesture has a command that does the same thing. Splitting
                and moving are reachable from here before drag-and-drop exists,
                and stay reachable for anyone not using a pointer. -->
@@ -375,14 +385,13 @@
       >
       <div class="details-scroll">
         {#if detailTab}
-          {#key detailTab.id}
-            <SessionDetails
-              href={detailTab.href}
-              onclose={closeDetails}
-              sessionId={detailTab.id}
-              title={detailTab.label}
-            />
-          {/key}
+          <SessionDetails
+            dir={detailDir}
+            href={detailTab.href}
+            onclose={closeDetails}
+            sessionId={detailTab.id}
+            title={detailTab.label}
+          />
         {/if}
       </div>
     </Drawer.Content>
@@ -421,16 +430,13 @@
         >
           <div class="details-measure" bind:offsetHeight={detailsHeight}>
             {#if detailTab}
-              {#key detailTab.id}
-                <div class="details-measure" in:detailsIn>
-                  <SessionDetails
-                    href={detailTab.href}
-                    onclose={closeDetails}
-                    sessionId={detailTab.id}
-                    title={detailTab.label}
-                  />
-                </div>
-              {/key}
+              <SessionDetails
+                dir={detailDir}
+                href={detailTab.href}
+                onclose={closeDetails}
+                sessionId={detailTab.id}
+                title={detailTab.label}
+              />
             {/if}
           </div>
         </div>

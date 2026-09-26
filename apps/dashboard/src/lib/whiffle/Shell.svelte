@@ -16,7 +16,6 @@
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte convention for component groups
   import * as Sheet from "$lib/components/ui/sheet";
   import { setSidebar } from "$lib/components/ui/sidebar/context.svelte";
-  import ThemeSwitcher from "$lib/components/ui/ThemeSwitcher.svelte";
   import { IsMobile, IsTouchPortrait } from "$lib/hooks/is-mobile.svelte";
   import { IconSearch, IconShield, IconSidebar } from "$lib/icons";
   import { isTyping } from "$lib/utils/typing";
@@ -61,7 +60,6 @@
   let jumpOpen = $state(false);
   let railOpen = $state(false);
   let assistantOpen = $state(false);
-  let orbEl: HTMLButtonElement | null = $state(null);
 
   /**
    * The rail's width is settled before the first paint, in two places at once.
@@ -223,6 +221,11 @@
       jumpOpen = !jumpOpen;
       return;
     }
+    if (key === "j") {
+      event.preventDefault();
+      assistantOpen = !assistantOpen;
+      return;
+    }
     // Split the focused group, putting the conversation in front into the new
     // half. `mod+\` is the binding VS Code uses for exactly this, and this is
     // a straight copy of that model — borrowing the gesture's name too costs
@@ -241,7 +244,6 @@
     }
   }
 
-  const limits = $derived(whiffle.usageLimitsAny());
   const onSession = $derived(page.url.pathname.startsWith("/session"));
 
   /* ── The tabs, in the bar ──────────────────────────────────────────
@@ -363,7 +365,15 @@
      snap away from on hydration. -->
 <div class="shell" style="--sidebar-width: var(--rail-w, {railWidth}px)">
   <aside class="rail hidden min-[900px]:flex">
-    <Sidebar />
+    <Sidebar
+      {assistantOpen}
+      onassistant={() => {
+        assistantOpen = !assistantOpen;
+      }}
+      onjump={() => {
+        jumpOpen = true;
+      }}
+    />
     <div
       aria-label="Resize sidebar"
       aria-orientation="vertical"
@@ -383,7 +393,17 @@
       <Sheet.Header class="sr-only">
         <Sheet.Title>Navigation</Sheet.Title>
       </Sheet.Header>
-      <Sidebar />
+      <Sidebar
+        {assistantOpen}
+        onassistant={() => {
+          railOpen = false;
+          assistantOpen = true;
+        }}
+        onjump={() => {
+          railOpen = false;
+          jumpOpen = true;
+        }}
+      />
     </Sheet.Content>
   </Sheet.Root>
 
@@ -409,34 +429,10 @@
       {/if}
 
       <div class="right">
-        <!-- Desktop spend and fleet status. -->
-        {#if limits && whiffle.status === 'connected'}
-          <span
-            class="desk-budget hidden min-[900px]:flex"
-            title="Today's spend vs. limit"
-          >
-            <span class="desk-budget-text">
-              Today ${(limits.spendUsed ?? 0).toFixed(2)}
-              {#if limits.spendLimit !== null}
-                <span class="desk-budget-cap"
-                  >/ ${limits.spendLimit.toFixed(0)}</span
-                >
-              {/if}
-            </span>
-          </span>
-        {/if}
-
-        {#if whiffle.status === 'connected' && whiffle.machines.length > 0}
-          <span class="desk-machines hidden min-[900px]:inline">
-            {whiffle.onlineMachines.length}
-            machine{whiffle.onlineMachines.length === 1 ? '' : 's'}
-          </span>
-        {/if}
-
         <!-- Jump is a single entry: the one command surface the top bar opens.
              The old phone thumb bar duplicated it; that bar is gone. -->
         <Button
-          class="jump"
+          class="jump min-[900px]:hidden"
           onclick={() => {
             jumpOpen = true;
           }}
@@ -457,17 +453,19 @@
             <span class="badge">{whiffle.blockedCount}</span>
           </a>
         {/if}
-        <AssistantOrb
-          onclick={() => {
-            assistantOpen = !assistantOpen;
-          }}
-          open={assistantOpen}
-          bind:ref={orbEl}
-        />
+        <!-- The phone's summon; on a desktop the rail carries it as a row. -->
+        <span class="min-[900px]:hidden">
+          <AssistantOrb
+            onclick={() => {
+              assistantOpen = !assistantOpen;
+            }}
+            open={assistantOpen}
+          />
+        </span>
         <!-- No always-on hub dot: a green light that is green 99% of the time
              says nothing. Connection health folds into the banner below, which
-             is shown only when the hub is NOT connected. -->
-        <ThemeSwitcher />
+             is shown only when the hub is NOT connected. The theme toggle
+             lives in the rail's footer with the account row. -->
       </div>
     </header>
 
@@ -503,7 +501,7 @@
 <!-- One dialog for every destructive confirm in the app (see confirm.svelte.ts). -->
 <ConfirmDialog />
 
-<AssistantPanel {orbEl} bind:open={assistantOpen} />
+<AssistantPanel bind:open={assistantOpen} />
 
 <style>
   .skip {
@@ -566,12 +564,21 @@
   }
 
   .top {
-    height: 57px; /* the mock's fixed top-bar height; a magic layout value */
+    /* The tabs' own height plus a breath above them: 32px folder tabs on
+       a 4px track pad, 8px of air. Touch keeps the taller bar so every
+       control in it can take the 44px thumb floor. */
+    height: 44px;
+
+    @media (pointer: coarse) {
+      height: 57px;
+    }
     flex-shrink: 0;
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    padding: 0 var(--space-6) 0 var(--space-7);
+    /* The right inset equals the 8px above and below a 28px control in
+       the 44px bar, so the cluster sits in an even frame. */
+    padding: 0 calc((44px - 28px) / 2) 0 var(--space-7);
     background: var(--surface-raised);
     border-bottom: 1px solid var(--border-hairline);
     view-transition-name: topbar;
@@ -629,8 +636,26 @@
     flex: 0 0 auto;
     padding-left: var(--space-3);
   }
+  /* One family: every control in the cluster is the same 28px box — the
+     hairline, the raised surface, the control radius, the same type — so
+     spend, Jump, the assistant and the theme toggle read as one row. */
+  .right > :global(:is(.jump, [data-slot="button"])) {
+    height: 28px;
+    min-width: 28px;
+    border: 1px solid var(--border-hairline);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-label);
+  }
+  .right > :global(:is(.jump, [data-slot="button"])) {
+    background: var(--surface-raised);
+    box-shadow: none;
+  }
+  .right > :global([data-slot="button"]:not(.jump)) {
+    width: 28px;
+  }
   .right :global(.jump) {
     gap: var(--space-2);
+    padding: 0 var(--space-3);
   }
   .right :global(.jump svg) {
     width: 15px;
@@ -640,8 +665,8 @@
 
   .icobtn {
     position: relative;
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     display: grid;
     place-items: center;
     border: 1px solid var(--border-hairline);
@@ -705,22 +730,6 @@
     font-weight: var(--weight-strong);
     display: grid;
     place-items: center;
-  }
-
-  .desk-budget {
-    align-items: center;
-    gap: var(--space-2);
-    font-size: var(--text-meta);
-    font-variant-numeric: tabular-nums;
-    color: var(--ink-muted);
-  }
-  .desk-budget-cap {
-    color: var(--ink-faint);
-  }
-  .desk-machines {
-    font-size: var(--text-meta);
-    font-variant-numeric: tabular-nums;
-    color: var(--ink-muted);
   }
 
   .banner {

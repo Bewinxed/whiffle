@@ -445,6 +445,52 @@ export function handoffTools(deps: HandoffDeps) {
       }
     ),
     tool(
+      "continue_session",
+      "Summarise a session with a model you choose, then start a new session on another model or " +
+        "harness, seeded with that summary. The source session is untouched: it is only read. " +
+        "Omit `session` to continue this session itself. Takes a few minutes on a long session.",
+      {
+        session: z
+          .string()
+          .optional()
+          .describe(
+            "The session to continue: its id, short id, or directory name. Defaults to this session."
+          ),
+        summarizer_harness: z
+          .enum(["claude", "opencode", "pi"])
+          .describe("The harness that writes the summary."),
+        summarizer_model: z
+          .string()
+          .min(1)
+          .describe(
+            "The model that writes the summary, e.g. opencode-go/deepseek-v4-flash."
+          ),
+        target_harness: z
+          .enum(["claude", "opencode", "pi"])
+          .describe("The harness the new session runs on."),
+        target_model: z
+          .string()
+          .min(1)
+          .describe("The model the new session runs on."),
+        note: z
+          .string()
+          .optional()
+          .describe(
+            "What to focus the summary on. Also added to the new session's opening message as its next step."
+          ),
+      },
+      async (input) => {
+        const result = await actions.continueSession(input);
+        return {
+          content: [{ type: "text" as const, text: result.text }],
+          structuredContent: {
+            targetInstanceId: result.targetInstanceId,
+            summariserInstanceId: result.summariserInstanceId,
+          },
+        };
+      }
+    ),
+    tool(
       "stop_delegate",
       "Stop one of YOUR delegates (a session you spawned with delegate). Only your own delegates " +
         "can be stopped. The transcript survives.",
