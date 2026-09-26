@@ -17,7 +17,12 @@
   import * as Sheet from "$lib/components/ui/sheet";
   import { setSidebar } from "$lib/components/ui/sidebar/context.svelte";
   import { IsMobile, IsTouchPortrait } from "$lib/hooks/is-mobile.svelte";
-  import { IconSearch, IconShield, IconSidebar } from "$lib/icons";
+  import {
+    IconChevronLeft,
+    IconSearch,
+    IconShield,
+    IconSidebar,
+  } from "$lib/icons";
   import { isTyping } from "$lib/utils/typing";
   import AssistantOrb from "./assistant/AssistantOrb.svelte";
   import AssistantPanel from "./assistant/AssistantPanel.svelte";
@@ -279,6 +284,8 @@
         return "Fleet";
       case "project":
         return "Project";
+      case "config":
+        return "Configure";
       default:
         return section[0].toUpperCase() + section.slice(1);
     }
@@ -424,6 +431,10 @@
            who arrived by URL. -->
       {#if hostedLeaf}
         <PaneTabs hosted leaf={hostedLeaf} />
+      {:else if narrow && page.url.pathname.startsWith('/config/')}
+        <!-- Inside a section on a phone the rail is its own page, so the bar
+             leads back to it. -->
+        <a class="crumb back" href="/config"><IconChevronLeft />Configure</a>
       {:else}
         <TextMorph as="span" class="crumb" duration={150} text={crumb} />
       {/if}
@@ -601,6 +612,21 @@
       linear-gradient(var(--border-hairline), var(--border-hairline)) bottom /
       100% 1px no-repeat,
       var(--surface-recess);
+  }
+  .back {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    min-height: 44px;
+    padding-inline: 4px 8px;
+    border-radius: var(--radius-sm);
+    font: var(--type-label);
+    color: var(--ink-strong);
+    text-decoration: none;
+  }
+  .back :global(svg) {
+    width: 16px;
+    height: 16px;
   }
   .burger {
     width: 44px;

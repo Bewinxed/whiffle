@@ -6,7 +6,7 @@
    * clone is caught up, waiting, or refusing outright. Every fact here was
    * already sitting in the frame the hub sends on every move — nothing this
    * card renders is fetched, and nothing it renders resolves anything: the
-   * adopt/overwrite affordance for a failed sync stays a click on `/tools`.
+   * adopt/overwrite affordance for a failed sync stays a click on Configure.
    */
   import type { BuildInfo } from "@whiffle/core";
   import { Badge } from "$lib/components/ui/badge";
@@ -23,7 +23,7 @@
     fleetSyncAgeMs,
     isDeployDiverged,
   } from "./convergence";
-  import { CAUSE, machineFaults } from "./fleet-faults";
+  import { CAUSE, faultHref, machineFaults } from "./fleet-faults";
   import { machineLabel } from "./machine";
   import OsMark from "./OsMark.svelte";
 
@@ -148,10 +148,9 @@
       <Tooltip.Root>
         <Tooltip.Trigger>
           {#snippet child({ props })}
-            <!-- Lands on the "Needs attention" panel, not on the panel that
-                 lists the row: what the reader needs first is what broke and
-                 why, and that is where both live. -->
-            <a {...props} class={warnPill} href="/tools#fleet-trouble">
+            <!-- Lands on the section that owns the first failure, where the
+                 row carries its fault and its remedy. -->
+            <a {...props} class={warnPill} href={faultHref(first)}>
               <IconWarningTriangle class="size-3" />
               Fleet sync failed{failures.length > 1 ? ` (${failures.length})` : ''}
             </a>

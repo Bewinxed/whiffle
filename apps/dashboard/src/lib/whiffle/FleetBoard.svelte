@@ -426,9 +426,8 @@
     return pct >= 70 ? "warn" : "";
   };
 
-  // The machine-convergence list, dressed the same as every other fleet panel's
-  // raised list (FleetAgents.svelte / FleetMemory.svelte's own `panelList`):
-  // a raised card at zero padding, each row drawing its own top hairline.
+  // The machine-convergence list: a raised card at zero padding, each row
+  // drawing its own top hairline.
   const machinesPanelClass =
     "gap-0 overflow-hidden rounded-[var(--radius-lg)] border-0 bg-[var(--surface-raised)] p-0 shadow-[var(--shadow-tile)] mt-[var(--space-8)]";
 

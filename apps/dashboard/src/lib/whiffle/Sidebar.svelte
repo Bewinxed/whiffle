@@ -30,18 +30,13 @@
   import ThemeSwitcher from "$lib/components/ui/ThemeSwitcher.svelte";
   import {
     IconAssistantDuo,
-    IconBookDuo,
     IconBoxDuo,
     IconChevronRight,
     IconFolderDuo,
-    IconHook,
     IconPlus,
-    IconRules,
     IconSearch,
     IconSettingsDuo,
     IconSort,
-    IconSubagent,
-    IconTools,
     IconUsage,
     IconWarningTriangle,
     IconWorkflow,
@@ -61,6 +56,7 @@
     type ProjectRow,
     whiffle,
   } from "./client.svelte";
+  import { LAST_KEY as CONFIG_LAST_KEY, SECTIONS } from "./config/sections";
   import { continuing } from "./continue.svelte";
   import FolderMenu from "./FolderMenu.svelte";
   import { conversationHref } from "./links";
@@ -88,6 +84,19 @@
   } = $props();
 
   const path = $derived(page.url.pathname);
+  /**
+   * Configure opens on the section last visited, re-read on every navigation
+   * so leaving one section for the board and coming back returns to it.
+   */
+  const configureHref = $derived.by(() => {
+    let last: string | null = null;
+    if (path.startsWith("/config/")) {
+      [, , last] = path.split("/");
+    } else if (typeof localStorage !== "undefined") {
+      last = localStorage.getItem(CONFIG_LAST_KEY);
+    }
+    return `/config/${SECTIONS.some((section) => section.slug === last) ? last : "rules"}`;
+  });
   /**
    * Which conversation is in front, for the rows to mark. The workspace
    * store, not the URL: a tab switch writes the address with `pushState`,
@@ -594,90 +603,6 @@
         <Sidebar.MenuItem>
           <Sidebar.MenuButton
             class={NAV_ROW}
-            isActive={path.startsWith('/tools')}
-          >
-            {#snippet child({ props })}
-              <a href="/tools" {...props}>
-                <span class={SLOT}><IconTools class={SLOT_GLYPH} /></span>
-                <span>Tools</span>
-              </a>
-            {/snippet}
-          </Sidebar.MenuButton>
-        </Sidebar.MenuItem>
-
-        <Sidebar.MenuItem>
-          <Sidebar.MenuButton
-            class={NAV_ROW}
-            isActive={path.startsWith('/memory')}
-          >
-            {#snippet child({ props })}
-              <a href="/memory" {...props}>
-                <span class={SLOT}><IconBookDuo class={SLOT_GLYPH} /></span>
-                <span>Memory</span>
-              </a>
-            {/snippet}
-          </Sidebar.MenuButton>
-        </Sidebar.MenuItem>
-
-        <Sidebar.MenuItem>
-          <Sidebar.MenuButton
-            class={NAV_ROW}
-            isActive={path.startsWith('/rules')}
-          >
-            {#snippet child({ props })}
-              <a href="/rules" {...props}>
-                <span class={SLOT}><IconRules class={SLOT_GLYPH} /></span>
-                <span>Rules</span>
-              </a>
-            {/snippet}
-          </Sidebar.MenuButton>
-        </Sidebar.MenuItem>
-
-        <Sidebar.MenuItem>
-          <Sidebar.MenuButton
-            class={NAV_ROW}
-            isActive={path.startsWith('/settings')}
-          >
-            {#snippet child({ props })}
-              <a href="/settings" {...props}>
-                <span class={SLOT}><IconSettingsDuo class={SLOT_GLYPH} /></span>
-                <span>Settings</span>
-              </a>
-            {/snippet}
-          </Sidebar.MenuButton>
-        </Sidebar.MenuItem>
-
-        <Sidebar.MenuItem>
-          <Sidebar.MenuButton
-            class={NAV_ROW}
-            isActive={path.startsWith('/hooks')}
-          >
-            {#snippet child({ props })}
-              <a href="/hooks" {...props}>
-                <span class={SLOT}><IconHook class={SLOT_GLYPH} /></span>
-                <span>Hooks</span>
-              </a>
-            {/snippet}
-          </Sidebar.MenuButton>
-        </Sidebar.MenuItem>
-
-        <Sidebar.MenuItem>
-          <Sidebar.MenuButton
-            class={NAV_ROW}
-            isActive={path.startsWith('/delegates')}
-          >
-            {#snippet child({ props })}
-              <a href="/delegates" {...props}>
-                <span class={SLOT}><IconSubagent class={SLOT_GLYPH} /></span>
-                <span>Delegates</span>
-              </a>
-            {/snippet}
-          </Sidebar.MenuButton>
-        </Sidebar.MenuItem>
-
-        <Sidebar.MenuItem>
-          <Sidebar.MenuButton
-            class={NAV_ROW}
             isActive={path.startsWith('/workflows')}
           >
             {#snippet child({ props })}
@@ -697,6 +622,19 @@
               <a href="/usage" {...props}>
                 <span class={SLOT}><IconUsage class={SLOT_GLYPH} /></span>
                 <span>Usage</span>
+              </a>
+            {/snippet}
+          </Sidebar.MenuButton>
+        </Sidebar.MenuItem>
+        <Sidebar.MenuItem>
+          <Sidebar.MenuButton
+            class={NAV_ROW}
+            isActive={path.startsWith('/config')}
+          >
+            {#snippet child({ props })}
+              <a href={configureHref} {...props}>
+                <span class={SLOT}><IconSettingsDuo class={SLOT_GLYPH} /></span>
+                <span>Configure</span>
               </a>
             {/snippet}
           </Sidebar.MenuButton>

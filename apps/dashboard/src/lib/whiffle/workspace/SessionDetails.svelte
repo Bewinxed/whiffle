@@ -447,7 +447,7 @@
       {/if}
     </div>
     {#if session?.mcp}
-      <a class="tools" href="/tools"
+      <a class="tools" href="/config/mcp"
         ><TextMorph
           as="span"
           duration={morphMs}
