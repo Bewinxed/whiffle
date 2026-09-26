@@ -1054,6 +1054,14 @@
     min-width: 44px;
   }
 
+  /* A switch keeps its 44px target but not a 44px track: the padding is the
+     target, the content box is the track, and the thumb rides inside it. */
+  [data-slot="switch"] {
+    width: 48px;
+    padding: 12.8px 8px;
+    background-clip: content-box;
+  }
+
   /* Inline links flow with text. */
   :where(.prose a, p a, li a, span a) {
     min-height: unset;

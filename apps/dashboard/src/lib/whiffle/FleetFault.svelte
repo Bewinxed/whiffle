@@ -450,6 +450,11 @@
   .more-toggle {
     margin-inline-start: auto;
   }
+  @media (pointer: coarse) {
+    .disclose {
+      min-height: 44px;
+    }
+  }
   .said {
     max-height: 10rem;
     overflow: auto;

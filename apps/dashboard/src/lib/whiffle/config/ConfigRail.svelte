@@ -59,11 +59,14 @@
     gap: 14px;
     padding: 14px 8px 14px 12px;
   }
+  /* Raised, not recessed: in light the fill a chosen row takes is the recess's
+     own step (n-3), so on the recess the selection would not show at all. */
   .rail[data-variant="rail"] {
     width: 232px;
     flex: none;
     overflow-y: auto;
-    background: var(--surface-recess);
+    border-right: 1px solid var(--border-hairline);
+    background: var(--surface-raised);
   }
   .rail[data-variant="list"] {
     padding: 7px;

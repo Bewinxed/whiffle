@@ -48,7 +48,7 @@
     {/if}
     <span class="spacer"></span>
     <Button
-      class="grow"
+      class="footer-btn"
       disabled={saving}
       onclick={oncancel}
       type="button"
@@ -57,7 +57,7 @@
       Cancel
     </Button>
     <Button
-      class="grow save"
+      class="footer-btn save"
       disabled={down !== null || saving || deleting || !canSave}
       type="submit"
     >
@@ -113,7 +113,7 @@
     .down {
       flex-basis: 100%;
     }
-    .inner :global(.grow) {
+    .inner :global(.footer-btn) {
       flex: 1;
       height: 44px;
     }

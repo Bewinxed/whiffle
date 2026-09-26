@@ -63,7 +63,7 @@
       <span class="text-label text-muted-foreground">Real values:</span>
       {#each info.suggests as suggestion (suggestion)}
         <button
-          class="rounded-[var(--radius-pill)] border border-border px-2 py-0.5 font-mono text-label text-foreground transition-colors hover:bg-accent"
+          class="rounded-[var(--radius-sm)] border border-border px-2 py-0.5 font-mono text-label text-foreground transition-colors hover:bg-accent"
           onclick={() => {
             matcher = suggestion;
           }}
