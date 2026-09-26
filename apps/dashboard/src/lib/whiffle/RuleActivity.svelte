@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Button } from "$lib/components/ui/button";
   import {
     loadRuleActivity,
     message,
@@ -46,83 +47,133 @@
       });
   });
 
+  /** The latest few first; the rest behind one click. */
+  const LATEST = 5;
+  let all = $state(false);
+  const visible = $derived(all ? rows : rows.slice(0, LATEST));
+
   const waiting = $derived(
     rows.filter((row) => row.status === "pending").length
   );
 </script>
 
-<section
-  class="flex flex-col gap-4 rounded-[var(--radius-lg)] bg-card p-5 shadow-md"
->
-  <div class="flex flex-col gap-1">
-    <h2 class="text-body font-medium">What it has caught</h2>
-    <p class="max-w-prose text-label text-muted-foreground">
-      Sessions see the reply but never this rule's name or history, so this is
-      the only place it is visible. Anything a session wrote back appears here.
+<p class="note">
+  Sessions see the reply but never this rule's name or history, so this is the
+  only place it is visible. Anything a session wrote back appears here.
+</p>
+
+{#if loading}
+  <p class="note">Loading…</p>
+{:else if failed}
+  <p class="caution" role="alert">{failed}</p>
+{:else if rows.length === 0}
+  <p class="note">
+    It has not caught anything yet. Nothing to see is the good outcome.
+  </p>
+{:else}
+  {#if waiting > 0}
+    <p class="caution">
+      {waiting}
+      {waiting === 1 ? 'session is' : 'sessions are'}
+      still being reminded — nothing written back yet.
     </p>
-  </div>
-
-  {#if loading}
-    <p class="text-meta text-muted-foreground">Loading…</p>
-  {:else if failed}
-    <p class="text-meta text-warning" role="alert">{failed}</p>
-  {:else if rows.length === 0}
-    <p class="text-meta text-muted-foreground">
-      It has not caught anything yet. Nothing to see is the good outcome.
-    </p>
-  {:else}
-    {#if waiting > 0}
-      <p class="text-label text-warning">
-        {waiting}
-        {waiting === 1 ? 'session is' : 'sessions are'}
-        still being reminded — nothing written back yet.
-      </p>
-    {/if}
-    <ul class="flex flex-col gap-3">
-      {#each rows as row (row.instanceId)}
-        <li
-          class="flex flex-col gap-1.5 rounded-[var(--radius-md)] bg-muted/40 p-4"
-        >
-          <div class="flex flex-wrap items-baseline justify-between gap-2">
-            <span class="flex items-baseline gap-2">
-              <span class="font-mono text-label text-foreground"
-                >{row.where}</span
-              >
-              {#if row.harness}
-                <span class="text-label text-muted-foreground"
-                  >{row.harness}</span
-                >
-              {/if}
-            </span>
-            <span class="text-label text-muted-foreground">
-              {times(row.totalFires)}, last {since(row.lastFiredAt)}
-            </span>
-          </div>
-
-          {#if row.status === 'pending'}
-            <p class="text-label text-warning">
-              Reminded {times(row.fireCount)} since it last wrote back.
-            </p>
-          {/if}
-
-          {#if row.ackNote}
-            <!-- The session's own words. Quoted rather than paraphrased: what it
-                 claims it did is the thing worth reading closely. -->
-            <blockquote
-              class="border-l border-border pl-3 text-meta text-foreground"
-            >
-              {row.ackNote}
-            </blockquote>
-            <span class="text-label text-muted-foreground"
-              >Written back {since(row.ackedAt)}.</span
-            >
-          {:else if row.status !== 'pending'}
-            <p class="text-label text-muted-foreground">
-              Settled without a note.
-            </p>
-          {/if}
-        </li>
-      {/each}
-    </ul>
   {/if}
-</section>
+  <ul class="list">
+    {#each visible as row (row.instanceId)}
+      <li class="entry">
+        <div class="top">
+          <span class="where">
+            <span class="path">{row.where}</span>
+            {#if row.harness}
+              <span class="muted">{row.harness}</span>
+            {/if}
+          </span>
+          <span class="muted">
+            {times(row.totalFires)}, last {since(row.lastFiredAt)}
+          </span>
+        </div>
+
+        {#if row.status === 'pending'}
+          <p class="caution">
+            Reminded {times(row.fireCount)} since it last wrote back.
+          </p>
+        {/if}
+
+        {#if row.ackNote}
+          <!-- The session's own words, quoted rather than paraphrased. -->
+          <blockquote class="quote">{row.ackNote}</blockquote>
+          <span class="muted">Written back {since(row.ackedAt)}.</span>
+        {:else if row.status !== 'pending'}
+          <p class="muted">Settled without a note.</p>
+        {/if}
+      </li>
+    {/each}
+  </ul>
+  {#if rows.length > LATEST}
+    <Button
+      class="self-start"
+      onclick={() => {
+        all = !all;
+      }}
+      size="sm"
+      variant="ghost"
+    >
+      {all ? 'Show the latest 5' : `Show all ${rows.length}`}
+    </Button>
+  {/if}
+{/if}
+
+<style>
+  .note,
+  .muted {
+    max-width: 72ch;
+    font: var(--type-meta);
+    color: var(--ink-muted);
+  }
+  .caution {
+    font: var(--type-meta);
+    color: var(--status-attn-ink);
+  }
+  .list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .entry {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-recess);
+  }
+  .top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .where {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+  }
+  .path {
+    font-family: var(--font-mono);
+    font-size: var(--text-meta);
+    color: var(--ink-strong);
+    overflow-wrap: anywhere;
+  }
+  .quote {
+    padding-left: 10px;
+    border-left: 2px solid var(--border-control);
+    font: var(--type-label);
+    font-weight: 400;
+    color: var(--ink-strong);
+  }
+</style>

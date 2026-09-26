@@ -48,7 +48,9 @@
   );
 </script>
 
-<div class="flex flex-col gap-2 rounded-[var(--radius-md)] bg-muted/40 p-4">
+<div
+  class="flex flex-col gap-2 rounded-[var(--radius-md)] bg-[var(--surface-recess)] p-3"
+>
   <div class="flex flex-wrap items-center gap-2">
     <Badge class="shrink-0 {KIND_TONE[kind]}" variant="outline"
       >{KIND_LABEL[kind]}</Badge

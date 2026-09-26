@@ -1,13 +1,10 @@
 <script lang="ts">
   import type { ToolPolicy, ToolSpec } from "@whiffle/core";
   import { toast } from "svelte-sonner";
-  import { Alert, AlertDescription } from "$lib/components/ui/alert";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
-  import { Card } from "$lib/components/ui/card";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte convention for a component group.
   import * as Popover from "$lib/components/ui/popover";
-  import { Skeleton } from "$lib/components/ui/skeleton";
   import { Switch } from "$lib/components/ui/switch";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte convention for a component group.
   import * as Table from "$lib/components/ui/table";
@@ -21,16 +18,12 @@
 
   let {
     machines,
-    settling,
     catalog,
     policies,
-    error: loadError,
   }: {
     machines: Machine[];
-    settling: boolean;
     catalog: ToolSpec[];
     policies: ToolPolicy[];
-    error: string | null;
   } = $props();
 
   const CHIP = "h-auto min-h-6 gap-1.5 px-2";
@@ -226,42 +219,13 @@
   {/if}
 {/snippet}
 
-<p class="max-w-prose text-meta text-muted-foreground">
-  The workflow CLIs your machines carry. Require one on every machine and the
-  hub puts it there — on the machines that are online now, and on the rest as
-  they come back.
-</p>
-
-{#if loadError}
-  <Alert variant="warning">
-    <AlertDescription>{loadError}</AlertDescription>
-  </Alert>
-{:else if columns.length === 0}
-  <Card class="rounded-[var(--radius-lg)] p-[var(--space-6)] shadow-md">
-    <p class="text-body text-muted-foreground">
-      The hub's catalog is empty, so there is nothing to install yet.
-    </p>
-  </Card>
-{:else if machines.length === 0 && settling}
-  <Card
-    aria-label="Reading the fleet"
-    class="flex flex-col gap-[var(--space-3)] rounded-[var(--radius-lg)] p-[var(--space-6)] shadow-md"
-    role="status"
-  >
-    {#each [0, 1, 2] as row (row)}
-      <div class="flex items-center gap-[var(--space-6)]">
-        <Skeleton class="h-4 w-40 rounded-[var(--radius-xs)]" />
-        {#each columns as spec (spec.id)}
-          <Skeleton class="h-4 w-20 rounded-[var(--radius-xs)]" />
-        {/each}
-      </div>
-    {/each}
-  </Card>
+{#if columns.length === 0}
+  <p class="text-meta text-muted-foreground">
+    The hub's catalog is empty, so there is nothing to install yet.
+  </p>
 {:else if machines.length === 0}
-  <Card
-    class="flex flex-col gap-[var(--space-3)] rounded-[var(--radius-lg)] p-[var(--space-6)] shadow-md"
-  >
-    <h2 class="text-body font-medium">No machines yet</h2>
+  <div class="flex flex-col gap-2">
+    <h2 class="text-label text-foreground">No machines yet</h2>
     <p class="text-meta text-muted-foreground">
       Tools are installed on your own hardware, never on a server of ours — so
       this stays empty until a machine says it is here. Start the agent daemon
@@ -271,15 +235,15 @@
     <pre
       class="overflow-x-auto rounded-[var(--radius-sm)] bg-muted px-[var(--space-3)] py-[var(--space-2)] font-mono text-label"
     >WHIFFLE_HUB_URL=ws://&lt;this-host&gt;:3456/ws whiffle up</pre>
-  </Card>
+  </div>
 {:else}
-  <Card class="gap-0 overflow-hidden rounded-[var(--radius-lg)] py-0 shadow-md">
+  <div class="matrix">
     <Table.Root class="border-collapse text-left">
       <Table.Header>
         <Table.Row class="align-top hover:bg-transparent">
           <!-- biome-ignore-start lint/a11y/noHeaderScope: Table.Head renders a real <th>; biome only sees the component tag -->
           <Table.Head
-            class="sticky left-0 z-10 h-auto bg-card px-[var(--space-4)] py-[var(--space-3)] text-label font-medium tracking-wider text-muted-foreground uppercase"
+            class="sticky left-0 z-10 h-auto bg-[var(--surface-raised)] px-[var(--space-4)] py-[var(--space-3)] text-meta text-muted-foreground"
             scope="col"
             >Machine</Table.Head
           >
@@ -336,7 +300,7 @@
           <Table.Row class={online ? '' : 'opacity-50'}>
             <!-- biome-ignore-start lint/a11y/noHeaderScope: Table.Head renders a real <th>; biome only sees the component tag -->
             <Table.Head
-              class="sticky left-0 z-10 h-auto bg-card px-[var(--space-4)] py-[var(--space-2)] font-normal"
+              class="sticky left-0 z-10 h-auto bg-[var(--surface-raised)] px-[var(--space-4)] py-[var(--space-2)] font-normal"
               scope="row"
             >
               <!-- biome-ignore-end lint/a11y/noHeaderScope: Table.Head renders a real <th>; biome only sees the component tag -->
@@ -371,5 +335,15 @@
         {/each}
       </Table.Body>
     </Table.Root>
-  </Card>
+  </div>
 {/if}
+
+<style>
+  /* The matrix scrolls sideways inside the section; the page never does. */
+  .matrix {
+    overflow-x: auto;
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+    box-shadow: inset 0 0 0 1px var(--border-hairline);
+  }
+</style>

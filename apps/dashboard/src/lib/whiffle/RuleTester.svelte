@@ -57,7 +57,9 @@
   const firing = $derived(hits.length > 0);
 </script>
 
-<div class="flex flex-col gap-2 rounded-[var(--radius-md)] bg-muted/40 p-4">
+<div
+  class="flex flex-col gap-2 rounded-[var(--radius-md)] bg-[var(--surface-recess)] p-3"
+>
   <div class="flex flex-wrap items-baseline justify-between gap-2">
     <span class="text-meta font-medium text-foreground">Try it</span>
     <span

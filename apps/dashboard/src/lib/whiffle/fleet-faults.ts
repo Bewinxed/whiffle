@@ -364,17 +364,31 @@ export const SCOPE_NOUN: Record<FaultScope, string> = {
   hooks: "hook",
 };
 
-/** Which panel on `/tools` owns the affordance for a scope — a fault links there, never re-creates it. */
+/** Which Configure section owns the affordance for a scope — a fault links there, never re-creates it. */
 export const SCOPE_ANCHOR: Record<FaultScope, string> = {
-  mcp: "fleet-mcp",
-  marketplaces: "fleet-skills",
-  plugins: "fleet-skills",
-  skills: "fleet-skills",
-  memory: "fleet-memory",
-  memoryDocs: "fleet-memory",
-  memoryHook: "fleet-memory",
-  hooks: "fleet-hooks",
+  mcp: "/config/mcp",
+  marketplaces: "/config/skills",
+  plugins: "/config/skills",
+  skills: "/config/skills",
+  memory: "/config/memory",
+  memoryDocs: "/config/memory",
+  memoryHook: "/config/memory",
+  hooks: "/config/hooks",
 };
+
+/**
+ * Where a fault is settled: the section, or — for a memory file — that file's
+ * own editor, which is where its per-machine copies are compared.
+ */
+export function faultHref(fault: Pick<Fault, "scope" | "key">): string {
+  if (fault.scope === "memory") {
+    return "/config/memory/CLAUDE.md";
+  }
+  if (fault.scope === "memoryDocs") {
+    return `/config/memory/${fault.key}`;
+  }
+  return SCOPE_ANCHOR[fault.scope];
+}
 
 /** The row's own name for a reader: the key, or the scope's noun for the singular rows. */
 export const faultLabel = (fault: Fault): string =>

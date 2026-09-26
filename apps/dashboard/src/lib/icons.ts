@@ -6,6 +6,7 @@ export { default as IconPlus } from "$lib/components/icons/Plus.svelte";
 export { default as IconTick } from "$lib/components/icons/Tick.svelte";
 export { default as IconAlignLeft } from "~icons/solar/align-left-linear";
 export { default as IconChevronDown } from "~icons/solar/alt-arrow-down-linear";
+export { default as IconChevronLeft } from "~icons/solar/alt-arrow-left-linear";
 export { default as IconChevronRight } from "~icons/solar/alt-arrow-right-linear";
 export { default as IconChevronUp } from "~icons/solar/alt-arrow-up-linear";
 export { default as IconArrowDown } from "~icons/solar/arrow-down-linear";
@@ -30,6 +31,7 @@ export { default as IconToolTodo } from "~icons/solar/checklist-bold-duotone";
 export { default as IconChecklist } from "~icons/solar/checklist-linear";
 export { default as IconReportDuo } from "~icons/solar/clipboard-check-bold-duotone";
 export { default as IconReportFailedDuo } from "~icons/solar/clipboard-remove-bold-duotone";
+export { default as IconClockDuo } from "~icons/solar/clock-circle-bold-duotone";
 export {
   default as IconClose,
   default as IconError,
@@ -68,9 +70,11 @@ export { default as IconToolRead } from "~icons/solar/document-text-bold-duotone
 export { default as IconDocument } from "~icons/solar/document-text-linear";
 export { default as IconDollar } from "~icons/solar/dollar-linear";
 export { default as IconDownload } from "~icons/solar/download-linear";
+export { default as IconEyeDuo } from "~icons/solar/eye-bold-duotone";
 export { default as IconAssistantDuo } from "~icons/solar/eye-scan-bold-duotone";
 /** The assistant/supervisor: an eye in scan corners — oversight across sessions, in the set's own stroke. */
 export { default as IconAssistant } from "~icons/solar/eye-scan-linear";
+export { default as IconDocumentDuo } from "~icons/solar/file-text-bold-duotone";
 export { default as IconFireDuo } from "~icons/solar/fire-bold-duotone";
 export { default as IconFolderDuo } from "~icons/solar/folder-bold-duotone";
 export { default as IconFolder } from "~icons/solar/folder-linear";
@@ -92,6 +96,7 @@ export { default as IconHistory } from "~icons/solar/history-linear";
 export { default as IconHome } from "~icons/solar/home-linear";
 export { default as IconHandoffDuo } from "~icons/solar/inbox-in-bold-duotone";
 export { default as IconInfo } from "~icons/solar/info-circle-linear";
+export { default as IconKeyDuo } from "~icons/solar/key-bold-duotone";
 export { default as IconKey } from "~icons/solar/key-minimalistic-linear";
 /*
  * `Duo` is Solar's bold-duotone cut: a filled two-tone shape that says what a
@@ -100,14 +105,18 @@ export { default as IconKey } from "~icons/solar/key-minimalistic-linear";
  */
 export { default as IconLaptopDuo } from "~icons/solar/laptop-minimalistic-bold-duotone";
 export { default as IconLaptop } from "~icons/solar/laptop-minimalistic-linear";
+export { default as IconLayersDuo } from "~icons/solar/layers-bold-duotone";
 export { default as IconLayers } from "~icons/solar/layers-linear";
 export { default as IconLeafDuo } from "~icons/solar/leaf-bold-duotone";
 export { default as IconThinking } from "~icons/solar/lightbulb-bolt-linear";
+export { default as IconLinkDuo } from "~icons/solar/link-bold-duotone";
 export { default as IconSparklesDuo } from "~icons/solar/magic-stick-3-bold-duotone";
 export { default as IconSparkles } from "~icons/solar/magic-stick-3-linear";
 export { default as IconToolSearch } from "~icons/solar/magnifer-bold-duotone";
 export { default as IconSearch } from "~icons/solar/magnifer-linear";
+export { default as IconMapPointDuo } from "~icons/solar/map-point-bold-duotone";
 export { default as IconMaximize } from "~icons/solar/maximize-linear";
+export { default as IconMore } from "~icons/solar/menu-dots-bold";
 export { default as IconMic } from "~icons/solar/microphone-linear";
 export { default as IconMonitorDuo } from "~icons/solar/monitor-bold-duotone";
 export { default as IconMonitor } from "~icons/solar/monitor-linear";
@@ -124,11 +133,14 @@ export { default as IconToolWrite } from "~icons/solar/pen-new-square-bold-duoto
 export { default as IconPenLine } from "~icons/solar/pen-new-square-linear";
 /** A pressed pin, not a kind of thing — hence bold rather than duotone. */
 export { default as IconPinFilled } from "~icons/solar/pin-bold";
+export { default as IconPinDuo } from "~icons/solar/pin-bold-duotone";
 export { default as IconPin } from "~icons/solar/pin-linear";
 export { default as IconPinList } from "~icons/solar/pin-list-linear";
 export { default as IconToolMessage } from "~icons/solar/plain-2-bold-duotone";
 export { default as IconSend } from "~icons/solar/plain-2-linear";
+export { default as IconPlainDuo } from "~icons/solar/plain-bold-duotone";
 export { default as IconPlanetDuo } from "~icons/solar/planet-bold-duotone";
+export { default as IconPlayDuo } from "~icons/solar/play-bold-duotone";
 export { default as IconPlay } from "~icons/solar/play-linear";
 export { default as IconToolMcp } from "~icons/solar/plug-circle-bold-duotone";
 export { default as IconPlug } from "~icons/solar/plug-circle-linear";
@@ -161,6 +173,7 @@ export { default as IconRuleDuo } from "~icons/solar/shield-check-bold-duotone";
 /** Rules: a standing guard over what sessions say, distinct from bare `shield`. */
 export { default as IconRules } from "~icons/solar/shield-check-linear";
 export { default as IconShield } from "~icons/solar/shield-linear";
+export { default as IconShopDuo } from "~icons/solar/shop-bold-duotone";
 export { default as IconSidebar } from "~icons/solar/sidebar-minimalistic-linear";
 export { default as IconToolGeneric } from "~icons/solar/sledgehammer-bold-duotone";
 export { default as IconTools } from "~icons/solar/sledgehammer-linear";
@@ -172,6 +185,7 @@ export { default as IconStop } from "~icons/solar/stop-linear";
 export { default as IconSun } from "~icons/solar/sun-linear";
 export { default as IconLabDuo } from "~icons/solar/test-tube-bold-duotone";
 export { default as IconTrash } from "~icons/solar/trash-bin-minimalistic-linear";
+export { default as IconTuningDuo } from "~icons/solar/tuning-2-bold-duotone";
 export { default as IconReset } from "~icons/solar/undo-left-linear";
 export { default as IconUser } from "~icons/solar/user-linear";
 /** Delegated work: the subagents a session still has out. */

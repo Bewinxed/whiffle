@@ -10,11 +10,17 @@
   import { Alert, AlertDescription } from "$lib/components/ui/alert";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
-  import { Card } from "$lib/components/ui/card";
-  import { IconChevronDown, IconChevronRight, IconSpinner } from "$lib/icons";
+  import { SectionHeader } from "$lib/components/ui/section-header";
+  import {
+    IconChevronDown,
+    IconChevronRight,
+    IconLaptopDuo,
+    IconSpinner,
+  } from "$lib/icons";
   import type { Machine } from "./client.svelte";
   import { adoptSkill, inspectMachine, saveMcpServer } from "./fleet";
   import { machineLabel } from "./machine";
+  import OsMark from "./OsMark.svelte";
 
   let {
     machines,
@@ -97,135 +103,201 @@
   }
 </script>
 
-<section class="flex flex-col gap-[var(--space-3)]">
-  <h2
-    class="text-label font-medium tracking-wider text-muted-foreground uppercase"
-  >
-    On this machine
-  </h2>
-  <p class="max-w-prose text-label text-muted-foreground">
+<div class="inventory">
+  <SectionHeader
+    hue="var(--hue-amber-500)"
+    icon={IconLaptopDuo}
+    label="On each machine"
+  />
+  <p class="note">
     What each machine really has, whoever put it there — read live, never
     stored. Anything the fleet does not manage can be adopted into it.
   </p>
 
   {#if online.length === 0}
-    <p class="text-meta text-muted-foreground">No machine is online to ask.</p>
+    <p class="note">No machine is online to ask.</p>
   {:else}
-    <Card
-      class="gap-0 rounded-[var(--radius-lg)] py-0 shadow-md [--card-spacing:var(--space-4)]"
-    >
-      <ul class="flex flex-col">
-        {#each online as machine (machine.machineId)}
-          {@const inspection = found[machine.machineId]}
-          {@const rows = kind === 'mcp' ? (inspection?.mcp ?? []) : (inspection?.skills ?? [])}
-          <li
-            class="flex flex-col gap-[var(--space-2)] border-t border-border p-[var(--space-4)] first:border-t-0"
+    <ul class="machines">
+      {#each online as machine (machine.machineId)}
+        {@const inspection = found[machine.machineId]}
+        {@const rows = kind === 'mcp' ? (inspection?.mcp ?? []) : (inspection?.skills ?? [])}
+        <li class="machine">
+          <button
+            aria-expanded={open[machine.machineId] === true}
+            class="head focus-ring"
+            onclick={() => expand(machine)}
+            type="button"
           >
-            <div class="flex flex-wrap items-center gap-[var(--space-3)]">
-              <span
-                class="min-w-0 flex-1 truncate text-meta font-medium text-foreground"
-                >{machineLabel(machine.hostname)}</span
-              >
-              <Button
-                aria-expanded={open[machine.machineId] === true}
-                class="shrink-0"
-                onclick={() => expand(machine)}
-                size="xs"
-                variant="outline"
-              >
-                {#if open[machine.machineId]}
-                  <IconChevronDown class="shrink-0" />
-                {:else}
-                  <IconChevronRight class="shrink-0" />
-                {/if}
-                {open[machine.machineId] ? 'Hide' : 'Show'}
-              </Button>
-            </div>
             {#if open[machine.machineId]}
-              {#if reading[machine.machineId]}
-                <p
-                  class="flex items-center gap-2 text-meta text-muted-foreground"
-                  role="status"
-                >
-                  <IconSpinner class="size-4 shrink-0 animate-spin" />Asking
-                  this machine…
-                </p>
-              {:else if unread[machine.machineId]}
-                <Alert variant="warning">
-                  <AlertDescription
-                    >{unread[machine.machineId]}</AlertDescription
-                  >
-                </Alert>
-              {:else if rows.length === 0}
-                <p class="text-meta text-muted-foreground">
-                  {kind === 'mcp' ? 'This machine has no MCP servers at all.' : 'This machine has no skills at all.'}
-                </p>
-              {:else}
-                <ul
-                  class="flex flex-col rounded-[var(--radius-md)] border border-border"
-                >
-                  {#each rows as row ('path' in row ? row.path : `${row.scope}:${row.name}`)}
-                    {@const key = keyOf(machine.machineId, row.scope, row.name)}
-                    <li
-                      class="flex flex-wrap items-start gap-x-[var(--space-3)] gap-y-[var(--space-1)] border-t border-border px-[var(--space-3)] py-[var(--space-2)] first:border-t-0"
-                    >
-                      <span class="flex min-w-0 flex-1 flex-col gap-0.5">
-                        <span
-                          class="flex flex-wrap items-center gap-x-2 gap-y-1"
-                        >
-                          <span
-                            class="truncate font-mono text-meta text-muted-foreground"
-                            >{row.name}</span
-                          >
-                          <Badge variant="outline">{row.scope}</Badge>
-                          {#if row.managed}
-                            <Badge variant="secondary">fleet</Badge>
-                          {/if}
-                          {#if 'shadowedBy' in row && row.shadowedBy}
-                            <Badge class="text-warning" variant="outline"
-                              >shadowed by {row.shadowedBy}</Badge
-                            >
-                          {/if}
-                        </span>
-                        {#if 'description' in row && row.description}
-                          <span
-                            class="line-clamp-2 text-label text-muted-foreground"
-                            >{row.description}</span
+              <IconChevronDown />
+            {:else}
+              <IconChevronRight />
+            {/if}
+            <OsMark class="size-3.5 shrink-0" os={machine.os} />
+            <span class="host">{machineLabel(machine.hostname)}</span>
+            <span class="note"
+              >{open[machine.machineId] ? 'Hide' : 'Show what it has'}</span
+            >
+          </button>
+          {#if open[machine.machineId]}
+            {#if reading[machine.machineId]}
+              <p class="note busy" role="status">
+                <IconSpinner class="size-4 shrink-0 animate-spin" />Asking this
+                machine…
+              </p>
+            {:else if unread[machine.machineId]}
+              <Alert variant="warning">
+                <AlertDescription>{unread[machine.machineId]}</AlertDescription>
+              </Alert>
+            {:else if rows.length === 0}
+              <p class="note">
+                {kind === 'mcp' ? 'This machine has no MCP servers at all.' : 'This machine has no skills at all.'}
+              </p>
+            {:else}
+              <ul class="found">
+                {#each rows as row ('path' in row ? row.path : `${row.scope}:${row.name}`)}
+                  {@const key = keyOf(machine.machineId, row.scope, row.name)}
+                  <li class="entry">
+                    <span class="text">
+                      <span class="line">
+                        <span class="name">{row.name}</span>
+                        <Badge variant="outline">{row.scope}</Badge>
+                        {#if row.managed}
+                          <Badge variant="secondary">fleet</Badge>
+                        {/if}
+                        {#if 'shadowedBy' in row && row.shadowedBy}
+                          <Badge variant="attn"
+                            >shadowed by {row.shadowedBy}</Badge
                           >
                         {/if}
                       </span>
-                      {#if !(row.managed || taken.includes(row.name))}
-                        <Button
-                          class="shrink-0"
-                          disabled={busy[key] === true}
-                          onclick={() => kind === 'mcp' ? adoptServer(machine, row as DiscoveredMcp) : adopt(machine, row as DiscoveredSkill)}
-                          size="xs"
-                          variant="outline"
-                        >
-                          {busy[key] ? 'Adopting…' : 'Adopt'}
-                        </Button>
-                      {:else if taken.includes(row.name) && !row.managed}
-                        <span
-                          class="shrink-0 pt-0.5 text-label text-muted-foreground"
-                          >in the fleet</span
-                        >
+                      {#if 'description' in row && row.description}
+                        <span class="note clamp">{row.description}</span>
                       {/if}
-                    </li>
-                  {/each}
-                </ul>
-              {/if}
+                    </span>
+                    {#if !(row.managed || taken.includes(row.name))}
+                      <Button
+                        disabled={busy[key] === true}
+                        onclick={() => kind === 'mcp' ? adoptServer(machine, row as DiscoveredMcp) : adopt(machine, row as DiscoveredSkill)}
+                        size="sm"
+                        variant="outline"
+                      >
+                        {busy[key] ? 'Adopting…' : 'Adopt'}
+                      </Button>
+                    {:else if taken.includes(row.name) && !row.managed}
+                      <span class="note">In the fleet</span>
+                    {/if}
+                  </li>
+                {/each}
+              </ul>
             {/if}
-          </li>
-        {/each}
-      </ul>
-    </Card>
+          {/if}
+        </li>
+      {/each}
+    </ul>
   {/if}
 
   {#if asleep.length > 0}
-    <p class="text-label text-muted-foreground">
+    <p class="note">
       {asleep.map((machine) => machineLabel(machine.hostname)).join(', ')}
       {asleep.length === 1 ? 'is' : 'are'}
       offline — only a machine that is up can say what it has.
     </p>
   {/if}
-</section>
+</div>
+
+<style>
+  .inventory {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border-hairline);
+  }
+  .note {
+    max-width: 72ch;
+    font: var(--type-meta);
+    color: var(--ink-muted);
+  }
+  .busy {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .machines,
+  .found {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .machines {
+    margin: 0 -8px;
+  }
+  .machine {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 6px 8px;
+    border-radius: var(--radius-sm);
+    text-align: left;
+    transition: var(--transition-control);
+  }
+  .head:hover {
+    background: var(--surface-hover);
+  }
+  .head :global(svg) {
+    width: 14px;
+    height: 14px;
+    flex: none;
+    color: var(--ink-muted);
+  }
+  .host {
+    font: var(--type-label);
+    color: var(--ink-strong);
+  }
+  .found {
+    margin: 0 8px 6px;
+  }
+  .entry {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-recess);
+  }
+  .text {
+    display: flex;
+    flex: 1 1 240px;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  .line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+  .name {
+    font-family: var(--font-mono);
+    font-size: var(--text-meta);
+    color: var(--ink-strong);
+  }
+  .clamp {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+</style>

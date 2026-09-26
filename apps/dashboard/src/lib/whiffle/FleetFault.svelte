@@ -25,9 +25,9 @@
   import {
     CAUSE,
     type FaultGroup,
+    faultHref,
     faultLabel,
     readToolchain,
-    SCOPE_ANCHOR,
     SCOPE_NOUN,
   } from "./fleet-faults";
   import { machineLabel } from "./machine";
@@ -36,10 +36,16 @@
   let {
     group,
     machines,
+    compact = false,
     onresolved,
   }: {
     group: FaultGroup;
     machines: Machine[];
+    /**
+     * One line under a list row — the title and where — with the reading,
+     * the output and the remedy one click away rather than always open.
+     */
+    compact?: boolean;
     /** Called after a retry or a re-sync lands, so a list can re-read itself. */
     onresolved?: () => void;
   } = $props();
@@ -63,6 +69,8 @@
 
   let busy = $state(false);
   let disclosureOpen = $state(false);
+  let expanded = $state(false);
+  const whole = $derived(!compact || expanded);
 
   const message = (error: unknown) =>
     error instanceof Error ? error.message : String(error);
@@ -162,114 +170,133 @@
         <span class="tag">{group.machineId}</span>
       {/if}
     </span>
-  </div>
-
-  <p class="rows">
-    <span class="noun"
-      >{SCOPE_NOUN[group.scope]}{group.faults.length === 1 ? '' : 's'}:</span
-    >
-    {#each shown as fault (fault.scope + fault.key)}
-      <code>{faultLabel(fault)}</code>
-    {/each}
-    {#if extra > 0}
-      <span class="more">and {extra} more</span>
-    {/if}
-  </p>
-
-  <p class="why">{copy.why}</p>
-
-  {#if copy.toolchain && toolchain}
-    <!-- The attribution that was missing: which binary said it, and whether a
-         newer one is sitting on the same machine behind it. -->
-    <div class="tool">
-      <span class="k">claude on this machine</span>
-      {#if toolchain.used}
-        <span class="line used">
-          <code>{toolchain.used.path}</code>
-          <span class="v">{toolchain.used.version ?? 'version unknown'}</span>
-          <span class="badge">ran this sync</span>
-        </span>
-      {/if}
-      {#each toolchain.others as other (other.path)}
-        <span class="line">
-          <code>{other.path}</code>
-          <span class="v">{other.version ?? 'version unknown'}</span>
-        </span>
-      {/each}
-      {#if toolchain.shadowed}
-        <p class="shadow">
-          A newer claude is installed on this machine and is not the one PATH
-          resolves first. Until that changes, updating again will not help.
-        </p>
-      {/if}
-    </div>
-  {/if}
-
-  {#if group.faults[0]?.detail}
-    {#if group.cause === 'unknown'}
-      <pre class="said">{group.faults[0].detail}</pre>
-    {:else}
+    {#if compact}
       <button
-        aria-expanded={disclosureOpen}
-        class="disclose"
-        onclick={() => { disclosureOpen = !disclosureOpen; }}
+        aria-expanded={expanded}
+        class="disclose more-toggle"
+        onclick={() => {
+          expanded = !expanded;
+        }}
         type="button"
       >
-        {#if disclosureOpen}
+        {#if expanded}
           <IconChevronDown class="size-3.5 shrink-0" />
         {:else}
           <IconChevronRight class="size-3.5 shrink-0" />
         {/if}
-        What it said
+        {expanded ? 'Hide' : 'Details'}
       </button>
-      {#if disclosureOpen}
-        {#each shown as fault (fault.scope + fault.key)}
-          {#if fault.detail}
-            <pre
-              class="said"
-            ><span class="for">{faultLabel(fault)}</span>{fault.detail}</pre>
-          {/if}
-        {/each}
-      {/if}
-    {/if}
-  {/if}
-
-  <p class="fix">{copy.fix}</p>
-
-  <div class="acts">
-    {#if copy.action === 'resync'}
-      <Button
-        disabled={busy || !online}
-        onclick={resync}
-        size="xs"
-        variant="outline"
-      >
-        <IconRefresh class="shrink-0" />
-        {busy ? 'Syncing…' : actionLabel}
-      </Button>
-      <span class="hint"
-        >{online ? actionHint : 'It syncs on its own the moment it comes back.'}</span
-      >
-    {:else if copy.action === 'refresh'}
-      <Button disabled={busy} onclick={refresh} size="xs" variant="outline">
-        <IconRefresh class="shrink-0" />
-        {busy ? 'Fetching…' : actionLabel}
-      </Button>
-      <span class="hint">{actionHint}</span>
-    {:else if copy.action === 'settle'}
-      <Button href="#{SCOPE_ANCHOR[group.scope]}" size="xs" variant="outline"
-        >Compare the two copies</Button
-      >
-      <span class="hint"
-        >Adopt this machine’s copy into the fleet, or overwrite it with the
-        fleet’s.</span
-      >
-    {:else}
-      <Button href="#{SCOPE_ANCHOR[group.scope]}" size="xs" variant="outline"
-        >Open the panel</Button
-      >
     {/if}
   </div>
+
+  {#if whole}
+    <p class="rows">
+      <span class="noun"
+        >{SCOPE_NOUN[group.scope]}{group.faults.length === 1 ? '' : 's'}:</span
+      >
+      {#each shown as fault (fault.scope + fault.key)}
+        <code>{faultLabel(fault)}</code>
+      {/each}
+      {#if extra > 0}
+        <span class="more">and {extra} more</span>
+      {/if}
+    </p>
+
+    <p class="why">{copy.why}</p>
+
+    {#if copy.toolchain && toolchain}
+      <!-- The attribution that was missing: which binary said it, and whether a
+         newer one is sitting on the same machine behind it. -->
+      <div class="tool">
+        <span class="k">claude on this machine</span>
+        {#if toolchain.used}
+          <span class="line used">
+            <code>{toolchain.used.path}</code>
+            <span class="v">{toolchain.used.version ?? 'version unknown'}</span>
+            <span class="badge">ran this sync</span>
+          </span>
+        {/if}
+        {#each toolchain.others as other (other.path)}
+          <span class="line">
+            <code>{other.path}</code>
+            <span class="v">{other.version ?? 'version unknown'}</span>
+          </span>
+        {/each}
+        {#if toolchain.shadowed}
+          <p class="shadow">
+            A newer claude is installed on this machine and is not the one PATH
+            resolves first. Until that changes, updating again will not help.
+          </p>
+        {/if}
+      </div>
+    {/if}
+
+    {#if group.faults[0]?.detail}
+      {#if group.cause === 'unknown'}
+        <pre class="said">{group.faults[0].detail}</pre>
+      {:else}
+        <button
+          aria-expanded={disclosureOpen}
+          class="disclose"
+          onclick={() => { disclosureOpen = !disclosureOpen; }}
+          type="button"
+        >
+          {#if disclosureOpen}
+            <IconChevronDown class="size-3.5 shrink-0" />
+          {:else}
+            <IconChevronRight class="size-3.5 shrink-0" />
+          {/if}
+          What it said
+        </button>
+        {#if disclosureOpen}
+          {#each shown as fault (fault.scope + fault.key)}
+            {#if fault.detail}
+              <pre
+                class="said"
+              ><span class="for">{faultLabel(fault)}</span>{fault.detail}</pre>
+            {/if}
+          {/each}
+        {/if}
+      {/if}
+    {/if}
+
+    <p class="fix">{copy.fix}</p>
+
+    <div class="acts">
+      {#if copy.action === 'resync'}
+        <Button
+          disabled={busy || !online}
+          onclick={resync}
+          size="xs"
+          variant="outline"
+        >
+          <IconRefresh class="shrink-0" />
+          {busy ? 'Syncing…' : actionLabel}
+        </Button>
+        <span class="hint"
+          >{online ? actionHint : 'It syncs on its own the moment it comes back.'}</span
+        >
+      {:else if copy.action === 'refresh'}
+        <Button disabled={busy} onclick={refresh} size="xs" variant="outline">
+          <IconRefresh class="shrink-0" />
+          {busy ? 'Fetching…' : actionLabel}
+        </Button>
+        <span class="hint">{actionHint}</span>
+      {:else if copy.action === 'settle'}
+        <Button href={faultHref(group.faults[0])} size="xs" variant="outline"
+          >Compare the two copies</Button
+        >
+        <span class="hint"
+          >Adopt this machine’s copy into the fleet, or overwrite it with the
+          fleet’s.</span
+        >
+      {:else}
+        <Button href={faultHref(group.faults[0])} size="xs" variant="outline"
+          >Open the section</Button
+        >
+      {/if}
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -419,6 +446,9 @@
   }
   .disclose:hover {
     opacity: 1;
+  }
+  .more-toggle {
+    margin-inline-start: auto;
   }
   .said {
     max-height: 10rem;
