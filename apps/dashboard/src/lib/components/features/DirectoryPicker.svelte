@@ -117,7 +117,7 @@
 
 <Collapsible.Root class="flex flex-col" onOpenChange={toggle} {open}>
   <Collapsible.Trigger
-    class="flex items-center gap-1.5 self-start text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+    class="flex items-center gap-1.5 self-start text-meta text-muted-foreground transition-colors hover:text-foreground focus-ring"
   >
     <IconFolder class="size-3.5" />
     Browse
@@ -136,7 +136,7 @@
           <IconArrowUp />
         </Button>
         <span
-          class="truncate font-mono text-xs text-muted-foreground"
+          class="truncate font-mono text-meta text-muted-foreground"
           title={path}
           >{path}</span
         >
@@ -145,13 +145,13 @@
       <div class="max-h-56 overflow-y-auto">
         {#if loading}
           <span
-            class="flex items-center gap-2 px-2 py-1 text-xs text-muted-foreground"
+            class="flex items-center gap-2 px-2 py-1 text-meta text-muted-foreground"
           >
             <IconSpinner class="size-3.5 animate-spin" />
             Reading directory…
           </span>
         {:else if errorMessage}
-          <span class="block px-2 py-1 text-xs text-destructive"
+          <span class="block px-2 py-1 text-meta text-destructive"
             >{errorMessage}</span
           >
         {:else}
@@ -166,7 +166,7 @@
               <span class="truncate">{dir.name}</span>
             </Button>
           {:else}
-            <span class="block px-2 py-1 text-xs text-muted-foreground"
+            <span class="block px-2 py-1 text-meta text-muted-foreground"
               >No subdirectories.</span
             >
           {/each}

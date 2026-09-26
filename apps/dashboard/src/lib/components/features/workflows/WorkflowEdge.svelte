@@ -60,20 +60,20 @@
     display: flex;
     align-items: center;
     gap: var(--space-1);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
   }
   span {
-    background: var(--surface-field);
+    background: var(--surface-recess);
     padding: var(--space-1);
-    border-radius: var(--radius-well);
-    color: var(--ink-body);
+    border-radius: var(--radius-sm);
+    color: var(--ink-strong);
   }
   button {
     display: grid;
     place-items: center;
     width: 28px;
     height: 28px;
-    border-radius: var(--radius-control);
+    border-radius: var(--radius-sm);
     background: var(--surface-raised);
     color: var(--ink-muted);
     opacity: 0;

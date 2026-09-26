@@ -120,15 +120,15 @@
         Customize
       </ContextMenu.SubTrigger>
       <ContextMenu.SubContent
-        class="w-64 rounded-[var(--radius-panel)] p-3 shadow-xl"
+        class="w-64 rounded-[var(--radius-lg)] p-3 shadow-xl"
       >
         <div class="flex items-center justify-between pb-2 pl-1">
-          <span class="text-micro font-medium text-muted-foreground"
+          <span class="text-label font-medium text-muted-foreground"
             >Colour</span
           >
           {#if pickedHue !== undefined}
             <button
-              class="rounded-full px-2 py-0.5 text-micro text-muted-foreground
+              class="rounded-full px-2 py-0.5 text-label text-muted-foreground
                      transition-colors duration-150 hover:bg-accent hover:text-foreground"
               onclick={() => folderPrefs.setHue(cwd, undefined)}
               type="button"
@@ -149,7 +149,7 @@
               type="button"
             >
               <span
-                class="size-5 rounded-full {on ? 'ring-2 ring-ring ring-offset-2 ring-offset-popover' : ''}"
+                class="size-5 rounded-full {on ? 'ring-2 ring-ring ring-offset-2 ring-offset-[var(--surface-raised)]' : ''}"
                 style={swatch(hue)}
               ></span>
             </button>
@@ -181,7 +181,7 @@
 </ContextMenu.Root>
 
 <AlertDialog.Root bind:open={confirmingForget}>
-  <AlertDialog.Content class="rounded-[var(--radius-shell)] shadow-xl">
+  <AlertDialog.Content>
     <AlertDialog.Header>
       <AlertDialog.Title>Forget {name}?</AlertDialog.Title>
       <AlertDialog.Description>

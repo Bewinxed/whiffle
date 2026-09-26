@@ -160,7 +160,7 @@
                     {:else}
                       <span
                         aria-hidden="true"
-                        class="flex size-full items-center justify-center rounded-full bg-muted text-xs leading-none
+                        class="flex size-full items-center justify-center rounded-full bg-muted text-meta leading-none
                                font-medium text-muted-foreground uppercase"
                       >
                         {server.name.charAt(0)}
@@ -179,7 +179,7 @@
 
               <Popover.Content
                 align="end"
-                class="w-64 rounded-[var(--radius-panel)] p-3 shadow-lg"
+                class="w-64 rounded-[var(--radius-lg)] p-3 shadow-lg"
               >
                 <McpServerDetail {instanceId} {machineId} {server} />
               </Popover.Content>
@@ -231,7 +231,7 @@
       <Button
         {...props}
         aria-label="{servers.length} MCP servers"
-        class="relative shrink-0 gap-1 text-xs {folded ? '' : 'sm:hidden'}"
+        class="relative shrink-0 gap-1 text-meta {folded ? '' : 'sm:hidden'}"
         size="sm"
         title={servers.map((server) => tip(server)).join('\n')}
         variant="outline"
@@ -251,7 +251,7 @@
 
   <Popover.Content
     align="end"
-    class="w-72 rounded-[var(--radius-panel)] p-1.5 shadow-lg"
+    class="w-72 rounded-[var(--radius-lg)] p-1.5 shadow-lg"
   >
     <ul class="flex max-h-[60vh] flex-col overflow-y-auto">
       {#each servers as server (server.name)}
@@ -262,7 +262,7 @@
         <li class="flex flex-col">
           <button
             aria-expanded={expanded}
-            class="flex min-h-9 items-center gap-2.5 rounded-[var(--radius-control)] px-2 text-left transition-colors
+            class="flex min-h-9 items-center gap-2.5 rounded-[var(--radius-sm)] px-2 text-left transition-colors
                    hover:bg-accent hover:text-accent-foreground"
             onclick={() => {
               foldedDetail = expanded ? null : server.name;
@@ -293,7 +293,7 @@
               {:else}
                 <span
                   aria-hidden="true"
-                  class="flex size-full items-center justify-center rounded-full bg-muted text-micro
+                  class="flex size-full items-center justify-center rounded-full bg-muted text-label
                          leading-none font-medium text-muted-foreground uppercase"
                 >
                   {server.name.charAt(0)}
@@ -301,13 +301,13 @@
               {/if}
               {#if CHIP_DOT[server.status]}
                 <span
-                  class="absolute -right-0.5 -bottom-0.5 size-2 rounded-full ring-2 ring-popover
+                  class="absolute -right-0.5 -bottom-0.5 size-2 rounded-full ring-2 ring-[var(--surface-raised)]
                          transition-colors duration-300 {CHIP_DOT[server.status]}"
                 ></span>
               {/if}
             </span>
-            <span class="min-w-0 flex-1 truncate text-sm">{server.name}</span>
-            <span class="shrink-0 text-micro text-muted-foreground"
+            <span class="min-w-0 flex-1 truncate text-label">{server.name}</span>
+            <span class="shrink-0 text-label text-muted-foreground"
               >{server.status}</span
             >
           </button>

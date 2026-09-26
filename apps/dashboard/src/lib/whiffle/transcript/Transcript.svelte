@@ -1566,7 +1566,7 @@
     position: relative;
   }
   .empty {
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--ink-muted);
     padding: var(--space-5) 0;
   }
@@ -1583,17 +1583,17 @@
   }
   .b-where {
     font-family: var(--font-mono);
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     color: var(--ink-muted);
   }
   .b-lead {
-    font-size: var(--text-base);
+    font-size: var(--text-label);
     font-weight: var(--weight-strong);
     color: var(--ink-strong);
   }
   .b-hint {
     max-width: 44ch;
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--ink-muted);
   }
 
@@ -1611,9 +1611,9 @@
     border: 1px solid var(--border-hairline);
     border-radius: var(--radius-pill);
     background: var(--surface-raised);
-    box-shadow: var(--shadow-lifted);
-    font-size: var(--text-sm);
-    color: var(--ink-body);
+    box-shadow: var(--shadow-tile);
+    font-size: var(--text-label);
+    color: var(--ink-strong);
   }
   .compacting-note .beat {
     width: 6px;
@@ -1621,7 +1621,7 @@
     flex: 0 0 auto;
     border-radius: 50%;
     background: var(--status-live-ink);
-    animation: beat var(--breath) var(--e-toggle) infinite;
+    animation: beat var(--breath) var(--ease-in-out) infinite;
   }
   @keyframes beat {
     50% {
@@ -1651,7 +1651,7 @@
   }
   @media (prefers-reduced-motion: no-preference) {
     .compacting-note .beat {
-      animation: beat var(--breath) var(--e-toggle) infinite;
+      animation: beat var(--breath) var(--ease-in-out) infinite;
     }
   }
   @media (max-width: 900px) {
@@ -1675,8 +1675,8 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    font-size: var(--text-sm);
-    color: var(--ink-body);
+    font-size: var(--text-label);
+    color: var(--ink-strong);
   }
   .livetool .ic {
     width: 15px;
@@ -1685,7 +1685,7 @@
     display: grid;
     place-items: center;
     /* No `color` here: the tool family's `text-tool-*` tint governs the glyph;
-       the generic case inherits --ink-body from .livetool. */
+       the generic case inherits --ink-strong from .livetool. */
   }
   .livetool .ic :global(svg) {
     width: 15px;
@@ -1724,7 +1724,7 @@
   }
   @media (prefers-reduced-motion: no-preference) {
     .livetool .ic.breathe :global(svg) {
-      animation: breathe var(--breath) var(--e-toggle) infinite;
+      animation: breathe var(--breath) var(--ease-in-out) infinite;
     }
   }
 

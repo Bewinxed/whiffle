@@ -11,7 +11,7 @@
 </script>
 
 <div
-  class={cn("flex items-center rounded-b-[var(--radius-card)] px-(--card-spacing) [.border-t]:pt-(--card-spacing)", className)}
+  class={cn("flex items-center px-(--card-spacing) [.border-t]:pt-(--card-spacing)", className)}
   data-slot="card-footer"
   bind:this={ref}
   {...restProps}

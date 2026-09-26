@@ -85,9 +85,7 @@
 
   // Quiet Ledger surfaces (DESIGN.md · mocks/v5-components.html .panel / .callout).
   const panelList =
-    "gap-0 overflow-hidden rounded-[var(--radius-panel)] border-0 bg-[var(--surface-raised)] p-0 shadow-[var(--shadow-lifted)] ring-1 ring-[var(--border-hairline)]";
-  const warnAlert =
-    "items-center rounded-[var(--radius-control)] border-[var(--warning-9)] bg-[var(--warning-3)] p-[var(--space-3)] [&>svg]:text-[var(--warning-11)]";
+    "gap-0 overflow-hidden rounded-[var(--radius-lg)] border-0 bg-[var(--surface-raised)] p-0 shadow-[var(--shadow-tile)] ring-1 ring-[var(--border-hairline)]";
 
   const bytes = $derived(
     memory ? new TextEncoder().encode(memory.content).length : 0
@@ -469,11 +467,11 @@
       <span class="flex min-w-0 items-center gap-1.5">
         <IconWarningTriangle class="size-3.5 shrink-0 text-warning" />
         <span
-          class="truncate text-caption font-medium {online ? 'text-foreground' : 'text-muted-foreground'}"
+          class="truncate text-meta text-muted-foreground font-medium {online ? 'text-foreground' : 'text-muted-foreground'}"
           >{machineLabel(machine.hostname)}</span
         >
       </span>
-      <span class="min-w-0 flex-1 text-micro text-muted-foreground"
+      <span class="min-w-0 flex-1 text-label text-muted-foreground"
         >Kept its own copy.{online ? '' : ' Offline — it syncs when it comes back.'}</span
       >
       <Button
@@ -505,25 +503,25 @@
     </div>
     {#if item?.detail}
       <pre
-        class="max-h-24 overflow-auto rounded-[var(--radius-well)] bg-muted px-2 py-1.5 font-mono text-micro whitespace-pre-wrap"
+        class="max-h-24 overflow-auto rounded-[var(--radius-sm)] bg-muted px-2 py-1.5 font-mono text-label whitespace-pre-wrap"
       >{item.detail}</pre>
     {/if}
     {#if isOpen}
       <div class="flex flex-col gap-2">
         {#if peeking[machine.machineId]}
           <p
-            class="flex items-center gap-2 text-caption text-muted-foreground"
+            class="flex items-center gap-2 text-meta text-muted-foreground"
             role="status"
           >
             <IconSpinner class="size-4 shrink-0 animate-spin" />Reading this
             machine's copy…
           </p>
         {:else if unread[machine.machineId]}
-          <p class="text-caption text-warning" role="alert">
+          <p class="text-meta text-warning" role="alert">
             {unread[machine.machineId]}
           </p>
         {:else if copies[machine.machineId] === null}
-          <p class="text-caption text-muted-foreground">
+          <p class="text-meta text-muted-foreground">
             This machine has no user CLAUDE.md of its own.
           </p>
         {:else if copies[machine.machineId]}
@@ -561,25 +559,25 @@
   {@const drifted = kept(doc.path)}
   <button
     aria-expanded={false}
-    class="flex w-full min-w-0 items-center gap-x-3 rounded-[var(--radius-panel)] bg-card px-[var(--space-4)] py-[var(--space-3)] text-left shadow-md ring-1 ring-foreground/10 hover:bg-[var(--surface-hover)]"
+    class="flex w-full min-w-0 items-center gap-x-3 rounded-[var(--radius-lg)] bg-card px-[var(--space-4)] py-[var(--space-3)] text-left shadow-md ring-1 ring-foreground/10 hover:bg-[var(--surface-hover)]"
     onclick={() => toggleDoc(doc.path)}
     type="button"
   >
     <IconChevronRight class="size-3.5 shrink-0 text-muted-foreground" />
-    <span class="min-w-0 flex-1 truncate font-mono text-micro text-muted-foreground"
+    <span class="min-w-0 flex-1 truncate font-mono text-label text-muted-foreground"
       >~/.claude/memories/{doc.path}</span
     >
-    <span class="shrink-0 text-micro text-muted-foreground"
+    <span class="shrink-0 text-label text-muted-foreground"
       >{formatBytes(docBytes(doc))}</span
     >
-    <span class="hidden shrink-0 text-micro text-muted-foreground sm:inline"
+    <span class="hidden shrink-0 text-label text-muted-foreground sm:inline"
       >saved {formatDistanceToNow(new Date(doc.updatedAt))}</span
     >
     <!-- A document that drifted says so on its own row, so a closed list still
          shows the one thing that needs a decision. -->
     {#if drifted.length > 0}
       <span
-        class="flex shrink-0 items-center gap-1 text-micro text-warning"
+        class="flex shrink-0 items-center gap-1 text-label text-warning"
         title={names(drifted)}
       >
         <IconWarningTriangle class="size-3.5 shrink-0" />
@@ -587,7 +585,7 @@
       </span>
     {:else if synced.length > 0}
       <span
-        class="flex shrink-0 items-center gap-1 text-micro text-muted-foreground"
+        class="flex shrink-0 items-center gap-1 text-label text-muted-foreground"
         title={names(synced)}
       >
         <IconCheck class="size-3.5 shrink-0 text-success" />
@@ -607,7 +605,7 @@
   >
     {#snippet meta()}
       <span
-        class="flex min-w-0 shrink items-baseline gap-x-3 text-micro text-muted-foreground"
+        class="flex min-w-0 shrink items-baseline gap-x-3 text-label text-muted-foreground"
       >
         <span class="font-mono" title={doc.hash}>{doc.hash.slice(0, 8)}</span>
         <span>{formatBytes(docBytes(doc))}</span>
@@ -664,11 +662,11 @@
               <span class="flex min-w-0 items-center gap-1.5">
                 <IconWarningTriangle class="size-3.5 shrink-0 text-warning" />
                 <span
-                  class="truncate text-caption font-medium {online ? 'text-foreground' : 'text-muted-foreground'}"
+                  class="truncate text-meta text-muted-foreground font-medium {online ? 'text-foreground' : 'text-muted-foreground'}"
                   >{machineLabel(machine.hostname)}</span
                 >
               </span>
-              <span class="min-w-0 flex-1 text-micro text-muted-foreground"
+              <span class="min-w-0 flex-1 text-label text-muted-foreground"
                 >Kept its own copy.{online ? '' : ' Offline — it syncs when it comes back.'}</span
               >
               <Button
@@ -705,7 +703,7 @@
     {#snippet meta()}
       <!-- The header already says where the file goes; this is only its last
            part, typed where the rest of it is written. ui/input carries the
-           Quiet Ledger control dressing (--radius-control, --border-control,
+           Quiet Ledger control dressing (--radius-sm, --border-control,
            --surface-raised, --ink-strong) so no unlayered .input is needed. -->
       <Input
         aria-invalid={pathProblem === undefined ? undefined : 'true'}
@@ -723,9 +721,9 @@
         <div
           class="flex flex-col gap-[var(--space-2)] border-t border-[var(--border-hairline)] p-[var(--space-4)]"
         >
-          <Alert.Root class={warnAlert}>
+          <Alert.Root variant="warning">
             <IconWarningTriangle />
-            <Alert.Description class="text-caption text-[var(--warning-11)]"
+            <Alert.Description
               >{pathProblem}</Alert.Description
             >
           </Alert.Root>
@@ -744,7 +742,7 @@
   </MemoryCard>
 {/snippet}
 
-<p class="max-w-prose text-caption">
+<p class="max-w-prose text-meta text-muted-foreground">
   One memory for the fleet. What you write here is
   <span class="font-mono">~/.claude/CLAUDE.md</span>
   on every machine, so what you taught Claude Code on one of them is what it
@@ -752,9 +750,9 @@
 </p>
 
 {#if loadError}
-  <Alert.Root class={warnAlert}>
+  <Alert.Root variant="warning">
     <IconWarningTriangle />
-    <Alert.Description class="text-caption text-[var(--warning-11)]"
+    <Alert.Description
       >{loadError}</Alert.Description
     >
   </Alert.Root>
@@ -769,7 +767,7 @@
     {#snippet meta()}
       {#if memory}
         <span
-          class="flex min-w-0 shrink items-baseline gap-x-3 text-micro text-muted-foreground"
+          class="flex min-w-0 shrink items-baseline gap-x-3 text-label text-muted-foreground"
         >
           <span class="font-mono" title={memory.hash}
             >{memory.hash.slice(0, 8)}</span
@@ -824,9 +822,9 @@
         <div
           class="flex flex-col gap-[var(--space-3)] border-t border-[var(--border-hairline)] p-[var(--space-4)]"
         >
-          <Alert.Root class={warnAlert}>
+          <Alert.Root variant="warning">
             <IconWarningTriangle />
-            <Alert.Description class="text-caption text-[var(--warning-11)]"
+            <Alert.Description
               >Changed elsewhere while you edited. Nothing was
               overwritten.</Alert.Description
             >
@@ -859,7 +857,7 @@
     {/snippet}
   </MemoryCard>
 
-  <p class="max-w-prose text-caption text-muted-foreground">
+  <p class="max-w-prose text-meta text-muted-foreground">
     And the documents it links, under
     <span class="font-mono">~/.claude/memories/</span>. The main file is loaded
     flat into every session; a
@@ -889,7 +887,7 @@
 
   {#if hookFailed.length > 0}
     <div class="flex flex-col gap-[var(--space-2)]">
-      <p class="max-w-prose text-caption text-muted-foreground">
+      <p class="max-w-prose text-meta text-muted-foreground">
         The documents above are put in front of a session by a SessionStart hook
         Whiffle registers. Where it did not register, the files are on the
         machine and nothing reads them.
@@ -911,11 +909,11 @@
 
   {#if historyOpen}
     {#if loadingHistory && versions === null}
-      <Skeleton class="h-16 w-full rounded-[var(--radius-panel)]" />
+      <Skeleton class="h-16 w-full rounded-[var(--radius-lg)]" />
     {:else if historyError}
-      <p class="text-caption text-warning" role="alert">{historyError}</p>
+      <p class="text-meta text-warning" role="alert">{historyError}</p>
     {:else if (versions ?? []).length === 0}
-      <p class="text-caption text-muted-foreground">
+      <p class="text-meta text-muted-foreground">
         Nothing replaced yet. Every version a save, an adopt or an overwrite
         replaces is kept here.
       </p>
@@ -929,18 +927,18 @@
               <div
                 class="flex flex-wrap items-center gap-x-[var(--space-3)] gap-y-2"
               >
-                <span class="text-caption"
+                <span class="text-meta text-muted-foreground"
                   >{formatDistanceToNow(new Date(row.createdAt))}</span
                 >
-                <span class="text-micro text-muted-foreground"
+                <span class="text-label text-muted-foreground"
                   >from {sourceLabel(row.source)}</span
                 >
                 <span
-                  class="font-mono text-micro text-muted-foreground"
+                  class="font-mono text-label text-muted-foreground"
                   title={row.hash}
                   >{row.hash.slice(0, 8)}</span
                 >
-                <span class="text-micro text-muted-foreground"
+                <span class="text-label text-muted-foreground"
                   >{formatBytes(row.bytes)}</span
                 >
                 <Button
@@ -954,7 +952,7 @@
               {#if shown === row.id}
                 {#if reading[row.id]}
                   <p
-                    class="flex items-center gap-2 text-caption text-muted-foreground"
+                    class="flex items-center gap-2 text-meta text-muted-foreground"
                     role="status"
                   >
                     <IconSpinner class="size-4 shrink-0 animate-spin" />Reading
@@ -986,9 +984,9 @@
   {/if}
 
   {#if machines.length === 0 && settling}
-    <Skeleton class="h-10 w-full rounded-[var(--radius-panel)]" />
+    <Skeleton class="h-10 w-full rounded-[var(--radius-lg)]" />
   {:else if machines.length === 0}
-    <p class="text-caption text-muted-foreground">
+    <p class="text-meta text-muted-foreground">
       No machines yet — this lands on the first one that registers.
     </p>
   {:else if !memory}
@@ -1000,7 +998,7 @@
             class="flex flex-wrap items-center gap-[var(--space-3)] border-t border-[var(--border-hairline)] p-[var(--space-4)] first:border-t-0"
           >
             <span
-              class="min-w-0 flex-1 truncate text-caption font-medium {online ? 'text-foreground' : 'text-muted-foreground'}"
+              class="min-w-0 flex-1 truncate text-meta text-muted-foreground font-medium {online ? 'text-foreground' : 'text-muted-foreground'}"
               >{machineLabel(machine.hostname)}</span
             >
             <Button
@@ -1018,7 +1016,7 @@
   {:else}
     {#if applied.length > 0}
       <p
-        class="flex flex-wrap items-center gap-x-2 text-caption text-muted-foreground"
+        class="flex flex-wrap items-center gap-x-2 text-meta text-muted-foreground"
         title={names(applied)}
       >
         <IconCheck class="size-3.5 shrink-0 text-success" />
@@ -1040,7 +1038,7 @@
           {/each}
         </ul>
       </Card.Root>
-      <p class="max-w-prose text-micro text-muted-foreground">
+      <p class="max-w-prose text-label text-muted-foreground">
         A machine only ever gives back the copy Whiffle wrote it. One edited on
         the machine itself is left where it is, and says so here until you take
         it or replace it.

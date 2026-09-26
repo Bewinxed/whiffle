@@ -158,7 +158,7 @@
 </script>
 
 <Dialog.Root bind:open={dialogOpen}>
-  <Dialog.Content class="rounded-[var(--radius-shell)] shadow-xl sm:max-w-lg">
+  <Dialog.Content class="sm:max-w-lg">
     <Dialog.Header>
       <Dialog.Title
         >{editing ? `Edit ${editing.name}` : 'Add MCP server'}</Dialog.Title
@@ -176,30 +176,28 @@
             mode = next as Mode;
           }
         }}
-        size="sm"
         type="single"
         value={mode}
-        variant="outline"
       >
-        <ToggleGroup.Item class="flex-1 text-caption" value="bunx"
+        <ToggleGroup.Item class="flex-1" value="bunx"
           >bunx package</ToggleGroup.Item
         >
-        <ToggleGroup.Item class="flex-1 text-caption" value="command"
+        <ToggleGroup.Item class="flex-1" value="command"
           >Command</ToggleGroup.Item
         >
-        <ToggleGroup.Item class="flex-1 text-caption" value="remote"
+        <ToggleGroup.Item class="flex-1" value="remote"
           >Remote</ToggleGroup.Item
         >
       </ToggleGroup.Root>
-      <p class="text-micro text-muted-foreground">{HOW[mode]}</p>
+      <p class="text-label text-muted-foreground">{HOW[mode]}</p>
 
       {#if mode === 'bunx'}
         <!-- biome-ignore lint/a11y/noLabelWithoutControl: the `Input` component (shadcn-svelte) renders a native <input> as its only child -->
-        <label class="flex flex-col gap-1.5 text-caption"
+        <label class="flex flex-col gap-1.5 text-meta text-muted-foreground"
           >Package
           <Input
             autocomplete="off"
-            class="font-mono text-sm md:text-sm"
+            class="font-mono text-label md:text-label"
             oninput={suggestName}
             placeholder="@modelcontextprotocol/server-filesystem"
             spellcheck="false"
@@ -207,11 +205,11 @@
           />
         </label>
         <!-- biome-ignore lint/a11y/noLabelWithoutControl: the `Input` component (shadcn-svelte) renders a native <input> as its only child -->
-        <label class="flex flex-col gap-1.5 text-caption"
+        <label class="flex flex-col gap-1.5 text-meta text-muted-foreground"
           >Arguments (optional)
           <Input
             autocomplete="off"
-            class="font-mono text-sm md:text-sm"
+            class="font-mono text-label md:text-label"
             placeholder="/home/you/projects"
             spellcheck="false"
             bind:value={pkgArgs}
@@ -219,27 +217,27 @@
         </label>
       {:else if mode === 'command'}
         <!-- biome-ignore lint/a11y/noLabelWithoutControl: the `Input` component (shadcn-svelte) renders a native <input> as its only child -->
-        <label class="flex flex-col gap-1.5 text-caption"
+        <label class="flex flex-col gap-1.5 text-meta text-muted-foreground"
           >Command
           <Input
             autocomplete="off"
-            class="font-mono text-sm md:text-sm"
+            class="font-mono text-label md:text-label"
             placeholder="uvx"
             spellcheck="false"
             bind:value={command}
           />
         </label>
         <!-- biome-ignore lint/a11y/noLabelWithoutControl: the `Input` component (shadcn-svelte) renders a native <input> as its only child -->
-        <label class="flex flex-col gap-1.5 text-caption"
+        <label class="flex flex-col gap-1.5 text-meta text-muted-foreground"
           >Arguments
           <Input
             autocomplete="off"
-            class="font-mono text-sm md:text-sm"
+            class="font-mono text-label md:text-label"
             placeholder="mcp-server-git --repository /home/you/repo"
             spellcheck="false"
             bind:value={argsLine}
           />
-          <span class="text-micro text-muted-foreground"
+          <span class="text-label text-muted-foreground"
             >Split on spaces. Quotes are not honoured.</span
           >
         </label>
@@ -251,17 +249,17 @@
         />
       {:else}
         <!-- biome-ignore lint/a11y/noLabelWithoutControl: the `Input` component (shadcn-svelte) renders a native <input> as its only child -->
-        <label class="flex flex-col gap-1.5 text-caption"
+        <label class="flex flex-col gap-1.5 text-meta text-muted-foreground"
           >URL
           <Input
             autocomplete="off"
-            class="font-mono text-sm md:text-sm"
+            class="font-mono text-label md:text-label"
             placeholder="https://mcp.example.com/sse"
             spellcheck="false"
             bind:value={url}
           />
         </label>
-        <fieldset class="flex flex-col gap-1.5 text-caption">
+        <fieldset class="flex flex-col gap-1.5 text-meta text-muted-foreground">
           <legend class="mb-1">Transport</legend>
           <ToggleGroup.Root
             class="w-full"
@@ -270,15 +268,13 @@
                 transport = next as 'http' | 'sse';
               }
             }}
-            size="sm"
             type="single"
             value={transport}
-            variant="outline"
           >
-            <ToggleGroup.Item class="flex-1 text-caption" value="http"
+            <ToggleGroup.Item class="flex-1" value="http"
               >HTTP</ToggleGroup.Item
             >
-            <ToggleGroup.Item class="flex-1 text-caption" value="sse"
+            <ToggleGroup.Item class="flex-1" value="sse"
               >SSE
               <span class="text-muted-foreground"
                 >· deprecated</span
@@ -295,12 +291,12 @@
       {/if}
 
       <!-- biome-ignore lint/a11y/noLabelWithoutControl: the `Input` component (shadcn-svelte) renders a native <input> as its only child -->
-      <label class="flex flex-col gap-1.5 text-caption"
+      <label class="flex flex-col gap-1.5 text-meta text-muted-foreground"
         >Name
         <Input
           aria-invalid={name !== '' && nameProblem ? 'true' : undefined}
           autocomplete="off"
-          class="font-mono text-sm md:text-sm"
+          class="font-mono text-label md:text-label"
           oninput={() => {
             named = true;
           }}
@@ -308,7 +304,7 @@
           spellcheck="false"
           bind:value={name}
         />
-        <span class="text-micro">
+        <span class="text-label">
           {#if name !== '' && nameProblem}
             <span class="text-destructive">{nameProblem}</span>
           {:else}
@@ -317,13 +313,13 @@
           {/if}
         </span>
       </label>
-      <p class="text-micro text-muted-foreground">
+      <p class="text-label text-muted-foreground">
         <span class="font-mono">&#36;&#123;VAR&#125;</span>
         is expanded on each machine, from that machine's own environment —
         secrets never pass through the hub.
       </p>
       {#if failed}
-        <p class="text-caption text-destructive" role="alert">{failed}</p>
+        <p class="text-meta text-destructive" role="alert">{failed}</p>
       {/if}
       <div class="flex justify-end gap-2 pt-1">
         <Button

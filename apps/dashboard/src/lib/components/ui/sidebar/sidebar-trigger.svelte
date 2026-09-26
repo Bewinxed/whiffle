@@ -1,6 +1,5 @@
 <script lang="ts">
-  import { SidebarLeftIcon } from "@hugeicons/core-free-icons";
-  import { HugeiconsIcon } from "@hugeicons/svelte";
+  import { IconSidebar } from "$lib/icons";
   import type { ComponentProps } from "svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import { cn } from "$lib/utils.js";
@@ -32,6 +31,6 @@
   bind:ref
   {...restProps}
 >
-  <HugeiconsIcon icon={SidebarLeftIcon} strokeWidth={2} />
+  <IconSidebar />
   <span class="sr-only">Toggle Sidebar</span>
 </Button>

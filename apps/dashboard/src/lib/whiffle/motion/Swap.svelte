@@ -132,10 +132,10 @@
       animation: swap-reserve var(--swap-ms) linear;
     }
     .leaving {
-      animation: leave 160ms var(--e-out) forwards;
+      animation: leave 160ms var(--ease-out) forwards;
     }
     .entering {
-      animation: enter 160ms var(--e-in);
+      animation: enter 160ms var(--ease-out);
     }
   }
   @keyframes swap-reserve {

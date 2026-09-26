@@ -21,10 +21,10 @@
 <style>
   main {
     padding: var(--space-8);
-    color: var(--ink-body);
+    color: var(--ink-strong);
   }
   h1 {
-    font-size: var(--text-xl);
+    font-size: var(--text-title);
     font-weight: 500;
     color: var(--ink-strong);
   }

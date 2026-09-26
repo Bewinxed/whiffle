@@ -19,7 +19,7 @@
     position: relative;
     overflow: hidden;
     margin-top: var(--space-4);
-    animation: cu-in var(--c-300) var(--e-in) both;
+    animation: cu-in var(--dur-panel) var(--ease-out) both;
   }
   @keyframes cu-in {
     from {
@@ -40,23 +40,23 @@
     width: 18px;
     height: 18px;
     flex: 0 0 auto;
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
     background: oklch(from var(--brand-solid) l c h / 0.28);
   }
   .name {
     width: 64px;
     height: 12px;
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
     background: var(--surface-hover);
   }
-  /* --text-md at --leading-body is a 21px line box: an 11px bar with 5px
+  /* --text-body at --leading-body is a 21px line box: an 11px bar with 5px
      above and below keeps the prose pitch. Short, the way a line that is
      still arriving is. */
   .ln {
     width: 38%;
     height: 11px;
     margin-block: 5px;
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
     background: var(--surface-hover);
   }
 

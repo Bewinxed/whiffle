@@ -40,8 +40,8 @@
   .turn.you {
     margin-inline: calc(var(--space-4) * -1);
     padding: var(--space-3) var(--space-4);
-    background: var(--surface-sunken);
-    border-radius: var(--radius-well);
+    background: var(--surface-recess);
+    border-radius: var(--radius-sm);
   }
   /* The whole difference, in one number: present, legible, and plainly not yet
      part of the conversation. */
@@ -50,7 +50,7 @@
   }
   .carried {
     margin-top: var(--space-2);
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     color: var(--ink-muted);
   }
   @media (max-width: 900px) {

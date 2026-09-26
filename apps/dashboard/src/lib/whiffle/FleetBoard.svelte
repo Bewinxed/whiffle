@@ -396,7 +396,7 @@
   // raised list (FleetAgents.svelte / FleetMemory.svelte's own `panelList`):
   // a raised card at zero padding, each row drawing its own top hairline.
   const machinesPanelClass =
-    "gap-0 overflow-hidden rounded-[var(--radius-panel)] border-0 bg-[var(--surface-raised)] p-0 shadow-[var(--shadow-lifted)] ring-1 ring-[var(--border-hairline)] mt-[var(--space-6)]";
+    "gap-0 overflow-hidden rounded-[var(--radius-lg)] border-0 bg-[var(--surface-raised)] p-0 shadow-[var(--shadow-tile)] ring-1 ring-[var(--border-hairline)] mt-[var(--space-6)]";
 
   // The status column, dressed on ui/badge: a light tint carries the meaning,
   // deepened ink carries the legibility. Idle carries no fill — absence is idle.
@@ -448,7 +448,6 @@
       >
         <StatTile
           label="Needs you"
-          tone="attn"
           unit={hubLive ? undefined : 'unknown while reconnecting'}
           value={hubLive ? String(whiffle.blockedCount) : '—'}
         />
@@ -490,7 +489,7 @@
       <AttentionQueue />
       {#each Object.values(workflowState.runs).filter((run) => run.status === 'waiting') as run (run.id)}
         <a
-          class="flex min-h-11 flex-wrap items-center justify-between gap-3 rounded-[var(--radius-control)] bg-[var(--surface-raised)] p-3"
+          class="flex min-h-11 flex-wrap items-center justify-between gap-3 rounded-[var(--radius-sm)] bg-[var(--surface-raised)] p-3"
           href="/workflows/{run.workflowId}/runs/{run.id}"
           ><span
             >{workflowState.workflows.find((entry) => entry.id === run.workflowId)?.name ?? 'Workflow'}
@@ -751,7 +750,7 @@
     flex: 1 1 auto;
     min-width: 0;
     overflow: auto;
-    background: var(--surface-field);
+    background: var(--surface-recess);
   }
   .inner {
     padding: 0 var(--space-6) var(--space-7) var(--space-7);
@@ -765,7 +764,7 @@
   .head p {
     margin-right: auto;
     min-width: 0;
-    font-size: var(--text-md);
+    font-size: var(--text-body);
     color: var(--ink-muted);
   }
 
@@ -787,8 +786,8 @@
     font: inherit;
     color: inherit;
     cursor: pointer;
-    border-radius: var(--radius-panel);
-    transition: transform 100ms var(--e-in);
+    border-radius: var(--radius-lg);
+    transition: transform 100ms var(--ease-out);
   }
   .attn-tile:active {
     transform: scale(0.99);
@@ -826,10 +825,10 @@
 
   .panel {
     background: var(--surface-raised);
-    border-radius: var(--radius-panel);
+    border-radius: var(--radius-lg);
     margin-top: var(--space-6);
     padding: var(--space-3);
-    box-shadow: var(--shadow-lifted);
+    box-shadow: var(--shadow-tile);
   }
 
   .machine-list {
@@ -843,13 +842,13 @@
      surface rather than a state this board's live table can also carry. */
   .not-running {
     background: var(--surface-raised);
-    border-radius: var(--radius-panel);
+    border-radius: var(--radius-lg);
     margin-top: var(--space-6);
     padding: var(--space-3);
-    box-shadow: var(--shadow-lifted);
+    box-shadow: var(--shadow-tile);
   }
   .not-running .sec {
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     color: var(--ink-muted);
     font-weight: var(--weight-strong);
     text-transform: uppercase;
@@ -865,11 +864,11 @@
   }
   .show-all {
     padding: var(--space-3) var(--space-4);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--ink-muted);
     background: none;
     border: 1px dashed var(--border-hairline);
-    border-radius: var(--radius-control);
+    border-radius: var(--radius-sm);
     cursor: pointer;
     margin-top: var(--space-2);
   }
@@ -910,21 +909,21 @@
   .tbl :global([data-slot="table-head"]) {
     height: var(--space-8);
     padding: 0 var(--space-3);
-    background: var(--surface-sunken);
+    background: var(--surface-recess);
     text-align: left;
     white-space: nowrap;
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     font-weight: var(--weight-medium);
     letter-spacing: var(--track-caps);
     text-transform: uppercase;
-    color: var(--ink-label);
+    color: var(--ink-muted);
     vertical-align: middle;
   }
   .tbl :global([data-slot="table-head"]:first-child) {
-    border-radius: var(--radius-tile) 0 0 var(--radius-tile);
+    border-radius: var(--radius-xs) 0 0 var(--radius-xs);
   }
   .tbl :global([data-slot="table-head"]:last-child) {
-    border-radius: 0 var(--radius-tile) var(--radius-tile) 0;
+    border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
   }
   .tbl :global([data-slot="table-head"].s-name) {
     width: 290px;
@@ -939,9 +938,9 @@
   .tbl :global(tbody [data-slot="table-cell"]) {
     height: 44px;
     padding: 0 var(--space-3);
-    border-bottom: 1px solid var(--border-divider);
-    font-size: var(--text-base);
-    color: var(--ink-row);
+    border-bottom: 1px solid var(--border-hairline);
+    font-size: var(--text-label);
+    color: var(--ink-strong);
     vertical-align: middle;
   }
   .tbl :global(tbody tr:last-child [data-slot="table-cell"]) {
@@ -963,7 +962,7 @@
   .mark {
     width: var(--c-mark);
     height: var(--c-mark);
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
     flex: 0 0 auto;
     display: grid;
     place-items: center;
@@ -1007,7 +1006,7 @@
   }
   .nm a {
     font-weight: var(--weight-strong);
-    color: var(--ink-row);
+    color: var(--ink-strong);
     text-decoration: none;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1045,7 +1044,7 @@
     height: 55px;
     padding: 0 var(--space-3);
     border-top: 1px solid var(--border-hairline);
-    font-size: var(--text-base);
+    font-size: var(--text-label);
     color: var(--ink-muted);
   }
   .empty {
@@ -1058,12 +1057,12 @@
     text-align: center;
   }
   .empty b {
-    font-size: var(--text-md);
+    font-size: var(--text-body);
     font-weight: var(--weight-strong);
     color: var(--ink-strong);
   }
   .empty p {
-    font-size: var(--text-base);
+    font-size: var(--text-label);
     color: var(--ink-muted);
   }
 

@@ -88,14 +88,14 @@
 <style>
   .hitl {
     border: 1px solid var(--border-control);
-    border-radius: var(--radius-panel);
+    border-radius: var(--radius-lg);
     background: var(--surface-raised);
     margin: var(--space-4) 0 0 var(--space-2);
     padding: var(--space-3);
     box-shadow: var(--shadow-hairline, var(--shadow-tile));
   }
   h2 {
-    font-size: var(--text-base);
+    font-size: var(--text-label);
     font-weight: var(--weight-strong);
     color: var(--ink-strong);
     display: flex;
@@ -110,7 +110,7 @@
     height: 20px;
     padding: 0 var(--space-2);
     border-radius: var(--radius-pill);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     font-weight: var(--weight-strong);
     white-space: nowrap;
   }
@@ -124,17 +124,17 @@
     color: var(--status-attn-ink);
   }
   .pill.done {
-    background: var(--status-done-bg, var(--surface-sunken));
-    color: var(--status-done-ink, var(--ink-body));
+    background: var(--status-done-bg, var(--surface-recess));
+    color: var(--status-done-ink, var(--ink-strong));
   }
   .pill.muted {
-    background: var(--surface-sunken);
+    background: var(--surface-recess);
     color: var(--ink-muted);
   }
   .lede {
-    font-size: var(--text-base);
+    font-size: var(--text-label);
     line-height: var(--leading-body);
-    color: var(--ink-body);
+    color: var(--ink-strong);
     margin-bottom: var(--space-2);
     max-width: 72ch;
   }
@@ -148,11 +148,11 @@
     min-height: 30px;
     padding: var(--space-2) var(--space-3);
     border: 1px solid var(--border-control);
-    border-radius: var(--radius-control);
+    border-radius: var(--radius-sm);
     background: var(--surface-raised);
-    color: var(--ink-body);
+    color: var(--ink-strong);
     font-family: var(--font-body);
-    font-size: var(--text-base);
+    font-size: var(--text-label);
     font-weight: var(--weight-medium);
     display: inline-flex;
     align-items: center;
@@ -166,7 +166,7 @@
      reserved for "a person is holding this up". */
   .opt.sel {
     border-color: var(--brand-solid);
-    background: var(--surface-sunken);
+    background: var(--surface-recess);
     color: var(--ink-strong);
   }
   .opt.sel .kc {
@@ -180,25 +180,25 @@
     min-width: 17px;
     height: 17px;
     padding: 0 4px;
-    border-radius: var(--radius-mark);
-    background: var(--surface-sunken);
+    border-radius: var(--radius-xs);
+    background: var(--surface-recess);
     font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    color: var(--ink-body);
+    font-size: var(--text-meta);
+    color: var(--ink-strong);
     line-height: 1;
     flex: 0 0 auto;
   }
   .answer-free {
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     line-height: var(--leading-body);
-    color: var(--ink-body);
+    color: var(--ink-strong);
     max-width: 72ch;
     display: flex;
     gap: var(--space-2);
     align-items: baseline;
   }
   .answer-free .lbl {
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     font-weight: var(--weight-strong);
     text-transform: uppercase;
     letter-spacing: 0.02em;

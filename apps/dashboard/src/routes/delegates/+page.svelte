@@ -83,13 +83,9 @@
 
   /* Quiet Ledger dressing for shadcn primitives — see routes/rules/+page.svelte. */
   const panelClass =
-    "gap-0 overflow-visible rounded-[var(--radius-panel)] bg-[var(--surface-raised)] p-[var(--space-5)] shadow-[var(--shadow-lifted)] ring-0";
+    "gap-0 overflow-visible rounded-[var(--radius-lg)] bg-[var(--surface-raised)] p-[var(--space-5)] shadow-[var(--shadow-tile)] ring-0";
   const tileClass =
-    "h-full gap-0 overflow-visible rounded-[var(--radius-panel)] bg-[var(--surface-raised)] p-[var(--c-card-pad)] shadow-[var(--shadow-lifted)] ring-0";
-  const btnPrimary =
-    "h-[var(--c-btn-h)] gap-[var(--c-btn-gap)] rounded-[var(--radius-control)] border-transparent bg-[var(--brand-solid)] bg-[image:var(--gradient-action)] px-[var(--c-btn-pad)] text-[length:var(--c-btn-fs)] font-medium !text-[color:var(--on-brand)] shadow-[var(--shadow-action)] hover:brightness-110";
-  const alertDanger =
-    "rounded-[var(--radius-control)] border-[var(--error-9)] bg-[var(--error-3)] !text-[color:var(--error-11)]";
+    "h-full gap-0 overflow-visible rounded-[var(--radius-lg)] bg-[var(--surface-raised)] p-[var(--c-card-pad)] shadow-[var(--shadow-tile)] ring-0";
 </script>
 
 <svelte:head><title>Delegates &middot; Whiffle</title></svelte:head>
@@ -114,7 +110,7 @@
         and a calling agent picks one by matching what it needs done against the
         description, never by knowing a model string.
       </p>
-      <Button class={btnPrimary} onclick={() => goto('/delegates/new')}>
+      <Button onclick={() => goto('/delegates/new')}>
         <IconPlus class="shrink-0" />
         New delegate type
       </Button>
@@ -126,9 +122,8 @@
     </section>
 
     {#if data.error}
-      <Alert.Root class={alertDanger}>
+      <Alert.Root variant="destructive">
         <Alert.Description
-          class="text-[length:var(--text-sm)] leading-[var(--leading-body)] text-[color:var(--error-11)]"
         >
           {data.error}
         </Alert.Description>
@@ -143,7 +138,7 @@
           </span>
         </header>
         <div class="pbody">
-          <Button class={btnPrimary} onclick={() => goto('/delegates/new')}>
+          <Button onclick={() => goto('/delegates/new')}>
             <IconPlus class="shrink-0" />
             New delegate type
           </Button>
@@ -254,7 +249,7 @@
   }
   .head .sub {
     max-width: 68ch;
-    font-size: var(--text-base);
+    font-size: var(--text-label);
     color: var(--ink-muted);
   }
   .head .sub code {
@@ -272,18 +267,18 @@
     flex-direction: column;
     gap: var(--c-card-gap);
     justify-content: center;
-    background: var(--surface-field);
+    background: var(--surface-recess);
     border: 1px solid var(--border-hairline);
-    border-radius: var(--radius-well);
+    border-radius: var(--radius-sm);
     padding: var(--c-card-pad);
   }
   .well .k {
-    color: var(--ink-label);
-    font-size: var(--text-sm);
+    color: var(--ink-muted);
+    font-size: var(--text-label);
     font-weight: var(--weight-medium);
   }
   .well .v {
-    font-size: var(--text-3xl);
+    font-size: var(--text-kpi);
     font-weight: var(--weight-strong);
     line-height: var(--leading-numeric);
     color: var(--ink-strong);
@@ -291,7 +286,7 @@
   }
   .well .u {
     color: var(--ink-muted);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
   }
   .phead {
     display: flex;
@@ -301,7 +296,7 @@
     margin-bottom: var(--space-4);
   }
   .phead h2 {
-    font-size: var(--text-md);
+    font-size: var(--text-body);
     font-weight: var(--weight-strong);
     color: var(--ink-strong);
   }
@@ -312,7 +307,7 @@
   }
   .psub {
     max-width: 68ch;
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--ink-muted);
   }
   /* biome-ignore lint/style/noDescendingSpecificity: .head .sub code and .psub code sit in disjoint markup subtrees, ordering here is presentation-only */
@@ -355,7 +350,7 @@
     flex-wrap: wrap;
     align-items: center;
     gap: var(--space-2);
-    font-size: var(--text-base);
+    font-size: var(--text-label);
     font-weight: var(--weight-strong);
     color: var(--ink-strong);
     font-family: var(--font-mono);
@@ -375,12 +370,12 @@
   }
   .line {
     max-width: 68ch;
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--ink-muted);
   }
   /* The description is the routing content — it reads at body size, not caption. */
   .line.desc {
-    font-size: var(--text-base);
+    font-size: var(--text-label);
     color: var(--ink-strong);
   }
   .badgerow {
@@ -400,9 +395,9 @@
     gap: var(--space-1);
   }
   .servedk {
-    color: var(--ink-label);
+    color: var(--ink-muted);
     text-transform: uppercase;
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     letter-spacing: var(--track-display);
   }
   .servedv {

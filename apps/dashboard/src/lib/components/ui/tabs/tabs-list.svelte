@@ -1,42 +1,33 @@
-<script lang="ts" module>
-  import { tv, type VariantProps } from "tailwind-variants";
-
-  export const tabsListVariants = tv({
-    base: "group/tabs-list inline-flex w-fit items-center justify-center rounded-[var(--radius-control)] p-[3px] text-muted-foreground data-[variant=line]:rounded-none group-data-[orientation=vertical]/tabs:h-fit group-data-horizontal/tabs:h-[var(--c-nav-h)] group-data-[orientation=vertical]/tabs:flex-col group-data-vertical/tabs:rounded-[var(--radius-card)]",
-    variants: {
-      variant: {
-        default: "cn-tabs-list-variant-default bg-muted",
-        line: "cn-tabs-list-variant-line gap-1 bg-transparent",
-      },
-    },
-    defaultVariants: {
-      variant: "default",
-    },
-  });
-
-  export type TabsListVariant = VariantProps<
-    typeof tabsListVariants
-  >["variant"];
-</script>
-
 <script lang="ts">
   import { Tabs as TabsPrimitive } from "bits-ui";
   import { cn } from "$lib/utils.js";
+  import { slideThumb } from "./thumb.js";
 
   let {
     ref = $bindable(null),
-    variant = "default",
     class: className,
+    children,
     ...restProps
-  }: TabsPrimitive.ListProps & {
-    variant?: TabsListVariant;
-  } = $props();
+  }: TabsPrimitive.ListProps = $props();
+
+  let thumb = $state<HTMLSpanElement>();
+  $effect(() => {
+    if (ref && thumb) {
+      return slideThumb(
+        ref,
+        thumb,
+        '[data-slot="tabs-trigger"][data-state="active"]'
+      );
+    }
+  });
 </script>
 
 <TabsPrimitive.List
-  class={cn(tabsListVariants({ variant }), className)}
+  class={cn("kit-segmented", className)}
   data-slot="tabs-list"
-  data-variant={variant}
   bind:ref
   {...restProps}
-/>
+>
+  <span aria-hidden="true" class="kit-thumb" bind:this={thumb}></span>
+  {@render children?.()}
+</TabsPrimitive.List>

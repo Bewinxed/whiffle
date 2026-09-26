@@ -486,14 +486,14 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     background: none;
     border: 0;
     padding: 0;
     color: inherit;
     cursor: pointer;
     text-align: left;
-    transition: color var(--c-100) var(--e-in);
+    transition: color var(--dur-control) var(--ease-out);
   }
   @media (hover: hover) and (pointer: fine) {
     :global(.delegate .bhead:hover) .tk {
@@ -504,10 +504,10 @@
     overflow: hidden;
   }
   :global(.delegate [data-slot="collapsible-content"][data-state="open"]) {
-    animation: delegate-down calc(var(--c-100) * 2) var(--e-in);
+    animation: delegate-down calc(var(--dur-control) * 2) var(--ease-out);
   }
   :global(.delegate [data-slot="collapsible-content"][data-state="closed"]) {
-    animation: delegate-up calc(var(--c-100) * 2) var(--e-out);
+    animation: delegate-up calc(var(--dur-control) * 2) var(--ease-out);
   }
   @keyframes delegate-down {
     from {
@@ -533,7 +533,7 @@
     display: grid;
     place-items: center;
     color: var(--ink-muted);
-    transition: transform var(--c-100) var(--e-in);
+    transition: transform var(--dur-control) var(--ease-out);
   }
   :global(.delegate .bhead[data-state="open"]) .chev {
     transform: rotate(90deg);
@@ -547,7 +547,7 @@
   .mark {
     width: 17px;
     height: 17px;
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
     flex: 0 0 auto;
     display: grid;
     place-items: center;
@@ -591,21 +591,21 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    transition: color var(--c-100) var(--e-in);
+    transition: color var(--dur-control) var(--ease-out);
   }
   .kind {
     flex: 0 0 auto;
-    font-size: var(--text-xs);
-    color: var(--ink-body);
+    font-size: var(--text-meta);
+    color: var(--ink-strong);
     border: 1px solid var(--border-hairline);
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
     padding: 0 var(--space-2);
     line-height: 18px;
     white-space: nowrap;
   }
   .meta {
     color: var(--ink-muted);
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     flex: 0 1 auto;
     min-width: 0;
     overflow: hidden;
@@ -614,16 +614,16 @@
   }
   .may {
     flex: 0 0 auto;
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     color: var(--accent-text);
     white-space: nowrap;
   }
   .pill {
     margin-left: auto;
     flex: 0 0 auto;
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     font-variant-numeric: tabular-nums;
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
     padding: 2px var(--space-2);
     background: var(--status-idle-bg);
     color: var(--status-idle-ink);
@@ -655,11 +655,11 @@
     height: 26px;
     display: grid;
     place-items: center;
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
     color: var(--ink-muted);
     transition:
-      color var(--c-100) var(--e-in),
-      background var(--c-100) var(--e-in);
+      color var(--dur-control) var(--ease-out),
+      background var(--dur-control) var(--ease-out);
   }
   .jump :global(svg) {
     width: 13px;
@@ -677,7 +677,7 @@
      column. headline() bounds its length; the wrap is the layout's. */
   .brief {
     margin: var(--space-1) 0 0 var(--glyph);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--ink-muted);
     line-height: var(--leading-body);
     max-width: 68ch;
@@ -689,8 +689,8 @@
     align-items: baseline;
     gap: var(--space-2);
     margin: var(--space-1) 0 0 var(--glyph);
-    font-size: var(--text-sm);
-    color: var(--ink-body);
+    font-size: var(--text-label);
+    color: var(--ink-strong);
     line-height: var(--leading-body);
     max-width: 68ch;
   }
@@ -703,7 +703,7 @@
     flex: 0 0 auto;
     border-radius: 50%;
     background: var(--status-live-ink);
-    animation: beat var(--breath) var(--e-toggle) infinite;
+    animation: beat var(--breath) var(--ease-in-out) infinite;
   }
   @keyframes beat {
     50% {
@@ -726,9 +726,9 @@
     display: flex;
     align-items: baseline;
     gap: var(--space-2);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     line-height: var(--leading-body);
-    color: var(--ink-body);
+    color: var(--ink-strong);
     min-width: 0;
   }
   .dot {
@@ -750,7 +750,7 @@
   }
   .astate {
     flex: 0 0 auto;
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     color: var(--ink-muted);
     text-transform: uppercase;
     letter-spacing: 0.02em;
@@ -770,12 +770,12 @@
   .inner {
     margin: var(--space-2) 0 0 var(--glyph);
     padding: var(--space-1);
-    border-radius: var(--radius-control);
-    background: var(--surface-sunken);
+    border-radius: var(--radius-sm);
+    background: var(--surface-recess);
   }
   .empty {
     padding: var(--space-2) var(--space-2);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--ink-muted);
   }
   .say {
@@ -787,7 +787,7 @@
      and lifts instead — the report's own surface, concentric with the well. */
   .inner :global(section.turn.you) {
     margin-inline: 0;
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
     background: var(--surface-raised);
     box-shadow: var(--shadow-tile);
   }
@@ -795,12 +795,12 @@
   .report {
     margin-top: var(--space-4);
     padding: var(--space-3);
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
     background: var(--surface-raised);
     box-shadow: var(--shadow-tile);
   }
   .report h4 {
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     font-weight: var(--weight-medium);
     letter-spacing: 0.02em;
     text-transform: uppercase;

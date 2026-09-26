@@ -92,7 +92,7 @@
 <!-- Plain content block — the input card gates, frames, and animates this -->
 <div class="max-h-64 overflow-y-auto">
   <div class="p-2 border-b border-border">
-    <span class="text-xs text-muted-foreground">
+    <span class="text-meta text-muted-foreground">
       Available commands ({filteredCommands.length})
     </span>
   </div>
@@ -107,7 +107,7 @@
         <!-- A heading, not an option: the keyboard never lands on it. -->
         <div
           aria-hidden="true"
-          class="px-2.5 pt-3 pb-1 text-xs font-medium tracking-wider text-muted-foreground uppercase"
+          class="px-2.5 pt-3 pb-1 text-meta font-medium tracking-wider text-muted-foreground uppercase"
         >
           {group.source}
         </div>
@@ -120,7 +120,7 @@
               ? `${command.name} — ${command.description}`
               : command.name}
           aria-selected={index === selectedIndex}
-          class="w-full px-2.5 py-2 flex items-center gap-3 rounded-[var(--radius-control)] hover:bg-accent transition-colors text-left
+          class="w-full px-2.5 py-2 flex items-center gap-3 rounded-[var(--radius-sm)] hover:bg-accent transition-colors text-left
                    {index === selectedIndex ? 'bg-accent text-accent-foreground' : ''}"
           id="{optionIdPrefix}-{index}"
           onclick={() => onSelect(command)}
@@ -135,13 +135,13 @@
                 >{displayName(command)}</span
               >
               <span
-                class="text-xs px-1.5 py-0.5 rounded {getTypeColor(command.type)}"
+                class="text-meta px-1.5 py-0.5 rounded {getTypeColor(command.type)}"
               >
                 {getTypeLabel(command.type)}
               </span>
             </div>
             {#if command.description}
-              <p class="text-xs text-muted-foreground truncate">
+              <p class="text-meta text-muted-foreground truncate">
                 {command.description}
               </p>
             {/if}
@@ -151,7 +151,7 @@
     {/each}
   </div>
   <div
-    class="p-2 border-t border-border text-xs text-muted-foreground flex gap-4"
+    class="p-2 border-t border-border text-meta text-muted-foreground flex gap-4"
   >
     <span
       ><kbd class="px-1 bg-accent text-accent-foreground rounded">↑↓</kbd>

@@ -124,10 +124,10 @@
 </script>
 
 <div
-  class="rounded-[var(--radius-card)] overflow-hidden border border-border bg-muted"
+  class="rounded-[var(--radius-md)] overflow-hidden border border-border bg-muted"
 >
   <div
-    class="flex items-center justify-between px-3 py-2 bg-card border-b border-border font-mono text-xs text-muted-foreground"
+    class="flex items-center justify-between px-3 py-2 bg-card border-b border-border font-mono text-meta text-muted-foreground"
   >
     <span class="break-all flex-1 min-w-0">{filePath}</span>
     <Button
@@ -144,13 +144,13 @@
 
   {#if loading}
     <div
-      class="flex items-center justify-center gap-2 p-8 text-sm text-muted-foreground"
+      class="flex items-center justify-center gap-2 p-8 text-label text-muted-foreground"
     >
       <IconSpinner class="w-5 h-5 animate-spin" />
       <span>Loading diff...</span>
     </div>
   {:else if diffError}
-    <div class="flex items-center justify-center gap-2 p-8 text-sm text-error">
+    <div class="flex items-center justify-center gap-2 p-8 text-label text-error">
       <IconAlert class="w-5 h-5" />
       <span>{diffError}</span>
     </div>

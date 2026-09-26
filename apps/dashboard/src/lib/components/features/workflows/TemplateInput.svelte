@@ -122,9 +122,9 @@
     max-height: 240px;
     overflow-y: auto;
     z-index: 30;
-    background: var(--surface-overlay);
-    border: 1px solid var(--border-divider);
-    border-radius: var(--radius-control);
+    background: var(--surface-raised);
+    border: 1px solid var(--border-hairline);
+    border-radius: var(--radius-sm);
     box-shadow: var(--shadow-overlay);
     padding: var(--space-1);
   }
@@ -135,7 +135,7 @@
     padding: var(--space-2);
     overflow-wrap: anywhere;
     font-family: var(--font-mono);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     min-height: 36px;
   }
   button.active,

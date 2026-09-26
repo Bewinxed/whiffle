@@ -65,7 +65,7 @@
     padding: 0 var(--space-6) var(--space-8) var(--space-7);
     /* The placeholder enters as one thing: DESIGN.md rules out staggered
        page-load fades, so the blocks sit still inside a single fade. */
-    animation: sk-in var(--c-300) var(--e-in) both;
+    animation: sk-in var(--dur-panel) var(--ease-out) both;
   }
   .block {
     margin-top: var(--space-4);
@@ -81,17 +81,17 @@
 
   /* The reader's well, exactly as MessageRow draws it: bleeding back out by
      its own padding so the words sit on the ledger column. Its bars take
-     --surface-active, one step deeper than the well, because the well itself
+     --surface-fill, one step deeper than the well, because the well itself
      is the hover step and a bar at the same value would vanish into it. */
   .block.you {
     margin-inline: calc(var(--space-4) * -1);
     padding: var(--space-3) var(--space-4);
-    background: var(--surface-sunken);
-    border-radius: var(--radius-well);
+    background: var(--surface-recess);
+    border-radius: var(--radius-sm);
   }
   .block.you .ln,
   .block.you .name {
-    background: var(--surface-active);
+    background: var(--surface-fill);
   }
   @media (max-width: 900px) {
     .skeleton {
@@ -103,7 +103,7 @@
     }
   }
 
-  /* Who: the 18px mark at --radius-mark and the speaker's name at its step,
+  /* Who: the 18px mark at --radius-xs and the speaker's name at its step,
      spaced as Who.svelte spaces them. */
   .who {
     display: flex;
@@ -116,8 +116,8 @@
     width: 18px;
     height: 18px;
     flex: 0 0 auto;
-    border-radius: var(--radius-mark);
-    background: var(--surface-active);
+    border-radius: var(--radius-xs);
+    background: var(--surface-fill);
   }
   /* The agent's mark is brand-solid in the transcript; here it is the same
      square held at a whisper of that colour, so the placeholder says "an
@@ -133,17 +133,17 @@
   .name {
     width: 64px;
     height: 12px;
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
     background: var(--surface-hover);
   }
 
-  /* A line of body copy: --text-md at --leading-body is a 21px line box, so
+  /* A line of body copy: --text-body at --leading-body is a 21px line box, so
      an 11px bar with 5px above and below keeps the prose pitch exactly. */
   /* biome-ignore lint/style/noDescendingSpecificity: cascade order is load-bearing — .ln's base fill must lose to .block.you .ln above it. */
   .ln {
     height: 11px;
     margin-block: 5px;
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
     background: var(--surface-hover);
   }
 
@@ -164,19 +164,19 @@
     width: 15px;
     height: 15px;
     flex: 0 0 auto;
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
     background: var(--surface-hover);
   }
   .tk {
     width: 40px;
     height: 11px;
     flex: 0 0 auto;
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
     background: var(--surface-hover);
   }
   .arg {
     height: 11px;
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
     background: var(--surface-hover);
   }
 

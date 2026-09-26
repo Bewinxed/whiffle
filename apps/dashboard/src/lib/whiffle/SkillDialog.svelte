@@ -95,7 +95,7 @@
   }}
   bind:open
 >
-  <Dialog.Content class="rounded-[var(--radius-shell)] shadow-xl sm:max-w-lg">
+  <Dialog.Content class="sm:max-w-lg">
     <Dialog.Header>
       <Dialog.Title>Add skill</Dialog.Title>
       <Dialog.Description
@@ -105,11 +105,11 @@
       >
     </Dialog.Header>
     <form class="flex flex-col gap-3" onsubmit={submit}>
-      <label class="flex flex-col gap-1.5 text-caption" for="skill-source"
+      <label class="flex flex-col gap-1.5 text-meta text-muted-foreground" for="skill-source"
         >Source
         <Input
           autocomplete="off"
-          class="font-mono text-sm md:text-sm"
+          class="font-mono text-label md:text-label"
           id="skill-source"
           oninput={() => {
             if (!named) {
@@ -120,7 +120,7 @@
           spellcheck="false"
           bind:value={typed}
         />
-        <span class="text-micro">
+        <span class="text-label">
           {#if source !== '' && source !== typed.trim()}
             Reads as <span class="font-mono text-foreground">{source}</span>
           {:else}
@@ -136,12 +136,12 @@
           {/if}
         </span>
       </label>
-      <label class="flex flex-col gap-1.5 text-caption" for="skill-name"
+      <label class="flex flex-col gap-1.5 text-meta text-muted-foreground" for="skill-name"
         >Name
         <Input
           aria-invalid={skillName !== '' && nameProblem ? 'true' : undefined}
           autocomplete="off"
-          class="font-mono text-sm md:text-sm"
+          class="font-mono text-label md:text-label"
           id="skill-name"
           oninput={() => {
             named = true;
@@ -150,7 +150,7 @@
           spellcheck="false"
           bind:value={skillName}
         />
-        <span class="text-micro">
+        <span class="text-label">
           {#if skillName !== '' && nameProblem}
             <span class="text-destructive">{nameProblem}</span>
           {:else}
@@ -163,16 +163,16 @@
       </label>
       {#if choices.length > 0}
         <fieldset class="flex flex-col gap-1.5">
-          <legend class="mb-1 text-caption">
+          <legend class="mb-1 text-meta text-muted-foreground">
             That repo holds several skills. Pick the one to fetch.
           </legend>
           <ul
-            class="flex max-h-52 flex-col overflow-y-auto rounded-[var(--radius-card)] border border-border"
+            class="flex max-h-52 flex-col overflow-y-auto rounded-[var(--radius-md)] border border-border"
           >
             {#each choices as choice (choice)}
               <li class="border-t border-border first:border-t-0">
                 <button
-                  class="w-full px-3 py-2 text-left font-mono text-caption transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
+                  class="w-full px-3 py-2 text-left font-mono text-meta text-muted-foreground transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
                   disabled={busy}
                   onclick={() => choose(choice)}
                   type="button"
@@ -185,7 +185,7 @@
         </fieldset>
       {/if}
       {#if failed}
-        <p class="text-caption text-destructive" role="alert">{failed}</p>
+        <p class="text-meta text-destructive" role="alert">{failed}</p>
       {/if}
       <div class="flex justify-end gap-2 pt-1">
         <Button

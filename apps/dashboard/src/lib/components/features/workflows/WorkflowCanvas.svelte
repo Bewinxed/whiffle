@@ -249,7 +249,7 @@
     height: 100%;
     min-height: 280px;
     min-width: 0;
-    background: var(--surface-field);
+    background: var(--surface-recess);
   }
   .canvas :global(.svelte-flow__handle) {
     background: var(--neutral-8);
@@ -258,7 +258,7 @@
     height: 10px;
   }
   .canvas :global(.svelte-flow__attribution) {
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
   }
   .canvas :global(.svelte-flow__attribution a) {
     display: inline-flex;

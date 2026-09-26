@@ -64,7 +64,7 @@
       <!-- biome-ignore lint/a11y/noNoninteractiveElementInteractions: onerror is an image-load lifecycle event, not user interaction -->
       <img
         alt=""
-        class="size-5 shrink-0 rounded-[var(--radius-mark)]"
+        class="size-5 shrink-0 rounded-[var(--radius-xs)]"
         onerror={() => {
           step += 1;
         }}
@@ -73,14 +73,14 @@
     {:else}
       <span
         aria-hidden="true"
-        class="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-xs leading-none font-medium text-muted-foreground uppercase"
+        class="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-meta leading-none font-medium text-muted-foreground uppercase"
       >
         {server.name.charAt(0)}
       </span>
     {/if}
-    <span class="truncate text-sm font-medium">{server.name}</span>
+    <span class="truncate text-label font-medium">{server.name}</span>
     {#if server.serverInfo?.version}
-      <span class="text-xs text-muted-foreground"
+      <span class="text-meta text-muted-foreground"
         >v{server.serverInfo.version}</span
       >
     {/if}
@@ -90,31 +90,31 @@
     <span
       class="size-2 shrink-0 rounded-full {DOT[server.status] ?? 'bg-muted-foreground/40'}"
     ></span>
-    <span class="text-xs {WORD[server.status] ?? 'text-muted-foreground'}"
+    <span class="text-meta {WORD[server.status] ?? 'text-muted-foreground'}"
       >{server.status}</span
     >
     {#if server.scope}
-      <span class="ml-auto text-xs text-muted-foreground">{server.scope}</span>
+      <span class="ml-auto text-meta text-muted-foreground">{server.scope}</span>
     {/if}
   </div>
 
   {#if server.error}
     <p
-      class="mt-2 max-h-24 overflow-y-auto rounded-[var(--radius-well)] bg-destructive/10 p-2.5 font-mono text-micro text-destructive"
+      class="mt-2 max-h-24 overflow-y-auto rounded-[var(--radius-sm)] bg-destructive/10 p-2.5 font-mono text-label text-destructive"
     >
       {server.error}
     </p>
   {/if}
 
   {#if server.tools?.length}
-    <p class="mt-2 text-xs font-medium text-muted-foreground">
+    <p class="mt-2 text-meta font-medium text-muted-foreground">
       {server.tools.length}
       tools
     </p>
     <ul class="mt-1 max-h-40 overflow-y-auto">
       {#each server.tools as tool (tool.name)}
         <li
-          class="truncate font-mono text-micro leading-5"
+          class="truncate font-mono text-label leading-5"
           title={tool.description}
         >
           {tool.name}
@@ -126,7 +126,7 @@
   <!-- A phone has no right-click, so the menu's verbs sit here too. -->
   <div class="mt-3 flex gap-1.5">
     <Button
-      class="rounded-[var(--radius-control)] text-xs"
+      class="rounded-[var(--radius-sm)] text-meta"
       disabled={busy}
       onclick={restart}
       size="sm"
@@ -136,7 +136,7 @@
     </Button>
     {#if server.status === 'disabled'}
       <Button
-        class="rounded-[var(--radius-control)] text-xs"
+        class="rounded-[var(--radius-sm)] text-meta"
         disabled={busy}
         onclick={() => setEnabled(true)}
         size="sm"
@@ -146,7 +146,7 @@
       </Button>
     {:else}
       <Button
-        class="rounded-[var(--radius-control)] text-xs"
+        class="rounded-[var(--radius-sm)] text-meta"
         disabled={busy}
         onclick={() => setEnabled(false)}
         size="sm"

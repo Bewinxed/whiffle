@@ -65,8 +65,8 @@
     max-height: 96dvh;
     padding: var(--space-2);
     border: 1px solid var(--border-hairline);
-    border-radius: var(--radius-well);
-    background: var(--surface-sunken);
+    border-radius: var(--radius-sm);
+    background: var(--surface-recess);
     color: var(--ink-muted);
   }
   dialog::backdrop {
@@ -81,14 +81,14 @@
   }
   dialog[open],
   dialog[open] img {
-    animation: enter calc(var(--c-100) * 2) var(--e-in);
+    animation: enter calc(var(--dur-control) * 2) var(--ease-out);
   }
   .bar {
     display: flex;
     align-items: center;
     gap: var(--space-3);
     padding-top: var(--space-2);
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
   }
   .description {
     display: flex;
@@ -111,7 +111,7 @@
     min-height: 44px;
     padding: var(--space-2);
     border: 0;
-    border-radius: var(--radius-well);
+    border-radius: var(--radius-sm);
     background: transparent;
     color: inherit;
     cursor: pointer;

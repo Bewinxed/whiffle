@@ -327,7 +327,7 @@
           <span class="label">Server URL</span>
           <Input
             autocomplete="off"
-            class="font-mono text-sm md:text-sm"
+            class="font-mono text-label md:text-label"
             placeholder="http://localhost:8080/v1"
             spellcheck="false"
             bind:value={baseUrl}
@@ -338,7 +338,7 @@
           <span class="label">Model</span>
           <Input
             autocomplete="off"
-            class="font-mono text-sm md:text-sm"
+            class="font-mono text-label md:text-label"
             placeholder="qwen3"
             spellcheck="false"
             bind:value={model}
@@ -410,9 +410,9 @@
     flex-direction: column;
     gap: var(--space-5);
     padding: var(--space-5);
-    border-radius: var(--radius-panel);
+    border-radius: var(--radius-lg);
     background: var(--surface-raised);
-    box-shadow: var(--shadow-lifted);
+    box-shadow: var(--shadow-tile);
   }
 
   .head {
@@ -422,7 +422,7 @@
 
     & h2 {
       margin: 0;
-      font-size: var(--text-md);
+      font-size: var(--text-body);
       font-weight: 500;
       color: var(--ink-strong);
       text-wrap: balance;
@@ -431,7 +431,7 @@
     & p {
       margin: 0;
       max-inline-size: 60ch;
-      font-size: var(--text-sm);
+      font-size: var(--text-label);
       color: var(--ink-muted);
       text-wrap: pretty;
     }
@@ -444,13 +444,13 @@
   }
 
   .label {
-    font-size: var(--text-base);
-    color: var(--ink-body);
+    font-size: var(--text-label);
+    color: var(--ink-strong);
   }
 
   .hint {
     max-inline-size: 52ch;
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--ink-muted);
     text-wrap: pretty;
   }
@@ -484,7 +484,7 @@
     }
 
     & :global([data-slot="switch-thumb"]) {
-      transition: transform var(--c-300) var(--e-toggle);
+      transition: transform var(--dur-panel) var(--ease-in-out);
     }
   }
 
@@ -495,7 +495,7 @@
     overflow-clip-margin: var(--space-2);
 
     @media (prefers-reduced-motion: no-preference) {
-      transition: block-size var(--c-300) var(--e-in);
+      transition: block-size var(--dur-panel) var(--ease-out);
     }
   }
 
@@ -512,11 +512,11 @@
     align-items: center;
     gap: var(--space-2);
     margin: 0;
-    font-size: var(--text-base);
+    font-size: var(--text-label);
     color: var(--ink-muted);
 
     &.connected {
-      color: var(--ink-body);
+      color: var(--ink-strong);
     }
   }
 
@@ -542,7 +542,7 @@
 
     @media (prefers-reduced-motion: no-preference) {
       & path {
-        animation: draw var(--c-500) var(--e-in) var(--c-100) both;
+        animation: draw var(--c-500) var(--ease-out) var(--dur-control) both;
       }
     }
   }
@@ -561,7 +561,7 @@
     opacity: 0.6;
 
     @media (prefers-reduced-motion: no-preference) {
-      animation: breathe var(--breath) var(--e-toggle) infinite;
+      animation: breathe var(--breath) var(--ease-in-out) infinite;
     }
   }
 
@@ -595,7 +595,7 @@
     align-items: baseline;
     gap: var(--space-2);
     margin: 0;
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--ink-muted);
     text-wrap: pretty;
 
@@ -622,12 +622,12 @@
 
   .error {
     margin: 0;
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--destructive);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     opacity: 1;
-    transition: opacity var(--c-300) var(--e-in);
+    transition: opacity var(--dur-panel) var(--ease-out);
 
     @starting-style {
       opacity: 0;
@@ -642,8 +642,8 @@
   .panel :global(.press) {
     @media (prefers-reduced-motion: no-preference) {
       transition:
-        transform var(--c-100) var(--e-in),
-        background-color var(--c-100) var(--e-in);
+        transform var(--dur-control) var(--ease-out),
+        background-color var(--dur-control) var(--ease-out);
 
       &:active:not(:disabled) {
         transform: scale(0.97);

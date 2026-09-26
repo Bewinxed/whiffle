@@ -7,32 +7,30 @@
   import { cn, type WithElementRef } from "$lib/utils.js";
 
   export const buttonVariants = tv({
-    base: "group/button inline-flex shrink-0 select-none items-center justify-center whitespace-nowrap rounded-[var(--radius-control)] border border-transparent bg-clip-padding font-medium text-sm outline-none transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+    base: "group/button inline-flex shrink-0 select-none items-center justify-center whitespace-nowrap rounded-md border border-[var(--border-control)] bg-[var(--surface-raised)] bg-clip-padding font-medium text-body leading-none tracking-[-0.01em] text-[var(--ink-strong)] outline-none [transition:var(--transition-control),transform_160ms_var(--ease-out)] hover:bg-[var(--surface-hover)] active:not-disabled:[transform:scale(var(--press-scale))] disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0 focus-ring",
     variants: {
       variant: {
         default:
-          "border-transparent bg-[var(--brand-solid)] text-[var(--on-brand)] [background-image:var(--gradient-action)] [box-shadow:var(--shadow-action)] hover:brightness-[1.08]",
-        outline:
-          "border-[var(--border-control)] bg-[var(--surface-raised)] text-[var(--ink-strong)] hover:bg-[var(--surface-hover)] aria-expanded:bg-[var(--surface-hover)]",
+          "border-transparent bg-[var(--brand-solid)] text-[var(--on-brand)] hover:bg-[var(--ink-hover)]",
+        outline: "aria-expanded:bg-[var(--surface-hover)]",
         secondary:
-          "border-[var(--border-hairline)] bg-[var(--surface-sunken)] text-[var(--ink-body)] hover:bg-[var(--surface-hover)]",
+          "border-[var(--border-hairline)] bg-[var(--surface-recess)] hover:bg-[var(--surface-hover)]",
         ghost:
-          "hover:bg-[var(--surface-hover)] hover:text-[var(--ink-strong)] aria-expanded:bg-[var(--surface-hover)]",
+          "border-transparent bg-transparent aria-expanded:bg-[var(--surface-hover)]",
         destructive:
-          "border-[var(--error-9)] bg-transparent text-[var(--error-11)] hover:bg-[var(--error-3)] focus-visible:border-destructive/40 focus-visible:ring-destructive/20",
-        link: "text-primary underline-offset-4 hover:underline",
+          "border-[var(--error-9)] bg-transparent text-[var(--error-11)] hover:bg-[var(--error-3)]",
+        link: "border-transparent bg-transparent text-primary underline-offset-4 hover:bg-transparent hover:underline",
       },
       size: {
         default:
-          "h-[var(--c-nav-h)] gap-1.5 px-3 has-data-[icon=inline-end]:pr-2.5 has-data-[icon=inline-start]:pl-2.5",
-        xs: "h-[var(--c-pill-h)] gap-1 px-2.5 text-xs has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 [&_svg:not([class*='size-'])]:size-3",
-        sm: "h-8 gap-1 px-3 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
-        lg: "h-[var(--c-btn-h)] gap-1.5 px-4 has-data-[icon=inline-end]:pr-3 has-data-[icon=inline-start]:pl-3",
-        icon: "size-[var(--c-nav-h)]",
-        "icon-xs":
-          "size-[var(--c-pill-h)] [&_svg:not([class*='size-'])]:size-3",
-        "icon-sm": "size-8",
-        "icon-lg": "size-[var(--c-btn-h)]",
+          "h-9 gap-2 px-3.5 has-data-[icon=inline-end]:pr-3 has-data-[icon=inline-start]:pl-3",
+        xs: "h-6 gap-1 px-2 text-meta has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
+        sm: "h-[30px] gap-[7px] px-[11px] text-label has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
+        lg: "h-11 gap-2 px-4 has-data-[icon=inline-end]:pr-3 has-data-[icon=inline-start]:pl-3",
+        icon: "size-9",
+        "icon-xs": "size-6 [&_svg:not([class*='size-'])]:size-3",
+        "icon-sm": "size-[30px]",
+        "icon-lg": "size-11",
       },
     },
     defaultVariants: {

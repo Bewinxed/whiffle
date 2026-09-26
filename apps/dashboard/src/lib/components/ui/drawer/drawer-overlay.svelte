@@ -10,7 +10,7 @@
 </script>
 
 <DrawerPrimitive.Overlay
-  class={cn("data-open:fade-in-0 data-closed:fade-out-0 fixed inset-0 z-50 bg-[var(--scrim)] data-closed:animate-out data-open:animate-in supports-backdrop-filter:backdrop-blur-xs", className)}
+  class={cn("kit-scrim fixed inset-0 z-50", className)}
   data-slot="drawer-overlay"
   bind:ref
   {...restProps}

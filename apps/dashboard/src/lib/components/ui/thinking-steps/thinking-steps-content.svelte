@@ -16,10 +16,10 @@
   }
   @media (prefers-reduced-motion: no-preference) {
     :global(.thinking-content[data-state="open"]) {
-      animation: thinking-open-reserve calc(var(--c-100) * 2) var(--e-in);
+      animation: thinking-open-reserve calc(var(--dur-control) * 2) var(--ease-out);
     }
     :global(.thinking-content[data-state="closed"]) {
-      animation: thinking-close-reserve calc(var(--c-100) * 2) var(--e-out);
+      animation: thinking-close-reserve calc(var(--dur-control) * 2) var(--ease-out);
     }
   }
   @keyframes thinking-open-reserve {

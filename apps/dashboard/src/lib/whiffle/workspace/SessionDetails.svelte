@@ -422,14 +422,14 @@
 <style>
   .session-details {
     --permission-row-height: 58px;
-    color: var(--ink-body);
+    color: var(--ink-strong);
     min-width: 0;
     min-height: 0;
     width: 100%;
     max-height: inherit;
     display: flex;
     flex-direction: column;
-    font-size: var(--text-base);
+    font-size: var(--text-label);
   }
   .details-body {
     min-height: 0;
@@ -449,7 +449,7 @@
     padding-right: var(--space-8);
     margin: 0;
     color: var(--ink-strong);
-    font-size: var(--text-lg);
+    font-size: var(--text-title);
     font-weight: var(--weight-strong);
     line-height: var(--leading-body);
     overflow-wrap: anywhere;
@@ -468,7 +468,7 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     overflow-wrap: anywhere;
   }
   .machine :global(svg) {
@@ -482,15 +482,15 @@
     align-items: flex-start;
     gap: var(--space-2);
     padding: var(--space-2) var(--space-3);
-    background: var(--surface-field);
-    border-radius: var(--radius-well);
+    background: var(--surface-recess);
+    border-radius: var(--radius-sm);
   }
   code {
     flex: 1;
     min-width: 0;
     align-self: center;
     font-family: var(--font-mono);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     line-height: var(--leading-body);
     overflow-wrap: anywhere;
     white-space: pre-wrap;
@@ -505,7 +505,7 @@
     width: 28px;
     height: 28px;
     border: 0;
-    border-radius: var(--radius-control);
+    border-radius: var(--radius-sm);
     color: var(--ink-muted);
     background: transparent;
   }
@@ -525,7 +525,7 @@
     align-items: center;
     gap: var(--space-3);
     padding: var(--space-2);
-    border-radius: var(--radius-control);
+    border-radius: var(--radius-sm);
     cursor: pointer;
     list-style: none;
   }
@@ -536,7 +536,7 @@
     width: 14px;
     height: 14px;
     flex: none;
-    transition: transform var(--c-100) var(--e-in);
+    transition: transform var(--dur-control) var(--ease-out);
   }
   details[open] summary > :global(svg) {
     transform: rotate(180deg);
@@ -546,8 +546,8 @@
     place-items: center;
     width: 32px;
     height: 32px;
-    border-radius: var(--radius-control);
-    background: var(--surface-field);
+    border-radius: var(--radius-sm);
+    background: var(--surface-recess);
     flex: none;
   }
   .setting-icon :global(svg) {
@@ -561,7 +561,7 @@
     gap: 2px;
   }
   .label {
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--ink-muted);
   }
   .value {
@@ -590,12 +590,12 @@
   }
   .applied {
     text-transform: capitalize;
-    color: var(--ink-body);
+    color: var(--ink-strong);
   }
   .feedback,
   .failure {
     margin-top: var(--space-2);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     line-height: var(--leading-body);
     overflow-wrap: anywhere;
   }
@@ -612,13 +612,13 @@
   .readings {
     padding: var(--space-4) var(--space-5);
     border-top: 1px solid var(--border-hairline);
-    background: var(--surface-field);
+    background: var(--surface-recess);
   }
   .harness {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--ink-strong);
   }
   dl {
@@ -632,11 +632,11 @@
     gap: var(--space-1);
   }
   dt {
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--ink-muted);
   }
   dd {
-    font-size: var(--text-base);
+    font-size: var(--text-label);
     font-weight: var(--weight-medium);
     font-variant-numeric: tabular-nums;
     color: var(--ink-strong);
@@ -648,7 +648,7 @@
   }
   .context dd {
     text-align: right;
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
   }
   meter {
     grid-column: 1 / -1;
@@ -684,11 +684,11 @@
     gap: var(--space-2);
     align-items: center;
     min-height: 32px;
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     text-decoration: none;
     background: transparent;
     border: 0;
-    color: var(--ink-body);
+    color: var(--ink-strong);
   }
   .footer :global(svg) {
     width: 16px;

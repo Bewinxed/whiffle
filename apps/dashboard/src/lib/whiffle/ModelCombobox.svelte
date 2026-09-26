@@ -172,7 +172,7 @@
               <ProviderLogo model={trimmed} />
               <span class="flex flex-col">
                 <span>Use <span class="font-mono">{trimmed}</span></span>
-                <span class="text-xs text-muted-foreground">
+                <span class="text-meta text-muted-foreground">
                   Sent to the selected harness exactly as typed
                 </span>
               </span>
@@ -194,7 +194,7 @@
                 value={id}
               >
                 <ProviderLogo model={id} />
-                <span class="truncate font-mono text-xs">{id}</span>
+                <span class="truncate font-mono text-meta">{id}</span>
               </Command.Item>
             {/each}
           </Command.Group>
@@ -210,7 +210,7 @@
             >
               <span class="flex flex-col">
                 <span>Default</span>
-                <span class="text-xs text-muted-foreground">
+                <span class="text-meta text-muted-foreground">
                   Whatever the selected harness would have picked
                 </span>
               </span>
@@ -227,7 +227,7 @@
               <ProviderLogo model={row.value} />
               <span class="flex flex-col">
                 <span>{row.displayName}</span>
-                <span class="text-xs text-muted-foreground"
+                <span class="text-meta text-muted-foreground"
                   >{row.description}</span
                 >
               </span>
@@ -254,7 +254,7 @@
 
       {#if note}
         <p
-          class="border-t border-foreground/5 px-3 py-2 text-xs {models.error
+          class="border-t border-foreground/5 px-3 py-2 text-meta {models.error
             ? 'text-error'
             : 'text-muted-foreground'}"
           role={models.error ? 'alert' : undefined}

@@ -98,7 +98,7 @@
       {...restProps}
     >
       <div
-        class="bg-sidebar group-data-[variant=floating]:rounded-[var(--radius-panel)] group-data-[variant=floating]:shadow-[var(--shadow-tile)] group-data-[variant=floating]:ring-1 group-data-[variant=floating]:ring-sidebar-border flex size-full flex-col"
+        class="bg-sidebar group-data-[variant=floating]:rounded-[var(--radius-lg)] group-data-[variant=floating]:shadow-[var(--shadow-tile)] group-data-[variant=floating]:ring-1 group-data-[variant=floating]:ring-sidebar-border flex size-full flex-col"
         data-sidebar="sidebar"
         data-slot="sidebar-inner"
       >

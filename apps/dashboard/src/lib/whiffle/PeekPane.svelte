@@ -310,7 +310,7 @@
      nothing for a surface to hold, and a card-sized blank reads as a pane that
      failed to load rather than one waiting to be used. -->
 <div
-  class="flex h-full min-h-0 flex-col overflow-hidden rounded-[var(--radius-panel)]
+  class="flex h-full min-h-0 flex-col overflow-hidden rounded-[var(--radius-lg)]
     transition-[background-color,box-shadow] duration-200 ease-out {target
     ? 'bg-card shadow-md'
     : ''}"
@@ -325,7 +325,7 @@
         out:fade={{ duration: painted ? 140 : 0 }}
       >
         {#if !target}
-          <p class="m-auto max-w-[28ch] px-6 text-center text-caption">
+          <p class="m-auto max-w-[28ch] px-6 text-center text-meta text-muted-foreground">
             Pick a session to see what it is doing. Enter or a double-click
             opens it.
           </p>
@@ -348,7 +348,7 @@
                     <span class="truncate">{title}</span>
                   </h2>
                   <p
-                    class="flex items-baseline gap-2 text-micro text-muted-foreground"
+                    class="flex items-baseline gap-2 text-label text-muted-foreground"
                   >
                     <span class="flex shrink-0 items-center gap-1.5">
                       {#if machine}
@@ -407,7 +407,7 @@
             </ContextMenu.Content>
           </ContextMenu.Root>
 
-          <div class="flex items-center gap-2 px-4 pb-3 text-micro">
+          <div class="flex items-center gap-2 px-4 pb-3 text-label">
             {#if failed}
               <span class="size-2 shrink-0 rounded-full bg-error"></span>
             {:else}
@@ -478,13 +478,13 @@
 
           {#if failed}
             <p
-              class="border-t border-border/50 bg-error/10 px-4 py-3 text-caption text-error"
+              class="border-t border-border/50 bg-error/10 px-4 py-3 text-meta text-error"
             >
               {row?.lastError || 'Failed without saying why.'}
             </p>
           {:else if stale}
             <p
-              class="border-t border-border/50 px-4 py-3 text-caption text-muted-foreground"
+              class="border-t border-border/50 px-4 py-3 text-meta text-muted-foreground"
             >
               {UNKNOWN_HINT}
             </p>
@@ -495,7 +495,7 @@
                inside its own section rather than pushing the tail off. -->
           {#if progress}
             <div class="flex flex-col border-t border-border/50 pb-2">
-              <p class="px-4 pt-3 pb-1 text-caption">
+              <p class="px-4 pt-3 pb-1 text-meta text-muted-foreground">
                 Tasks · {progress.done} of {progress.total}
               </p>
               <div class="max-h-48 overflow-y-auto px-2">
@@ -509,14 +509,14 @@
             bind:this={tailEl}
           >
             {#if session?.loading && tail.length === 0}
-              <p class="text-caption">Reading…</p>
+              <p class="text-meta text-muted-foreground">Reading…</p>
             {:else if tail.length === 0 && !session?.streaming}
-              <p class="text-caption">Nothing said yet.</p>
+              <p class="text-meta text-muted-foreground">Nothing said yet.</p>
             {:else}
               {#each tail as message, index (message.id ?? index)}
                 {#if message.type === 'tool.use' || message.type === 'tool.handoff'}
                   <p
-                    class="flex items-baseline gap-1.5 text-micro text-muted-foreground"
+                    class="flex items-baseline gap-1.5 text-label text-muted-foreground"
                   >
                     <span class="shrink-0"
                       >{message.metadata?.toolName ?? message.content}</span
@@ -531,7 +531,7 @@
                 {:else if message.type === 'user' || message.type === 'user.peer'}
                   <!-- The one voice worth tinting: what the session was asked. -->
                   <p
-                    class="line-clamp-4 rounded-[var(--radius-card)] bg-primary/10 px-3 py-2 text-body break-words whitespace-pre-wrap"
+                    class="line-clamp-4 rounded-[var(--radius-md)] bg-primary/10 px-3 py-2 text-body break-words whitespace-pre-wrap"
                   >
                     {message.content}
                   </p>
@@ -551,7 +551,7 @@
                 <p class="text-body break-words whitespace-pre-wrap">
                   {stream.text}
                   <span
-                    class="inline-block h-4 w-[3px] animate-pulse rounded-[var(--radius-mark)] bg-primary/60 align-text-bottom"
+                    class="inline-block h-4 w-[3px] animate-pulse rounded-[var(--radius-xs)] bg-primary/60 align-text-bottom"
                   ></span>
                 </p>
               {/if}

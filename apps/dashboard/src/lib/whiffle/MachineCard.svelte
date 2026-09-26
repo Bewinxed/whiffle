@@ -56,7 +56,7 @@
   // Same recipe as Sidebar.svelte's pillClass (A5): a tint carries a fact this
   // reader has, an outline carries the admission that it only has an absence.
   const pillBase =
-    "inline-flex h-[var(--c-pill-h)] items-center rounded-[var(--radius-pill)] gap-1 px-2.5 text-micro font-medium leading-none no-underline";
+    "inline-flex h-[var(--c-pill-h)] items-center rounded-[var(--radius-pill)] gap-1 px-2.5 text-label font-medium leading-none no-underline";
   const outlinePill = `${pillBase} border border-[var(--border)] bg-transparent text-[var(--ink-muted)]`;
   const warnPill = `${pillBase} border-transparent bg-[var(--warning-3)] text-[var(--warning-11)]`;
   const failPill = `${pillBase} border-transparent bg-[var(--status-fail-bg)] text-[var(--status-fail-ink)]`;
@@ -164,7 +164,7 @@
                  for an afternoon. -->
             <span>{CAUSE[first.cause].title}.</span>
             {#if syncAge !== undefined}
-              <span class="text-micro opacity-80">
+              <span class="text-label opacity-80">
                 Last synced
                 {formatDistanceToNow(new Date(Date.now() - syncAge))}
                 — resolve on Tools.
@@ -201,7 +201,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     font-weight: var(--weight-medium);
     color: var(--ink-strong);
   }
@@ -229,7 +229,7 @@
     display: inline-flex;
     align-items: center;
     gap: var(--space-1);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--ink-muted);
   }
 </style>

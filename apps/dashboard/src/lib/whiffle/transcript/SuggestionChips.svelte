@@ -33,7 +33,7 @@
   const MIN_CHARS = 12;
   /** The shimmer waits this long, so a fast answer never flashes it. */
   const SHIMMER_AFTER_MS = 150;
-  /** `--c-300` and `--c-100`, for Svelte's JS-driven flip and exit. */
+  /** `--dur-panel` and `--dur-control`, for Svelte's JS-driven flip and exit. */
   const GLIDE_MS = 300;
   const LEAVE_MS = 100;
 
@@ -55,7 +55,7 @@
       return at(y1, y2, (lo + hi) / 2);
     };
   }
-  /** `--e-in` and `--e-out` from app.css. */
+  /** `--ease-out` and `--ease-out` from app.css. */
   const easeIn = bezier(0.16, 1, 0.3, 1);
   const easeOut = bezier(0.7, 0, 0.84, 0);
 
@@ -225,7 +225,7 @@
     overflow-clip-margin: var(--space-2);
 
     @media (prefers-reduced-motion: no-preference) {
-      transition: block-size var(--c-300) var(--e-in);
+      transition: block-size var(--dur-panel) var(--ease-out);
     }
   }
 
@@ -254,19 +254,19 @@
     padding-block: var(--space-1);
     padding-inline: var(--space-2) var(--space-3);
     border: 1px solid var(--border-hairline);
-    border-radius: var(--radius-control);
+    border-radius: var(--radius-sm);
     background: var(--surface-raised);
     box-shadow: var(--shadow-tile);
-    color: var(--ink-body);
-    font-size: var(--text-sm);
+    color: var(--ink-strong);
+    font-size: var(--text-label);
     white-space: nowrap;
     cursor: pointer;
     opacity: 1;
     transform: none;
     transition:
-      opacity var(--c-300) var(--e-in),
-      background-color var(--c-100) var(--e-in),
-      color var(--c-100) var(--e-in);
+      opacity var(--dur-panel) var(--ease-out),
+      background-color var(--dur-control) var(--ease-out),
+      color var(--dur-control) var(--ease-out);
 
     @starting-style {
       opacity: 0;
@@ -274,10 +274,10 @@
 
     @media (prefers-reduced-motion: no-preference) {
       transition:
-        opacity var(--c-300) var(--e-in) calc(var(--i) * 30ms),
-        transform var(--c-300) var(--e-in) calc(var(--i) * 30ms),
-        background-color var(--c-100) var(--e-in),
-        color var(--c-100) var(--e-in);
+        opacity var(--dur-panel) var(--ease-out) calc(var(--i) * 30ms),
+        transform var(--dur-panel) var(--ease-out) calc(var(--i) * 30ms),
+        background-color var(--dur-control) var(--ease-out),
+        color var(--dur-control) var(--ease-out);
 
       @starting-style {
         opacity: 0;
@@ -294,7 +294,7 @@
       background: color-mix(
         in oklab,
         var(--surface-raised) 70%,
-        var(--surface-sunken)
+        var(--surface-recess)
       );
       color: var(--ink-strong);
     }
@@ -324,16 +324,16 @@
   /* One low-contrast sweep, only while an ask is slow. */
   .shimmer {
     inline-size: 9rem;
-    block-size: calc(var(--text-sm) + var(--space-1) * 2 + 2px);
-    border-radius: var(--radius-control);
-    background: var(--surface-sunken);
+    block-size: calc(var(--text-label) + var(--space-1) * 2 + 2px);
+    border-radius: var(--radius-sm);
+    background: var(--surface-recess);
     opacity: 0.8;
 
     @starting-style {
       opacity: 0;
     }
 
-    transition: opacity var(--c-300) var(--e-in);
+    transition: opacity var(--dur-panel) var(--ease-out);
 
     @media (prefers-reduced-motion: no-preference) {
       background: linear-gradient(
@@ -342,9 +342,9 @@
           color-mix(in oklab, var(--surface-raised) 70%, transparent) 50%,
           transparent 100%
         )
-        var(--surface-sunken);
+        var(--surface-recess);
       background-size: 200% 100%;
-      animation: sweep calc(var(--c-500) * 3) var(--e-toggle) infinite;
+      animation: sweep calc(var(--c-500) * 3) var(--ease-in-out) infinite;
     }
   }
 
@@ -360,10 +360,10 @@
   .fail {
     margin: 0;
     color: var(--ink-muted);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     text-wrap: pretty;
     opacity: 1;
-    transition: opacity var(--c-300) var(--e-in);
+    transition: opacity var(--dur-panel) var(--ease-out);
 
     @starting-style {
       opacity: 0;

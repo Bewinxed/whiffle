@@ -88,18 +88,18 @@
   >
   {#if task.owner}
     <span
-      class="shrink-0 rounded-full bg-muted px-1.5 text-micro text-muted-foreground"
+      class="shrink-0 rounded-full bg-muted px-1.5 text-label text-muted-foreground"
     >
       {task.owner}
     </span>
   {/if}
   {#if blocker}
-    <span class="ml-auto shrink-0 text-micro text-muted-foreground"
+    <span class="ml-auto shrink-0 text-label text-muted-foreground"
       >after #{blocker}</span
     >
   {/if}
   <span
-    class="shrink-0 font-mono text-micro text-muted-foreground tabular-nums {blocker
+    class="shrink-0 font-mono text-label text-muted-foreground tabular-nums {blocker
       ? ''
       : 'ml-auto'}"
     data-tabular
@@ -110,9 +110,9 @@
 <div class="flex flex-col">
   {#if !dense}
     <div class="flex items-baseline gap-2 px-3 pt-2 pb-1">
-      <span class="text-caption">Tasks</span>
+      <span class="text-meta text-muted-foreground">Tasks</span>
       <span
-        class="ml-auto text-micro text-muted-foreground tabular-nums"
+        class="ml-auto text-label text-muted-foreground tabular-nums"
         data-tabular
       >
         {progress.done}
@@ -134,7 +134,7 @@
         <!-- The row is the control; a chevron beside it would be a second way
              to do the one thing the row already does. -->
         <Collapsible.Trigger
-          class="{row} rounded-[var(--radius-control)] transition-colors hover:bg-accent/40"
+          class="{row} rounded-[var(--radius-sm)] transition-colors hover:bg-accent/40"
         >
           {@render line(task, blocker)}
         </Collapsible.Trigger>

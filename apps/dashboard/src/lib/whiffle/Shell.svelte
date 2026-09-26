@@ -518,8 +518,8 @@
     z-index: 100;
     padding: var(--space-2) var(--space-4);
     background: var(--surface-raised);
-    border-radius: var(--radius-control);
-    box-shadow: var(--shadow-lifted);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-tile);
   }
   .skip:focus {
     left: var(--space-4);
@@ -530,7 +530,7 @@
     display: flex;
     height: 100dvh;
     width: 100%;
-    background: var(--surface-field);
+    background: var(--surface-recess);
     overflow: hidden;
   }
 
@@ -596,7 +596,7 @@
     background:
       linear-gradient(var(--border-hairline), var(--border-hairline)) bottom /
       100% 1px no-repeat,
-      var(--tabbar-surface);
+      var(--surface-recess);
   }
   .burger {
     width: 44px;
@@ -606,8 +606,8 @@
     place-items: center;
     border: 0;
     background: none;
-    border-radius: var(--radius-control);
-    color: var(--ink-row);
+    border-radius: var(--radius-sm);
+    color: var(--ink-strong);
     cursor: pointer;
   }
   /* At the mock's 900px breakpoint the rail returns and the burger retires.
@@ -649,8 +649,8 @@
     place-items: center;
     border: 1px solid var(--border-hairline);
     background: var(--surface-raised);
-    border-radius: var(--radius-control);
-    color: var(--ink-body);
+    border-radius: var(--radius-sm);
+    color: var(--ink-strong);
     cursor: pointer;
   }
   .icobtn :global(svg) {
@@ -667,7 +667,7 @@
      transitions, and it is suppressed for reduced-motion. */
   .icobtn,
   .burger {
-    transition: background var(--motion-fast) var(--e-toggle);
+    transition: background var(--motion-fast) var(--ease-in-out);
   }
   .icobtn:active,
   .burger:active {
@@ -704,7 +704,7 @@
     border-radius: var(--radius-pill);
     background: var(--status-attn-bg);
     color: var(--status-attn-ink);
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     font-weight: var(--weight-strong);
     display: grid;
     place-items: center;
@@ -713,7 +713,7 @@
   .desk-budget {
     align-items: center;
     gap: var(--space-2);
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     font-variant-numeric: tabular-nums;
     color: var(--ink-muted);
   }
@@ -721,7 +721,7 @@
     color: var(--ink-faint);
   }
   .desk-machines {
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     font-variant-numeric: tabular-nums;
     color: var(--ink-muted);
   }
@@ -732,7 +732,7 @@
     align-items: center;
     gap: var(--space-3);
     padding: var(--space-2) var(--space-6) var(--space-2) var(--space-7);
-    font-size: var(--text-base);
+    font-size: var(--text-label);
     border-bottom: 1px solid var(--border-hairline);
   }
   .banner.warn {
@@ -745,7 +745,7 @@
   }
   .banner code {
     font-family: var(--font-mono);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
   }
 
   .content {

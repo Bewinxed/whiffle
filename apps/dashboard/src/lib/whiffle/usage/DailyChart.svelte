@@ -131,13 +131,13 @@
   <div class="flex items-center justify-between gap-2">
     <div>
       <h2 class="text-title">Daily</h2>
-      <p class="text-caption">Tokens per day, stacked by harness.</p>
+      <p class="text-meta text-muted-foreground">Tokens per day, stacked by harness.</p>
     </div>
-    <div class="flex gap-1 rounded-[var(--radius-control)] bg-muted p-0.5">
+    <div class="flex gap-1 rounded-[var(--radius-sm)] bg-muted p-0.5">
       {#each RANGES as r (r.id)}
         <button
           aria-pressed={range === r.id}
-          class="rounded-[var(--radius-tile)] px-2.5 py-1 text-micro tabular-nums transition-colors duration-150 ease-out
+          class="rounded-[var(--radius-xs)] px-2.5 py-1 text-label tabular-nums transition-colors duration-150 ease-out
                  {range === r.id
             ? 'bg-card text-foreground shadow-sm'
             : 'text-muted-foreground hover:text-foreground'}"
@@ -153,9 +153,9 @@
   </div>
 
   {#if loadError}
-    <p class="text-caption text-error" role="alert">{loadError}</p>
+    <p class="text-meta text-error" role="alert">{loadError}</p>
   {:else if loading}
-    <div class="h-56 w-full rounded-[var(--radius-card)] bg-muted/40"></div>
+    <div class="h-56 w-full rounded-[var(--radius-md)] bg-muted/40"></div>
   {:else}
     <ChartContainer class="h-56 w-full" config={chartConfig}>
       <BarChart
@@ -178,7 +178,7 @@
                   style="background-color: {color}"
                 ></span>
                 <span>{name}</span>
-                <span class="ml-auto font-mono text-micro tabular-nums"
+                <span class="ml-auto font-mono text-label tabular-nums"
                   >{compactNumber(Number(value))}</span
                 >
               </div>

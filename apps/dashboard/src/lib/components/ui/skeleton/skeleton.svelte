@@ -10,7 +10,7 @@
 </script>
 
 <div
-  class={cn("animate-pulse rounded-[var(--radius-control)] bg-muted", className)}
+  class={cn("animate-pulse rounded-[var(--radius-sm)] bg-muted", className)}
   data-slot="skeleton"
   bind:this={ref}
   {...restProps}

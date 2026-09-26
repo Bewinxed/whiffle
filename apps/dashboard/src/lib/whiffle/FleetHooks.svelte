@@ -50,11 +50,9 @@
   let busy = $state<Record<string, boolean>>({});
 
   const panelList =
-    "gap-0 overflow-hidden rounded-[var(--radius-panel)] border-0 bg-[var(--surface-raised)] p-0 shadow-[var(--shadow-lifted)] ring-1 ring-[var(--border-hairline)]";
+    "gap-0 overflow-hidden rounded-[var(--radius-lg)] border-0 bg-[var(--surface-raised)] p-0 shadow-[var(--shadow-tile)] ring-1 ring-[var(--border-hairline)]";
   const panelPad =
-    "gap-[var(--space-3)] rounded-[var(--radius-panel)] border-0 bg-[var(--surface-raised)] p-[var(--space-6)] shadow-[var(--shadow-lifted)] ring-1 ring-[var(--border-hairline)]";
-  const warnAlert =
-    "items-center rounded-[var(--radius-control)] border-[var(--warning-9)] bg-[var(--warning-3)] p-[var(--space-3)] [&>svg]:text-[var(--warning-11)]";
+    "gap-[var(--space-3)] rounded-[var(--radius-lg)] border-0 bg-[var(--surface-raised)] p-[var(--space-6)] shadow-[var(--shadow-tile)] ring-1 ring-[var(--border-hairline)]";
 
   async function toggle(row: FleetHook, enabled: boolean) {
     busy[row.id] = true;
@@ -100,7 +98,7 @@
 </script>
 
 <div class="flex flex-wrap items-start justify-between gap-3">
-  <p class="max-w-prose text-caption">
+  <p class="max-w-prose text-meta text-muted-foreground">
     Scripts and calls that run on a session's own lifecycle events — before a
     tool call, when a session starts, after a turn ends. Written to every
     machine it applies to and kept converged.
@@ -112,15 +110,15 @@
 </div>
 
 {#if loadError}
-  <Alert.Root class={warnAlert}>
+  <Alert.Root variant="warning">
     <IconWarningTriangle />
-    <Alert.Description class="text-caption text-[var(--warning-11)]"
+    <Alert.Description
       >{loadError}</Alert.Description
     >
   </Alert.Root>
 {:else if hooks.length === 0}
   <Card.Root class={panelPad}>
-    <p class="text-caption">
+    <p class="text-meta text-muted-foreground">
       No hooks yet. Add one and every machine gets the script, registered
       against the event you pick.
     </p>
@@ -140,25 +138,25 @@
             <div class="flex min-w-0 flex-1 flex-col gap-0.5">
               <span class="flex flex-wrap items-baseline gap-x-2">
                 <a
-                  class="truncate text-caption font-medium text-foreground hover:underline"
+                  class="truncate text-meta font-medium text-foreground hover:underline"
                   href="/hooks/{row.id}"
                 >
                   {row.name}
                 </a>
                 <span
-                  class="shrink-0 font-mono text-micro text-muted-foreground"
+                  class="shrink-0 font-mono text-label text-muted-foreground"
                   >{row.event}</span
                 >
               </span>
               <span
-                class="truncate text-micro text-muted-foreground"
+                class="truncate text-label text-muted-foreground"
                 title={hookSentence(row)}
               >
                 {hookSentence(row)}
               </span>
             </div>
             <Toggle
-              class="h-6 shrink-0 px-2 text-micro font-normal text-muted-foreground aria-pressed:font-medium aria-pressed:text-foreground"
+              class="h-6 shrink-0 px-2 text-label font-normal text-muted-foreground aria-pressed:font-medium aria-pressed:text-foreground"
               disabled={busy[row.id] === true}
               onPressedChange={(next) => toggle(row, next)}
               pressed={row.enabled}
@@ -210,7 +208,7 @@
           {#if machines.length === 0 && settling}
             <Skeleton class="h-5 w-40 rounded-full" />
           {:else if machines.length === 0}
-            <span class="text-micro text-muted-foreground">
+            <span class="text-label text-muted-foreground">
               No machines yet — this lands on the first one that registers.
             </span>
           {:else}

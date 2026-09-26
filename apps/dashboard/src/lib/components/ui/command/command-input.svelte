@@ -1,6 +1,5 @@
 <script lang="ts">
-  import { SearchIcon } from "@hugeicons/core-free-icons";
-  import { HugeiconsIcon } from "@hugeicons/svelte";
+  import { IconSearch } from "$lib/icons";
   import { Command as CommandPrimitive } from "bits-ui";
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte convention for importing a component group
   import * as InputGroup from "$lib/components/ui/input-group/index.js";
@@ -15,10 +14,10 @@
 </script>
 
 <div class="p-1 pb-0" data-slot="command-input-wrapper">
-  <InputGroup.Root class="h-[var(--c-nav-h)] bg-input/30">
+  <InputGroup.Root>
     <CommandPrimitive.Input
       class={cn(
-				"w-full text-sm outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+				"w-full text-label outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
 				className
 			)}
       data-slot="command-input"
@@ -30,11 +29,8 @@
       {/snippet}
     </CommandPrimitive.Input>
     <InputGroup.Addon>
-      <HugeiconsIcon
-        class="size-4 shrink-0 opacity-50"
-        icon={SearchIcon}
-        strokeWidth={2}
-      />
+      <IconSearch
+        class="size-4 shrink-0 opacity-50" />
     </InputGroup.Addon>
   </InputGroup.Root>
 </div>

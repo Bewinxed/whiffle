@@ -238,13 +238,13 @@
     border-bottom: 1px solid var(--border-hairline);
   }
   h1 {
-    font-size: var(--text-lg);
+    font-size: var(--text-title);
     font-weight: var(--weight-strong);
     color: var(--ink-strong);
   }
   header p {
     margin-top: var(--space-1);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--ink-muted);
   }
   code {
@@ -258,20 +258,20 @@
     margin-top: var(--space-3);
   }
   button {
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
     border: 1px solid var(--border-hairline);
     background: transparent;
     padding: var(--space-1) var(--space-2);
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     font-weight: var(--weight-medium);
-    color: var(--ink-body);
+    color: var(--ink-strong);
     cursor: pointer;
   }
   button:hover {
     background: var(--surface-hover);
   }
   .count {
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     color: var(--ink-muted);
     font-variant-numeric: tabular-nums;
   }

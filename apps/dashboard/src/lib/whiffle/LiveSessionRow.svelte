@@ -147,7 +147,7 @@
 
 <LiveSessionMenu {instance}>
   <a
-    class="group flex min-h-9 flex-col justify-center gap-0.5 rounded-[var(--radius-control)] px-4 py-1.5
+    class="group flex min-h-9 flex-col justify-center gap-0.5 rounded-[var(--radius-sm)] px-4 py-1.5
       transition-colors duration-150 ease-out hover:bg-accent hover:text-accent-foreground
       {failed || activity === 'blocked' ? 'bg-error/10' : ''}"
     href={conversationHref(instance.id, whiffle.instanceIndex)}
@@ -177,7 +177,7 @@
       <!-- A quest is named beside its title rather than glyphed in front of it:
            the lead slot belongs to state, and the titles keep their column. -->
       {#if quest}
-        <Badge class="shrink-0 text-micro font-normal" variant="secondary"
+        <Badge class="shrink-0 text-label font-normal" variant="secondary"
           >side quest</Badge
         >
       {/if}
@@ -185,7 +185,7 @@
            nothing will ever nest beneath this row. -->
       {#if instance.canDelegate === false}
         <Badge
-          class="shrink-0 text-micro font-normal"
+          class="shrink-0 text-label font-normal"
           title="Spawned with can_delegate=false — it cannot delegate or start sessions"
           variant="outline"
           >leaf</Badge
@@ -199,7 +199,7 @@
            checkouts apart. -->
       {#if showCwd}
         <span
-          class="hidden min-w-24 shrink-[3] truncate font-mono text-micro text-muted-foreground [direction:rtl] sm:block"
+          class="hidden min-w-24 shrink-[3] truncate font-mono text-label text-muted-foreground [direction:rtl] sm:block"
           title={instance.cwd}
           ><bdi>{instance.cwd}</bdi></span
         >
@@ -210,7 +210,7 @@
            so the state word beside it keeps reading as one group. -->
       {#if progress}
         <span
-          class="ml-auto flex shrink-0 items-center gap-1.5 text-micro text-muted-foreground tabular-nums"
+          class="ml-auto flex shrink-0 items-center gap-1.5 text-label text-muted-foreground tabular-nums"
           data-tabular
         >
           <span
@@ -225,7 +225,7 @@
              long it has been on this step, which is what is actually known. -->
       {:else if unmeasured}
         <span
-          class="ml-auto flex shrink-0 items-center gap-1.5 text-micro text-muted-foreground tabular-nums"
+          class="ml-auto flex shrink-0 items-center gap-1.5 text-label text-muted-foreground tabular-nums"
           data-tabular
           title={onStepFor
             ? `Working — no task plan; ${onStepFor} on this step`
@@ -254,7 +254,7 @@
     </span>
     {#if activity === 'working' && tool}
       <span
-        class="flex max-w-3xl items-baseline gap-2 pl-8 text-micro text-muted-foreground"
+        class="flex max-w-3xl items-baseline gap-2 pl-8 text-label text-muted-foreground"
       >
         <span class="shrink-0">{tool.name}</span>
         <span class="truncate font-mono">{tool.glance}</span>
@@ -271,7 +271,7 @@
   .mark {
     width: var(--c-mark);
     height: var(--c-mark);
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
     flex: 0 0 auto;
     display: grid;
     place-items: center;

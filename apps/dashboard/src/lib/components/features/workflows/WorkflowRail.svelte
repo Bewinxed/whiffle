@@ -43,7 +43,7 @@
     align-items: center;
     padding: var(--space-2) var(--space-3);
     min-height: 44px;
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
   }
   .run span {
     flex: 1;
@@ -52,19 +52,19 @@
   }
   ul {
     margin-left: var(--space-4);
-    border-left: 1px solid var(--border-divider);
+    border-left: 1px solid var(--border-hairline);
   }
   .session {
     display: block;
     min-height: 28px;
     padding: var(--space-1) var(--space-3);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     overflow-wrap: anywhere;
   }
   a:hover,
   a[aria-current="page"] {
     background: var(--surface-hover);
-    border-radius: var(--radius-control);
+    border-radius: var(--radius-sm);
   }
   @media (pointer: coarse) {
     .session {

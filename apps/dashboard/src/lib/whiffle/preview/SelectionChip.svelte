@@ -53,7 +53,7 @@
     align-items: center;
     max-width: 100%;
     border: 1px solid var(--border-hairline);
-    border-radius: var(--radius-control);
+    border-radius: var(--radius-sm);
     background: var(--surface-raised);
     box-shadow: var(--shadow-tile);
     padding: var(--space-1) var(--space-1) var(--space-1) var(--space-2);
@@ -61,9 +61,9 @@
   button {
     border: 0;
     background: transparent;
-    color: var(--ink-body);
+    color: var(--ink-strong);
     cursor: pointer;
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
   }
   .body {
     display: flex;
@@ -79,7 +79,7 @@
     height: 28px;
     object-fit: contain;
     flex-shrink: 0;
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
   }
   .mark {
     display: grid;
@@ -96,7 +96,7 @@
     flex-direction: column;
     min-width: 0;
     max-width: 220px;
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     line-height: var(--leading-ui);
     color: var(--ink-muted);
   }
@@ -106,11 +106,11 @@
     white-space: nowrap;
   }
   .name {
-    color: var(--ink-body);
+    color: var(--ink-strong);
   }
   .source {
     font-family: var(--font-mono);
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
   }
   .remove {
     display: grid;

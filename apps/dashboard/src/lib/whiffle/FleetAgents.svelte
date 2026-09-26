@@ -77,14 +77,12 @@
     caught instanceof Error ? caught.message : String(caught);
 
   // Quiet Ledger surfaces (DESIGN.md · mocks/v5-components.html .panel / .callout):
-  // a raised panel is --surface-raised at --radius-panel under --shadow-lifted;
+  // a raised panel is --surface-raised at --radius-lg under --shadow-tile;
   // a warning banner is the callout — --warning-9 edge, --warning-3 tint, --warning-11 ink.
   const panelList =
-    "gap-0 overflow-hidden rounded-[var(--radius-panel)] border-0 bg-[var(--surface-raised)] p-0 shadow-[var(--shadow-lifted)] ring-1 ring-[var(--border-hairline)]";
+    "gap-0 overflow-hidden rounded-[var(--radius-lg)] border-0 bg-[var(--surface-raised)] p-0 shadow-[var(--shadow-tile)] ring-1 ring-[var(--border-hairline)]";
   const panelPad =
-    "gap-[var(--space-3)] rounded-[var(--radius-panel)] border-0 bg-[var(--surface-raised)] p-[var(--space-6)] shadow-[var(--shadow-lifted)] ring-1 ring-[var(--border-hairline)]";
-  const warnAlert =
-    "items-center rounded-[var(--radius-control)] border-[var(--warning-9)] bg-[var(--warning-3)] p-[var(--space-3)] [&>svg]:text-[var(--warning-11)]";
+    "gap-[var(--space-3)] rounded-[var(--radius-lg)] border-0 bg-[var(--surface-raised)] p-[var(--space-6)] shadow-[var(--shadow-tile)] ring-1 ring-[var(--border-hairline)]";
 
   /**
    * Every online machine is asked once, when it appears. Nothing is stored: a
@@ -176,7 +174,7 @@
 </script>
 
 <div class="flex flex-wrap items-start justify-between gap-3">
-  <p class="max-w-prose text-caption">
+  <p class="max-w-prose text-meta text-muted-foreground">
     A subagent is a markdown file: front matter, then a body that becomes its
     system prompt. Write one here and it lands in
     <span class="font-mono">~/.claude/agents</span>
@@ -199,22 +197,22 @@
 </div>
 
 {#if loadError}
-  <Alert.Root class={warnAlert}>
+  <Alert.Root variant="warning">
     <IconWarningTriangle />
-    <Alert.Description class="text-caption text-[var(--warning-11)]"
+    <Alert.Description
       >{loadError}</Alert.Description
     >
   </Alert.Root>
 {:else}
   <section class="flex flex-col gap-3">
     <h2
-      class="text-micro font-medium tracking-wider text-muted-foreground uppercase"
+      class="text-label font-medium tracking-wider text-muted-foreground uppercase"
     >
       Fleet subagents
     </h2>
     {#if agents.length === 0}
       <Card.Root class={panelPad}>
-        <p class="text-caption">
+        <p class="text-meta text-muted-foreground">
           None yet. Write one, or adopt one a machine already has from the list
           below.
         </p>
@@ -237,7 +235,7 @@
                 type="button"
               >
                 <span class="flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <span class="truncate font-mono text-caption text-foreground"
+                  <span class="truncate font-mono text-meta text-foreground"
                     >{row.name}</span
                   >
                   {#if front.model && front.model !== 'inherit'}
@@ -251,7 +249,7 @@
                   {/if}
                 </span>
                 {#if front.description}
-                  <span class="line-clamp-1 text-micro text-muted-foreground"
+                  <span class="line-clamp-1 text-label text-muted-foreground"
                     >{front.description}</span
                   >
                 {/if}
@@ -293,7 +291,7 @@
     {/if}
     {#each Object.entries(unpushable) as [machineId, why] (machineId)}
       {@const machine = machines.find((row) => row.machineId === machineId)}
-      <p class="text-micro text-muted-foreground">
+      <p class="text-label text-muted-foreground">
         {machine ? machineLabel(machine.hostname) : machineId}
         — {why}.
       </p>
@@ -302,33 +300,33 @@
 
   <section class="flex flex-col gap-3">
     <h2
-      class="text-micro font-medium tracking-wider text-muted-foreground uppercase"
+      class="text-label font-medium tracking-wider text-muted-foreground uppercase"
     >
       On machines
     </h2>
-    <p class="max-w-prose text-micro text-muted-foreground">
+    <p class="max-w-prose text-label text-muted-foreground">
       The definition files each machine really has, read live off its disk. One
       the fleet does not keep can be adopted into it, and every other machine
       gets it.
     </p>
 
     {#if online.length === 0 && settling}
-      <Skeleton class="h-16 w-full rounded-[var(--radius-panel)]" />
+      <Skeleton class="h-16 w-full rounded-[var(--radius-lg)]" />
     {:else if online.length === 0}
-      <p class="text-caption text-muted-foreground">
+      <p class="text-meta text-muted-foreground">
         No machine is online to ask.
       </p>
     {:else if discovered.length === 0}
       {#if Object.keys(reading).length > 0}
         <p
-          class="flex items-center gap-2 text-caption text-muted-foreground"
+          class="flex items-center gap-2 text-meta text-muted-foreground"
           role="status"
         >
           <IconSpinner class="size-4 shrink-0 animate-spin" />
           Asking the machines…
         </p>
       {:else}
-        <p class="text-caption text-muted-foreground">
+        <p class="text-meta text-muted-foreground">
           No machine has any subagent files yet.
         </p>
       {/if}
@@ -343,28 +341,28 @@
             >
               <span class="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span class="flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <span class="truncate font-mono text-caption text-foreground"
+                  <span class="truncate font-mono text-meta text-foreground"
                     >{row.name}</span
                   >
                   <span
-                    class="flex shrink-0 items-center gap-1 text-micro text-muted-foreground"
+                    class="flex shrink-0 items-center gap-1 text-label text-muted-foreground"
                   >
                     <OsMark class="size-3.5" os={machine.os} />
                     {machineLabel(machine.hostname)}
                   </span>
                 </span>
                 {#if row.description}
-                  <span class="line-clamp-1 text-micro text-muted-foreground"
+                  <span class="line-clamp-1 text-label text-muted-foreground"
                     >{row.description}</span
                   >
                 {/if}
               </span>
               {#if stored && stored.content === row.content}
-                <span class="shrink-0 pt-0.5 text-micro text-muted-foreground"
+                <span class="shrink-0 pt-0.5 text-label text-muted-foreground"
                   >managed &middot; in sync</span
                 >
               {:else if stored}
-                <span class="shrink-0 pt-0.5 text-micro text-warning"
+                <span class="shrink-0 pt-0.5 text-label text-warning"
                   >managed &middot; differs</span
                 >
                 <Button

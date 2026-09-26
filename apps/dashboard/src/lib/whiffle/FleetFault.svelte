@@ -286,7 +286,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
-    border-radius: var(--radius-well);
+    border-radius: var(--radius-sm);
     border: 1px solid var(--tone-edge);
     background: var(--tone-bg);
     padding: var(--space-3);
@@ -306,7 +306,7 @@
     gap: var(--space-2);
   }
   .title {
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     font-weight: var(--weight-strong);
     color: var(--tone-ink);
   }
@@ -323,7 +323,7 @@
     border-radius: var(--radius-pill);
     background: var(--surface-raised);
     padding: 1px var(--space-2);
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     color: var(--ink-muted);
     white-space: nowrap;
   }
@@ -337,19 +337,19 @@
   .noun,
   .more,
   .hint {
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     color: var(--tone-ink);
     opacity: 0.8;
   }
   code {
     font-family: var(--font-mono);
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     color: var(--tone-ink);
     overflow-wrap: anywhere;
   }
   .why,
   .fix {
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--tone-ink);
     max-width: 68ch;
   }
@@ -357,14 +357,14 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
-    border-radius: var(--radius-well);
-    background: var(--surface-field);
+    border-radius: var(--radius-sm);
+    background: var(--surface-recess);
     border: 1px solid var(--border-hairline);
     padding: var(--space-2);
   }
   .tool .k {
-    font-size: var(--text-xs);
-    color: var(--ink-label);
+    font-size: var(--text-meta);
+    color: var(--ink-muted);
   }
   .tool .line {
     display: flex;
@@ -376,7 +376,7 @@
     font-weight: var(--weight-strong);
   }
   .tool .v {
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     font-variant-numeric: tabular-nums;
     color: var(--ink-muted);
   }
@@ -384,15 +384,15 @@
     border-radius: var(--radius-pill);
     background: var(--surface-raised);
     padding: 0 var(--space-2);
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     color: var(--ink-muted);
   }
   .shadow {
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     color: var(--ink-strong);
     padding-top: var(--space-1);
   }
-  /* The well and the quoted output sit on --surface-field, a neutral ground, so
+  /* The well and the quoted output sit on --surface-recess, a neutral ground, so
      they keep neutral ink rather than inheriting the callout's tone. */
   .tool code,
   .said {
@@ -409,8 +409,8 @@
     min-height: 24px;
     margin-inline-start: calc(var(--space-2) * -1);
     padding-inline: var(--space-2);
-    border-radius: var(--radius-control);
-    font-size: var(--text-xs);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-meta);
     color: var(--ink-muted);
     cursor: pointer;
   }
@@ -424,12 +424,12 @@
   .said {
     max-height: 10rem;
     overflow: auto;
-    border-radius: var(--radius-well);
-    background: var(--surface-field);
+    border-radius: var(--radius-sm);
+    background: var(--surface-recess);
     border: 1px solid var(--border-hairline);
     padding: var(--space-2);
     font-family: var(--font-mono);
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }

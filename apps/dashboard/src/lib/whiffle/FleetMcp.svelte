@@ -53,11 +53,9 @@
 
   // Quiet Ledger surfaces (DESIGN.md · mocks/v5-components.html .panel / .callout).
   const panelList =
-    "gap-0 overflow-hidden rounded-[var(--radius-panel)] border-0 bg-[var(--surface-raised)] p-0 shadow-[var(--shadow-lifted)] ring-1 ring-[var(--border-hairline)]";
+    "gap-0 overflow-hidden rounded-[var(--radius-lg)] border-0 bg-[var(--surface-raised)] p-0 shadow-[var(--shadow-tile)] ring-1 ring-[var(--border-hairline)]";
   const panelPad =
-    "gap-[var(--space-3)] rounded-[var(--radius-panel)] border-0 bg-[var(--surface-raised)] p-[var(--space-6)] shadow-[var(--shadow-lifted)] ring-1 ring-[var(--border-hairline)]";
-  const warnAlert =
-    "items-center rounded-[var(--radius-control)] border-[var(--warning-9)] bg-[var(--warning-3)] p-[var(--space-3)] [&>svg]:text-[var(--warning-11)]";
+    "gap-[var(--space-3)] rounded-[var(--radius-lg)] border-0 bg-[var(--surface-raised)] p-[var(--space-6)] shadow-[var(--shadow-tile)] ring-1 ring-[var(--border-hairline)]";
 
   function open(row: FleetMcpServer | null) {
     editing = row;
@@ -132,7 +130,7 @@
 </script>
 
 <div class="flex flex-wrap items-start justify-between gap-3">
-  <p class="max-w-prose text-caption">
+  <p class="max-w-prose text-meta text-muted-foreground">
     The MCP servers every machine's Claude Code can reach. Add one here and the
     hub writes it to the machines that are online now, and on the rest as they
     come back.
@@ -149,22 +147,22 @@
   </div>
 </div>
 
-<p class="text-micro text-muted-foreground">
+<p class="text-label text-muted-foreground">
   New sessions pick these up. Running sessions keep the servers they started
   with — relaunch a session to change it.
 </p>
 
 {#if loadError}
-  <Alert.Root class={warnAlert}>
+  <Alert.Root variant="warning">
     <IconWarningTriangle />
-    <Alert.Description class="text-caption text-[var(--warning-11)]"
+    <Alert.Description
       >{loadError}</Alert.Description
     >
   </Alert.Root>
 {:else if servers.length === 0}
   <Card.Root class={panelPad}>
     <h2 class="text-body font-medium">No MCP servers yet</h2>
-    <p class="max-w-prose text-caption">
+    <p class="max-w-prose text-meta text-muted-foreground">
       Add a server and every machine gets it — the quick way is a package name.
     </p>
     <Button class="self-start" onclick={() => open(null)} size="sm">
@@ -182,7 +180,7 @@
           <div class="flex items-start gap-[var(--space-3)]">
             <div class="flex min-w-0 flex-1 flex-col gap-0.5">
               <span class="flex items-center gap-2">
-                <span class="truncate text-caption font-medium text-foreground"
+                <span class="truncate text-meta font-medium text-foreground"
                   >{row.name}</span
                 >
                 {#if isRemoteMcp(row.config)}
@@ -192,14 +190,14 @@
                 {/if}
               </span>
               <span
-                class="truncate font-mono text-micro text-muted-foreground"
+                class="truncate font-mono text-label text-muted-foreground"
                 title={describeMcp(row.config)}
               >
                 {describeMcp(row.config)}
               </span>
             </div>
             <Toggle
-              class="h-6 shrink-0 px-2 text-micro font-normal text-muted-foreground
+              class="h-6 shrink-0 px-2 text-label font-normal text-muted-foreground
                    aria-pressed:font-medium aria-pressed:text-foreground"
               disabled={busy[row.name] === true}
               onPressedChange={(next) => toggle(row, next)}
@@ -244,7 +242,7 @@
           {#if machines.length === 0 && settling}
             <Skeleton class="h-5 w-40 rounded-full" />
           {:else if machines.length === 0}
-            <span class="text-micro text-muted-foreground">
+            <span class="text-label text-muted-foreground">
               No machines yet — this lands on the first one that registers.
             </span>
           {:else}

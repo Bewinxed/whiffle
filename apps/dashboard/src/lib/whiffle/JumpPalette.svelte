@@ -1,15 +1,4 @@
 <script lang="ts">
-  import {
-    BubbleChatIcon,
-    ComputerIcon,
-    CpuIcon,
-    Folder01Icon,
-    QuoteDownIcon,
-    RoboticIcon,
-    SearchIcon,
-    UserIcon,
-  } from "@hugeicons/core-free-icons";
-  import { HugeiconsIcon } from "@hugeicons/svelte";
   import { Command as CommandPrimitive } from "bits-ui";
   import { flip } from "svelte/animate";
   import { expoOut } from "svelte/easing";
@@ -18,6 +7,16 @@
   // biome-ignore lint/performance/noNamespaceImport: shadcn-svelte component-group convention
   import * as Command from "$lib/components/ui/command";
   import { Kbd } from "$lib/components/ui/kbd";
+  import {
+    IconAgent,
+    IconChat,
+    IconCpu,
+    IconDocument,
+    IconFolder,
+    IconMonitor,
+    IconSearch,
+    IconUser,
+  } from "$lib/icons";
   import { ACTIVITY_LABEL } from "./activity";
   import { whiffle } from "./client.svelte";
   import JumpMatch from "./JumpMatch.svelte";
@@ -64,10 +63,10 @@
 
   /** A row's kind decides its mark. Drawn icons, one stroke weight, never glyphs. */
   const MARK = {
-    project: Folder01Icon,
-    machine: ComputerIcon,
-    live: CpuIcon,
-    stored: BubbleChatIcon,
+    project: IconFolder,
+    machine: IconMonitor,
+    live: IconCpu,
+    stored: IconChat,
   } as const satisfies Record<JumpKind, unknown>;
 
   const snippetMarkers = /「|」/;
@@ -115,7 +114,7 @@
   const authorChoices = $derived(
     fragment === null ? [] : AUTHORS.filter((a) => a.token.startsWith(fragment))
   );
-  const AUTHOR_MARK = { me: UserIcon, agent: RoboticIcon } as const;
+  const AUTHOR_MARK = { me: IconUser, agent: IconAgent } as const;
 
   /**
    * Who the search is scoped to. Held as state rather than left in the query
@@ -183,20 +182,11 @@
          chip and field are flex siblings, so nothing overlaps and nothing
          needs measuring. -->
     <div class="jump-search">
-      <HugeiconsIcon
-        class="jump-search-icon"
-        icon={SearchIcon}
-        size={15}
-        strokeWidth={2}
-      />
+      <IconSearch class="jump-search-icon" height={15} width={15} />
       {#if scoped}
+        {@const ScopedMark = AUTHOR_MARK[scoped.token]}
         <span class="jump-chip" transition:scale={chipMotion}>
-          <HugeiconsIcon
-            class="jump-chip-mark"
-            icon={AUTHOR_MARK[scoped.token]}
-            size={11}
-            strokeWidth={2}
-          />
+          <ScopedMark class="jump-chip-mark" height={11} width={11} />
           {scoped.label}
           <button
             aria-label="Clear author filter"
@@ -232,16 +222,12 @@
       {#if fragment !== null}
         <Command.Group heading="Search messages from">
           {#each authorChoices as author (author.token)}
+            {@const AuthorMark = AUTHOR_MARK[author.token]}
             <Command.Item
               onSelect={() => chooseAuthor(author.token)}
               value={`author:${author.token}`}
             >
-              <HugeiconsIcon
-                class="jump-mark"
-                icon={AUTHOR_MARK[author.token]}
-                size={14}
-                strokeWidth={1.8}
-              />
+              <AuthorMark class="jump-mark" height={14} width={14} />
               <span class="jump-name">{author.label}</span>
               <span class="jump-trail">@{author.token} · {author.detail}</span>
             </Command.Item>
@@ -252,14 +238,10 @@
       {#each fragment === null ? grouped : [] as group (group.name)}
         <Command.Group heading={group.name}>
           {#each group.rows as entry (entry.id)}
+            {@const EntryMark = MARK[entry.kind]}
             <div animate:flip={settle}>
               <Command.Item onSelect={() => jump(entry.href)} value={entry.id}>
-                <HugeiconsIcon
-                  class="jump-mark"
-                  icon={MARK[entry.kind]}
-                  size={14}
-                  strokeWidth={1.8}
-                />
+                <EntryMark class="jump-mark" height={14} width={14} />
                 <JumpMatch
                   class="jump-name"
                   ranges={entry.labelRanges}
@@ -309,12 +291,7 @@
                 <!-- Which conversation this line came out of. Without it a list of
                    snippets is a list of strangers. -->
                 <span class="jump-hit-head">
-                  <HugeiconsIcon
-                    class="jump-mark"
-                    icon={QuoteDownIcon}
-                    size={14}
-                    strokeWidth={1.8}
-                  />
+                  <IconDocument class="jump-mark" height={14} width={14} />
                   <span class="jump-name">
                     {index.sessionTitles.get(hit.sessionId) ??
                     (hit.cwd ? leaf(hit.cwd) : hit.sessionId.slice(0, 8))}
@@ -377,8 +354,8 @@
     flex-direction: column;
     overflow: hidden;
     border: 1px solid var(--border-hairline);
-    border-radius: calc(var(--radius-shell) - var(--jump-inset));
-    background: var(--surface-field);
+    border-radius: calc(var(--radius-modal) - var(--jump-inset));
+    background: var(--surface-recess);
   }
   :global(.jump-list) {
     max-height: calc(82vh - 104px);
@@ -399,7 +376,7 @@
     border-radius: var(--radius-pill);
     color: currentcolor;
     opacity: 0.65;
-    font-size: var(--text-base);
+    font-size: var(--text-label);
     line-height: 1;
     cursor: pointer;
   }
@@ -421,7 +398,7 @@
   }
   :global(.jump-search-icon) {
     flex: none;
-    color: var(--ink-label);
+    color: var(--ink-muted);
   }
   :global(.jump-field) {
     min-width: 0;
@@ -429,7 +406,7 @@
     border: 0;
     background: transparent;
     color: var(--ink-strong);
-    font-size: var(--text-md);
+    font-size: var(--text-body);
     outline: none;
   }
   :global(.jump-field)::placeholder {
@@ -437,7 +414,7 @@
   }
   /* An active filter is state the reader has to see, and this design keeps its
      colour for exactly this — chips, badges and small marks. It was filled
-     with `--surface-field`, the same token as the well behind it, so only a
+     with `--surface-recess`, the same token as the well behind it, so only a
      hairline separated them; tinting alone did not fix it either, since a pale
      tint on a pale well measured 1.03:1 against its background. Salience comes
      the way this design already makes a control salient — a tint, its own ink
@@ -455,14 +432,14 @@
     border-radius: var(--radius-pill);
     background: var(--accent-bg-subtle);
     color: var(--accent-text);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     font-weight: var(--weight-medium);
     line-height: 1;
     white-space: nowrap;
   }
   :global(.jump-mark) {
     flex: none;
-    color: var(--ink-label);
+    color: var(--ink-muted);
   }
   /* The name is the anchor step; everything factual about it sits one rung
      down. Without the step the name, the folder and the matched line all
@@ -471,8 +448,8 @@
     min-width: 0;
     flex: 1;
     overflow: hidden;
-    color: var(--ink-row);
-    font-size: var(--text-base);
+    color: var(--ink-strong);
+    font-size: var(--text-label);
     font-weight: var(--weight-medium);
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -485,7 +462,7 @@
     max-width: 45%;
     overflow: hidden;
     color: var(--ink-muted);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     letter-spacing: var(--track-caps);
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -509,15 +486,15 @@
      anchor. */
   :global(.jump-hit .jump-name) {
     color: var(--ink-muted);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     font-weight: var(--weight-body);
   }
   :global(.jump-snippet) {
     display: block;
     overflow: hidden;
     margin-left: 22px;
-    color: var(--ink-row);
-    font-size: var(--text-base);
+    color: var(--ink-strong);
+    font-size: var(--text-label);
     font-weight: var(--weight-medium);
     line-height: var(--leading-ui);
     text-overflow: ellipsis;
@@ -544,8 +521,8 @@
   .jump-skeleton-bar {
     height: 7px;
     border-radius: var(--radius-pill);
-    background: var(--border-divider);
-    animation: jump-breathe var(--breath) var(--e-toggle) infinite;
+    background: var(--border-hairline);
+    animation: jump-breathe var(--breath) var(--ease-in-out) infinite;
   }
   .jump-skeleton:nth-child(2) .jump-skeleton-bar {
     animation-delay: 120ms;
@@ -571,7 +548,7 @@
     padding: 7px 12px;
     border-top: 1px solid var(--border-hairline);
     color: var(--ink-muted);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
   }
   @media (prefers-reduced-motion: reduce) {
     .jump-skeleton-bar {

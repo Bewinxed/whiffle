@@ -11,7 +11,7 @@
 </script>
 
 <span
-  class={cn("ml-auto text-muted-foreground text-xs tracking-widest group-data-selected/command-item:text-foreground", className)}
+  class={cn("ml-auto text-muted-foreground text-meta tracking-widest group-data-selected/command-item:text-foreground", className)}
   data-slot="command-shortcut"
   bind:this={ref}
   {...restProps}

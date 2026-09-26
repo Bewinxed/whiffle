@@ -10,7 +10,7 @@
 </script>
 
 <DialogPrimitive.Title
-  class={cn("font-medium text-base leading-none", className)}
+  class={cn("text-title", className)}
   data-slot="dialog-title"
   bind:ref
   {...restProps}

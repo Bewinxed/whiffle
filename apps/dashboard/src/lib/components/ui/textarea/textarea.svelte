@@ -13,7 +13,7 @@
 
 <textarea
   class={cn(
-		"field-sizing-content flex min-h-16 w-full resize-none rounded-[var(--radius-control)] border border-[var(--border-control)] bg-[var(--surface-raised)] px-3 py-3 text-[var(--ink-strong)] text-base outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-[3px] aria-invalid:ring-destructive/20 md:text-sm dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
+		"rounded-md shadow-xs [transition:var(--transition-control)] py-2 field-sizing-content flex min-h-16 w-full resize-none border border-[var(--border-control)] bg-[var(--surface-raised)] px-3 text-[var(--ink-strong)] text-body outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50 focus-ring",
 		className
 	)}
   data-slot={dataSlot}

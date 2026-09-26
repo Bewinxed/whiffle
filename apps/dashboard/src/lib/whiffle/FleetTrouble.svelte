@@ -63,12 +63,12 @@
   );
 
   const panelList =
-    "gap-0 overflow-hidden rounded-[var(--radius-panel)] border-0 bg-[var(--surface-raised)] p-0 shadow-[var(--shadow-lifted)] ring-1 ring-[var(--border-hairline)]";
+    "gap-0 overflow-hidden rounded-[var(--radius-lg)] border-0 bg-[var(--surface-raised)] p-0 shadow-[var(--shadow-tile)] ring-1 ring-[var(--border-hairline)]";
 </script>
 
 <div class="wrap">
   {#if machines.length === 0 && settling}
-    <Skeleton class="h-10 w-full rounded-[var(--radius-panel)]" />
+    <Skeleton class="h-10 w-full rounded-[var(--radius-lg)]" />
   {:else if groups.length === 0 && silent.length === 0}
     <p class="clear">
       <IconCheck class="size-4 shrink-0 text-success" />
@@ -147,7 +147,7 @@
     flex-wrap: wrap;
     align-items: center;
     gap: var(--space-2);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--ink-strong);
   }
   .clear .age {
@@ -160,14 +160,14 @@
     gap: var(--space-1) var(--space-2);
   }
   .silent .t {
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     font-weight: var(--weight-strong);
     color: var(--ink-strong);
   }
   .silent .s {
     grid-column: 2;
     max-width: 68ch;
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--ink-muted);
   }
 </style>

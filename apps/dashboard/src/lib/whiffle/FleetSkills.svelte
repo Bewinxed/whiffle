@@ -71,15 +71,11 @@
 
   // Quiet Ledger surfaces (DESIGN.md · mocks/v5-components.html .panel / .callout).
   const panelList =
-    "gap-0 overflow-hidden rounded-[var(--radius-panel)] border-0 bg-[var(--surface-raised)] p-0 shadow-[var(--shadow-lifted)] ring-1 ring-[var(--border-hairline)]";
+    "gap-0 overflow-hidden rounded-[var(--radius-lg)] border-0 bg-[var(--surface-raised)] p-0 shadow-[var(--shadow-tile)] ring-1 ring-[var(--border-hairline)]";
   const panelPad =
-    "gap-[var(--space-3)] rounded-[var(--radius-panel)] border-0 bg-[var(--surface-raised)] p-[var(--space-6)] shadow-[var(--shadow-lifted)] ring-1 ring-[var(--border-hairline)]";
-  const warnAlert =
-    "items-center rounded-[var(--radius-control)] border-[var(--warning-9)] bg-[var(--warning-3)] p-[var(--space-3)] [&>svg]:text-[var(--warning-11)]";
+    "gap-[var(--space-3)] rounded-[var(--radius-lg)] border-0 bg-[var(--surface-raised)] p-[var(--space-6)] shadow-[var(--shadow-tile)] ring-1 ring-[var(--border-hairline)]";
   // A hub-side failure is not the amber a machine's is: nothing downstream of
   // it can be fixed until it is, so it wears the fail tint.
-  const failAlert =
-    "items-center rounded-[var(--radius-control)] border-[var(--status-fail-ink)] bg-[var(--status-fail-bg)] p-[var(--space-3)] [&>svg]:text-[var(--status-fail-ink)]";
 
   function landed(row: FleetSkillMeta) {
     const at = skills.findIndex((other) => other.name === row.name);
@@ -289,7 +285,7 @@
 </script>
 
 <div class="flex flex-wrap items-start justify-between gap-3">
-  <p class="max-w-prose text-caption">
+  <p class="max-w-prose text-meta text-muted-foreground">
     Two ways to the same thing. Fetch a skill and the hub downloads its files
     once for the whole fleet; link a marketplace and every machine clones it,
     then install its plugins.
@@ -306,22 +302,22 @@
 </div>
 
 {#if hubError}
-  <Alert.Root class={warnAlert}>
+  <Alert.Root variant="warning">
     <IconWarningTriangle />
-    <Alert.Description class="text-caption text-[var(--warning-11)]"
+    <Alert.Description
       >{hubError}</Alert.Description
     >
   </Alert.Root>
 {:else}
   <section class="flex flex-col gap-3">
     <h2
-      class="text-micro font-medium tracking-wider text-muted-foreground uppercase"
+      class="text-label font-medium tracking-wider text-muted-foreground uppercase"
     >
       Skills
     </h2>
     {#if skills.length === 0}
       <Card.Root class={panelPad}>
-        <p class="text-caption">
+        <p class="text-meta text-muted-foreground">
           No skills fetched yet. Paste what you would otherwise have run and the
           hub downloads the files itself.
         </p>
@@ -345,30 +341,30 @@
                 <div class="flex min-w-0 flex-1 flex-col gap-0.5">
                   <span class="flex flex-wrap items-baseline gap-x-2">
                     <span
-                      class="truncate text-caption font-medium text-foreground"
+                      class="truncate text-meta font-medium text-foreground"
                       >{row.name}</span
                     >
                     {#if row.bytes !== undefined}
-                      <span class="shrink-0 text-micro text-muted-foreground"
+                      <span class="shrink-0 text-label text-muted-foreground"
                         >{formatBytes(row.bytes)}</span
                       >
                     {/if}
                     {#if row.hash}
                       <span
-                        class="shrink-0 font-mono text-micro text-muted-foreground"
+                        class="shrink-0 font-mono text-label text-muted-foreground"
                         title={row.hash}
                         >{row.hash.slice(0, 7)}</span
                       >
                     {/if}
                   </span>
                   <span
-                    class="truncate font-mono text-micro text-muted-foreground"
+                    class="truncate font-mono text-label text-muted-foreground"
                     title={row.source}
                     >{row.source}</span
                   >
                 </div>
                 <Toggle
-                  class="h-6 shrink-0 px-2 text-micro font-normal text-muted-foreground aria-pressed:font-medium aria-pressed:text-foreground"
+                  class="h-6 shrink-0 px-2 text-label font-normal text-muted-foreground aria-pressed:font-medium aria-pressed:text-foreground"
                   disabled={working[row.name] === true}
                   onPressedChange={(next) => switchSkill(row, next)}
                   pressed={row.enabled}
@@ -420,14 +416,14 @@
               </div>
 
               {#if row.error}
-                <Alert.Root class={warnAlert}>
+                <Alert.Root variant="warning">
                   <IconWarningTriangle />
                   <Alert.Description class="flex flex-col gap-1">
-                    <span class="text-caption text-[var(--warning-11)]"
+                    <span
                       >The hub could not fetch this skill, so no machine has
                       it.</span
                     >
-                    <span class="font-mono text-micro text-[var(--warning-11)]"
+                    <span class="font-mono text-label text-[var(--warning-11)]"
                       >{row.error}</span
                     >
                   </Alert.Description>
@@ -448,7 +444,7 @@
               {#if machines.length === 0 && settling}
                 <Skeleton class="h-5 w-40 rounded-full" />
               {:else if machines.length === 0}
-                <span class="text-micro text-muted-foreground"
+                <span class="text-label text-muted-foreground"
                   >No machines yet — this lands on the first one that
                   registers.</span
                 >
@@ -465,7 +461,7 @@
         </ul>
       </Card.Root>
     {/if}
-    <p class="max-w-prose text-micro text-muted-foreground">
+    <p class="max-w-prose text-label text-muted-foreground">
       Whiffle installs a skill's files. A skill that also ships hooks or
       subagents runs in its degraded mode until those are set up by hand.
     </p>
@@ -473,13 +469,13 @@
 
   <section class="flex flex-col gap-3">
     <h2
-      class="text-micro font-medium tracking-wider text-muted-foreground uppercase"
+      class="text-label font-medium tracking-wider text-muted-foreground uppercase"
     >
       Marketplaces
     </h2>
     {#if config.marketplaces.length === 0}
       <Card.Root class={panelPad}>
-        <p class="text-caption">
+        <p class="text-meta text-muted-foreground">
           No marketplaces linked yet. Link one and its plugins become browsable
           here.
         </p>
@@ -502,11 +498,11 @@
               <div class="flex items-start gap-[var(--space-3)]">
                 <div class="flex min-w-0 flex-1 flex-col gap-0.5">
                   <span
-                    class="truncate text-caption font-medium text-foreground"
+                    class="truncate text-meta font-medium text-foreground"
                     >{row.name}</span
                   >
                   <span
-                    class="truncate font-mono text-micro text-muted-foreground"
+                    class="truncate font-mono text-label text-muted-foreground"
                     title={row.source}
                     >{row.source}</span
                   >
@@ -575,21 +571,21 @@
                   >
                     {#each [0, 1, 2] as line (line)}
                       <Skeleton
-                        class="h-8 w-full rounded-[var(--radius-control)]"
+                        class="h-8 w-full rounded-[var(--radius-sm)]"
                       />
                     {/each}
                   </div>
                 {:else if unread[row.name]}
-                  <p class="pt-1 text-caption text-warning" role="alert">
+                  <p class="pt-1 text-meta text-warning" role="alert">
                     {unread[row.name]}
                   </p>
                 {:else if (listings[row.name] ?? []).length === 0}
-                  <p class="pt-1 text-caption text-muted-foreground">
+                  <p class="pt-1 text-meta text-muted-foreground">
                     This marketplace lists no plugins.
                   </p>
                 {:else}
                   <ul
-                    class="flex flex-col rounded-[var(--radius-well)] border border-[var(--border-hairline)] bg-[var(--surface-field)]"
+                    class="flex flex-col rounded-[var(--radius-sm)] border border-[var(--border-hairline)] bg-[var(--surface-recess)]"
                   >
                     {#each listings[row.name] as plugin (plugin.name)}
                       {@const id = `${plugin.name}@${row.name}`}
@@ -599,30 +595,30 @@
                         <div class="flex min-w-0 flex-1 flex-col gap-0.5">
                           <span class="flex flex-wrap items-baseline gap-x-2">
                             <span
-                              class="text-caption font-medium text-foreground"
+                              class="text-meta font-medium text-foreground"
                               >{plugin.name}</span
                             >
                             {#if plugin.version}
                               <span
-                                class="font-mono text-micro text-muted-foreground"
+                                class="font-mono text-label text-muted-foreground"
                                 >{plugin.version}</span
                               >
                             {/if}
                             {#if plugin.category}
-                              <span class="text-micro text-muted-foreground"
+                              <span class="text-label text-muted-foreground"
                                 >{plugin.category}</span
                               >
                             {/if}
                           </span>
                           {#if plugin.description}
-                            <span class="text-micro text-muted-foreground"
+                            <span class="text-label text-muted-foreground"
                               >{plugin.description}</span
                             >
                           {/if}
                         </div>
                         {#if installed(id)}
                           <span
-                            class="shrink-0 pt-0.5 text-micro text-muted-foreground"
+                            class="shrink-0 pt-0.5 text-label text-muted-foreground"
                             >Added</span
                           >
                         {:else}
@@ -650,13 +646,13 @@
 
   <section class="flex flex-col gap-3">
     <h2
-      class="text-micro font-medium tracking-wider text-muted-foreground uppercase"
+      class="text-label font-medium tracking-wider text-muted-foreground uppercase"
     >
       Plugins
     </h2>
     {#if config.plugins.length === 0}
       <Card.Root class={panelPad}>
-        <p class="text-caption">
+        <p class="text-meta text-muted-foreground">
           Nothing installed yet. Browse a marketplace above and add a plugin.
         </p>
       </Card.Root>
@@ -671,18 +667,18 @@
                 <span
                   class="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2"
                 >
-                  <span class="truncate font-mono text-caption">{row.id}</span>
+                  <span class="truncate font-mono text-meta text-muted-foreground">{row.id}</span>
                   <!-- What the hub resolved this to, the same three facts a skill
                      row shows. A plugin with neither is one no machine has been
                      handed bytes for. -->
                   {#if row.bytes !== undefined}
-                    <span class="shrink-0 text-micro text-muted-foreground"
+                    <span class="shrink-0 text-label text-muted-foreground"
                       >{formatBytes(row.bytes)}</span
                     >
                   {/if}
                   {#if row.hash}
                     <span
-                      class="shrink-0 font-mono text-micro text-muted-foreground"
+                      class="shrink-0 font-mono text-label text-muted-foreground"
                       title={row.hash}
                       >{row.hash.slice(0, 7)}</span
                     >
@@ -693,7 +689,7 @@
                     {#snippet child({ props })}
                       <Toggle
                         {...props}
-                        class="h-6 shrink-0 px-2 text-micro font-normal text-muted-foreground aria-pressed:font-medium aria-pressed:text-foreground"
+                        class="h-6 shrink-0 px-2 text-label font-normal text-muted-foreground aria-pressed:font-medium aria-pressed:text-foreground"
                         disabled={busy[row.id] === true}
                         onPressedChange={(next) => toggle(row.id, next)}
                         pressed={row.enabled}
@@ -735,15 +731,15 @@
                  machine refusing to apply it: this one never reached a machine
                  at all, so the chips below would say nothing about it. -->
               {#if row.error}
-                <Alert.Root class={failAlert}>
+                <Alert.Root variant="destructive">
                   <IconWarningTriangle />
                   <Alert.Description class="flex flex-col gap-1">
-                    <span class="text-caption text-[var(--status-fail-ink)]"
+                    <span
                       >The hub could not fetch this plugin, so no machine has
                       it.</span
                     >
                     <span
-                      class="font-mono text-micro text-[var(--status-fail-ink)]"
+                      class="font-mono text-label text-[var(--status-fail-ink)]"
                       >{row.error}</span
                     >
                   </Alert.Description>
@@ -764,7 +760,7 @@
               {#if machines.length === 0 && settling}
                 <Skeleton class="h-5 w-40 rounded-full" />
               {:else if machines.length === 0}
-                <span class="text-micro text-muted-foreground"
+                <span class="text-label text-muted-foreground"
                   >No machines yet — this lands on the first one that
                   registers.</span
                 >
@@ -783,7 +779,7 @@
     {/if}
   </section>
 
-  <p class="text-micro text-muted-foreground">
+  <p class="text-label text-muted-foreground">
     Either way, a skill is in every session's
     <span class="font-mono">/</span>
     menu on that machine once the machine has it.

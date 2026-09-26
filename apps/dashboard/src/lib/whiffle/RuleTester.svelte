@@ -57,12 +57,12 @@
   const firing = $derived(hits.length > 0);
 </script>
 
-<div class="flex flex-col gap-2 rounded-[var(--radius-card)] bg-muted/40 p-4">
+<div class="flex flex-col gap-2 rounded-[var(--radius-md)] bg-muted/40 p-4">
   <div class="flex flex-wrap items-baseline justify-between gap-2">
-    <span class="text-caption font-medium text-foreground">Try it</span>
+    <span class="text-meta font-medium text-foreground">Try it</span>
     <span
       aria-live="polite"
-      class="text-micro transition-colors duration-240 ease-[var(--e-in)] {firing
+      class="text-label transition-colors duration-240 ease-[var(--ease-out)] {firing
         ? 'text-success'
         : 'text-muted-foreground'}"
       role="status"
@@ -73,7 +73,7 @@
 
   <Textarea
     aria-label="Sample text to test this rule against"
-    class="resize-y bg-background font-mono text-sm md:text-sm"
+    class="resize-y bg-background font-mono text-label md:text-label"
     placeholder="I've fixed the parser. One honest caveat: the error path is still untested."
     rows={3}
     spellcheck="false"
@@ -82,12 +82,12 @@
 
   {#if sample.trim() && draft.pattern.trim()}
     <p
-      class="max-h-40 overflow-y-auto rounded-[var(--radius-well)] bg-background p-3 font-mono text-micro leading-relaxed break-words whitespace-pre-wrap"
+      class="max-h-40 overflow-y-auto rounded-[var(--radius-sm)] bg-background p-3 font-mono text-label leading-relaxed break-words whitespace-pre-wrap"
     >
       {#each segments as segment, index (index)}
         {#if segment.hit}
           <mark
-            class="rounded-[var(--radius-mark)] bg-success/25 px-0.5 text-foreground"
+            class="rounded-[var(--radius-xs)] bg-success/25 px-0.5 text-foreground"
             >{segment.text}</mark
           >
         {:else}

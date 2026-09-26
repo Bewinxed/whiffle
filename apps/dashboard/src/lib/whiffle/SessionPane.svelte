@@ -753,12 +753,12 @@
     };
   }
 
-  /** --e-out, the doctrine's exit curve. */
+  /** --ease-out, the doctrine's exit curve. */
   const easeOut = cubicBezier(0.7, 0, 0.84, 0);
 
   /**
    * An answered prompt leaves DOWNWARD and fast — it is dismissed, not
-   * withdrawn upward toward the transcript it came from — at 120ms on --e-out,
+   * withdrawn upward toward the transcript it came from — at 120ms on --ease-out,
    * because an exit that takes as long as its entrance reads as hesitation.
    *
    * Only opacity and transform move: the card holds its box for the whole
@@ -941,11 +941,11 @@
     display: flex;
     min-width: 0;
     min-height: 0;
-    transition: flex-grow var(--c-300) var(--e-out);
+    transition: flex-grow var(--dur-panel) var(--ease-out);
   }
   .preview-shown :global(.transcript-pane),
   .preview-shown :global(.artifact-pane) {
-    transition-timing-function: var(--e-in);
+    transition-timing-function: var(--ease-out);
   }
   .resizing :global(.transcript-pane),
   .resizing :global(.artifact-pane) {
@@ -958,13 +958,13 @@
     opacity: 0;
     transform: translateX(var(--space-7));
     transition:
-      opacity var(--c-300) var(--e-out),
-      transform var(--c-300) var(--e-out);
+      opacity var(--dur-panel) var(--ease-out),
+      transform var(--dur-panel) var(--ease-out);
   }
   .artifact-surface.shown {
     opacity: 1;
     transform: translateX(0);
-    transition-timing-function: var(--e-in);
+    transition-timing-function: var(--ease-out);
   }
   @starting-style {
     .artifact-surface.shown {
@@ -975,7 +975,7 @@
   .session-content :global(.preview-divider) {
     z-index: 2;
     background: var(--border-hairline);
-    transition: background-color var(--c-100) var(--e-in);
+    transition: background-color var(--dur-control) var(--ease-out);
   }
   .session-content :global(.preview-divider.hidden) {
     display: none;
@@ -1014,7 +1014,7 @@
     margin: 0 auto var(--space-4);
     padding: var(--space-2) var(--space-3);
     color: var(--ink-muted);
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     text-align: center;
   }
 
@@ -1025,7 +1025,7 @@
     flex: 1 1 auto;
     min-width: 0;
     min-height: 0;
-    background: var(--surface-field);
+    background: var(--surface-recess);
   }
   .body {
     position: relative;
@@ -1068,37 +1068,37 @@
     padding: var(--space-6);
   }
   .stateful h2 {
-    font-size: var(--text-md);
+    font-size: var(--text-body);
     font-weight: var(--weight-strong);
     letter-spacing: var(--track-display);
     color: var(--ink-strong);
   }
   .stateful p {
-    font-size: var(--text-base);
+    font-size: var(--text-label);
     line-height: var(--leading-body);
     color: var(--ink-muted);
   }
   .stateful code {
     font-family: var(--font-mono);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
   }
   .stateful button,
   .stateful a {
     height: 34px;
     padding: 0 var(--space-4);
     border: 1px solid var(--border-control);
-    border-radius: var(--radius-control);
+    border-radius: var(--radius-sm);
     background: var(--surface-raised);
-    color: var(--ink-body);
-    font-size: var(--text-sm);
+    color: var(--ink-strong);
+    font-size: var(--text-label);
     font-weight: var(--weight-medium);
     display: inline-grid;
     place-items: center;
     text-decoration: none;
     cursor: pointer;
     transition:
-      background-color var(--c-100) var(--e-in),
-      transform var(--c-100) var(--e-in);
+      background-color var(--dur-control) var(--ease-out),
+      transform var(--dur-control) var(--ease-out);
   }
   @media (hover: hover) and (pointer: fine) {
     .stateful button:hover,

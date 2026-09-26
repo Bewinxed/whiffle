@@ -136,7 +136,7 @@
     min-width: 0;
     overflow: hidden;
     color: var(--ink-muted);
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     white-space: nowrap;
     mask-image: linear-gradient(to right, transparent, #000 30%);
   }

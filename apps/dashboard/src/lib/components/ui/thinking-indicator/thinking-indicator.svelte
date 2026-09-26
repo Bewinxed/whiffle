@@ -113,11 +113,11 @@
   .labels {
     display: inline-grid;
     overflow: hidden;
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     line-height: var(--leading-body);
 
     &.compact {
-      font-size: var(--text-xs);
+      font-size: var(--text-meta);
     }
   }
 
@@ -143,7 +143,7 @@
       background: linear-gradient(
         90deg,
         var(--ink-muted) 0% 35%,
-        var(--ink-body) 50%,
+        var(--ink-strong) 50%,
         var(--ink-muted) 65% 100%
       );
       background-size: 300% 100%;

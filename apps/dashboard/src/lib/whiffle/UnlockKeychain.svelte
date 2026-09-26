@@ -96,9 +96,9 @@
       />
 
       {#if failed}
-        <p class="text-sm text-destructive" id="unlock-error">{failed}</p>
+        <p class="text-label text-destructive" id="unlock-error">{failed}</p>
       {:else}
-        <p class="text-xs text-muted-foreground" id="unlock-note">
+        <p class="text-meta text-muted-foreground" id="unlock-note">
           Sent over your tunnel to that machine, used once, and not stored
           anywhere.
         </p>

@@ -64,11 +64,11 @@ export const CURVES = {
     css: "cubic-bezier(0.77, 0, 0.175, 1)",
     note: "Movement on screen, not entry or exit.",
   },
-  eIn: { label: "--e-in", css: "var(--e-in)", note: "DESIGN.md entry." },
-  eOut: { label: "--e-out", css: "var(--e-out)", note: "DESIGN.md exit." },
+  eIn: { label: "--ease-out", css: "var(--ease-out)", note: "DESIGN.md entry." },
+  eOut: { label: "--ease-out", css: "var(--ease-out)", note: "DESIGN.md exit." },
   eToggle: {
-    label: "--e-toggle",
-    css: "var(--e-toggle)",
+    label: "--ease-in-out",
+    css: "var(--ease-in-out)",
     note: "DESIGN.md toggle.",
   },
   linear: { label: "linear", css: "linear", note: "For reading a duration." },
@@ -133,7 +133,7 @@ export const ARRIVAL: Arrival = {
    * The viewport is pinned to the bottom while a row opens, so the row's
    * height curve IS the scroll's velocity curve — they are deliberately one
    * motion. That makes an expressive curve the wrong choice here, and it was
-   * the one in use: `--e-in` is an expo-out, 63% complete after a single
+   * the one in use: `--ease-out` is an expo-out, 63% complete after a single
    * frame. Measured against a row that was already settled, so its movement
    * is purely the viewport's: four arriving calls travelled 104px in 13
    * frames out of 246 — 26px per row delivered as 17, 6, 2, 1 and then

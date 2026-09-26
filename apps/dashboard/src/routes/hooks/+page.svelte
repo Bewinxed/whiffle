@@ -103,15 +103,9 @@
 
   /* Quiet Ledger dressing for shadcn primitives — see routes/rules/+page.svelte. */
   const panelClass =
-    "gap-0 overflow-visible rounded-[var(--radius-panel)] bg-[var(--surface-raised)] p-[var(--space-5)] shadow-[var(--shadow-lifted)] ring-0";
+    "gap-0 overflow-visible rounded-[var(--radius-lg)] bg-[var(--surface-raised)] p-[var(--space-5)] shadow-[var(--shadow-tile)] ring-0";
   const tileClass =
-    "h-full gap-0 overflow-visible rounded-[var(--radius-panel)] bg-[var(--surface-raised)] p-[var(--c-card-pad)] shadow-[var(--shadow-lifted)] ring-0";
-  const btnPrimary =
-    "h-[var(--c-btn-h)] gap-[var(--c-btn-gap)] rounded-[var(--radius-control)] border-transparent bg-[var(--brand-solid)] bg-[image:var(--gradient-action)] px-[var(--c-btn-pad)] text-[length:var(--c-btn-fs)] font-medium !text-[color:var(--on-brand)] shadow-[var(--shadow-action)] hover:brightness-110";
-  const btnQuiet =
-    "h-[var(--c-btn-h)] gap-[var(--c-btn-gap)] rounded-[var(--radius-control)] border border-[var(--border-control)] bg-[var(--surface-raised)] px-[var(--c-btn-pad)] text-[length:var(--c-btn-fs)] font-medium !text-[color:var(--ink-strong)] shadow-none hover:bg-[var(--surface-hover)]";
-  const alertDanger =
-    "rounded-[var(--radius-control)] border-[var(--error-9)] bg-[var(--error-3)] !text-[color:var(--error-11)]";
+    "h-full gap-0 overflow-visible rounded-[var(--radius-lg)] bg-[var(--surface-raised)] p-[var(--c-card-pad)] shadow-[var(--shadow-tile)] ring-0";
 
   async function useTemplate(template: (typeof HOOK_TEMPLATES)[number]) {
     seeding = template.title;
@@ -171,7 +165,7 @@
           each one to every machine and keeps it converged; a session is never
           told Whiffle is the one running it.
         </p>
-        <Button class={btnPrimary} onclick={() => goto('/hooks/new')}>
+        <Button onclick={() => goto('/hooks/new')}>
           <IconPlus class="shrink-0" />
           New hook
         </Button>
@@ -185,9 +179,8 @@
       </section>
 
       {#if data.error}
-        <Alert.Root class={alertDanger}>
+        <Alert.Root variant="destructive">
           <Alert.Description
-            class="text-[length:var(--text-sm)] leading-[var(--leading-body)] text-[color:var(--error-11)]"
           >
             {data.error}
           </Alert.Description>
@@ -212,7 +205,7 @@
                   </div>
                   <div class="rowactions">
                     <Button
-                      class={btnQuiet}
+                      variant="outline"
                       disabled={seeding !== null}
                       onclick={() => useTemplate(template)}
                     >
@@ -223,7 +216,7 @@
               {/each}
             </ul>
             <div>
-              <Button class={btnQuiet} onclick={() => goto('/hooks/new')}>
+              <Button variant="outline" onclick={() => goto('/hooks/new')}>
                 Or write one from scratch
               </Button>
             </div>
@@ -246,7 +239,7 @@
                     <span class="name">
                       <a href="/hooks/{row.id}">{row.name}</a>
                       <Badge
-                        class="gap-[var(--space-1)] rounded-[var(--radius-pill)] px-[var(--space-2)] font-mono text-[length:var(--text-xs)] font-medium"
+                        class="gap-[var(--space-1)] rounded-[var(--radius-pill)] px-[var(--space-2)] font-mono text-[length:var(--text-meta)] font-medium"
                         variant="outline"
                       >
                         <IconHook class="size-3 shrink-0" />
@@ -320,7 +313,7 @@
   }
   .head .sub {
     max-width: 68ch;
-    font-size: var(--text-base);
+    font-size: var(--text-label);
     color: var(--ink-muted);
   }
   .stats {
@@ -334,18 +327,18 @@
     flex-direction: column;
     gap: var(--c-card-gap);
     justify-content: center;
-    background: var(--surface-field);
+    background: var(--surface-recess);
     border: 1px solid var(--border-hairline);
-    border-radius: var(--radius-well);
+    border-radius: var(--radius-sm);
     padding: var(--c-card-pad);
   }
   .well .k {
-    color: var(--ink-label);
-    font-size: var(--text-sm);
+    color: var(--ink-muted);
+    font-size: var(--text-label);
     font-weight: var(--weight-medium);
   }
   .well .v {
-    font-size: var(--text-3xl);
+    font-size: var(--text-kpi);
     font-weight: var(--weight-strong);
     line-height: var(--leading-numeric);
     color: var(--ink-strong);
@@ -353,7 +346,7 @@
   }
   .well .u {
     color: var(--ink-muted);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
   }
   .phead {
     display: flex;
@@ -363,13 +356,13 @@
     margin-bottom: var(--space-4);
   }
   .phead h2 {
-    font-size: var(--text-md);
+    font-size: var(--text-body);
     font-weight: var(--weight-strong);
     color: var(--ink-strong);
   }
   .psub {
     max-width: 68ch;
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--ink-muted);
   }
   .pbody {
@@ -402,7 +395,7 @@
     flex: 1 1 320px;
     flex-direction: column;
     gap: var(--space-1);
-    transition: opacity var(--c-300) ease-out;
+    transition: opacity var(--dur-panel) ease-out;
   }
   .rowtext.off {
     opacity: 0.55;
@@ -412,7 +405,7 @@
     flex-wrap: wrap;
     align-items: center;
     gap: var(--space-2);
-    font-size: var(--text-base);
+    font-size: var(--text-label);
     font-weight: var(--weight-strong);
     color: var(--ink-strong);
   }
@@ -431,7 +424,7 @@
   }
   .line {
     max-width: 68ch;
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--ink-muted);
   }
   .rowactions {

@@ -81,7 +81,7 @@
      actually going to grab it — structure at rest, an affordance on approach. */
   :global(.grid-group [data-pane-resizer]) {
     background: var(--border-hairline);
-    transition: background-color var(--c-100) var(--e-in);
+    transition: background-color var(--dur-control) var(--ease-out);
   }
   @media (hover: hover) and (pointer: fine) {
     :global(.grid-group [data-pane-resizer]:hover) {

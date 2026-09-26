@@ -67,12 +67,12 @@
 
 <style>
   .well {
-    background: var(--surface-sunken);
-    border-radius: var(--radius-well);
+    background: var(--surface-recess);
+    border-radius: var(--radius-sm);
     padding: 10px 12px;
     overflow-x: auto;
     font-family: var(--font-mono);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     line-height: var(--leading-body);
     color: var(--ink-strong);
   }

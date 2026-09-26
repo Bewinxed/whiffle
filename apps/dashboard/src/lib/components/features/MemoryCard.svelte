@@ -177,7 +177,7 @@
 </script>
 
 <Card
-  class="w-full min-w-0 gap-0 rounded-[var(--radius-panel)] py-0 shadow-md [--card-spacing:var(--space-4)]"
+  class="w-full min-w-0 gap-0 rounded-[var(--radius-lg)] py-0 shadow-md [--card-spacing:var(--space-4)]"
 >
   <!-- Sticky while editing: a long file used to push Save and Cancel a
        screenful above the caret, so the way out of the editor scrolled away
@@ -186,7 +186,7 @@
     class="sticky top-0 z-10 flex items-center gap-3 border-b border-border/50 bg-card px-[var(--space-4)] py-[var(--space-2)]"
   >
     <span
-      class="min-w-0 truncate font-mono text-micro text-muted-foreground"
+      class="min-w-0 truncate font-mono text-label text-muted-foreground"
       title={path}
       >{path}</span
     >
@@ -235,7 +235,7 @@
       <MarkdownEditor label={path} bind:value={draft} />
     </div>
   {:else if content !== null && summary}
-    <p class="px-[var(--space-4)] py-[var(--space-2)] text-caption">
+    <p class="px-[var(--space-4)] py-[var(--space-2)] text-meta text-muted-foreground">
       {summary}
     </p>
   {:else if content !== null}
@@ -257,14 +257,14 @@
     <!-- The kit's button is `whitespace-nowrap`; a sentence long enough to need
          two lines would push the card past its column instead of wrapping. -->
     <Button
-      class="text-caption h-auto w-full justify-start rounded-none px-[var(--space-4)] py-[var(--space-6)] text-left font-normal whitespace-normal"
+      class="text-meta text-muted-foreground h-auto w-full justify-start rounded-none px-[var(--space-4)] py-[var(--space-6)] text-left font-normal whitespace-normal"
       onclick={edit}
       variant="ghost"
     >
       {emptyText}
     </Button>
   {:else}
-    <p class="text-caption px-[var(--space-4)] py-[var(--space-6)]">
+    <p class="text-meta text-muted-foreground px-[var(--space-4)] py-[var(--space-6)]">
       {emptyText}
     </p>
   {/if}

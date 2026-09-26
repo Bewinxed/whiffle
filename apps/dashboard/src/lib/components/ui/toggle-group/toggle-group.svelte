@@ -1,56 +1,25 @@
-<script lang="ts" module>
-  import { getContext, setContext } from "svelte";
-  import type { VariantProps } from "tailwind-variants";
-  import type { toggleVariants } from "$lib/components/ui/toggle/index.js";
-
-  type ToggleVariants = VariantProps<typeof toggleVariants>;
-
-  interface ToggleGroupContext extends ToggleVariants {
-    orientation?: "horizontal" | "vertical";
-    spacing?: number;
-  }
-
-  export function setToggleGroupCtx(props: ToggleGroupContext) {
-    setContext("toggleGroup", props);
-  }
-
-  export function getToggleGroupCtx() {
-    return getContext<Required<ToggleGroupContext>>("toggleGroup");
-  }
-</script>
-
 <script lang="ts">
   import { ToggleGroup as ToggleGroupPrimitive } from "bits-ui";
+  import { slideThumb } from "$lib/components/ui/tabs/thumb.js";
   import { cn } from "$lib/utils.js";
 
   let {
     ref = $bindable(null),
     value = $bindable(),
     class: className,
-    size = "default",
-    spacing = 0,
-    orientation = "horizontal",
-    variant = "default",
+    children,
     ...restProps
-  }: ToggleGroupPrimitive.RootProps &
-    ToggleVariants & {
-      spacing?: number;
-      orientation?: "horizontal" | "vertical";
-    } = $props();
+  }: ToggleGroupPrimitive.RootProps = $props();
 
-  setToggleGroupCtx({
-    get variant() {
-      return variant;
-    },
-    get size() {
-      return size;
-    },
-    get spacing() {
-      return spacing;
-    },
-    get orientation() {
-      return orientation;
-    },
+  let thumb = $state<HTMLSpanElement>();
+  $effect(() => {
+    if (ref && thumb) {
+      return slideThumb(
+        ref,
+        thumb,
+        '[data-slot="toggle-group-item"][data-state="on"]'
+      );
+    }
   });
 </script>
 
@@ -59,17 +28,12 @@ Discriminated Unions + Destructing (required for bindable) do not
 get along, so we shut typescript up by casting `value` to `never`.
 -->
 <ToggleGroupPrimitive.Root
-  class={cn(
-		"group/toggle-group flex w-fit flex-row items-center gap-[--spacing(var(--gap))] data-[spacing=0]:data-[variant=outline]:rounded-[var(--radius-control)] data-vertical:flex-col data-vertical:items-stretch",
-		className
-	)}
-  data-size={size}
+  class={cn("kit-segmented", className)}
   data-slot="toggle-group"
-  data-spacing={spacing}
-  data-variant={variant}
-  {orientation}
-  style={`--gap: ${spacing}`}
   bind:ref
   bind:value={value as never}
   {...restProps}
-/>
+>
+  <span aria-hidden="true" class="kit-thumb" bind:this={thumb}></span>
+  {@render children?.()}
+</ToggleGroupPrimitive.Root>

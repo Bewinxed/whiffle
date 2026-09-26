@@ -189,20 +189,20 @@
     pointer-events: none;
   }
   :global(.preview-sheet) {
-    transition-duration: var(--c-300) !important;
-    transition-timing-function: var(--e-in) !important;
+    transition-duration: var(--dur-panel) !important;
+    transition-timing-function: var(--ease-out) !important;
     position: absolute;
     z-index: 40;
     display: flex;
     flex-direction: column;
     padding-top: var(--space-3);
-    border-radius: var(--radius-panel) var(--radius-panel) 0 0;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     background: var(--surface-raised);
     box-shadow: var(--shadow-drawer);
     outline: none;
   }
   :global(.preview-sheet[data-state="closed"]) {
-    transition-timing-function: var(--e-out) !important;
+    transition-timing-function: var(--ease-out) !important;
   }
   :global(.preview-sheet .preview-grab[data-vaul-handle]) {
     touch-action: none;

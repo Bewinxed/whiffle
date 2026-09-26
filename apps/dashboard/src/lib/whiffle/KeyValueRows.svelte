@@ -35,7 +35,7 @@
       <Input
         aria-label="{legend} name"
         autocomplete="off"
-        class="h-8 flex-1 font-mono text-xs md:text-xs"
+        class="h-8 flex-1 font-mono text-meta md:text-meta"
         oninput={settle}
         placeholder={keyPlaceholder}
         spellcheck="false"
@@ -44,7 +44,7 @@
       <Input
         aria-label="{legend} value"
         autocomplete="off"
-        class="h-8 flex-[2] font-mono text-xs md:text-xs"
+        class="h-8 flex-[2] font-mono text-meta md:text-meta"
         oninput={settle}
         placeholder={valuePlaceholder}
         spellcheck="false"

@@ -343,7 +343,6 @@
         {#if binding}
           <StatTile
             label="{windowLabel(binding)} used"
-            tone={binding.percent >= 90 ? 'warn' : 'default'}
             value="{Math.round(binding.percent)}%"
           />
           <StatTile
@@ -662,7 +661,7 @@
   }
   .sub {
     max-width: 68ch;
-    font-size: var(--text-base);
+    font-size: var(--text-label);
     color: var(--ink-muted);
   }
 
@@ -677,8 +676,8 @@
     flex-direction: column;
     gap: var(--space-3);
     background: var(--surface-raised);
-    border-radius: var(--radius-panel);
-    box-shadow: var(--shadow-lifted);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-tile);
     padding: var(--space-6);
   }
   .hero-spend {
@@ -688,7 +687,7 @@
     flex-wrap: wrap;
   }
   .hero-amount {
-    font-size: var(--text-3xl);
+    font-size: var(--text-kpi);
     font-weight: var(--weight-strong);
     line-height: var(--leading-numeric);
     font-variant-numeric: tabular-nums;
@@ -703,7 +702,7 @@
     color: var(--data-bad);
   }
   .hero-limit {
-    font-size: var(--text-xl);
+    font-size: var(--text-title);
     color: var(--ink-muted);
     font-variant-numeric: tabular-nums;
   }
@@ -712,7 +711,7 @@
     position: relative;
     height: 12px;
     border-radius: var(--radius-pill);
-    background: var(--surface-sunken);
+    background: var(--surface-recess);
   }
   .hero-fill {
     position: absolute;
@@ -736,12 +735,12 @@
     flex-wrap: wrap;
   }
   .hero-reset {
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--ink-muted);
     font-variant-numeric: tabular-nums;
   }
   .hero-age {
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--ink-muted);
   }
 
@@ -751,7 +750,7 @@
     gap: var(--space-4);
   }
   .note {
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--ink-muted);
   }
   .tabular {
@@ -767,7 +766,7 @@
     gap: var(--space-1);
   }
   .lede .big {
-    font-size: var(--text-3xl);
+    font-size: var(--text-kpi);
     font-weight: var(--weight-strong);
     line-height: var(--leading-numeric);
     color: var(--ink-strong);
@@ -783,8 +782,8 @@
     /* Card → the raised panel (was whiffle Panel). */
     .q-card {
       background: var(--surface-raised);
-      border-radius: var(--radius-panel);
-      box-shadow: var(--shadow-lifted);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-tile);
       padding: var(--space-5);
       gap: var(--space-4);
       overflow: visible;
@@ -799,13 +798,13 @@
       padding: 0;
     }
     .q-title {
-      font-size: var(--text-md);
+      font-size: var(--text-body);
       font-weight: var(--weight-strong);
       line-height: var(--leading-tight);
       color: var(--ink-strong);
     }
     .q-sub {
-      font-size: var(--text-sm);
+      font-size: var(--text-label);
       color: var(--ink-muted);
     }
     /* Badge → the plan tag. A quiet neutral chip (idle carries no status hue),
@@ -814,11 +813,11 @@
       margin-left: auto;
       height: auto;
       border-radius: var(--radius-pill);
-      background: var(--surface-field);
+      background: var(--surface-recess);
       border: 1px solid var(--border-hairline);
       color: var(--ink-muted);
       padding: 2px var(--space-3);
-      font-size: var(--text-sm);
+      font-size: var(--text-label);
       font-weight: var(--weight-medium);
     }
     .q-body {
@@ -844,22 +843,22 @@
     }
     .q-table thead th {
       height: auto;
-      font-size: var(--text-xs);
+      font-size: var(--text-meta);
       text-transform: uppercase;
       letter-spacing: var(--track-caps);
-      color: var(--ink-label);
+      color: var(--ink-muted);
       font-weight: var(--weight-strong);
       text-align: left;
       padding: var(--space-2) var(--space-3);
-      border-bottom: 1px solid var(--border-divider);
+      border-bottom: 1px solid var(--border-hairline);
       white-space: nowrap;
     }
     .q-table thead th.num {
       text-align: right;
     }
     .q-table td {
-      font-size: var(--text-base);
-      color: var(--ink-row);
+      font-size: var(--text-label);
+      color: var(--ink-strong);
       padding: var(--space-2) var(--space-3);
       border-bottom: 1px solid var(--border-hairline);
       vertical-align: middle;
@@ -886,7 +885,7 @@
     }
     .q-table td.mono {
       font-family: var(--font-mono);
-      font-size: var(--text-sm);
+      font-size: var(--text-label);
       word-break: break-word;
     }
     .q-table td.wide {
@@ -894,7 +893,7 @@
       min-width: 90px;
     }
     .q-table td.pace {
-      font-size: var(--text-sm);
+      font-size: var(--text-label);
       font-variant-numeric: tabular-nums;
       color: var(--status-attn-ink);
     }
@@ -902,7 +901,7 @@
       color: var(--ink-muted);
       text-transform: none;
       letter-spacing: 0;
-      font-size: var(--text-sm);
+      font-size: var(--text-label);
       font-weight: var(--weight-medium);
       border-bottom: 1px solid var(--border-hairline);
     }
@@ -922,7 +921,7 @@
       position: relative;
       height: 8px;
       border-radius: var(--radius-pill);
-      background: var(--surface-sunken);
+      background: var(--surface-recess);
     }
     .q-table .fill {
       position: absolute;
@@ -966,7 +965,7 @@
       border-left: 3px solid var(--data-warn);
     }
     .unpriced-text {
-      font-size: var(--text-sm);
+      font-size: var(--text-label);
       color: var(--ink-muted);
     }
   }

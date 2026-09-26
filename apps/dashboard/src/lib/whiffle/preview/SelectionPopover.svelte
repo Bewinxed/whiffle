@@ -176,7 +176,7 @@
   :global(.selection-popover) {
     --preview-pop-ms: 260ms;
     --preview-pop-out-ms: 160ms;
-    --preview-pop-ease: cubic-bezier(0.32, 0.72, 0, 1);
+    --preview-pop-ease: var(--ease-drawer);
     z-index: 80;
     display: flex;
     flex-direction: column;
@@ -186,10 +186,10 @@
     padding: var(--space-3);
     background: var(--surface-raised);
     border: 1px solid var(--border-hairline);
-    border-radius: var(--radius-panel);
+    border-radius: var(--radius-lg);
     box-shadow: var(--shadow-drawer);
-    color: var(--ink-body);
-    font-size: var(--text-sm);
+    color: var(--ink-strong);
+    font-size: var(--text-label);
     transform-origin: var(--bits-popover-content-transform-origin);
   }
   :global(.selection-popover[data-state="open"]:not(.selection-note-sheet)) {
@@ -215,7 +215,7 @@
     white-space: nowrap;
   }
   .source {
-    font: var(--text-xs) var(--font-mono);
+    font: var(--text-meta) var(--font-mono);
     color: var(--ink-muted);
     overflow-wrap: anywhere;
   }
@@ -224,7 +224,7 @@
     place-items: center;
     width: 17px;
     height: 17px;
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
     background: var(--mark-overlay), var(--mark-6);
     color: var(--mark-glyph);
   }
@@ -240,9 +240,9 @@
   input {
     min-width: 0;
     border: 1px solid var(--border-control);
-    border-radius: var(--radius-control);
-    background: var(--surface-field);
-    color: var(--ink-body);
+    border-radius: var(--radius-sm);
+    background: var(--surface-recess);
+    color: var(--ink-strong);
     padding: var(--space-2);
     font: inherit;
   }
@@ -256,8 +256,8 @@
   button {
     border: 0;
     background: transparent;
-    border-radius: var(--radius-control);
-    color: var(--ink-body);
+    border-radius: var(--radius-sm);
+    color: var(--ink-strong);
     padding: var(--space-2);
     cursor: pointer;
   }
@@ -267,9 +267,9 @@
     place-items: center;
     padding: 0;
     max-width: 100%;
-    background: var(--surface-field);
+    background: var(--surface-recess);
     border: 1px solid var(--border-hairline);
-    border-radius: var(--radius-well);
+    border-radius: var(--radius-sm);
     overflow: hidden;
   }
   .thumbnail img {

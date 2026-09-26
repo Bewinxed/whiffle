@@ -6,30 +6,10 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/*
- * WHIFFLE — design foundation
- *
- * Visual world (user-pinned 2026-08-07): Apple × Airbnb.
- * From Apple: fluid, physical, interruptible motion; translucent chrome
- * materials; size-specific typography; pro-app density; light and dark as
- * equals. From Airbnb: warmth — warm neutrals, soft generous radii, real
- * soft depth, humane surfaces.
- *
- * Rules the components must keep:
- * - Action color is one olive (user-pinned). Status hues (success/warning/error) belong to
- *   session state (idle/working/needs-you) and are never decoration.
- * - TX-02 mono is for code, paths, IDs, and measurements only. UI text is
- *   the system/SF stack. Numbers in data use tabular-nums.
- * - Depth comes from elevation (shadow + surface step), not from borders.
- *   Hairlines separate; they never outline cards that already float.
- * - Motion: feedback on pointer-down; springs/exponential ease-out; nothing
- *   over ~320ms; enter and exit share a path; reduced-motion cross-fades.
- */
-
-/* TX-02 — code, paths, data. Never a costume. */
+/* TX-02 is the mono: code, paths, IDs and measurements. */
 @font-face {
   font-family: "TX-02";
-  src: url("/fonts/TX-02-Regular.otf") format("opentype");
+  src: url("/fonts/TX-02-Regular.woff2") format("woff2");
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -37,15 +17,11 @@
 
 @font-face {
   font-family: "TX-02";
-  src: url("/fonts/TX-02-Medium.otf") format("opentype");
+  src: url("/fonts/TX-02-Medium.woff2") format("woff2");
   font-weight: 500;
   font-style: normal;
   font-display: swap;
 }
-
-/* No Bold face is registered on purpose: DESIGN.md's weight ladder stops at
-   500, so TX-02-Bold could only ever be reached by a banned weight. The
-   Regular/Medium pair covers 400–500; anything heavier is a bug, not a face. */
 
 :root {
   /* The app window's own corner, and the field it floats in. */
@@ -99,8 +75,6 @@
   --foreground: var(--neutral-12);
   --card: var(--neutral-1); /* the white window/card */
   --card-foreground: var(--neutral-12);
-  --popover: var(--neutral-1);
-  --popover-foreground: var(--neutral-12);
 
   --surface-content: var(--neutral-1);
   --surface-header: var(--neutral-2);
@@ -116,7 +90,6 @@
 
   --muted: var(--neutral-2);
   --muted-foreground: var(--neutral-11);
-  --faint: var(--neutral-10);
 
   --accent: var(--neutral-3); /* the SUBTLE hover surface, never brand */
   --accent-foreground: var(--neutral-12);
@@ -126,7 +99,7 @@
 
   --border: var(--neutral-6);
   --input: var(--neutral-7);
-  --ring: var(--accent-9); /* focus = the blue accent */
+  --ring: var(--focus-ring);
 
   /* Session/status semantics -> Flexoki functional hues. */
   --success: var(--success-9);
@@ -145,26 +118,15 @@
   --sidebar-accent: var(--neutral-3);
   --sidebar-accent-foreground: var(--neutral-12);
   --sidebar-border: var(--neutral-6);
-  --sidebar-ring: var(--accent-9);
+  --sidebar-ring: var(--focus-ring);
 
-  /* Elevation — cool-inked (hue 264), always offset + soft blur, never a halo.
-     --shadow-xs is included because Tailwind inlines its stock value
-     (`0 1px 2px rgb(0 0 0 / 0.05)`) through `@theme inline`, so the only way it
-     stops being pure black is to restate it here. */
-  --shadow-xs: 0 1px 2px oklch(0.28 0.02 264 / 0.04);
-  --shadow-sm: 0 1px 2px oklch(0.28 0.02 264 / 0.05);
-  --shadow-md:
-    0 2px 8px oklch(0.28 0.02 264 / 0.07), 0 1px 2px oklch(0.28 0.02 264 / 0.05);
-  --shadow-lg:
-    0 8px 28px oklch(0.28 0.02 264 / 0.1), 0 2px 8px oklch(0.28 0.02 264 / 0.06);
-  --shadow-xl:
-    0 24px 64px oklch(0.28 0.02 264 / 0.16),
-    0 6px 16px oklch(0.28 0.02 264 / 0.08);
-  /* Tailwind's stock 2xl is rgb(0 0 0 / .25) — pure black, and DiffModal
-     reaches for it. Tinted like the rest of the ladder. */
-  --shadow-2xl:
-    0 24px 64px oklch(0.28 0.02 264 / 0.2),
-    0 6px 16px oklch(0.28 0.02 264 / 0.1);
+  /* The Tailwind-facing shadow ladder, tinted from --shadow-tint*. */
+  --shadow-xs: 0 1px 2px var(--shadow-tint);
+  --shadow-sm: 0 1px 2px var(--shadow-tint);
+  --shadow-md: 0 2px 8px var(--shadow-tint), 0 1px 2px var(--shadow-tint);
+  --shadow-lg: 0 8px 28px var(--shadow-tint-2), 0 2px 8px var(--shadow-tint);
+  --shadow-xl: 0 24px 64px var(--shadow-tint-3), 0 6px 16px var(--shadow-tint);
+  --shadow-2xl: 0 24px 64px var(--shadow-tint-3), 0 6px 16px var(--shadow-tint-2);
 
   /* Chrome materials. */
   --material-panel: color-mix(in oklab, var(--neutral-1) 72%, transparent);
@@ -173,8 +135,8 @@
 
   /* Chart palette — accent + identity hues + neutral, distinct from status. */
   --chart-1: var(--accent-9);
-  --chart-2: var(--blue-9, #7aabce);
-  --chart-3: var(--violet-9, #705ab0);
+  --chart-2: var(--info-9);
+  --chart-3: var(--mark-7);
   --chart-4: var(--warning-9);
   --chart-5: var(--neutral-9);
 
@@ -236,8 +198,6 @@
   --foreground: var(--neutral-12);
   --card: var(--neutral-2);
   --card-foreground: var(--neutral-12);
-  --popover: var(--neutral-3);
-  --popover-foreground: var(--neutral-12);
 
   --surface-content: var(--neutral-2);
   --surface-header: var(--neutral-3);
@@ -252,7 +212,6 @@
 
   --muted: var(--neutral-2);
   --muted-foreground: var(--neutral-11);
-  --faint: var(--neutral-10);
 
   --accent: var(--neutral-4);
   --accent-foreground: var(--neutral-12);
@@ -263,7 +222,7 @@
   /* At night the hairline recedes to a seam; controls take their edge from input. */
   --border: color-mix(in oklab, var(--neutral-12) 8%, transparent);
   --input: color-mix(in oklab, var(--neutral-12) 14%, transparent);
-  --ring: var(--accent-9);
+  --ring: var(--focus-ring);
 
   --success: var(--success-9);
   --success-foreground: var(--neutral-1);
@@ -281,14 +240,14 @@
   --sidebar-accent: var(--neutral-3);
   --sidebar-accent-foreground: var(--neutral-12);
   --sidebar-border: color-mix(in oklab, var(--neutral-12) 8%, transparent);
-  --sidebar-ring: var(--accent-9);
+  --sidebar-ring: var(--focus-ring);
 
   /* The Tailwind-facing ladder is an alias of the doctrine elevation set, not
      a second one. Pure black is banned; every one of these tints from
      --neutral-12 via --shadow-tint-*. */
   --shadow-xs: var(--shadow-hairline);
   --shadow-sm: var(--shadow-tile);
-  --shadow-md: var(--shadow-lifted);
+  --shadow-md: var(--shadow-tile);
   --shadow-lg: var(--shadow-overlay);
   --shadow-xl: var(--shadow-drawer);
   --shadow-2xl: var(--shadow-drawer);
@@ -297,7 +256,7 @@
 
   --chart-1: var(--accent-9);
   --chart-2: var(--info-9);
-  --chart-3: #b9aee6;
+  --chart-3: var(--mark-7);
   --chart-4: var(--warning-9);
   --chart-5: var(--neutral-9);
 
@@ -338,18 +297,14 @@
 }
 
 :root {
-  /* surfaces — light: sunken 241 < field 245 < raised 253 */
-  --surface-sunken: var(--neutral-3);
-  --surface-field: color-mix(in oklab, var(--neutral-2), var(--neutral-3));
+  /* Surfaces. The frame recesses; content sits raised on it. A groove
+     (recess-deep) holds a lifted thumb (lift). Dark flips the polarity. */
   --surface-raised: var(--neutral-1);
-  --surface-overlay: var(--neutral-1);
-  --surface-hover: var(--neutral-3);
-  --surface-active: var(--neutral-4);
-  /* The session tab strip: a bar clearly below the transcript, tabs not
-     chosen one step up from it, the chosen tab the transcript itself. */
-  --tabbar-surface: var(--neutral-5);
-  --tab-rest: var(--neutral-4);
-  --tab-rest-hover: var(--neutral-3);
+  --surface-recess: var(--neutral-3);
+  --surface-recess-deep: var(--neutral-4);
+  --surface-lift: var(--neutral-1);
+  --surface-fill: var(--neutral-3);
+  --surface-hover: var(--neutral-2);
 
   /* borders — graded, never flattened to one value */
   --border-hairline: color-mix(
@@ -357,16 +312,14 @@
     var(--neutral-4) 34%,
     var(--neutral-3)
   );
-  --border-divider: color-mix(in oklab, var(--neutral-4) 72%, var(--neutral-3));
   --border-control: var(--neutral-4);
 
-  /* inks — a five-rung ladder inside the two tier-1 text steps */
+  /* Inks. Subtle is the weakest mix that holds 4.5:1 on the fill and hover
+     surfaces (15.2% light / 33.3% dark; 15.3% / 33.4% fail). */
   --ink-strong: var(--neutral-12);
-  --ink-row: color-mix(in oklab, var(--neutral-12) 68%, var(--neutral-11));
-  --ink-stat: color-mix(in oklab, var(--neutral-12) 60%, var(--neutral-11));
-  --ink-body: color-mix(in oklab, var(--neutral-12) 46%, var(--neutral-11));
   --ink-muted: var(--neutral-11);
-  --ink-label: color-mix(in oklab, var(--neutral-11) 74%, var(--neutral-12));
+  --ink-subtle: color-mix(in oklab, var(--neutral-8) 15.2%, var(--neutral-11));
+  --ink-hover: oklch(from var(--ink-strong) calc(l - 0.05) c h);
 
   /* accent aliases (graphite is the action; blue is reserved for focus) */
   --accent-solid: var(--accent-9);
@@ -376,9 +329,6 @@
 
   --focus-ring: var(--accent-solid);
   --brand-solid: var(--neutral-12);
-  --brand-hi: oklch(from var(--neutral-12) calc(l + 0.075) c h);
-  --brand-lo: oklch(from var(--neutral-12) calc(l - 0.012) c h);
-  --brand-edge: oklch(from var(--neutral-12) calc(l - 0.045) c h);
   --on-brand: var(--neutral-1);
 
   /* Flexoki v2 functional hues (oklch canonical) — status chips + data resolve
@@ -458,20 +408,15 @@
   --mark-8: oklch(0.51 0.165 349.8);
   --mark-glyph: oklch(from var(--neutral-1) 0.99 0 h);
 
-  /* signature moves as tokens */
-  --gradient-action: linear-gradient(var(--brand-hi), var(--brand-lo));
   --mark-overlay: linear-gradient(
     oklch(from var(--neutral-1) l c h / 0.22),
     oklch(from var(--neutral-12) l c h / 0.06)
   );
-  --scrim: oklch(from var(--neutral-12) l c h / 0.32);
-  --scrim-soft: oklch(from var(--neutral-12) l c h / 0.06);
+  --scrim: oklch(from var(--neutral-2) l c h / 0.72);
   --scrim-blur: 2px;
 
   /* Identity hues for duotone icon tiles (new-session modal). Light: the
      design's own strengths. */
-  --hue-violet-400: #818cf8;
-  --hue-violet-500: #6366f1;
   --hue-cyan-400: #38bdf8;
   --hue-cyan-500: #14b0e0;
   --hue-amber-500: #f0ad1f;
@@ -502,35 +447,27 @@
   --shadow-tint-2: oklch(from var(--neutral-12) l c h / 0.14);
   --shadow-tint-3: oklch(from var(--neutral-12) l c h / 0.2);
   --shadow-hairline: 0 3px 7px -2px var(--shadow-tint-2);
-  --shadow-tile: 0 2px 6px var(--shadow-tint-2), 0 0 0 0.5px var(--shadow-tint);
-  --shadow-lifted:
-    0 6px 18px var(--shadow-tint-2), 0 1px 3px var(--shadow-tint);
+  --shadow-tile:
+    0 1px 2px oklch(from var(--neutral-12) l c h / 0.07),
+    0 0 0 1px oklch(from var(--neutral-12) l c h / 0.035);
+  --shadow-raised: 0 1px 3px var(--shadow-tint), 0 1px 1px var(--shadow-tint);
   --shadow-overlay:
     0 18px 48px var(--shadow-tint-3), 0 2px 6px var(--shadow-tint);
   --shadow-modal: var(--shadow-overlay);
-  --surface-well: var(--surface-field);
   --shadow-drawer: 0 12px 40px var(--shadow-tint-3);
   --shadow-inset-sel: inset 0 1px 1px var(--shadow-tint);
-  --shadow-action:
-    inset 0 -1px 0 var(--brand-edge), 0 1px 2px var(--shadow-tint-2);
 
-  /* type — one superfamily, rem scale (WCAG 1.4.4 resize).
-     Floor: --text-xs never below 11px, --text-sm never below 12.5px.
-     The FlowAI reference body is 14px; --text-md (body copy) sits at 15px,
-     --text-base (caption/compact data) at 13.5px. */
+  /* Type roles as font shorthands; their sizes are the @theme `--text-*`
+     roles below, which also generate the `text-meta` ... `text-kpi` utilities. */
   --font-body:
     "Geist Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
     sans-serif;
   --font-display: var(--font-body);
-  --text-xs: 0.6875rem;
-  --text-sm: 0.78125rem;
-  --text-base: 0.84375rem;
-  --text-md: 0.9375rem;
-  --text-lg: 1.0625rem;
-  --text-xl: 1.1875rem;
-  --text-2xl: 1.3125rem;
-  --text-3xl: 1.5rem;
-  --text-4xl: 1.6875rem;
+  --type-meta: 400 var(--text-meta) / 1.35 var(--font-body);
+  --type-label: 500 var(--text-label) / 1.3 var(--font-body);
+  --type-body: 400 var(--text-body) / 1.45 var(--font-body);
+  --type-title: 500 var(--text-title) / 1.25 var(--font-body);
+  --type-kpi: 500 var(--text-kpi) / 1 var(--font-body);
   --leading-tight: 1.2;
   --leading-body: 1.4;
   --leading-ui: 1.25;
@@ -552,72 +489,60 @@
   --space-7: 25px;
   --space-8: 32px;
 
-  /* shape — six measured radii (--radius base stays 10px from above) */
-  --radius-mark: 4.6px;
-  --radius-tile: 5.5px;
-  --radius-well: 7px;
-  --radius-control: 8px;
-  --radius-card: 10px;
-  --radius-modal: 12px;
-  --radius-panel: 14px;
-  --radius-shell: 20px;
+  /* Shape: the radius roles (xs..modal) live in @theme. */
   --radius-pill: 999px;
 
-  /* motion — 100/300/500 durations, three canonical easings */
-  --c-100: 100ms;
-  --c-300: 300ms;
+  /* Motion. Entrances and exits ease out; on-screen movement eases in-out;
+     drawers, popovers and page swaps use the drawer curve. No ease-in. */
+  --dur-control: 120ms;
+  --dur-menu: 140ms;
+  --dur-pop: 260ms;
+  --dur-panel: 280ms;
+  --dur-exit: 160ms;
   --c-500: 500ms;
-  --e-in: cubic-bezier(0.16, 1, 0.3, 1);
-  --e-out: cubic-bezier(0.7, 0, 0.84, 0);
-  --e-toggle: cubic-bezier(0.65, 0, 0.35, 1);
   --breath: calc(var(--c-500) * 4);
+  --transition-control:
+    background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+  --press-scale: 0.97;
+  --pop-scale: 0.92;
+  --pop-rise: 8px;
 
   /* component dimension ramp. */
   --c-btn-h: 44px;
   --c-btn-pad: 16px;
   --c-btn-gap: 8px;
-  --c-btn-fs: 14.5px;
   --c-mark: 26px;
   --c-mark-glyph: 14px;
   --c-pill-h: 24px;
   --c-pill-gap: 6px;
-  --c-pill-fs: var(--text-sm);
+  --c-pill-fs: var(--text-label);
   --c-nav-h: 40px;
   --c-card-pad: 14px;
   --c-card-gap: 10px;
 }
 
 .dark {
-  --surface-sunken: var(--neutral-1);
-  --surface-field: var(--neutral-2);
   --surface-raised: var(--neutral-3);
-  --surface-overlay: var(--neutral-4);
-  --surface-hover: var(--neutral-3);
-  --surface-active: var(--neutral-4);
-  --tabbar-surface: color-mix(in oklab, var(--neutral-1), black 50%);
-  --tab-rest: var(--neutral-1);
-  --tab-rest-hover: color-mix(in oklab, var(--neutral-1), var(--neutral-3));
+  --surface-recess: var(--neutral-2);
+  --surface-recess-deep: var(--neutral-1);
+  --surface-lift: var(--neutral-6);
+  --surface-fill: var(--neutral-5);
+  --surface-hover: var(--neutral-4);
 
   --border-hairline: color-mix(
     in oklab,
     var(--neutral-5) 40%,
     var(--neutral-4)
   );
-  --border-divider: color-mix(in oklab, var(--neutral-5) 75%, var(--neutral-4));
   --border-control: var(--neutral-6);
 
   --ink-strong: var(--neutral-12);
-  --ink-row: color-mix(in oklab, var(--neutral-12) 88%, var(--neutral-11));
-  --ink-stat: color-mix(in oklab, var(--neutral-12) 72%, var(--neutral-11));
-  --ink-body: color-mix(in oklab, var(--neutral-12) 30%, var(--neutral-11));
   --ink-muted: var(--neutral-11);
-  --ink-label: color-mix(in oklab, var(--neutral-11) 88%, var(--neutral-10));
+  --ink-subtle: color-mix(in oklab, var(--neutral-8) 33.3%, var(--neutral-11));
+  --ink-hover: oklch(from var(--ink-strong) calc(l + 0.05) c h);
 
   --focus-ring: var(--accent-11);
   --brand-solid: var(--neutral-12);
-  --brand-hi: oklch(from var(--neutral-12) calc(l - 0.02) c h);
-  --brand-lo: oklch(from var(--neutral-12) calc(l + 0.02) c h);
-  --brand-edge: oklch(from var(--neutral-12) calc(l + 0.05) c h);
   --on-brand: var(--neutral-1);
 
   --error-3: oklch(31.3% 0.087 26.3);
@@ -654,13 +579,11 @@
   --shadow-tint: oklch(from var(--neutral-1) l c h / 0.55);
   --shadow-tint-2: oklch(from var(--neutral-1) l c h / 0.66);
   --shadow-tint-3: oklch(from var(--neutral-1) l c h / 0.76);
-  --scrim: oklch(from var(--neutral-1) l c h / 0.6);
-  --scrim-soft: oklch(from var(--neutral-1) l c h / 0.3);
-  --scrim-blur: 2px;
+  --scrim: oklch(from var(--neutral-1) l c h / 0.72);
+  --shadow-raised: inset 0 0 0 1px oklch(from var(--neutral-7) l c h / 0.7);
+  --mark-glyph: var(--neutral-1);
 
   /* Dark: same chroma, lightness raised so the tiles read on the dark surface. */
-  --hue-violet-400: oklch(from #818cf8 0.78 c h);
-  --hue-violet-500: oklch(from #6366f1 0.74 c h);
   --hue-cyan-400: oklch(from #38bdf8 0.8 c h);
   --hue-cyan-500: oklch(from #14b0e0 0.78 c h);
   --hue-amber-500: oklch(from #f0ad1f 0.82 c h);
@@ -686,15 +609,12 @@
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
-  --color-faint: var(--faint);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
@@ -752,12 +672,37 @@
   --color-tool-write: var(--tool-write);
   --color-tool-skill: var(--tool-skill);
   --color-tool-plan: var(--tool-plan);
-
-  /* Motion is the doctrine's three curves only: --e-in (entry) / --e-out (exit)
-     / --e-toggle (continuous). No off-doctrine easing aliases remain. */
 }
 
 @theme {
+  /* Radius roles: xs marks and tiles, sm controls inside a surface, md
+     controls and buttons, lg cards and menus, modal the dialog tray. */
+  --radius-xs: 5px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-modal: 18px;
+
+  /* Type roles. Each generates a `text-<role>` utility with its leading. */
+  --text-meta: 0.75rem;
+  --text-meta--line-height: 1.35;
+  --text-label: 0.8125rem;
+  --text-label--line-height: 1.3;
+  --text-body: 0.875rem;
+  --text-body--line-height: 1.45;
+  --text-title: 1.25rem;
+  --text-title--line-height: 1.25;
+  --text-title--letter-spacing: -0.01em;
+  --text-title--font-weight: 500;
+  --text-kpi: 1.5rem;
+  --text-kpi--line-height: 1;
+  --text-kpi--font-weight: 500;
+
+  /* Curves. Generates `ease-out`, `ease-in-out`, `ease-drawer`. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+
   /* One-shot "that is wrong" nudge. */
   --animate-shake: shake 280ms linear;
 
@@ -797,8 +742,7 @@
 
   body {
     @apply bg-background text-foreground;
-    font-size: var(--text-md); /* 15px — DESIGN.md body copy / nav step */
-    line-height: var(--leading-body);
+    font: var(--type-body);
   }
 
   code,
@@ -822,8 +766,8 @@
   }
 
   :focus-visible {
-    outline: 2px solid var(--ring);
-    outline-offset: 2px;
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
     /* No `border-radius: inherit` — it reshapes the focused element to its
        parent's radius (ballooning focus rings, and clipping a borderless
        textarea's text to the composer pill's corners). The outline already
@@ -837,38 +781,8 @@
   }
 }
 
-/* ---- Typography discipline: tracking is size-specific, never global. */
-@utility text-display {
-  font-size: var(--text-3xl); /* 23.5px — largest real step (mock census) */
-  line-height: var(--leading-tight);
-  letter-spacing: var(--track-display);
-  font-weight: var(--weight-strong); /* 500 — 650 is a banned weight */
-}
-
-@utility text-title {
-  font-size: var(--text-2xl); /* 20.75px */
-  line-height: var(--leading-tight);
-  letter-spacing: var(--track-display);
-  font-weight: var(--weight-strong); /* 500 — 600 is a banned weight */
-}
-
-@utility text-body {
-  font-size: var(--text-md); /* 15px — body copy */
-  line-height: var(--leading-body);
-  letter-spacing: var(--track-body);
-}
-
-@utility text-caption {
-  font-size: var(--text-base); /* 13.5px — the anchor step */
-  line-height: var(--leading-body);
-  letter-spacing: var(--track-caps);
-  color: var(--muted-foreground);
-}
-
-@utility text-micro {
-  font-size: var(--text-sm); /* 12.5px — section labels / chips step */
-  line-height: var(--leading-ui);
-  letter-spacing: var(--track-caps);
+@utility text-kpi {
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---- Rendered markdown. @tailwindcss/typography paints its own gray palette,
@@ -921,31 +835,31 @@
 
 /* The typography plugin ships its own type scale — h1 at 800/2.14em, h2 at
    700, strong and code at 600 — none of which exist in this product. Weight
-   above 500 is banned and sizes come from the nine --text-* steps, so the
+   above 500 is banned and sizes come from the type roles, so the
    rendered-markdown scale is restated here rather than inherited. Element
    selectors on purpose: the plugin wraps its own in :where(), so these win
    without !important. */
 .prose h1 {
-  font-size: var(--text-2xl);
+  font-size: var(--text-title);
   line-height: var(--leading-tight);
   letter-spacing: var(--track-display);
   font-weight: var(--weight-strong);
 }
 .prose h2 {
-  font-size: var(--text-xl);
+  font-size: var(--text-title);
   line-height: var(--leading-tight);
   letter-spacing: var(--track-display);
   font-weight: var(--weight-strong);
 }
 .prose h3 {
-  font-size: var(--text-lg);
+  font-size: var(--text-body);
   line-height: var(--leading-tight);
   font-weight: var(--weight-strong);
 }
 .prose h4,
 .prose h5,
 .prose h6 {
-  font-size: var(--text-md);
+  font-size: var(--text-body);
   line-height: var(--leading-ui);
   font-weight: var(--weight-strong);
 }
@@ -1015,11 +929,11 @@
 /* ---- Instant press feedback: the hand feels the button before release. */
 @utility pressable {
   transition:
-    transform 100ms var(--e-in),
-    box-shadow 100ms var(--e-in);
+    transform 160ms var(--ease-out),
+    box-shadow var(--dur-control) var(--ease-out);
 }
 .pressable:active {
-  transform: scale(0.97);
+  transform: scale(var(--press-scale));
 }
 
 /* Two icons sharing one slot; the outgoing icon animates out too. */
@@ -1032,9 +946,9 @@
   display: inline-flex;
   grid-area: 1 / 1;
   transition:
-    opacity var(--icon-swap-dur, 240ms) var(--e-in),
-    scale var(--icon-swap-dur, 240ms) var(--e-in),
-    filter var(--icon-swap-dur, 240ms) var(--e-in);
+    opacity var(--icon-swap-dur, 240ms) var(--ease-out),
+    scale var(--icon-swap-dur, 240ms) var(--ease-out),
+    filter var(--icon-swap-dur, 240ms) var(--ease-out);
 }
 
 .icon-swap > [data-active="true"] {
@@ -1086,46 +1000,22 @@
   animation: none;
 }
 
-/* Session pane crossfade — only the active pane carries this name,
-   so the VT API morphs between old and new pane content. */
-::view-transition-old(session-pane) {
-  animation: 120ms cubic-bezier(0.32, 0.72, 0, 1) both vt-pane-out;
-}
-::view-transition-new(session-pane) {
-  animation: 120ms cubic-bezier(0.32, 0.72, 0, 1) both vt-pane-in;
-}
-@keyframes vt-pane-out {
-  to {
-    opacity: 0;
-  }
-}
-@keyframes vt-pane-in {
-  from {
-    opacity: 0;
-  }
-}
-
-/* Content transitions — direction set via CSS custom properties from JS.
-   --vt-old-x/y: where the old content exits to
-   --vt-new-x/y: where the new content enters from
-   No data-attribute selectors needed — works on all browsers.
-   120ms keeps the total VT lifecycle (capture + animate) under 200ms. */
+/* Session pane and content swaps cross-fade in place; nothing travels. */
+::view-transition-old(session-pane),
 ::view-transition-old(content) {
-  animation: 120ms cubic-bezier(0.32, 0.72, 0, 1) both vt-exit;
+  animation: var(--dur-control) var(--ease-drawer) both vt-fade-out;
 }
+::view-transition-new(session-pane),
 ::view-transition-new(content) {
-  animation: 120ms cubic-bezier(0.32, 0.72, 0, 1) both vt-enter;
+  animation: var(--dur-control) var(--ease-drawer) both vt-fade-in;
 }
-
-@keyframes vt-exit {
+@keyframes vt-fade-out {
   to {
-    transform: translate(var(--vt-old-x, -8%), var(--vt-old-y, 0));
     opacity: 0;
   }
 }
-@keyframes vt-enter {
+@keyframes vt-fade-in {
   from {
-    transform: translate(var(--vt-new-x, 8%), var(--vt-new-y, 0));
     opacity: 0;
   }
 }
@@ -1142,8 +1032,6 @@
     --c-btn-h: 48px;
     --c-pill-h: 28px;
     --c-mark: 30px;
-    --text-xs: 0.75rem; /* 12px floor on touch */
-    --text-sm: 0.8125rem; /* 13px floor on touch */
   }
 
   /* A 44px floor for tappable elements. Wrapped in :where() so it has
@@ -1187,59 +1075,24 @@
 @media (max-width: 639px) {
   :root {
     --c-nav-h: 44px;
-    --text-xs: 0.75rem;
-    --text-sm: 0.8125rem;
   }
 }
 
-/* Reduced motion: comprehension keeps its cross-fades, nothing travels. What
-   the setting asks for is stillness, not instant swaps — zeroing every duration
-   takes the fades with it. So durations clamp to one quick beat, loops stop,
-   presses stop scaling, and the page transitions swap their travelling
-   keyframes for ones that only fade.
-
-   `data-motion-loop` opts one element out of the clamp. It is for indicators
-   whose looping *is* the information — an indeterminate spinner held on a
-   single frame reads as a progress fraction it cannot know. Decorative loops
-   and anything that travels do not qualify. */
+/* Reduced motion: every animation and transition, the new-session dialog
+   included, runs for 1ms. `data-motion-loop` opts out an indicator whose
+   looping is the information (an indeterminate spinner). */
 @media (prefers-reduced-motion: reduce) {
-  /* DESIGN.md §motion: reduced motion caps every animation and transition at 1ms
-     — not 120ms. At 120ms a fly/scale/slide still visibly TRAVELS, which is the
-     exact motion a vestibular-sensitive reader asked to be spared; Svelte's
-     built-in transitions compile to CSS animations, so this one rule snaps all
-     of them (the information survives — only the movement stops). Loops whose
-     looping is the information keep going via [data-motion-loop]. */
   *:not([data-motion-loop]),
   *::before,
-  *::after {
-    animation-duration: 1ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 1ms !important;
-  }
-  .pressable:active {
-    transform: none;
-  }
-  ::view-transition-old(content) {
-    animation-name: vt-rm-out !important;
-  }
-  ::view-transition-new(content) {
-    animation-name: vt-rm-in !important;
-  }
+  *::after,
   ::view-transition-group(*),
   ::view-transition-old(*),
   ::view-transition-new(*) {
-    animation-duration: 120ms !important;
-  }
-}
-
-@keyframes vt-rm-out {
-  to {
-    opacity: 0;
-  }
-}
-@keyframes vt-rm-in {
-  from {
-    opacity: 0;
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    transition-delay: 0ms !important;
   }
 }
 
@@ -1303,4 +1156,200 @@
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
+}
+
+/* The one focus indicator: a solid outline, for elements that also set
+   `outline-none` for mouse focus. */
+@utility focus-ring {
+  &:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+  }
+}
+
+/* ---- Kit recipes. The kit components in lib/components/ui name these;
+   utilities passed by a consumer still win (components layer). */
+@layer components {
+  /* Floating surfaces: popover, dropdown, select, context menu. */
+  .kit-pop {
+    --kit-rise: 0 calc(-1 * var(--pop-rise));
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius-lg);
+    background: var(--surface-raised);
+    box-shadow: var(--shadow-overlay);
+    padding: 6px;
+    color: var(--ink-strong);
+  }
+  .kit-pop[data-side="top"] {
+    --kit-rise: 0 var(--pop-rise);
+  }
+  .kit-pop[data-side="left"] {
+    --kit-rise: var(--pop-rise) 0;
+  }
+  .kit-pop[data-side="right"] {
+    --kit-rise: calc(-1 * var(--pop-rise)) 0;
+  }
+  .kit-pop[data-state="open"] {
+    animation: kit-pop-in var(--dur-pop) var(--ease-drawer) both;
+  }
+  .kit-pop[data-state="closed"] {
+    animation: kit-pop-out var(--dur-exit) var(--ease-drawer) both;
+  }
+
+  /* A row inside a floating surface. */
+  .kit-item {
+    min-height: 32px;
+    border-radius: var(--radius-sm);
+    transition: var(--transition-control);
+  }
+  .kit-item[data-highlighted],
+  .kit-item:focus-visible {
+    background: var(--surface-hover);
+  }
+  @media (hover: hover) {
+    .kit-item:not([data-disabled]):hover {
+      background: var(--surface-hover);
+    }
+  }
+  @media (pointer: coarse) {
+    .kit-item {
+      min-height: 44px;
+    }
+  }
+
+  /* Segmented: tabs and single toggle groups. A recessed groove holds a
+     lifted thumb that slides under the chosen segment. */
+  .kit-segmented {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 3px;
+    border-radius: var(--radius-md);
+    background: var(--surface-recess-deep);
+  }
+  .kit-thumb {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: 0 0;
+    border-radius: var(--radius-sm);
+    background: var(--surface-lift);
+    box-shadow: var(--shadow-raised);
+    pointer-events: none;
+    opacity: 0;
+  }
+  .kit-segment {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 10px;
+    border-radius: var(--radius-sm);
+    white-space: nowrap;
+    font: 500 var(--text-label) / 1 var(--font-body);
+    color: var(--ink-muted);
+    transition: var(--transition-control);
+  }
+  .kit-segment[data-state="active"],
+  .kit-segment[data-state="on"] {
+    color: var(--ink-strong);
+  }
+
+  /* Tooltip: brand ink, fades and settles from .96. */
+  .kit-tip {
+    border-radius: var(--radius-sm);
+    background: var(--brand-solid);
+    color: var(--on-brand);
+    font: var(--type-meta);
+  }
+  .kit-tip[data-state="delayed-open"],
+  .kit-tip[data-state="instant-open"] {
+    animation: kit-tip-in var(--dur-menu) var(--ease-out) both;
+  }
+  .kit-tip[data-state="closed"] {
+    animation: kit-tip-out var(--dur-menu) var(--ease-out) both;
+  }
+
+  /* Dialog: a recessed tray holding a raised body; 6 + 12 = 18, so the
+     corners are concentric. */
+  .kit-dialog {
+    border-radius: var(--radius-modal);
+    background: var(--surface-recess);
+    box-shadow: var(--shadow-overlay);
+    padding: 6px;
+  }
+  .kit-dialog-body {
+    border-radius: var(--radius-lg);
+    background: var(--surface-raised);
+    padding: 18px;
+  }
+  .kit-dialog[data-state="open"] {
+    animation: kit-dialog-in var(--dur-panel) var(--ease-out) both;
+  }
+  .kit-dialog[data-state="closed"] {
+    animation: kit-dialog-out var(--dur-exit) var(--ease-out) both;
+  }
+  .kit-scrim {
+    background: var(--scrim);
+    backdrop-filter: blur(var(--scrim-blur));
+    -webkit-backdrop-filter: blur(var(--scrim-blur));
+  }
+  .kit-scrim[data-state="open"] {
+    animation: kit-fade-in var(--dur-panel) var(--ease-out) both;
+  }
+  .kit-scrim[data-state="closed"] {
+    animation: kit-fade-out var(--dur-exit) var(--ease-out) both;
+  }
+}
+
+@keyframes kit-pop-in {
+  from {
+    opacity: 0;
+    translate: var(--kit-rise);
+    scale: var(--pop-scale);
+  }
+}
+@keyframes kit-pop-out {
+  to {
+    opacity: 0;
+    translate: var(--kit-rise);
+    scale: var(--pop-scale);
+  }
+}
+@keyframes kit-tip-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+@keyframes kit-tip-out {
+  to {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+@keyframes kit-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@keyframes kit-dialog-out {
+  to {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@keyframes kit-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes kit-fade-out {
+  to {
+    opacity: 0;
+  }
 }

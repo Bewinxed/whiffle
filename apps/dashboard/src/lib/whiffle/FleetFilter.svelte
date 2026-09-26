@@ -59,26 +59,22 @@
   aria-label="Show only sessions in one state"
   class="self-start"
   onValueChange={choose}
-  size="sm"
   type="single"
-  variant="outline"
   bind:value={chosen}
 >
   {#each CHIPS as chip (chip.value)}
     <ToggleGroup.Item
-      class="font-normal text-muted-foreground data-[state=on]:font-medium
-        data-[state=on]:text-foreground"
       disabled={chip.value !== 'all' && counts[chip.value] === 0}
       value={chip.value}
     >
       {#if chip.activity}
         <ActivityDot activity={chip.activity} size={1.5} />
       {/if}
-      <!-- The label carries its own size: `text-micro` next to a text colour in
+      <!-- The label carries its own size: `text-label` next to a text colour in
            the same `cn()` call is merged away as if it were one, and the chip
            silently comes back at the kit's 14px. -->
-      <span class="text-micro">{chip.label}</span>
-      <span class="text-micro text-muted-foreground tabular-nums" data-tabular>
+      <span class="text-label">{chip.label}</span>
+      <span class="text-label text-muted-foreground tabular-nums" data-tabular>
         {counts[chip.value]}
       </span>
     </ToggleGroup.Item>

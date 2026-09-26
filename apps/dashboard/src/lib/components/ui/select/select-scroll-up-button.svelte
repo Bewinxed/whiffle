@@ -1,6 +1,5 @@
 <script lang="ts">
-  import { ArrowUp01Icon } from "@hugeicons/core-free-icons";
-  import { HugeiconsIcon } from "@hugeicons/svelte";
+  import { IconChevronUp } from "$lib/icons";
   import { Select as SelectPrimitive } from "bits-ui";
   import { cn, type WithoutChildrenOrChild } from "$lib/utils.js";
 
@@ -12,10 +11,10 @@
 </script>
 
 <SelectPrimitive.ScrollUpButton
-  class={cn("top-0 z-10 flex w-full cursor-default items-center justify-center bg-popover py-1 [&_svg:not([class*='size-'])]:size-4", className)}
+  class={cn("top-0 z-10 flex w-full cursor-default items-center justify-center bg-[var(--surface-raised)] py-1 [&_svg:not([class*='size-'])]:size-4", className)}
   data-slot="select-scroll-up-button"
   bind:ref
   {...restProps}
 >
-  <HugeiconsIcon icon={ArrowUp01Icon} strokeWidth={2} />
+  <IconChevronUp />
 </SelectPrimitive.ScrollUpButton>

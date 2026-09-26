@@ -443,12 +443,12 @@
     align-items: start;
   }
   .shead h1 {
-    font-size: var(--text-lg);
+    font-size: var(--text-title);
     font-weight: var(--weight-strong);
     color: var(--ink-strong);
   }
   .shead p {
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--ink-muted);
     margin-top: var(--space-1);
   }
@@ -456,7 +456,7 @@
     margin-top: var(--space-6);
     padding: 0 var(--space-6) var(--space-6) var(--space-7);
     border: 1px solid var(--border-hairline);
-    border-radius: var(--radius-panel);
+    border-radius: var(--radius-lg);
     min-height: 320px;
   }
   /* A run of rail rows. In `linked` mode this box owns the line: one
@@ -488,27 +488,27 @@
   .turn.you {
     margin-inline: calc(var(--space-4) * -1);
     padding: var(--space-3) var(--space-4);
-    background: var(--surface-sunken);
-    border-radius: var(--radius-well);
+    background: var(--surface-recess);
+    border-radius: var(--radius-sm);
   }
   .who {
     display: block;
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     color: var(--ink-muted);
     margin-bottom: var(--space-1);
   }
   .said {
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     line-height: var(--leading-body);
-    color: var(--ink-body);
+    color: var(--ink-strong);
   }
   .line {
     display: flex;
     align-items: center;
     gap: var(--space-2);
     min-height: 26px;
-    font-size: var(--text-sm);
-    color: var(--ink-body);
+    font-size: var(--text-label);
+    color: var(--ink-strong);
   }
   .line :global(svg) {
     width: 14px;
@@ -528,7 +528,7 @@
   .arg {
     min-width: 0;
     font-family: var(--font-mono);
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     color: var(--ink-muted);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -545,10 +545,10 @@
   .copy {
     border: 1px solid var(--border-hairline);
     background: transparent;
-    border-radius: var(--radius-control);
+    border-radius: var(--radius-sm);
     padding: var(--space-2) var(--space-3);
-    font-size: var(--text-sm);
-    color: var(--ink-body);
+    font-size: var(--text-label);
+    color: var(--ink-strong);
     cursor: pointer;
   }
   .act:hover,
@@ -560,12 +560,12 @@
     position: sticky;
     top: var(--space-6);
     border: 1px solid var(--border-hairline);
-    border-radius: var(--radius-panel);
+    border-radius: var(--radius-lg);
     padding: var(--space-5);
-    background: var(--surface-sunken);
+    background: var(--surface-recess);
   }
   .panel h2 {
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: var(--ink-muted);
@@ -582,13 +582,13 @@
     padding: 2px 0;
   }
   .dlabel {
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     color: var(--ink-muted);
   }
   .dval {
     font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    color: var(--ink-body);
+    font-size: var(--text-meta);
+    color: var(--ink-strong);
     text-align: right;
   }
   .dial input[type="range"],
@@ -600,11 +600,11 @@
     margin-top: var(--space-2);
   }
   .dial select {
-    font-size: var(--text-xs);
-    color: var(--ink-body);
+    font-size: var(--text-meta);
+    color: var(--ink-strong);
     background: transparent;
     border: 1px solid var(--border-hairline);
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
     padding: 2px 4px;
   }
   .copy {

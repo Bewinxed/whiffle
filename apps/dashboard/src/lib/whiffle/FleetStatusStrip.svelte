@@ -44,7 +44,7 @@
   } = $props();
 
   const CHIP =
-    "inline-flex min-h-5 max-w-36 items-center gap-1 rounded-full px-2 text-micro transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
+    "inline-flex min-h-5 max-w-36 items-center gap-1 rounded-full px-2 text-label transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
 
   let asked = $state<Record<string, boolean>>({});
 
@@ -55,7 +55,7 @@
     if (state === "failed") {
       return "bg-warning/10 text-warning hover:bg-warning/20";
     }
-    return "text-faint hover:bg-muted";
+    return "text-[var(--ink-subtle)] hover:bg-muted";
   }
 
   async function resync(machine: Machine) {
@@ -91,15 +91,15 @@
       </Popover.Trigger>
       <Popover.Content
         align="start"
-        class="w-96 max-w-[calc(100vw-2rem)] rounded-[var(--radius-panel)] p-0 shadow-xl"
+        class="w-96 max-w-[calc(100vw-2rem)] rounded-[var(--radius-lg)] p-0 shadow-xl"
       >
         <header
           class="flex items-baseline gap-2 border-b border-border px-3 py-2"
         >
-          <span class="truncate text-caption font-medium text-foreground"
+          <span class="truncate text-meta font-medium text-foreground"
             >{machineLabel(machine.hostname)}</span
           >
-          <span class="ml-auto shrink-0 text-micro text-muted-foreground"
+          <span class="ml-auto shrink-0 text-label text-muted-foreground"
             >{os.label}{online ? '' : ' · offline'}</span
           >
         </header>
@@ -116,7 +116,7 @@
               {machines}
             />
           {:else}
-            <p class="text-caption">
+            <p class="text-meta text-muted-foreground">
               {#if item?.state === 'applied'}
                 This machine has the {what}.
               {:else if item?.state === 'removed'}
@@ -131,7 +131,7 @@
                  unlabelled `<pre>` under a green tick, which reads as neither. -->
             {#if item?.detail}
               <p
-                class="flex items-start gap-1.5 text-micro text-muted-foreground"
+                class="flex items-start gap-1.5 text-label text-muted-foreground"
               >
                 <IconInfo class="mt-px size-3.5 shrink-0" />
                 <span class="font-mono">{item.detail}</span>
@@ -148,7 +148,7 @@
               {asked[machine.machineId] ? 'Syncing…' : 'Sync this machine'}
             </Button>
             {#if !online}
-              <p class="text-micro text-muted-foreground">
+              <p class="text-label text-muted-foreground">
                 It syncs on its own the moment it comes back.
               </p>
             {/if}

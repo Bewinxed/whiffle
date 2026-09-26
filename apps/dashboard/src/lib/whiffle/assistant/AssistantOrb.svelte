@@ -43,8 +43,8 @@
     place-items: center;
     cursor: pointer;
     transition:
-      background var(--c-100) var(--e-toggle),
-      transform var(--c-100) var(--e-toggle);
+      background var(--dur-control) var(--ease-in-out),
+      transform var(--dur-control) var(--ease-in-out);
   }
   .orb :global(svg) {
     width: 16px;

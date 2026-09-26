@@ -34,29 +34,12 @@
    */
   const SESSION = /^\/session(\/|$)/;
 
-  const SPOKE_ORDER = [
-    "session",
-    "tools",
-    "rules",
-    "hooks",
-    "delegates",
-    "usage",
-  ];
-
-  function spokeIndex(pathname: string): number {
-    const seg = pathname.split("/").filter(Boolean)[0] || "session";
-    return SPOKE_ORDER.indexOf(seg);
-  }
-
-  // Only animate what needs animating.
-  // - Sidebar nav (spoke <-> spoke): vertical slide keyed to spoke order.
-  // - Same-page param changes (?tab=): instant.
-  // - Drill-in (Fleet -> Session/[id]): horizontal push.
+  // Route changes cross-fade (app.css `content`); same-page param changes and
+  // session tab switches are instant.
   //
   // Moving between conversations never arrives here at all: the workspace
   // store shows the pane and writes the URL with `pushState`, which runs no
-  // navigation. The flag that used to tell this handler to stand down during a
-  // swipe is gone with the navigation it was suppressing.
+  // navigation.
   onNavigate((navigation) => {
     if (!document.startViewTransition) {
       return;
@@ -83,58 +66,19 @@
 
     // Hidden or reduced motion — instant.
     if (document.hidden) {
-      delete document.documentElement.dataset.nav;
       return;
     }
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      delete document.documentElement.dataset.nav;
       return;
     }
 
-    // Compute direction and set it as CSS custom properties on :root.
-    // Custom properties work reliably in all browsers including iOS Safari,
-    // unlike data-attribute selectors on view-transition pseudo-elements.
-    const el = document.documentElement;
-    if (!el.dataset.nav) {
-      const fromIdx = spokeIndex(from);
-      const toIdx = spokeIndex(to);
-      if (fromIdx >= 0 && toIdx >= 0 && fromIdx !== toIdx) {
-        // Vertical: sidebar is top-to-bottom
-        const down = toIdx > fromIdx;
-        el.style.setProperty("--vt-old-x", "0");
-        el.style.setProperty("--vt-old-y", down ? "-8%" : "8%");
-        el.style.setProperty("--vt-new-x", "0");
-        el.style.setProperty("--vt-new-y", down ? "8%" : "-8%");
-      } else {
-        // Horizontal: drill-in/out
-        el.style.setProperty("--vt-old-x", "-8%");
-        el.style.setProperty("--vt-old-y", "0");
-        el.style.setProperty("--vt-new-x", "8%");
-        el.style.setProperty("--vt-new-y", "0");
-      }
-    } else if (el.dataset.nav === "prev") {
-      // Back navigation
-      el.style.setProperty("--vt-old-x", "8%");
-      el.style.setProperty("--vt-old-y", "0");
-      el.style.setProperty("--vt-new-x", "-8%");
-      el.style.setProperty("--vt-new-y", "0");
-    }
-
     return new Promise((resolve) => {
-      const transition = document.startViewTransition(async () => {
+      document.startViewTransition(async () => {
         resolve();
         await navigation.complete.catch(() => {
           /* the transition still finishes on a cancelled navigation */
         });
       });
-      const clear = () => {
-        delete el.dataset.nav;
-        el.style.removeProperty("--vt-old-x");
-        el.style.removeProperty("--vt-old-y");
-        el.style.removeProperty("--vt-new-x");
-        el.style.removeProperty("--vt-new-y");
-      };
-      transition.finished.then(clear, clear);
     });
   });
 </script>

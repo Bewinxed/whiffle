@@ -48,17 +48,17 @@
     cursor: default;
   }
   :global(.thinking-header:hover:not(:disabled)) {
-    color: var(--ink-body);
+    color: var(--ink-strong);
   }
   :global(.thinking-header:focus-visible) {
     outline: 2px solid var(--focus-ring);
     outline-offset: 2px;
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
   }
   .chevron {
     display: grid;
     flex: 0 0 auto;
-    transition: transform var(--c-100) var(--e-in);
+    transition: transform var(--dur-control) var(--ease-out);
   }
   .chevron :global(svg) {
     width: 14px;

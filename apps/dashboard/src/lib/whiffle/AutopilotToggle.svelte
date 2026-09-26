@@ -241,14 +241,14 @@
     display: grid;
     place-items: center;
     cursor: pointer;
-    border-radius: calc(var(--radius-panel) - var(--cin-pad, var(--space-2)));
+    border-radius: calc(var(--radius-lg) - var(--cin-pad, var(--space-2)));
     border: 1px solid var(--border-control);
     background: var(--surface-raised);
     color: var(--ink-muted);
     transition:
-      background-color var(--c-100) var(--e-in),
-      color var(--c-100) var(--e-in),
-      transform var(--c-100) var(--e-in);
+      background-color var(--dur-control) var(--ease-out),
+      color var(--dur-control) var(--ease-out),
+      transform var(--dur-control) var(--ease-out);
   }
   /* The supervisor's halo: a hairline ring floating just outside the control.
      Deliberating = a short arc orbiting (conic gradient, masked to a ring);
@@ -257,7 +257,7 @@
     position: absolute;
     inset: -3px;
     border-radius: calc(
-      var(--radius-panel) -
+      var(--radius-lg) -
       var(--cin-pad, var(--space-2)) +
       3px
     );
@@ -289,7 +289,7 @@
   }
   .ap-halo-pulse {
     background: var(--verdict-ink, var(--ink-muted));
-    animation: ap-halo-fade 2400ms var(--e-in) both;
+    animation: ap-halo-fade 2400ms var(--ease-out) both;
   }
   @keyframes ap-halo-fade {
     0% {
@@ -316,7 +316,7 @@
   @media (hover: hover) and (pointer: fine) {
     .ap-trigger:hover {
       background: var(--surface-hover);
-      color: var(--ink-body);
+      color: var(--ink-strong);
     }
   }
   .ap-trigger:active {
@@ -339,7 +339,7 @@
     gap: var(--space-3);
   }
   .ap-title {
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     font-weight: 600;
     color: var(--ink-strong);
     margin: 0;
@@ -356,17 +356,17 @@
     cursor: pointer;
   }
   .ap-label {
-    font-size: var(--text-sm);
-    color: var(--ink-body);
+    font-size: var(--text-label);
+    color: var(--ink-strong);
     font-weight: 500;
   }
   .ap-prompt {
     border: 1px solid var(--border-control);
-    border-radius: var(--radius-control);
-    background: var(--surface-field);
+    border-radius: var(--radius-sm);
+    background: var(--surface-recess);
     color: var(--ink-strong);
     font-family: var(--font-body);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     line-height: var(--leading-ui);
     padding: var(--space-2) var(--space-3);
     resize: vertical;
@@ -381,7 +381,7 @@
     color: var(--ink-muted);
   }
   .ap-error {
-    font-size: var(--text-xs, 12px);
+    font-size: var(--text-meta, 12px);
     color: var(--error);
     margin: 0;
     line-height: var(--leading-ui);
@@ -390,24 +390,22 @@
     align-self: flex-end;
     height: 30px;
     padding: 0 var(--space-4);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     font-weight: 500;
     border: 0;
-    border-radius: var(--radius-control);
+    border-radius: var(--radius-sm);
     background: var(--brand-solid);
-    background-image: var(--gradient-action);
-    box-shadow: var(--shadow-action);
     color: var(--on-brand);
     cursor: pointer;
     transition:
-      opacity var(--c-100) var(--e-in),
-      transform var(--c-100) var(--e-in);
+      var(--transition-control),
+      transform 160ms var(--ease-out);
   }
   .ap-save:hover {
-    opacity: 0.92;
+    background: var(--ink-hover);
   }
   .ap-save:active {
-    transform: scale(0.97);
+    transform: scale(var(--press-scale));
   }
   .ap-save:disabled {
     opacity: 0.5;

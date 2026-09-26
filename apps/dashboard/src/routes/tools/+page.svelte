@@ -114,10 +114,10 @@
   }
 
   /* Dress shadcn Card as the Quiet Ledger raised panel (--surface-raised,
-     --radius-panel, --shadow-lifted) — never the stock bg-card/ring
+     --radius-lg, --shadow-tile) — never the stock bg-card/ring
      shadcn ships. tailwind-merge drops the defaults these override. */
   const panelClass =
-    "gap-0 overflow-visible rounded-[var(--radius-panel)] bg-[var(--surface-raised)] p-[var(--space-5)] shadow-[var(--shadow-lifted)] ring-0";
+    "gap-0 overflow-visible rounded-[var(--radius-lg)] bg-[var(--surface-raised)] p-[var(--space-5)] shadow-[var(--shadow-tile)] ring-0";
 </script>
 
 <svelte:head>
@@ -153,7 +153,7 @@
         onValueChange={switchTab}
         value={activeTab}
       >
-        <Tabs.List class="tab-strip" variant="line">
+        <Tabs.List class="tab-strip">
           <Tabs.Trigger value="tools">
             <IconToolGeneric class="tab-icon" />
             <span class="tab-label">Tools</span>
@@ -336,18 +336,16 @@
   }
   .sub {
     max-width: 68ch;
-    font-size: var(--text-base);
+    font-size: var(--text-label);
     color: var(--ink-muted);
   }
   /* Tab strip: horizontally scrollable on narrow viewports with next tab
      peeking past the edge (JOURNEY.md §4 mobile reflow). */
   :global(.tab-strip) {
-    width: 100% !important;
+    max-width: 100%;
     overflow-x: auto;
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
-    border-bottom: 1px solid var(--border-hairline);
-    background: transparent;
   }
   :global(.tab-strip::-webkit-scrollbar) {
     display: none;
@@ -362,8 +360,8 @@
     opacity: 1;
   }
   .badge {
-    color: var(--ink-label);
-    font-size: var(--text-xs);
+    color: var(--ink-muted);
+    font-size: var(--text-meta);
     font-variant-numeric: tabular-nums;
   }
   /* On narrow viewports, hide tab labels — icon + badge is enough.
@@ -398,12 +396,12 @@
     margin-bottom: var(--space-4);
   }
   .phead h2 {
-    font-size: var(--text-md);
+    font-size: var(--text-body);
     font-weight: var(--weight-strong);
     color: var(--ink-strong);
   }
   .psub {
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--ink-muted);
   }
   .pbody {
@@ -414,10 +412,10 @@
 
   /* Tab content slides horizontally on switch, keyed to tab order. */
   :global([data-tab-dir="right"] [data-state="active"][role="tabpanel"]) {
-    animation: tab-slide-from-right 150ms cubic-bezier(0.32, 0.72, 0, 1) both;
+    animation: tab-slide-from-right 150ms var(--ease-drawer) both;
   }
   :global([data-tab-dir="left"] [data-state="active"][role="tabpanel"]) {
-    animation: tab-slide-from-left 150ms cubic-bezier(0.32, 0.72, 0, 1) both;
+    animation: tab-slide-from-left 150ms var(--ease-drawer) both;
   }
 
   @keyframes tab-slide-from-right {

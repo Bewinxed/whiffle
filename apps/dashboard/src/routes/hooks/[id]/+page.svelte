@@ -288,7 +288,7 @@
 <div class="flex-1 overflow-y-auto p-6">
   <form class="mx-auto flex max-w-2xl flex-col gap-6" onsubmit={save}>
     <a
-      class="flex w-fit items-center gap-1 text-micro text-muted-foreground hover:text-foreground"
+      class="flex w-fit items-center gap-1 text-label text-muted-foreground hover:text-foreground"
       href="/hooks"
     >
       <IconArrowRight class="size-3 shrink-0 rotate-180" />
@@ -297,10 +297,10 @@
 
     {#if data.error}
       <div
-        class="rounded-[var(--radius-card)] bg-card p-4 shadow-md"
+        class="rounded-[var(--radius-md)] bg-card p-4 shadow-md"
         role="alert"
       >
-        <p class="text-caption text-warning">{data.error}</p>
+        <p class="text-meta text-warning">{data.error}</p>
       </div>
     {/if}
 
@@ -310,7 +310,7 @@
         <input
           aria-invalid={shown('name') || duplicate ? 'true' : undefined}
           autocomplete="off"
-          class="w-full border-0 bg-transparent p-0 text-display text-foreground caret-primary outline-none placeholder:text-faint"
+          class="w-full border-0 bg-transparent p-0 text-title text-foreground caret-primary outline-none placeholder:text-[var(--ink-subtle)]"
           onblur={() => {
             touched.name = true;
           }}
@@ -320,15 +320,15 @@
         >
       </label>
       {#if shown('name')}
-        <p class="text-micro text-destructive">{wrong.name}</p>
+        <p class="text-label text-destructive">{wrong.name}</p>
       {:else if duplicate}
-        <p class="text-micro text-destructive">{duplicate}</p>
+        <p class="text-label text-destructive">{duplicate}</p>
       {/if}
 
       <!-- The hook, read back. Every field below is a clause of this sentence. -->
       <p
         aria-live="polite"
-        class="max-w-prose rounded-[var(--radius-card)] bg-primary/8 p-4 text-body text-foreground transition-all duration-240 ease-[var(--e-in)]"
+        class="max-w-prose rounded-[var(--radius-md)] bg-primary/8 p-4 text-body text-foreground transition-colors duration-240 ease-[var(--ease-out)]"
       >
         {hookSentence(draft)}
       </p>
@@ -336,25 +336,25 @@
       <!-- biome-ignore lint/a11y/noLabelWithoutControl: the <Switch> component renders a native form control as its child; Biome can't see through the component boundary -->
       <label class="flex w-fit items-center gap-3">
         <Switch bind:checked={draft.enabled} />
-        <span class="text-caption">
+        <span class="text-meta text-muted-foreground">
           {draft.enabled ? 'Registered on every machine it applies to' : 'Off — nothing is registered'}
         </span>
       </label>
     </header>
 
     <section
-      class="flex flex-col gap-4 rounded-[var(--radius-panel)] bg-card p-5 shadow-md"
+      class="flex flex-col gap-4 rounded-[var(--radius-lg)] bg-card p-5 shadow-md"
     >
       <div class="flex flex-col gap-1">
         <h2 class="text-body font-medium">When it runs</h2>
-        <p class="max-w-prose text-micro text-muted-foreground">
+        <p class="max-w-prose text-label text-muted-foreground">
           One lifecycle event. The events with a matcher are the ones Claude
           Code lets you narrow further.
         </p>
       </div>
 
       <!-- biome-ignore lint/a11y/noLabelWithoutControl: the <NativeSelect> component renders a native form control as its child; Biome can't see through the component boundary -->
-      <label class="flex flex-col gap-1.5 text-caption">
+      <label class="flex flex-col gap-1.5 text-meta text-muted-foreground">
         Event
         <NativeSelect
           class="w-full"
@@ -373,9 +373,9 @@
           {/each}
         </NativeSelect>
         {#if shown('event')}
-          <span class="text-micro text-destructive">{wrong.event}</span>
+          <span class="text-label text-destructive">{wrong.event}</span>
         {:else if eventInfo}
-          <span class="text-micro text-muted-foreground"
+          <span class="text-label text-muted-foreground"
             >Runs {eventInfo.blurb}.</span
           >
         {/if}
@@ -383,12 +383,12 @@
 
       {#if hookTakesMatcher(draft.event)}
         <!-- biome-ignore lint/a11y/noLabelWithoutControl: the <Input> component renders a native form control as its child; Biome can't see through the component boundary -->
-        <label class="flex flex-col gap-1.5 text-caption">
+        <label class="flex flex-col gap-1.5 text-meta text-muted-foreground">
           Matcher — {eventInfo?.filters}
           <Input
             aria-invalid={shown('matcher') ? 'true' : undefined}
             autocomplete="off"
-            class="font-mono text-sm md:text-sm"
+            class="font-mono text-label md:text-label"
             onblur={() => {
               touched.matcher = true;
             }}
@@ -397,9 +397,9 @@
             bind:value={draft.matcher}
           />
           {#if shown('matcher')}
-            <span class="text-micro text-destructive">{wrong.matcher}</span>
+            <span class="text-label text-destructive">{wrong.matcher}</span>
           {:else}
-            <span class="text-micro text-muted-foreground">
+            <span class="text-label text-muted-foreground">
               Empty or <span class="font-mono">*</span> matches every value. See
               below for what this one actually does.
             </span>
@@ -415,11 +415,11 @@
     </section>
 
     <section
-      class="flex flex-col gap-4 rounded-[var(--radius-panel)] bg-card p-5 shadow-md"
+      class="flex flex-col gap-4 rounded-[var(--radius-lg)] bg-card p-5 shadow-md"
     >
       <div class="flex flex-col gap-1">
         <h2 class="text-body font-medium">What it runs</h2>
-        <p class="max-w-prose text-micro text-muted-foreground">
+        <p class="max-w-prose text-label text-muted-foreground">
           Whiffle writes this to every machine it applies to and registers it —
           no prompt, no approval, every time the event fires.
         </p>
@@ -428,13 +428,11 @@
       <ToggleGroup.Root
         class="w-full"
         onValueChange={(next) => next && setHandlerType(next as HandlerType)}
-        size="sm"
         type="single"
         value={draft.handler.type}
-        variant="outline"
       >
         {#each Object.entries(HANDLER_LABEL) as [value, label] (value)}
-          <ToggleGroup.Item class="flex-1 text-caption" {value}
+          <ToggleGroup.Item class="flex-1" {value}
             >{label}</ToggleGroup.Item
           >
         {/each}
@@ -442,11 +440,11 @@
 
       {#if draft.handler.type === 'command'}
         <!-- biome-ignore lint/a11y/noLabelWithoutControl: the <Textarea> component renders a native form control as its child; Biome can't see through the component boundary -->
-        <label class="flex flex-col gap-1.5 text-caption">
+        <label class="flex flex-col gap-1.5 text-meta text-muted-foreground">
           Script
           <Textarea
             aria-invalid={shown('script') ? 'true' : undefined}
-            class="resize-y font-mono text-sm md:text-sm"
+            class="resize-y font-mono text-label md:text-label"
             onblur={() => {
               touched.script = true;
             }}
@@ -456,9 +454,9 @@
             bind:value={draft.script}
           />
           {#if shown('script')}
-            <span class="text-micro text-destructive">{wrong.script}</span>
+            <span class="text-label text-destructive">{wrong.script}</span>
           {:else}
-            <span class="text-micro text-muted-foreground">
+            <span class="text-label text-muted-foreground">
               Written to every machine, at a path Whiffle picks — the hook
               always points at that copy, never at one you keep locally.
             </span>
@@ -466,11 +464,11 @@
         </label>
 
         <!-- biome-ignore lint/a11y/noLabelWithoutControl: the <Input> component renders a native form control as its child; Biome can't see through the component boundary -->
-        <label class="flex flex-col gap-1.5 text-caption">
+        <label class="flex flex-col gap-1.5 text-meta text-muted-foreground">
           Arguments (optional)
           <Input
             autocomplete="off"
-            class="font-mono text-sm md:text-sm"
+            class="font-mono text-label md:text-label"
             placeholder="--flag value"
             spellcheck="false"
             bind:value={commandArgs}
@@ -489,8 +487,8 @@
               }}
             />
             <span class="flex flex-col gap-0.5">
-              <span class="text-caption">Run in the background</span>
-              <span class="max-w-prose text-micro text-muted-foreground">
+              <span class="text-meta text-muted-foreground">Run in the background</span>
+              <span class="max-w-prose text-label text-muted-foreground">
                 Claude Code does not wait for it before continuing.
               </span>
             </span>
@@ -503,27 +501,25 @@
               }
               draft.handler.shell = next === 'bash' ? undefined : (next as 'powershell');
             }}
-            size="sm"
             type="single"
             value={draft.handler.shell ?? 'bash'}
-            variant="outline"
           >
-            <ToggleGroup.Item class="text-caption" value="bash"
+            <ToggleGroup.Item value="bash"
               >bash</ToggleGroup.Item
             >
-            <ToggleGroup.Item class="text-caption" value="powershell"
+            <ToggleGroup.Item value="powershell"
               >PowerShell</ToggleGroup.Item
             >
           </ToggleGroup.Root>
         </div>
       {:else if draft.handler.type === 'http'}
         <!-- biome-ignore lint/a11y/noLabelWithoutControl: the <Input> component renders a native form control as its child; Biome can't see through the component boundary -->
-        <label class="flex flex-col gap-1.5 text-caption">
+        <label class="flex flex-col gap-1.5 text-meta text-muted-foreground">
           URL
           <Input
             aria-invalid={shown('url') ? 'true' : undefined}
             autocomplete="off"
-            class="font-mono text-sm md:text-sm"
+            class="font-mono text-label md:text-label"
             onblur={() => {
               touched.url = true;
             }}
@@ -532,9 +528,9 @@
             bind:value={draft.handler.url}
           />
           {#if shown('url')}
-            <span class="text-micro text-destructive">{wrong.url}</span>
+            <span class="text-label text-destructive">{wrong.url}</span>
           {:else}
-            <span class="text-micro text-muted-foreground">
+            <span class="text-label text-muted-foreground">
               Every machine posts the event's own JSON here — https, or
               localhost for something running on the same box.
             </span>
@@ -543,12 +539,12 @@
       {:else if draft.handler.type === 'mcp_tool'}
         <div class="grid gap-4 sm:grid-cols-2">
           <!-- biome-ignore lint/a11y/noLabelWithoutControl: the <Input> component renders a native form control as its child; Biome can't see through the component boundary -->
-          <label class="flex flex-col gap-1.5 text-caption">
+          <label class="flex flex-col gap-1.5 text-meta text-muted-foreground">
             MCP server
             <Input
               aria-invalid={shown('mcp_server_name') ? 'true' : undefined}
               autocomplete="off"
-              class="font-mono text-sm md:text-sm"
+              class="font-mono text-label md:text-label"
               onblur={() => {
                 touched.mcp_server_name = true;
               }}
@@ -557,18 +553,18 @@
               bind:value={draft.handler.mcp_server_name}
             />
             {#if shown('mcp_server_name')}
-              <span class="text-micro text-destructive"
+              <span class="text-label text-destructive"
                 >{wrong.mcp_server_name}</span
               >
             {/if}
           </label>
           <!-- biome-ignore lint/a11y/noLabelWithoutControl: the <Input> component renders a native form control as its child; Biome can't see through the component boundary -->
-          <label class="flex flex-col gap-1.5 text-caption">
+          <label class="flex flex-col gap-1.5 text-meta text-muted-foreground">
             Tool
             <Input
               aria-invalid={shown('tool_name') ? 'true' : undefined}
               autocomplete="off"
-              class="font-mono text-sm md:text-sm"
+              class="font-mono text-label md:text-label"
               onblur={() => {
                 touched.tool_name = true;
               }}
@@ -577,17 +573,17 @@
               bind:value={draft.handler.tool_name}
             />
             {#if shown('tool_name')}
-              <span class="text-micro text-destructive">{wrong.tool_name}</span>
+              <span class="text-label text-destructive">{wrong.tool_name}</span>
             {/if}
           </label>
         </div>
       {:else}
         <!-- biome-ignore lint/a11y/noLabelWithoutControl: the <Textarea> component renders a native form control as its child; Biome can't see through the component boundary -->
-        <label class="flex flex-col gap-1.5 text-caption">
+        <label class="flex flex-col gap-1.5 text-meta text-muted-foreground">
           Prompt
           <Textarea
             aria-invalid={shown('prompt') ? 'true' : undefined}
-            class="resize-y text-sm md:text-sm"
+            class="resize-y text-label md:text-label"
             onblur={() => {
               touched.prompt = true;
             }}
@@ -596,16 +592,16 @@
             bind:value={draft.handler.prompt}
           />
           {#if shown('prompt')}
-            <span class="text-micro text-destructive">{wrong.prompt}</span>
+            <span class="text-label text-destructive">{wrong.prompt}</span>
           {/if}
         </label>
         {#if draft.handler.type === 'agent'}
           <!-- biome-ignore lint/a11y/noLabelWithoutControl: the <Input> component renders a native form control as its child; Biome can't see through the component boundary -->
-          <label class="flex flex-col gap-1.5 text-caption">
+          <label class="flex flex-col gap-1.5 text-meta text-muted-foreground">
             Subagent (optional)
             <Input
               autocomplete="off"
-              class="font-mono text-sm md:text-sm"
+              class="font-mono text-label md:text-label"
               placeholder="Inherits Claude Code's default"
               spellcheck="false"
               bind:value={draft.handler.agent}
@@ -616,19 +612,19 @@
     </section>
 
     <section
-      class="flex flex-col gap-4 rounded-[var(--radius-panel)] bg-card p-5 shadow-md"
+      class="flex flex-col gap-4 rounded-[var(--radius-lg)] bg-card p-5 shadow-md"
     >
       <div class="flex flex-col gap-1">
         <h2 class="text-body font-medium">Common fields</h2>
       </div>
 
       <!-- biome-ignore lint/a11y/noLabelWithoutControl: the <Input> component renders a native form control as its child; Biome can't see through the component boundary -->
-      <label class="flex flex-col gap-1.5 text-caption">
+      <label class="flex flex-col gap-1.5 text-meta text-muted-foreground">
         Condition (optional)
         <Input
           aria-invalid={shown('if') ? 'true' : undefined}
           autocomplete="off"
-          class="font-mono text-sm md:text-sm"
+          class="font-mono text-label md:text-label"
           onblur={() => {
             touched.if = true;
           }}
@@ -640,9 +636,9 @@
           value={draft.handler.if ?? ''}
         />
         {#if shown('if')}
-          <span class="text-micro text-destructive">{wrong.if}</span>
+          <span class="text-label text-destructive">{wrong.if}</span>
         {:else}
-          <span class="text-micro text-muted-foreground">
+          <span class="text-label text-muted-foreground">
             A permission rule narrowing when this runs. Only read on tool
             events.
           </span>
@@ -651,11 +647,11 @@
 
       <div class="grid gap-4 sm:grid-cols-2">
         <!-- biome-ignore lint/a11y/noLabelWithoutControl: the <Input> component renders a native form control as its child; Biome can't see through the component boundary -->
-        <label class="flex flex-col gap-1.5 text-caption">
+        <label class="flex flex-col gap-1.5 text-meta text-muted-foreground">
           Timeout, seconds (optional)
           <Input
             aria-invalid={shown('timeout') ? 'true' : undefined}
-            class="font-mono text-sm md:text-sm"
+            class="font-mono text-label md:text-label"
             min="1"
             oninput={(event) => {
               const raw = event.currentTarget.value;
@@ -667,15 +663,15 @@
             value={draft.handler.timeout ?? ''}
           />
           {#if shown('timeout')}
-            <span class="text-micro text-destructive">{wrong.timeout}</span>
+            <span class="text-label text-destructive">{wrong.timeout}</span>
           {/if}
         </label>
         <!-- biome-ignore lint/a11y/noLabelWithoutControl: the <Input> component renders a native form control as its child; Biome can't see through the component boundary -->
-        <label class="flex flex-col gap-1.5 text-caption">
+        <label class="flex flex-col gap-1.5 text-meta text-muted-foreground">
           Status message (optional)
           <Input
             autocomplete="off"
-            class="text-sm md:text-sm"
+            class="text-label md:text-label"
             oninput={(event) => {
               draft.handler.statusMessage = event.currentTarget.value || undefined;
             }}
@@ -688,17 +684,17 @@
     </section>
 
     <section
-      class="flex flex-col gap-4 rounded-[var(--radius-panel)] bg-card p-5 shadow-md"
+      class="flex flex-col gap-4 rounded-[var(--radius-lg)] bg-card p-5 shadow-md"
     >
       <div class="flex flex-col gap-1">
         <h2 class="text-body font-medium">Where it applies</h2>
-        <p class="max-w-prose text-micro text-muted-foreground">
+        <p class="max-w-prose text-label text-muted-foreground">
           Every machine in the fleet unless you narrow it to one project.
         </p>
       </div>
 
       <!-- biome-ignore lint/a11y/noLabelWithoutControl: the <NativeSelect> component renders a native form control as its child; Biome can't see through the component boundary -->
-      <label class="flex flex-col gap-1.5 text-caption">
+      <label class="flex flex-col gap-1.5 text-meta text-muted-foreground">
         Scope
         <NativeSelect
           class="w-full"
@@ -711,7 +707,7 @@
           {/each}
         </NativeSelect>
         {#if shown('scope')}
-          <span class="text-micro text-destructive">{wrong.scope}</span>
+          <span class="text-label text-destructive">{wrong.scope}</span>
         {/if}
       </label>
     </section>
@@ -719,34 +715,34 @@
     <!-- Only a saved hook has a past; a draft has not been anything else yet. -->
     {#if id}
       <section
-        class="flex flex-col gap-4 rounded-[var(--radius-panel)] bg-card p-5 shadow-md"
+        class="flex flex-col gap-4 rounded-[var(--radius-lg)] bg-card p-5 shadow-md"
       >
         <div class="flex flex-col gap-1">
           <h2 class="text-body font-medium">Previous versions</h2>
-          <p class="max-w-prose text-micro text-muted-foreground">
+          <p class="max-w-prose text-label text-muted-foreground">
             Every save keeps what it replaced. Restoring writes an old version
             back as this one.
           </p>
         </div>
         {#if versionsLoading}
-          <p class="text-caption text-muted-foreground">Loading…</p>
+          <p class="text-meta text-muted-foreground">Loading…</p>
         {:else if versionsFailed}
-          <p class="text-caption text-warning" role="alert">{versionsFailed}</p>
+          <p class="text-meta text-warning" role="alert">{versionsFailed}</p>
         {:else if versions.length === 0}
-          <p class="text-caption text-muted-foreground">
+          <p class="text-meta text-muted-foreground">
             Nothing has been saved over yet.
           </p>
         {:else}
           <ul class="flex flex-col gap-2">
             {#each versions as version (version.id)}
               <li
-                class="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-card)] bg-muted/40 p-3"
+                class="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-md)] bg-muted/40 p-3"
               >
                 <span class="flex flex-col gap-0.5">
-                  <span class="text-caption text-foreground"
+                  <span class="text-meta text-foreground"
                     >{version.name}</span
                   >
-                  <span class="text-micro text-muted-foreground">
+                  <span class="text-label text-muted-foreground">
                     {new Date(version.createdAt).toLocaleString()}
                     · <span class="font-mono">{version.hash.slice(0, 7)}</span>
                   </span>
@@ -768,7 +764,7 @@
     {/if}
 
     {#if failed}
-      <p class="text-caption text-destructive" role="alert">{failed}</p>
+      <p class="text-meta text-destructive" role="alert">{failed}</p>
     {/if}
 
     <!-- Pinned, same reasoning as /rules/[id]: a Save that scrolls off is a Save

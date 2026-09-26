@@ -99,22 +99,22 @@
 
 <section class="flex flex-col gap-[var(--space-3)]">
   <h2
-    class="text-micro font-medium tracking-wider text-muted-foreground uppercase"
+    class="text-label font-medium tracking-wider text-muted-foreground uppercase"
   >
     On this machine
   </h2>
-  <p class="max-w-prose text-micro text-muted-foreground">
+  <p class="max-w-prose text-label text-muted-foreground">
     What each machine really has, whoever put it there — read live, never
     stored. Anything the fleet does not manage can be adopted into it.
   </p>
 
   {#if online.length === 0}
-    <p class="text-caption text-muted-foreground">
+    <p class="text-meta text-muted-foreground">
       No machine is online to ask.
     </p>
   {:else}
     <Card
-      class="gap-0 rounded-[var(--radius-panel)] py-0 shadow-md [--card-spacing:var(--space-4)]"
+      class="gap-0 rounded-[var(--radius-lg)] py-0 shadow-md [--card-spacing:var(--space-4)]"
     >
       <ul class="flex flex-col">
         {#each online as machine (machine.machineId)}
@@ -125,7 +125,7 @@
           >
             <div class="flex flex-wrap items-center gap-[var(--space-3)]">
               <span
-                class="min-w-0 flex-1 truncate text-caption font-medium text-foreground"
+                class="min-w-0 flex-1 truncate text-meta font-medium text-foreground"
                 >{machineLabel(machine.hostname)}</span
               >
               <Button
@@ -146,7 +146,7 @@
             {#if open[machine.machineId]}
               {#if reading[machine.machineId]}
                 <p
-                  class="flex items-center gap-2 text-caption text-muted-foreground"
+                  class="flex items-center gap-2 text-meta text-muted-foreground"
                   role="status"
                 >
                   <IconSpinner class="size-4 shrink-0 animate-spin" />Asking
@@ -154,19 +154,19 @@
                 </p>
               {:else if unread[machine.machineId]}
                 <Alert
-                  class="border-warning/40 bg-warning/10 px-[var(--space-3)] py-[var(--space-2)] text-warning"
+                  variant="warning"
                 >
-                  <AlertDescription class="text-warning"
+                  <AlertDescription
                     >{unread[machine.machineId]}</AlertDescription
                   >
                 </Alert>
               {:else if rows.length === 0}
-                <p class="text-caption text-muted-foreground">
+                <p class="text-meta text-muted-foreground">
                   {kind === 'mcp' ? 'This machine has no MCP servers at all.' : 'This machine has no skills at all.'}
                 </p>
               {:else}
                 <ul
-                  class="flex flex-col rounded-[var(--radius-card)] border border-border"
+                  class="flex flex-col rounded-[var(--radius-md)] border border-border"
                 >
                   {#each rows as row ('path' in row ? row.path : `${row.scope}:${row.name}`)}
                     {@const key = keyOf(machine.machineId, row.scope, row.name)}
@@ -177,7 +177,7 @@
                         <span
                           class="flex flex-wrap items-center gap-x-2 gap-y-1"
                         >
-                          <span class="truncate font-mono text-caption"
+                          <span class="truncate font-mono text-meta text-muted-foreground"
                             >{row.name}</span
                           >
                           <Badge variant="outline">{row.scope}</Badge>
@@ -192,7 +192,7 @@
                         </span>
                         {#if 'description' in row && row.description}
                           <span
-                            class="line-clamp-2 text-micro text-muted-foreground"
+                            class="line-clamp-2 text-label text-muted-foreground"
                             >{row.description}</span
                           >
                         {/if}
@@ -209,7 +209,7 @@
                         </Button>
                       {:else if taken.includes(row.name) && !row.managed}
                         <span
-                          class="shrink-0 pt-0.5 text-micro text-muted-foreground"
+                          class="shrink-0 pt-0.5 text-label text-muted-foreground"
                           >in the fleet</span
                         >
                       {/if}
@@ -225,7 +225,7 @@
   {/if}
 
   {#if asleep.length > 0}
-    <p class="text-micro text-muted-foreground">
+    <p class="text-label text-muted-foreground">
       {asleep.map((machine) => machineLabel(machine.hostname)).join(', ')}
       {asleep.length === 1 ? 'is' : 'are'}
       offline — only a machine that is up can say what it has.

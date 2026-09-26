@@ -18,8 +18,8 @@
   /** A token-dressed micro count badge — shadcn Badge, off the stock 4/8/12
    *  ladder and onto the DESIGN.md scale so it never reads as stock shadcn. */
   const chipClass =
-    "h-auto rounded-[var(--radius-mark)] border-transparent bg-[var(--surface-sunken)] " +
-    "px-[var(--space-2)] py-px text-[length:var(--text-xs)] font-[var(--weight-body)] " +
+    "h-auto rounded-[var(--radius-xs)] border-transparent bg-[var(--surface-recess)] " +
+    "px-[var(--space-2)] py-px text-[length:var(--text-meta)] font-[var(--weight-body)] " +
     "!text-[color:var(--ink-muted)]";
 
   let { message, agentName }: { message: Message; agentName: string } =
@@ -225,13 +225,13 @@
   .turn.you {
     margin-inline: calc(var(--space-4) * -1);
     padding: var(--space-3) var(--space-4);
-    background: var(--surface-sunken);
-    border-radius: var(--radius-well);
+    background: var(--surface-recess);
+    border-radius: var(--radius-sm);
     /* The only property a ghost or a failure ever animates on the well
        itself — nothing translates or scales, so the row never reflows
        against its neighbours while it settles. */
     opacity: 1;
-    transition: opacity var(--ghost-settle) var(--e-in);
+    transition: opacity var(--ghost-settle) var(--ease-out);
   }
   /* Third tense of Queued.svelte's grammar: same well, same 0.7, a note chip
      instead of a clock. Not color alone — the note text and the missing
@@ -266,10 +266,10 @@
     grid-template-rows: 0fr;
     opacity: 0;
     transition:
-      grid-template-rows var(--ghost-fail-reveal) var(--e-in)
+      grid-template-rows var(--ghost-fail-reveal) var(--ease-out)
       var(--ghost-fail-delay),
-      opacity var(--ghost-fail-reveal) var(--e-in) var(--ghost-fail-delay),
-      margin-top var(--ghost-fail-reveal) var(--e-in) var(--ghost-fail-delay);
+      opacity var(--ghost-fail-reveal) var(--ease-out) var(--ghost-fail-delay),
+      margin-top var(--ghost-fail-reveal) var(--ease-out) var(--ghost-fail-delay);
   }
   .turn.you.failed .failure {
     grid-template-rows: 1fr;
@@ -281,7 +281,7 @@
     min-height: 0;
   }
   .reason {
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     color: var(--status-fail-ink);
   }
   .actions {
@@ -290,16 +290,16 @@
     margin-top: var(--space-2);
   }
   /* Text actions in the chip vocabulary MessageRow already speaks (radius-mark,
-     text-xs, space-2) rather than a new button style — a failed send reads as
+     text-meta, space-2) rather than a new button style — a failed send reads as
      a sibling of the well it sits in, not a dialog bolted onto it. */
   .action {
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
     border: 1px solid var(--border-hairline);
     background: transparent;
     padding: var(--space-1) var(--space-2);
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     font-weight: var(--weight-medium);
-    color: var(--ink-body);
+    color: var(--ink-strong);
   }
   .action:hover {
     background: var(--surface-hover);

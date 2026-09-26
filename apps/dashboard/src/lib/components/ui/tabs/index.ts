@@ -11,8 +11,6 @@ export {
 export {
   default as List,
   default as TabsList,
-  type TabsListVariant,
-  tabsListVariants,
 } from "./tabs-list.svelte";
 export {
   default as Trigger,

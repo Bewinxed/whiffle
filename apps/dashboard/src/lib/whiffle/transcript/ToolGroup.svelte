@@ -71,8 +71,8 @@
 
   /** shadcn Badge, dressed on the DESIGN.md scale rather than the stock ladder. */
   const chipClass =
-    "h-auto rounded-[var(--radius-mark)] border-transparent bg-[var(--surface-sunken)] " +
-    "px-[var(--space-2)] py-px text-[length:var(--text-xs)] font-[var(--weight-body)] " +
+    "h-auto rounded-[var(--radius-xs)] border-transparent bg-[var(--surface-recess)] " +
+    "px-[var(--space-2)] py-px text-[length:var(--text-meta)] font-[var(--weight-body)] " +
     "!text-[color:var(--ink-muted)]";
 
   const asString = (value: unknown): string | undefined =>
@@ -397,7 +397,7 @@
     padding: var(--space-2);
     margin: var(--space-2) 0;
     border: 1px solid var(--border-hairline);
-    border-radius: var(--radius-card);
+    border-radius: var(--radius-md);
     background: var(--surface-raised);
     box-shadow: var(--shadow-tile);
   }
@@ -416,8 +416,8 @@
     border: 0;
     padding: var(--space-2);
     background: transparent;
-    color: var(--ink-body);
-    font-size: var(--text-base);
+    color: var(--ink-strong);
+    font-size: var(--text-label);
     text-align: left;
     cursor: pointer;
   }
@@ -425,7 +425,7 @@
     content: "";
     position: absolute;
     inset: 0;
-    border-radius: var(--radius-card);
+    border-radius: var(--radius-md);
   }
   .artifact-open:focus-visible {
     outline: none;
@@ -446,7 +446,7 @@
   }
   .artifact-path {
     color: var(--ink-muted);
-    font: var(--text-xs) var(--font-mono);
+    font: var(--text-meta) var(--font-mono);
   }
   .mark {
     width: 17px;
@@ -454,9 +454,8 @@
     flex-shrink: 0;
     display: grid;
     place-items: center;
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
     background: var(--mark-overlay), var(--mark-6);
-    box-shadow: var(--shadow-action);
     color: var(--mark-glyph);
   }
   .mark :global(svg) {
@@ -469,8 +468,8 @@
     flex-shrink: 0;
     overflow: hidden;
     border: 1px solid var(--border-hairline);
-    border-radius: var(--radius-well);
-    background: var(--surface-field);
+    border-radius: var(--radius-sm);
+    background: var(--surface-recess);
   }
   .artifact-thumb :global(.box) {
     height: 64px;
@@ -519,8 +518,8 @@
     align-items: center;
     gap: var(--space-2);
     font-family: inherit;
-    font-size: var(--text-sm);
-    color: var(--ink-body);
+    font-size: var(--text-label);
+    color: var(--ink-strong);
     background: none;
     border: 0;
     padding: 0;
@@ -533,7 +532,7 @@
   .row :global(.trow:focus-visible) {
     outline: 2px solid var(--focus-ring);
     outline-offset: 2px;
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
   }
   .ic {
     width: 15px;
@@ -562,7 +561,7 @@
   .tk {
     font-weight: var(--weight-strong);
     color: var(--ink-strong);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     flex: 0 0 auto;
   }
   .arg {
@@ -581,13 +580,13 @@
   .row :global([data-slot="badge"]) {
     flex: 0 0 auto;
   }
-  /* A fact is a measurement, not a verdict: it reads in --ink-stat, the ink
+  /* A fact is a measurement, not a verdict: it reads in --ink-strong, the ink
      that gives a number presence without passing judgement on it. Green is
      reserved for the added side of a `diff` fact — the one measurement that
      carries a direction — and every diff row agrees on that reading, whether
      it came back as `+38 −2` or a lone `+38`. */
   .d {
-    color: var(--ink-stat);
+    color: var(--ink-strong);
     font-variant-numeric: tabular-nums;
     flex: 0 0 auto;
   }
@@ -606,7 +605,7 @@
     display: grid;
     place-items: center;
     color: var(--ink-muted);
-    transition: transform var(--c-100) var(--e-in);
+    transition: transform var(--dur-control) var(--ease-out);
   }
   .chev :global(svg) {
     width: 14px;
@@ -625,8 +624,8 @@
     gap: var(--space-2);
     margin: var(--space-2) 0 var(--space-3) calc(15px + var(--space-2));
     padding: var(--space-3);
-    border-radius: var(--radius-well);
-    background: var(--surface-sunken);
+    border-radius: var(--radius-sm);
+    background: var(--surface-recess);
   }
   /* A skill's arguments are the agent's own words to it: prose at the fields'
      left edge, with no well around them. */
@@ -641,7 +640,7 @@
     min-width: 0;
   }
   .field .k {
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     font-weight: var(--weight-medium);
     color: var(--ink-muted);
   }
@@ -650,14 +649,14 @@
     max-height: 300px;
     overflow: auto;
     font-family: var(--font-mono);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     line-height: var(--leading-body);
-    color: var(--ink-body);
+    color: var(--ink-strong);
     white-space: pre-wrap;
     word-break: break-word;
   }
   .field .more {
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     color: var(--ink-muted);
   }
   @media (prefers-reduced-motion: reduce) {
@@ -681,15 +680,15 @@
      into --bits-collapsible-content-height; these keyframes use it. 200ms is
      the rail's one collapsible vocabulary (collapsible-lazy holds unmounting
      children for exactly this duration plus slack): entry decelerates on
-     --e-in, exit accelerates on --e-out, exactly the doctrine's curves. */
+     --ease-out, exit accelerates on --ease-out, exactly the doctrine's curves. */
   .tools :global([data-slot="collapsible-content"]) {
     overflow: hidden;
   }
   .tools :global([data-slot="collapsible-content"][data-state="open"]) {
-    animation: tool-down calc(var(--c-100) * 2) var(--e-in);
+    animation: tool-down calc(var(--dur-control) * 2) var(--ease-out);
   }
   .tools :global([data-slot="collapsible-content"][data-state="closed"]) {
-    animation: tool-up calc(var(--c-100) * 2) var(--e-out);
+    animation: tool-up calc(var(--dur-control) * 2) var(--ease-out);
   }
   @keyframes tool-down {
     from {

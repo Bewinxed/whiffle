@@ -12,7 +12,7 @@
 </script>
 
 <ProgressPrimitive.Root
-  class={cn("relative flex h-3 w-full items-center overflow-x-hidden rounded-[var(--radius-pill)] bg-muted", className)}
+  class={cn("relative flex h-1.5 w-full items-center overflow-x-hidden rounded-[var(--radius-pill)] bg-[var(--surface-recess-deep)]", className)}
   data-slot="progress"
   {max}
   {value}
@@ -20,7 +20,7 @@
   {...restProps}
 >
   <div
-    class="bg-primary size-full flex-1 transition-all"
+    class="size-full flex-1 bg-[var(--brand-solid)] transition-transform duration-[var(--dur-panel)] ease-out"
     data-slot="progress-indicator"
     style="transform: translateX(-{100 - (100 * (value ?? 0)) / (max ?? 1)}%)"
   ></div>

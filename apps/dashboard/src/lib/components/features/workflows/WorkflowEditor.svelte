@@ -642,7 +642,7 @@
   }
   header {
     padding: var(--space-3) var(--space-5);
-    border-bottom: 1px solid var(--border-divider);
+    border-bottom: 1px solid var(--border-hairline);
     background: var(--surface-raised);
   }
   .breadcrumb {
@@ -661,7 +661,7 @@
   .breadcrumb input {
     max-width: 300px;
     border-color: transparent;
-    font-size: var(--text-md);
+    font-size: var(--text-body);
     font-weight: 500;
   }
   .palette {
@@ -675,7 +675,7 @@
     gap: var(--space-3);
     text-align: left;
     min-height: 46px;
-    border-radius: var(--radius-control);
+    border-radius: var(--radius-sm);
     padding: var(--space-2);
   }
   .palette-item:hover {
@@ -687,7 +687,7 @@
   }
   .palette-item small {
     display: block;
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--ink-muted);
     line-height: 1.4;
     margin-top: var(--space-1);
@@ -699,7 +699,7 @@
     height: 30px;
     flex-shrink: 0;
     border: 1px solid var(--neutral-8);
-    border-radius: var(--radius-well);
+    border-radius: var(--radius-sm);
   }
   .filled {
     background: var(--brand-solid);
@@ -721,7 +721,7 @@
     top: var(--space-4);
     inset-inline: var(--space-4);
     text-align: center;
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     pointer-events: none;
     color: var(--ink-muted);
   }
@@ -744,7 +744,7 @@
     flex-shrink: 0;
     padding: var(--space-3);
     overflow-y: auto;
-    border-right: 1px solid var(--border-divider);
+    border-right: 1px solid var(--border-hairline);
   }
   .run-entry {
     padding: var(--space-3);

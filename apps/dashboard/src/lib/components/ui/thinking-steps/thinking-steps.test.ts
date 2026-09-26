@@ -120,7 +120,7 @@ test("thinking steps controlled state, inheritance, pending and streaming identi
     page.setDefaultTimeout(5000);
     page.on("pageerror", (error) => console.error(error));
     await page.setContent(
-      "<style>:root { --text-sm:12.5px; --text-xs:11px; --leading-body:1.4; --weight-body:400; --space-1:4px; --space-2:7px; --ink-muted:#777; --ink-body:#444; }</style>"
+      "<style>:root { --text-label:12.5px; --text-meta:11px; --leading-body:1.4; --weight-body:400; --space-1:4px; --space-2:7px; --ink-muted:#777; --ink-strong:#444; }</style>"
     );
     await page.addScriptTag({
       content: await result.outputs[0].text(),

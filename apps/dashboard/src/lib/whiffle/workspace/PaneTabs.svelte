@@ -448,7 +448,7 @@
     overflow: hidden;
     overscroll-behavior: contain;
     border: 1px solid var(--border-control);
-    border-radius: var(--radius-panel);
+    border-radius: var(--radius-lg);
     background: var(--surface-raised);
     box-shadow: var(--shadow-overlay);
     transform-origin: var(--bits-popover-content-transform-origin);
@@ -462,7 +462,7 @@
     border: 1px solid var(--border-control);
     border-bottom: 0;
     background: var(--surface-raised);
-    border-radius: var(--radius-panel) var(--radius-panel) 0 0;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   }
   :global(.session-details-sheet::before) {
     content: none;
@@ -480,7 +480,7 @@
     width: 22px;
     height: 24px;
     border: 0;
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
     background: transparent;
     color: var(--ink-muted);
     cursor: pointer;
@@ -488,7 +488,7 @@
   .tdetails :global(svg) {
     width: 12px;
     height: 12px;
-    transition: transform var(--c-100) var(--e-in);
+    transition: transform var(--dur-control) var(--ease-out);
   }
   .tdetails[aria-expanded="true"] :global(svg) {
     transform: rotate(180deg);
@@ -499,7 +499,7 @@
   }
   @media (hover: hover) {
     .tdetails:hover {
-      background: var(--surface-active);
+      background: var(--surface-fill);
     }
   }
   @media (pointer: coarse) {
@@ -531,16 +531,16 @@
         > .session-details-popover[data-morph]
       )
     ) {
-      transition: transform 260ms cubic-bezier(0.32, 0.72, 0, 1);
+      transition: transform 260ms var(--ease-drawer);
     }
     :global(.session-details-popover[data-morph]) .details-morph {
-      transition: height 260ms cubic-bezier(0.32, 0.72, 0, 1);
+      transition: height 260ms var(--ease-drawer);
     }
     :global(.session-details-popover[data-state="open"]) {
-      animation: details-enter 260ms cubic-bezier(0.32, 0.72, 0, 1);
+      animation: details-enter 260ms var(--ease-drawer);
     }
     :global(.session-details-popover[data-state="closed"]) {
-      animation: details-exit 160ms var(--e-out);
+      animation: details-exit 160ms var(--ease-out);
     }
   }
   @keyframes details-enter {
@@ -577,7 +577,7 @@
     padding-inline: var(--space-7) var(--space-4);
     /* One step darker than the transcript, so the chosen tab — in the
        transcript's own surface — reads as the page it opens. */
-    background: var(--tabbar-surface);
+    background: var(--surface-recess);
     view-transition-class: tabs;
   }
   :global(.session-tabs.hosted) {
@@ -597,10 +597,10 @@
      horizontal pad. The shape and the sheet are the component's. */
   :global(.session-tabs .ff-tabs-list) {
     --px: 10px;
-    --text: var(--text-base);
+    --text: var(--text-label);
     --item: 32px;
-    --sheet: var(--surface-field);
-    --tab-hover: var(--tab-rest-hover);
+    --sheet: var(--surface-recess);
+    --tab-hover: var(--surface-hover);
   }
 
   .tab {
@@ -653,7 +653,7 @@
     border: 0;
     padding: 0;
     background: none;
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
     color: var(--ink-muted);
     cursor: pointer;
 
@@ -664,7 +664,7 @@
 
     @media (hover: hover) and (pointer: fine) {
       &:hover {
-        background: var(--surface-active);
+        background: var(--surface-fill);
         color: var(--ink-strong);
       }
     }
@@ -674,9 +674,9 @@
     }
     @media (prefers-reduced-motion: no-preference) {
       transition:
-        background-color var(--c-100) var(--e-in),
-        color var(--c-100) var(--e-in),
-        transform var(--c-100) var(--e-in);
+        background-color var(--dur-control) var(--ease-out),
+        color var(--dur-control) var(--ease-out),
+        transform var(--dur-control) var(--ease-out);
 
       &:active {
         transform: scale(0.9);

@@ -98,8 +98,8 @@
   <Popover.Content
     align="start"
     aria-label="New project"
-    class="material-panel flex w-[340px] max-w-[calc(100vw-2rem)] flex-col gap-3 rounded-[var(--radius-panel)] p-4
-           shadow-xl duration-[180ms] ease-[var(--e-in)]"
+    class="material-panel flex w-[340px] max-w-[calc(100vw-2rem)] flex-col gap-3 rounded-[var(--radius-lg)] p-4
+           shadow-xl duration-[180ms] ease-[var(--ease-out)]"
     side="bottom"
     sideOffset={6}
   >
@@ -107,7 +107,7 @@
 
     <form class="flex flex-col gap-3" onsubmit={create}>
       <div class="flex flex-col gap-1">
-        <label class="text-micro text-muted-foreground" for="project-name"
+        <label class="text-label text-muted-foreground" for="project-name"
           >Name</label
         >
         <Input
@@ -125,7 +125,7 @@
 
       <div class="flex flex-col gap-1">
         <span
-          class="text-micro text-muted-foreground"
+          class="text-label text-muted-foreground"
           id="project-machine-label"
           >Machine</span
         >
@@ -147,14 +147,14 @@
                 · {row.os}
               </Select.Item>
             {:else}
-              <span class="block px-2 py-1.5 text-sm">No machines online</span>
+              <span class="block px-2 py-1.5 text-label">No machines online</span>
             {/each}
           </Select.Content>
         </Select.Root>
       </div>
 
       <div class="flex flex-col gap-1">
-        <label class="text-micro text-muted-foreground" for="project-cwd"
+        <label class="text-label text-muted-foreground" for="project-cwd"
           >Directory</label
         >
         <Input
@@ -187,7 +187,7 @@
           Create
         </Button>
         {#if formError}
-          <span class="text-micro text-error" role="alert">{formError}</span>
+          <span class="text-label text-error" role="alert">{formError}</span>
         {/if}
       </div>
     </form>

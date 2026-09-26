@@ -111,18 +111,18 @@
   }
 
   const control =
-    "flex min-h-6 shrink-0 items-center rounded px-1 transition-colors hover:bg-accent hover:text-accent-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-30";
+    "flex min-h-6 shrink-0 items-center rounded px-1 transition-colors hover:bg-accent hover:text-accent-foreground hover:text-foreground disabled:opacity-30 focus-ring";
 </script>
 
 <div
-  class="absolute top-2 right-4 z-10 flex items-center gap-1.5 rounded-[var(--radius-card)] border border-border bg-card px-2 py-1.5 shadow-lg"
+  class="absolute top-2 right-4 z-10 flex items-center gap-1.5 rounded-[var(--radius-md)] border border-border bg-card px-2 py-1.5 shadow-lg"
   in:fly={{ y: -8, duration: 200, easing: quintOut }}
   out:fly={{ y: -8, duration: 150, easing: quintOut }}
 >
   <IconSearch class="size-3.5 shrink-0 text-muted-foreground" />
   <Input
     aria-label="Find in session"
-    class="h-auto w-56 border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0"
+    class="h-auto w-56 border-0 bg-transparent p-0 text-label shadow-none focus-visible:ring-0"
     oninput={() => {
       current = 0;
     }}
@@ -132,7 +132,7 @@
     bind:value={query}
   />
   {#if query.trim()}
-    <span class="shrink-0 text-xs text-muted-foreground tabular-nums">
+    <span class="shrink-0 text-meta text-muted-foreground tabular-nums">
       {matches.length ? current + 1 : 0}/{matches.length}
     </span>
   {/if}

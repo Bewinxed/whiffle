@@ -88,7 +88,7 @@ You are a <role>, working in one repository at a time.
 
 <Dialog.Root bind:open>
   <Dialog.Content
-    class="material-panel rounded-[var(--radius-shell)] shadow-xl sm:max-w-2xl"
+    class="sm:max-w-2xl"
   >
     <Dialog.Header>
       <Dialog.Title>{agent ? agent.name : 'New subagent'}</Dialog.Title>
@@ -100,10 +100,10 @@ You are a <role>, working in one repository at a time.
     </Dialog.Header>
 
     <div
-      class="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[var(--radius-well)] bg-muted px-3 py-2"
+      class="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[var(--radius-sm)] bg-muted px-3 py-2"
     >
       {#if front.name}
-        <span class="shrink-0 font-mono text-micro text-foreground"
+        <span class="shrink-0 font-mono text-label text-foreground"
           >{front.name}</span
         >
       {/if}
@@ -117,12 +117,12 @@ You are a <role>, working in one repository at a time.
         <Badge variant="outline">{front.effort} effort</Badge>
       {/if}
       {#if problem}
-        <span class="min-w-0 flex-1 text-micro text-muted-foreground"
+        <span class="min-w-0 flex-1 text-label text-muted-foreground"
           >Not storable yet — {problem}.</span
         >
       {:else if front.description}
         <span
-          class="min-w-0 flex-1 truncate text-micro text-muted-foreground"
+          class="min-w-0 flex-1 truncate text-label text-muted-foreground"
           title={front.description}
         >
           {front.description}
@@ -134,13 +134,13 @@ You are a <role>, working in one repository at a time.
          grow the dialog straight off the screen, buttons and all. -->
     <Textarea
       aria-label="{target ?? 'New'} definition"
-      class="max-h-[55vh] min-h-80 overflow-y-auto font-mono text-sm md:text-sm"
+      class="max-h-[55vh] min-h-80 overflow-y-auto font-mono text-label md:text-label"
       spellcheck="false"
       bind:value={draft}
     />
 
     {#if refused}
-      <p class="text-caption text-destructive" role="alert">{refused}</p>
+      <p class="text-meta text-destructive" role="alert">{refused}</p>
     {/if}
 
     <div class="flex justify-end gap-2">

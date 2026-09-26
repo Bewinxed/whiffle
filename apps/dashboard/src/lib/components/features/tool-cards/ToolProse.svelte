@@ -15,9 +15,9 @@
 <style>
   .tprose,
   .tprose :global(.prose) {
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     line-height: var(--leading-body);
-    color: var(--ink-body);
+    color: var(--ink-strong);
   }
   .tprose :global(.prose > * + *) {
     margin-top: var(--space-2);
@@ -47,7 +47,7 @@
   .tprose :global(.prose h4),
   .tprose :global(.prose h5),
   .tprose :global(.prose h6) {
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     line-height: var(--leading-ui);
     font-weight: var(--weight-strong);
     color: var(--ink-strong);
@@ -66,6 +66,6 @@
   }
   .tprose :global(code) {
     font-family: var(--font-mono);
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
   }
 </style>

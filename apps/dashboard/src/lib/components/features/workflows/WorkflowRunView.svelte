@@ -590,7 +590,7 @@
   }
   header {
     padding: var(--space-4) var(--space-5);
-    border-bottom: 1px solid var(--border-divider);
+    border-bottom: 1px solid var(--border-hairline);
   }
   header a {
     display: inline-flex;
@@ -607,7 +607,7 @@
     flex-shrink: 0;
     padding: var(--space-3);
     overflow-y: auto;
-    border-right: 1px solid var(--border-divider);
+    border-right: 1px solid var(--border-hairline);
   }
   .steps h2 {
     padding: var(--space-2);
@@ -624,7 +624,7 @@
     gap: var(--space-2);
     padding: var(--space-3) var(--space-2);
     min-height: 60px;
-    border-radius: var(--radius-control);
+    border-radius: var(--radius-sm);
   }
   .step-row span {
     overflow-wrap: anywhere;
@@ -644,8 +644,8 @@
     align-items: center;
     gap: var(--space-2);
     padding: var(--space-2);
-    color: var(--ink-label);
-    font-size: var(--text-sm);
+    color: var(--ink-muted);
+    font-size: var(--text-label);
   }
   .checkpoint-row .mark {
     width: 6px;
@@ -671,19 +671,19 @@
     padding: 1px var(--space-2);
     border: 1px solid var(--border-hairline);
     border-radius: var(--radius-pill);
-    background: var(--surface-field);
+    background: var(--surface-recess);
   }
   .log {
     padding: var(--space-3) var(--space-5);
-    border-bottom: 1px solid var(--border-divider);
+    border-bottom: 1px solid var(--border-hairline);
   }
   /* Left as a list-item so the native disclosure marker survives: a flex
      summary silently loses the triangle, and then nothing says it opens. */
   .log summary {
     padding-block: var(--space-2);
     cursor: pointer;
-    font-size: var(--text-sm);
-    color: var(--ink-label);
+    font-size: var(--text-label);
+    color: var(--ink-muted);
   }
   .log ol {
     display: grid;
@@ -696,7 +696,7 @@
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
     gap: var(--space-3);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     overflow-wrap: anywhere;
   }
   .log time {
@@ -719,7 +719,7 @@
     width: 340px;
     flex-shrink: 0;
     overflow-y: auto;
-    border-left: 1px solid var(--border-divider);
+    border-left: 1px solid var(--border-hairline);
   }
   .drawer {
     padding: var(--space-4);
@@ -727,7 +727,7 @@
   .answer {
     padding: var(--space-4) var(--space-5);
     background: var(--surface-raised);
-    border-bottom: 1px solid var(--border-divider);
+    border-bottom: 1px solid var(--border-hairline);
   }
   /* The options are peers the workflow author wrote, not one recommended
      action, so none of them takes the never-flat graphite. On a waiting run
@@ -749,7 +749,7 @@
   }
   .answer .options small {
     color: var(--ink-muted);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     line-height: 1.4;
     overflow-wrap: anywhere;
   }

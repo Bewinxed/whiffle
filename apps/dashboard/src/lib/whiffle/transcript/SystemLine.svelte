@@ -167,13 +167,13 @@
 
 <style>
   .well {
-    background: var(--surface-sunken);
-    border-radius: var(--radius-well);
+    background: var(--surface-recess);
+    border-radius: var(--radius-sm);
     padding: var(--space-3);
     margin: var(--rail-gap, var(--space-4)) 0 0 var(--space-2);
     overflow-x: auto;
     font-family: var(--font-mono);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     line-height: var(--leading-body);
     color: var(--ink-strong);
     white-space: pre-wrap;
@@ -182,7 +182,7 @@
     border-left: 3px solid var(--status-fail-ink);
     background: var(--status-fail-bg);
     color: var(--status-fail-ink);
-    border-radius: var(--radius-control);
+    border-radius: var(--radius-sm);
     padding: var(--space-3);
     margin: var(--space-4) 0 0;
   }
@@ -192,7 +192,7 @@
     margin-bottom: 2px;
   }
   .failcard .handoff {
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     opacity: 0.92;
     white-space: pre-wrap;
   }
@@ -200,7 +200,7 @@
     margin: var(--rail-gap, var(--space-4)) 0 0 var(--space-2);
     padding-left: var(--space-3);
     background: var(--rail-head, var(--rail)) left top / 2px 100% no-repeat;
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--ink-muted);
   }
   .note .tag {
@@ -223,7 +223,7 @@
     border: 0;
     padding: 0;
     color: var(--ink-muted);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     cursor: pointer;
     text-align: left;
   }
@@ -245,7 +245,7 @@
     align-items: center;
     gap: var(--space-2);
     max-width: 100%;
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--ink-muted);
   }
   .hstatus {
@@ -255,7 +255,7 @@
   /* The task line's verb holds body ink; only failure carries colour. */
   .tverb {
     flex: 0 0 auto;
-    color: var(--ink-body);
+    color: var(--ink-strong);
   }
   .tverb.bad {
     color: var(--data-bad);
@@ -276,7 +276,7 @@
   .hchev {
     display: inline-flex;
     flex: 0 0 auto;
-    transition: transform var(--c-100) var(--e-in);
+    transition: transform var(--dur-control) var(--ease-out);
   }
   .hchev.open {
     transform: rotate(90deg);
@@ -294,15 +294,15 @@
   }
 
   /* Same reveal as the tool rows: one 200ms collapsible vocabulary for the
-     whole rail — entry on --e-in, exit on --e-out. */
+     whole rail — entry on --ease-out, exit on --ease-out. */
   .note :global([data-slot="collapsible-content"]) {
     overflow: hidden;
   }
   .note :global([data-slot="collapsible-content"][data-state="open"]) {
-    animation: note-down calc(var(--c-100) * 2) var(--e-in);
+    animation: note-down calc(var(--dur-control) * 2) var(--ease-out);
   }
   .note :global([data-slot="collapsible-content"][data-state="closed"]) {
-    animation: note-up calc(var(--c-100) * 2) var(--e-out);
+    animation: note-up calc(var(--dur-control) * 2) var(--ease-out);
   }
   @keyframes note-down {
     from {

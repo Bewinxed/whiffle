@@ -244,8 +244,8 @@
     --gap: 2px;
     --px: 12px;
     --icon: 16px;
-    --text: var(--text-base);
-    --radius: var(--radius-control);
+    --text: var(--text-label);
+    --radius: var(--radius-sm);
     --shape: calc(var(--radius) - var(--pad));
     --sheet: var(--surface-raised);
     position: relative;
@@ -300,8 +300,8 @@
     --item: 24px;
     --px: 10px;
     --icon: 14px;
-    --text: var(--text-sm);
-    --radius: var(--radius-tile);
+    --text: var(--text-label);
+    --radius: var(--radius-xs);
 
     /* Its own step up (24 → 28): this rule outranks the bare class, so
        the ladder above would not move it. */
@@ -327,7 +327,7 @@
     /* The app's own curve and the tab details' morph length, so the sheet
        and the popover that follows it move as one. */
     --wipe: 260ms;
-    --wipe-ease: cubic-bezier(0.32, 0.72, 0, 1);
+    --wipe-ease: var(--ease-drawer);
     --wipe-in: left;
     --wipe-out: right;
 
@@ -368,9 +368,9 @@
 
     @media (prefers-reduced-motion: no-preference) {
       transition:
-        transform 160ms var(--e-in),
-        width 160ms var(--e-in),
-        height 160ms var(--e-in),
+        transform 160ms var(--ease-out),
+        width 160ms var(--ease-out),
+        height 160ms var(--ease-out),
         opacity 80ms linear;
     }
   }
@@ -400,9 +400,9 @@
 
     @media (prefers-reduced-motion: no-preference) {
       transition:
-        transform 80ms var(--e-in),
-        width 80ms var(--e-in),
-        height 80ms var(--e-in),
+        transform 80ms var(--ease-out),
+        width 80ms var(--ease-out),
+        height 80ms var(--ease-out),
         opacity 80ms linear;
     }
   }
@@ -413,9 +413,9 @@
 
     @media (prefers-reduced-motion: no-preference) {
       transition:
-        transform 80ms var(--e-in),
-        width 80ms var(--e-in),
-        height 80ms var(--e-in);
+        transform 80ms var(--ease-out),
+        width 80ms var(--ease-out),
+        height 80ms var(--ease-out);
     }
   }
   :global([data-variant="folder"]) .ring {

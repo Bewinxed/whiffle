@@ -47,12 +47,12 @@
     min-width: 0;
     max-width: 100%;
     font-family: inherit;
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     font-weight: var(--weight-body);
     line-height: var(--leading-body);
     color: var(--ink-muted);
   }
   :global(.thinking-steps[data-size="compact"]) {
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
   }
 </style>

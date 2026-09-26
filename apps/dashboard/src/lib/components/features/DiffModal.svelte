@@ -168,7 +168,7 @@
         {#if isOpen}
           <div
             {...props}
-            class="fixed top-1/2 left-1/2 z-50 w-[95vw] h-[90vh] max-w-7xl -translate-x-1/2 -translate-y-1/2 bg-background rounded-[var(--radius-shell)] shadow-2xl border border-border flex flex-col overflow-hidden"
+            class="fixed top-1/2 left-1/2 z-50 w-[95vw] h-[90vh] max-w-7xl -translate-x-1/2 -translate-y-1/2 bg-background rounded-[var(--radius-modal)] shadow-2xl border border-border flex flex-col overflow-hidden"
             in:scale={{ duration: 200, start: 0.96, easing: quintOut }}
             out:scale={{ duration: 150, start: 0.96, easing: quintOut }}
           >
@@ -178,7 +178,7 @@
             >
               <div class="flex items-center gap-3 min-w-0">
                 <div class="flex items-center gap-2 min-w-0">
-                  <span class="font-mono text-sm text-foreground truncate"
+                  <span class="font-mono text-label text-foreground truncate"
                     >{filePath}</span
                   >
                   <CopyButton
@@ -188,7 +188,7 @@
                     variant="ghost"
                   />
                 </div>
-                <div class="flex items-center gap-2 text-xs">
+                <div class="flex items-center gap-2 text-meta">
                   <span class="text-success">+{stats().additions}</span>
                   <span class="text-error">-{stats().deletions}</span>
                 </div>
@@ -199,12 +199,12 @@
                 <!-- biome-ignore lint/a11y/useSemanticElements: a <fieldset> here would bring browser-default border/padding into this toggle group; it isn't a form control -->
                 <div
                   aria-label="Diff layout"
-                  class="flex items-center bg-muted rounded-[var(--radius-control)] p-0.5 border border-border"
+                  class="flex items-center bg-muted rounded-[var(--radius-sm)] p-0.5 border border-border"
                   role="group"
                 >
                   <Button
                     aria-pressed={diffStyle === 'unified'}
-                    class="h-7 rounded-[14px] text-xs {diffStyle === 'unified'
+                    class="h-7 rounded-[14px] text-meta {diffStyle === 'unified'
                       ? 'bg-background border-border shadow-sm'
                       : ''}"
                     onclick={() => {
@@ -219,7 +219,7 @@
                   </Button>
                   <Button
                     aria-pressed={diffStyle === 'split'}
-                    class="h-7 rounded-[14px] text-xs {diffStyle === 'split'
+                    class="h-7 rounded-[14px] text-meta {diffStyle === 'split'
                       ? 'bg-background border-border shadow-sm'
                       : ''}"
                     onclick={() => {

@@ -88,11 +88,11 @@
     display: flex;
     gap: var(--space-2);
     min-width: 0;
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     line-height: var(--leading-body);
   }
   .step[data-size="compact"] {
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
   }
   .icon-column {
     display: flex;
@@ -131,7 +131,7 @@
     padding-bottom: var(--space-2);
   }
   .label {
-    color: var(--ink-body);
+    color: var(--ink-strong);
     font-weight: var(--weight-body);
   }
   .description {
@@ -163,7 +163,7 @@
     padding-left: var(--space-5);
   }
   .description.md :global(strong) {
-    color: var(--ink-body);
+    color: var(--ink-strong);
   }
   /* prose wraps inline code in literal backticks; the code face already
      marks it. */
@@ -176,7 +176,7 @@
   }
   @media (prefers-reduced-motion: no-preference) {
     .copy {
-      animation: step-in var(--c-200, 200ms) var(--e-in) var(--step-delay)
+      animation: step-in var(--c-200, 200ms) var(--ease-out) var(--step-delay)
         backwards;
     }
     .shimmer {
@@ -184,7 +184,7 @@
       background: linear-gradient(
         90deg,
         var(--ink-muted) 0% 35%,
-        var(--ink-body) 50%,
+        var(--ink-strong) 50%,
         var(--ink-muted) 65% 100%
       );
       background-size: 300% 100%;

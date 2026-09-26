@@ -157,7 +157,7 @@
 {#if total > 0}
   <Card
     aria-labelledby="attention-queue-heading"
-    class="flex flex-col gap-0 rounded-[var(--radius-panel)] py-0 shadow-[var(--shadow-lifted)] [--card-spacing:var(--space-4)]"
+    class="flex flex-col gap-0 rounded-[var(--radius-lg)] py-0 shadow-[var(--shadow-tile)] [--card-spacing:var(--space-4)]"
   >
     <header
       class="flex flex-wrap items-center gap-[var(--space-2)] px-[var(--space-4)] pt-[var(--space-4)] pb-[var(--space-2)]"
@@ -177,7 +177,7 @@
       >
         {total}
       </Badge>
-      <span class="text-micro text-muted-foreground">Longest wait first</span>
+      <span class="text-label text-muted-foreground">Longest wait first</span>
     </header>
 
     <ul class="flex flex-col">
@@ -194,7 +194,7 @@
           <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-baseline gap-x-2">
               <a
-                class="text-body truncate font-medium text-foreground transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                class="text-body truncate font-medium text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-ring"
                 href={conversationHref(item.instanceId, whiffle.instanceIndex)}
                 onkeydown={(event) => onKeydown(event, item, entry.isQuestion)}
               >
@@ -203,10 +203,10 @@
               {#if item.cwd}
                 <!-- The path is what tells two blocked sessions on the same
                      machine apart — TX-02, like every other path in the app. -->
-                <span class="text-caption truncate font-mono">{item.cwd}</span>
+                <span class="text-meta text-muted-foreground truncate font-mono">{item.cwd}</span>
               {/if}
               <span
-                class="text-micro shrink-0 text-muted-foreground tabular-nums"
+                class="text-label shrink-0 text-muted-foreground tabular-nums"
               >
                 {waited(entry.since)}
               </span>

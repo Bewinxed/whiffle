@@ -48,20 +48,20 @@
   );
 </script>
 
-<div class="flex flex-col gap-2 rounded-[var(--radius-card)] bg-muted/40 p-4">
+<div class="flex flex-col gap-2 rounded-[var(--radius-md)] bg-muted/40 p-4">
   <div class="flex flex-wrap items-center gap-2">
     <Badge class="shrink-0 {KIND_TONE[kind]}" variant="outline"
       >{KIND_LABEL[kind]}</Badge
     >
-    <span class="text-micro text-muted-foreground">{KIND_HOW[kind]}</span>
+    <span class="text-label text-muted-foreground">{KIND_HOW[kind]}</span>
   </div>
 
   {#if info?.suggests && info.suggests.length > 0}
     <div class="flex flex-wrap items-center gap-1.5">
-      <span class="text-micro text-muted-foreground">Real values:</span>
+      <span class="text-label text-muted-foreground">Real values:</span>
       {#each info.suggests as suggestion (suggestion)}
         <button
-          class="rounded-[var(--radius-pill)] border border-border px-2 py-0.5 font-mono text-micro text-foreground transition-colors hover:bg-accent"
+          class="rounded-[var(--radius-pill)] border border-border px-2 py-0.5 font-mono text-label text-foreground transition-colors hover:bg-accent"
           onclick={() => {
             matcher = suggestion;
           }}
@@ -74,11 +74,11 @@
   {/if}
 
   <!-- biome-ignore lint/a11y/noLabelWithoutControl: the `Input` component (shadcn-svelte) renders a native <input> as its only child -->
-  <label class="flex flex-col gap-1.5 text-caption">
+  <label class="flex flex-col gap-1.5 text-meta text-muted-foreground">
     Try it — {info?.filters ?? 'the value this event carries'}
     <Input
       autocomplete="off"
-      class="font-mono text-sm md:text-sm"
+      class="font-mono text-label md:text-label"
       placeholder={info?.suggests?.[0] ?? 'a sample value'}
       spellcheck="false"
       bind:value={sample}
@@ -88,7 +88,7 @@
   {#if sample.trim()}
     <p
       aria-live="polite"
-      class="text-micro transition-colors duration-240 ease-[var(--e-in)] {hit ? 'text-success' : 'text-muted-foreground'}"
+      class="text-label transition-colors duration-240 ease-[var(--ease-out)] {hit ? 'text-success' : 'text-muted-foreground'}"
       role="status"
     >
       {hit ? 'Matches — this hook would fire.' : 'No match — this hook would stay quiet for this value.'}

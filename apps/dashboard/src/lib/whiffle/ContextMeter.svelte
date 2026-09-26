@@ -106,8 +106,8 @@
     aria-label={compacting
       ? 'Compacting context'
       : `Context ${shown}% used. Show the breakdown.`}
-    class="flex h-7 shrink-0 items-center gap-1.5 rounded-[var(--radius-control)] px-1.5
-           text-micro tabular-nums
+    class="flex h-7 shrink-0 items-center gap-1.5 rounded-[var(--radius-sm)] px-1.5
+           text-label tabular-nums
            hover:bg-muted
            focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring
            transition-[background-color,color] duration-150 ease-out
@@ -144,21 +144,21 @@
 
   <Popover.Content
     align="end"
-    class="w-72 rounded-[var(--radius-panel)] shadow-lg p-0"
+    class="w-72 rounded-[var(--radius-lg)] shadow-lg p-0"
     side="top"
   >
     <div class="flex items-center gap-2 border-b border-border px-3 py-2.5">
       <IconWindow class="size-4 text-muted-foreground" />
-      <span class="text-sm font-medium">Context window</span>
+      <span class="text-label font-medium">Context window</span>
       {#if usage}
-        <span class="ml-auto text-micro tabular-nums {TEXT[band]}"
+        <span class="ml-auto text-label tabular-nums {TEXT[band]}"
           >{usage.percentage}%</span
         >
       {/if}
     </div>
 
     {#if !usage}
-      <p class="px-3 py-4 text-micro text-muted-foreground">
+      <p class="px-3 py-4 text-label text-muted-foreground">
         No reading yet. A session has to be running to report what its window
         holds.
       </p>
@@ -172,7 +172,7 @@
             ></span>
           {/each}
         </div>
-        <p class="mt-2 text-micro tabular-nums text-muted-foreground">
+        <p class="mt-2 text-label tabular-nums text-muted-foreground">
           {usage.totalTokens.toLocaleString()}
           of {usage.maxTokens.toLocaleString()} tokens used
         </p>
@@ -180,7 +180,7 @@
 
       <ul class="max-h-56 overflow-y-auto border-t border-border px-3 py-2">
         {#each usage.categories as category, index (category.name)}
-          <li class="flex items-center gap-2 py-1 text-micro">
+          <li class="flex items-center gap-2 py-1 text-label">
             <span
               class="size-2 shrink-0 rounded-[2px]"
               style="background-color: {swatch(index)}"
@@ -196,14 +196,14 @@
 
     {#if compacting}
       <p
-        class="flex items-center gap-2 border-t border-border px-3 py-2 text-micro"
+        class="flex items-center gap-2 border-t border-border px-3 py-2 text-label"
       >
         <IconCompact class="size-3.5 animate-pulse" />
         Compacting now — the session is rewriting its own context.
       </p>
     {:else if compaction}
       <p
-        class="border-t border-border px-3 py-2 text-micro text-muted-foreground"
+        class="border-t border-border px-3 py-2 text-label text-muted-foreground"
       >
         {#if compaction.result === 'failed'}
           Last compaction failed{compaction.error ? `: ${compaction.error}` : '.'}

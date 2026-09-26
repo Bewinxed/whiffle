@@ -731,13 +731,13 @@
     padding: var(--space-5) var(--space-4) var(--space-8);
   }
   legend {
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     margin-bottom: var(--space-2);
   }
   .problem {
     padding: var(--space-3);
-    background: var(--surface-field);
-    border-radius: var(--radius-well);
+    background: var(--surface-recess);
+    border-radius: var(--radius-sm);
     text-align: left;
     overflow-wrap: anywhere;
     min-height: 44px;

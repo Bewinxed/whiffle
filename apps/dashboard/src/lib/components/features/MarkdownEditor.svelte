@@ -68,7 +68,7 @@
 
 {#if failed}
   <p
-    class="px-[var(--space-7)] py-[var(--space-3)] text-[length:var(--text-sm)] text-[var(--ink-body)]"
+    class="px-[var(--space-7)] py-[var(--space-3)] text-[length:var(--text-label)] text-[var(--ink-strong)]"
     role="alert"
   >
     The editor did not load: {failed}
@@ -82,10 +82,10 @@
      sitting closer to the element. Every value is an app token, so the editor
      follows light and dark with everything else. */
   .crepe-host :global(.milkdown) {
-    --crepe-color-background: var(--surface-field);
+    --crepe-color-background: var(--surface-recess);
     --crepe-color-on-background: var(--ink-strong);
     --crepe-color-surface: var(--surface-raised);
-    --crepe-color-surface-low: var(--surface-field);
+    --crepe-color-surface-low: var(--surface-recess);
     --crepe-color-on-surface: var(--ink-strong);
     --crepe-color-on-surface-variant: var(--ink-muted);
     --crepe-color-outline: var(--ink-muted);
@@ -94,13 +94,13 @@
     --crepe-color-on-secondary: var(--ink-strong);
     --crepe-color-inverse: var(--ink-strong);
     --crepe-color-on-inverse: var(--surface-raised);
-    --crepe-color-inline-code: var(--ink-body);
-    --crepe-color-inline-area: var(--surface-sunken);
+    --crepe-color-inline-code: var(--ink-strong);
+    --crepe-color-inline-area: var(--surface-recess);
     --crepe-color-error: var(--ink-strong);
     --crepe-color-hover: var(--surface-hover);
-    --crepe-color-selected: var(--surface-active);
+    --crepe-color-selected: var(--surface-fill);
 
-    --crepe-base-font-size: var(--text-base);
+    --crepe-base-font-size: var(--text-label);
     --crepe-font-title: var(--font-body);
     --crepe-font-default: var(--font-body);
     --crepe-font-code: var(--font-mono);
@@ -109,7 +109,7 @@
     --crepe-shadow-2: var(--shadow-overlay);
 
     /* The card already draws the frame; the editor must not draw a second. */
-    background: var(--surface-field);
+    background: var(--surface-recess);
     box-shadow: none;
     padding: var(--space-1);
   }
@@ -127,7 +127,7 @@
      Crepe's own sizes back in on everything the exemptions did not name. */
   .crepe-host :global(.milkdown *) {
     font-weight: var(--weight-body) !important;
-    font-size: var(--text-base) !important;
+    font-size: var(--text-label) !important;
     line-height: var(--leading-body) !important;
   }
   .crepe-host :global(.milkdown *),
@@ -145,13 +145,13 @@
     padding: var(--space-1) 0;
   }
   .crepe-host :global(.milkdown .ProseMirror h1) {
-    font-size: var(--text-xl) !important;
+    font-size: var(--text-title) !important;
   }
   .crepe-host :global(.milkdown .ProseMirror h2) {
-    font-size: var(--text-lg) !important;
+    font-size: var(--text-title) !important;
   }
   .crepe-host :global(.milkdown .ProseMirror :is(h3, h4, h5, h6)) {
-    font-size: var(--text-md) !important;
+    font-size: var(--text-body) !important;
   }
   .crepe-host :global(.milkdown .ProseMirror) {
     padding: var(--space-4) calc(var(--space-6) - var(--space-1)) var(--space-6)
@@ -166,13 +166,13 @@
     padding: var(--space-1) 0;
   }
   .crepe-host :global(.milkdown .ProseMirror code) {
-    font-size: var(--text-sm) !important;
+    font-size: var(--text-label) !important;
     padding-inline: var(--space-1);
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
   }
   .crepe-host :global(.milkdown .ProseMirror pre) {
     padding: var(--space-3);
-    border-radius: var(--radius-well);
+    border-radius: var(--radius-sm);
     white-space: pre-wrap;
   }
   .crepe-host :global(.milkdown .ProseMirror blockquote) {
@@ -188,16 +188,16 @@
   .crepe-host :global(.milkdown .milkdown-code-block) {
     padding: var(--space-2) var(--space-3) var(--space-3);
     margin-block: var(--space-2);
-    background: var(--surface-sunken);
+    background: var(--surface-recess);
     border: 1px solid var(--border-hairline);
-    border-radius: var(--radius-well);
+    border-radius: var(--radius-sm);
   }
   .crepe-host :global(.milkdown :is(.cm-editor, .cm-gutters)) {
-    background: var(--surface-sunken);
+    background: var(--surface-recess);
   }
   .crepe-host :global(.milkdown :is(button, input, [role="button"])) {
-    border-radius: var(--radius-control);
-    font-size: var(--text-sm) !important;
+    border-radius: var(--radius-sm);
+    font-size: var(--text-label) !important;
     line-height: var(--leading-ui) !important;
   }
   .crepe-host :global(.milkdown button) {
@@ -209,7 +209,7 @@
     outline-offset: 2px;
   }
   .crepe-host :global(.milkdown :is(button, [role="button"]):active) {
-    background: var(--surface-active);
+    background: var(--surface-fill);
     box-shadow: var(--shadow-inset-sel);
   }
   @media (hover: none) {

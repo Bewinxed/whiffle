@@ -170,8 +170,8 @@
             hiddenCount > 0 ? `, ${hiddenCount} more` : ""
           }. Show them all.${staleNote ? ` ${staleNote}.` : ''}`
         : `Claude usage limits. ${emptyReason}`}
-    class="flex min-w-0 flex-col gap-0.5 rounded-[var(--radius-control)] px-1.5 py-1
-           text-micro tabular-nums
+    class="flex min-w-0 flex-col gap-0.5 rounded-[var(--radius-sm)] px-1.5 py-1
+           text-label tabular-nums
            hover:bg-muted
            focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring
            transition-[background-color] duration-150 ease-out"
@@ -206,14 +206,14 @@
 
   <Popover.Content
     align="end"
-    class="w-80 rounded-[var(--radius-panel)] p-0 shadow-lg"
+    class="w-80 rounded-[var(--radius-lg)] p-0 shadow-lg"
     side="top"
   >
     <div class="flex items-center gap-2 border-b border-border px-3 py-2.5">
       <IconClock class="size-4 text-muted-foreground" />
-      <span class="text-sm font-medium">Usage limits</span>
+      <span class="text-label font-medium">Usage limits</span>
       {#if hasReading && limits && planLabel(limits.planTier)}
-        <Badge class="ml-auto font-mono text-micro" variant="outline"
+        <Badge class="ml-auto font-mono text-label" variant="outline"
           >{planLabel(limits.planTier)}</Badge
         >
       {/if}
@@ -228,13 +228,13 @@
     {/if}
 
     {#if emptyReason}
-      <p class="px-3 py-4 text-micro text-muted-foreground">{emptyReason}</p>
+      <p class="px-3 py-4 text-label text-muted-foreground">{emptyReason}</p>
     {:else}
       <ul class="px-3 py-2">
         {#each windows as window (window.kind)}
           <li class="flex flex-col gap-1 py-1.5">
             <div class="flex items-center gap-1.5">
-              <span class="min-w-0 truncate text-micro font-medium"
+              <span class="min-w-0 truncate text-label font-medium"
                 >{compactLabel(window)}</span
               >
               {#if window.isActive}
@@ -248,13 +248,13 @@
             <div class="flex min-w-0 items-center gap-2">
               <UsageRail label="Usage" value={window.percent} />
               <span
-                class="shrink-0 text-micro tabular-nums {TEXT[band(window.percent)]}"
+                class="shrink-0 text-label tabular-nums {TEXT[band(window.percent)]}"
               >
                 {Math.round(window.percent)}%
               </span>
             </div>
             {#if window.resetsAt}
-              <span class="text-micro tabular-nums text-muted-foreground">
+              <span class="text-label tabular-nums text-muted-foreground">
                 {resetsIn(window.resetsAt, now)}
               </span>
             {/if}
@@ -266,8 +266,8 @@
     <div class="border-t border-border px-3 py-2.5">
       <div class="flex items-center gap-2">
         <IconDollar class="size-3.5 text-muted-foreground" />
-        <span class="text-micro font-medium">opencode</span>
-        <span class="ml-auto text-micro tabular-nums text-muted-foreground">
+        <span class="text-label font-medium">opencode</span>
+        <span class="ml-auto text-label tabular-nums text-muted-foreground">
           {#if spend}
             {usd(spend.today)}
             today · {usd(spend.total)} total
@@ -280,7 +280,7 @@
 
     <a
       class="flex items-center justify-between border-t border-border px-3 py-2
-             text-micro font-medium text-primary
+             text-label font-medium text-primary
              transition-colors duration-150 ease-out hover:bg-muted"
       href="/usage"
     >

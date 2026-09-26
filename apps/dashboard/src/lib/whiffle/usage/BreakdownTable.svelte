@@ -150,17 +150,17 @@
   <div class="flex items-center justify-between gap-2">
     <div>
       <h2 class="text-title">Breakdown</h2>
-      <p class="text-caption">Tokens and cost by {tab}.</p>
+      <p class="text-meta text-muted-foreground">Tokens and cost by {tab}.</p>
     </div>
     <!-- biome-ignore lint/a11y/useSemanticElements: a fieldset's default border/padding and legend semantics don't fit this toolbar; role="group" already conveys it to AT -->
     <div
       aria-label="Harness"
-      class="flex gap-1 rounded-[var(--radius-control)] bg-muted p-0.5"
+      class="flex gap-1 rounded-[var(--radius-sm)] bg-muted p-0.5"
       role="group"
     >
       <button
         aria-pressed={harness === 'claude'}
-        class="rounded-[var(--radius-tile)] px-2.5 py-1 text-micro transition-colors duration-150 ease-out
+        class="rounded-[var(--radius-xs)] px-2.5 py-1 text-label transition-colors duration-150 ease-out
                {harness === 'claude'
           ? 'bg-card text-foreground shadow-sm'
           : 'text-muted-foreground hover:text-foreground'}"
@@ -173,7 +173,7 @@
       </button>
       <button
         aria-pressed={harness === 'opencode'}
-        class="rounded-[var(--radius-tile)] px-2.5 py-1 text-micro transition-colors duration-150 ease-out
+        class="rounded-[var(--radius-xs)] px-2.5 py-1 text-label transition-colors duration-150 ease-out
                {harness === 'opencode'
           ? 'bg-card text-foreground shadow-sm'
           : 'text-muted-foreground hover:text-foreground'}"
@@ -188,7 +188,7 @@
   </div>
 
   <Tabs.Root onValueChange={switchTab} value={tab}>
-    <Tabs.List class="w-full" variant="line">
+    <Tabs.List class="w-full">
       {#each TAB_LIST as one (one.id)}
         <Tabs.Trigger value={one.id}>{one.label}</Tabs.Trigger>
       {/each}
@@ -196,9 +196,9 @@
   </Tabs.Root>
 
   {#if loadError}
-    <p class="text-caption text-error" role="alert">{loadError}</p>
+    <p class="text-meta text-error" role="alert">{loadError}</p>
   {:else if loading}
-    <div class="h-40 w-full rounded-[var(--radius-card)] bg-muted/40"></div>
+    <div class="h-40 w-full rounded-[var(--radius-md)] bg-muted/40"></div>
   {:else}
     <Table.Root class="q-break">
       <Table.Header>
@@ -277,12 +277,12 @@
   <Dialog.Content class="max-w-md">
     <Dialog.Header>
       <Dialog.Title>Session</Dialog.Title>
-      <Dialog.Description class="font-mono text-micro"
+      <Dialog.Description class="font-mono text-label"
         >{selected?.key}</Dialog.Description
       >
     </Dialog.Header>
     {#if selected}
-      <dl class="grid grid-cols-2 gap-2 text-caption">
+      <dl class="grid grid-cols-2 gap-2 text-meta text-muted-foreground">
         <div>
           <dt class="text-muted-foreground">Input</dt>
           <dd class="tabular-nums">{selected.input.toLocaleString()}</dd>
@@ -332,7 +332,7 @@
     .q-break thead th {
       height: auto;
       padding: var(--space-2) var(--space-3);
-      border-bottom: 1px solid var(--border-divider);
+      border-bottom: 1px solid var(--border-hairline);
       text-align: left;
       white-space: nowrap;
     }
@@ -344,13 +344,13 @@
       align-items: center;
       gap: var(--space-1);
       margin-left: auto;
-      font-size: var(--text-xs);
+      font-size: var(--text-meta);
       text-transform: uppercase;
       letter-spacing: var(--track-caps);
       font-weight: var(--weight-strong);
-      color: var(--ink-label);
+      color: var(--ink-muted);
       font-variant-numeric: tabular-nums;
-      transition: color var(--c-100) var(--e-toggle);
+      transition: color var(--dur-control) var(--ease-in-out);
       cursor: pointer;
     }
     .q-break thead th:not(.num) .sortbtn {
@@ -360,8 +360,8 @@
       color: var(--ink-strong);
     }
     .q-break td {
-      font-size: var(--text-base);
-      color: var(--ink-row);
+      font-size: var(--text-label);
+      color: var(--ink-strong);
       padding: var(--space-2) var(--space-3);
       border-bottom: 1px solid var(--border-hairline);
       vertical-align: middle;

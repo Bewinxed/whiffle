@@ -57,7 +57,7 @@
   }}
   bind:open={dialogOpen}
 >
-  <Dialog.Content class="rounded-[var(--radius-shell)] shadow-xl sm:max-w-lg">
+  <Dialog.Content class="sm:max-w-lg">
     <Dialog.Header>
       <Dialog.Title>Link a marketplace</Dialog.Title>
       <Dialog.Description
@@ -67,16 +67,16 @@
     </Dialog.Header>
     <form class="flex flex-col gap-3" onsubmit={link}>
       <!-- biome-ignore lint/a11y/noLabelWithoutControl: the `Input` component (shadcn-svelte) renders a native <input> as its only child -->
-      <label class="flex flex-col gap-1.5 text-caption"
+      <label class="flex flex-col gap-1.5 text-meta text-muted-foreground"
         >Source
         <Input
           autocomplete="off"
-          class="font-mono text-sm md:text-sm"
+          class="font-mono text-label md:text-label"
           placeholder="anthropics/skills"
           spellcheck="false"
           bind:value={source}
         />
-        <span class="text-micro"
+        <span class="text-label"
           >A GitHub <span class="font-mono">owner/repo</span>, a git URL, or a
           URL that ends in <span class="font-mono">marketplace.json</span>.
           Anthropic publishes
@@ -87,17 +87,17 @@
         >
       </label>
       <!-- biome-ignore lint/a11y/noLabelWithoutControl: the `Input` component (shadcn-svelte) renders a native <input> as its only child -->
-      <label class="flex flex-col gap-1.5 text-caption"
+      <label class="flex flex-col gap-1.5 text-meta text-muted-foreground"
         >Name
         <Input
           aria-invalid={clash ? 'true' : undefined}
           autocomplete="off"
-          class="font-mono text-sm md:text-sm"
+          class="font-mono text-label md:text-label"
           placeholder="skills"
           spellcheck="false"
           bind:value={name}
         />
-        <span class="text-micro">
+        <span class="text-label">
           {#if clash}
             <span class="text-destructive"
               >"{name.trim()}" is already linked.</span
@@ -109,7 +109,7 @@
         </span>
       </label>
       {#if failed}
-        <p class="text-caption text-destructive" role="alert">{failed}</p>
+        <p class="text-meta text-destructive" role="alert">{failed}</p>
       {/if}
       <div class="flex justify-end gap-2 pt-1">
         <Button

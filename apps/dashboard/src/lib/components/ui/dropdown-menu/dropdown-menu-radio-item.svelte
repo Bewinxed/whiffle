@@ -1,6 +1,5 @@
 <script lang="ts">
-  import { Tick02Icon } from "@hugeicons/core-free-icons";
-  import { HugeiconsIcon } from "@hugeicons/svelte";
+  import { IconTick } from "$lib/icons";
   import { DropdownMenu as DropdownMenuPrimitive } from "bits-ui";
   import { cn, type WithoutChild } from "$lib/utils.js";
 
@@ -14,7 +13,7 @@
 
 <DropdownMenuPrimitive.RadioItem
   class={cn(
-		"relative flex cursor-default select-none items-center gap-2.5 rounded-[var(--radius-card)] py-2 pr-8 pl-3 text-sm outline-hidden focus:bg-accent focus:text-accent-foreground focus:**:text-accent-foreground data-[disabled]:pointer-events-none data-inset:pl-9.5 data-[disabled]:opacity-50 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+		"kit-item relative flex cursor-default select-none items-center gap-2.5 pr-8 text-label outline-hidden data-[disabled]:pointer-events-none data-inset:pl-9.5 data-[disabled]:opacity-50 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0 pl-2.5",
 		className
 	)}
   data-slot="dropdown-menu-radio-item"
@@ -27,7 +26,7 @@
       data-slot="dropdown-menu-radio-item-indicator"
     >
       {#if checked}
-        <HugeiconsIcon icon={Tick02Icon} strokeWidth={2} />
+        <IconTick />
       {/if}
     </span>
     {@render childrenProp?.({ checked })}

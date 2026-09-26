@@ -37,7 +37,8 @@
     <Dialog.Description>{description}</Dialog.Description>
   </Dialog.Header>
   <Dialog.Content
-    class={cn("top-1/3 translate-y-0 overflow-hidden rounded-[var(--radius-shell)]! p-0 p-0", className)}
+    bodyClass="gap-0 overflow-hidden p-0"
+    class={cn("top-1/3 translate-y-0", className)}
     {portalProps}
     {showCloseButton}
   >

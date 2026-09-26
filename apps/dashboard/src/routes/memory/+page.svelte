@@ -343,7 +343,7 @@
 
     <!-- The file. One pane, always the editor. -->
     <section class="detail" aria-label="Document editor">
-      <Card.Root class="memory-panel min-h-0 flex-1 gap-0 rounded-[var(--radius-panel)] bg-[var(--surface-raised)] p-[var(--space-2)] shadow-[var(--shadow-hairline)] ring-0">
+      <Card.Root class="memory-panel min-h-0 flex-1 gap-0 rounded-[var(--radius-lg)] bg-[var(--surface-raised)] p-[var(--space-2)] shadow-[var(--shadow-hairline)] ring-0">
       <header class="dhead">
         <span class="path" title={labelOf(selected)}>{labelOf(selected)}</span>
         <div class="metadata" aria-label="Document details">
@@ -416,11 +416,10 @@
 
       {#if data.fleetError}
         <div class="pad">
-          <Alert.Root
-            class="items-center rounded-[var(--radius-well)] border-[var(--border-control)] bg-[var(--surface-field)] p-[var(--space-3)]"
+          <Alert.Root class="items-center"
           >
             <IconWarningTriangle />
-            <Alert.Description class="text-[length:var(--text-sm)] text-[var(--ink-body)]"
+            <Alert.Description
               >{data.fleetError}</Alert.Description
             >
           </Alert.Root>
@@ -511,10 +510,10 @@
     animation: none;
   }
   :global(::view-transition-old(memory-detail)) {
-    animation: 120ms cubic-bezier(0.32, 0.72, 0, 1) both vt-mem-exit;
+    animation: 120ms var(--ease-drawer) both vt-mem-exit;
   }
   :global(::view-transition-new(memory-detail)) {
-    animation: 120ms cubic-bezier(0.32, 0.72, 0, 1) both vt-mem-enter;
+    animation: 120ms var(--ease-drawer) both vt-mem-enter;
   }
   @keyframes vt-mem-exit {
     to {
@@ -531,7 +530,7 @@
   /* The highlight morphs; it must not also fade, or the move reads as a blink. */
   :global(::view-transition-group(memory-selection)) {
     animation-duration: 120ms;
-    animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+    animation-timing-function: var(--ease-drawer);
   }
   :global(::view-transition-old(memory-selection)),
   :global(::view-transition-new(memory-selection)) {
@@ -543,10 +542,10 @@
     height: 100%;
     min-height: 0;
     overflow: hidden;
-    color: var(--ink-body);
-    font-size: var(--text-base);
+    color: var(--ink-strong);
+    font-size: var(--text-label);
     line-height: var(--leading-body);
-    background: var(--surface-field);
+    background: var(--surface-recess);
   }
   .rail {
     view-transition-name: memory-rail;
@@ -555,7 +554,7 @@
     width: calc(var(--space-8) * 8);
     flex-shrink: 0;
     min-height: 0;
-    border-right: 1px solid var(--border-divider);
+    border-right: 1px solid var(--border-hairline);
     background: var(--surface-raised);
   }
   .railhead,
@@ -567,7 +566,7 @@
   }
   .railfoot {
     padding: var(--space-3) var(--space-3) var(--space-4) var(--space-4);
-    border-top: 1px solid var(--border-divider);
+    border-top: 1px solid var(--border-hairline);
   }
   .raillist {
     flex: 1 1 auto;
@@ -587,13 +586,13 @@
   .group {
     margin: 0;
     padding: var(--space-4) var(--space-2) var(--space-2);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     font-weight: var(--weight-medium);
-    color: var(--ink-label);
+    color: var(--ink-muted);
   }
   .empty {
     padding: var(--space-2);
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     color: var(--ink-muted);
   }
   .rrow {
@@ -603,10 +602,10 @@
     width: 100%;
     min-height: var(--c-nav-h);
     padding: var(--space-3) var(--space-2);
-    border-radius: var(--radius-control);
+    border-radius: var(--radius-sm);
     text-align: left;
-    font-size: var(--text-base);
-    color: var(--ink-body);
+    font-size: var(--text-label);
+    color: var(--ink-strong);
   }
   .rrow {
     position: relative;
@@ -622,8 +621,8 @@
     position: absolute;
     inset: 0;
     z-index: 0;
-    border-radius: var(--radius-control);
-    background: var(--surface-active);
+    border-radius: var(--radius-sm);
+    background: var(--surface-fill);
     box-shadow: var(--shadow-inset-sel);
     view-transition-name: memory-selection;
   }
@@ -636,7 +635,7 @@
     min-width: 0;
     overflow-wrap: anywhere;
     font-family: var(--font-mono);
-    font-size: var(--text-base);
+    font-size: var(--text-label);
   }
   .dot {
     width: var(--space-2);
@@ -650,7 +649,7 @@
     color: var(--ink-muted);
   }
   .draft-label {
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     font-weight: var(--weight-strong);
     color: var(--ink-strong);
   }
@@ -685,7 +684,7 @@
     flex: 1 1 100%;
     overflow-wrap: anywhere;
     font-family: var(--font-mono);
-    font-size: var(--text-base);
+    font-size: var(--text-label);
     font-weight: var(--weight-medium);
     color: var(--ink-strong);
   }
@@ -696,20 +695,20 @@
     gap: var(--space-3);
     padding: var(--space-2) var(--space-3);
     border: 1px solid var(--border-hairline);
-    border-radius: var(--radius-well);
-    background: var(--surface-field);
+    border-radius: var(--radius-sm);
+    background: var(--surface-recess);
   }
   .stat,
   .say {
     display: inline-flex;
     align-items: center;
     gap: var(--space-1);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--ink-muted);
   }
   .token-estimate {
     min-height: var(--c-pill-h);
-    border-radius: var(--radius-tile);
+    border-radius: var(--radius-xs);
   }
   .save-status {
     display: flex;
@@ -726,7 +725,7 @@
     display: inline-flex;
     align-items: center;
     gap: var(--space-1);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--ink-muted);
   }
   .chip-warn {
@@ -736,9 +735,9 @@
     flex-shrink: 0;
     padding: var(--space-1) var(--space-2);
     border: 1px solid var(--border-hairline);
-    border-radius: var(--radius-control);
+    border-radius: var(--radius-sm);
     font-family: var(--font-mono);
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     color: var(--ink-muted);
   }
   .editor-well {
@@ -747,8 +746,8 @@
     min-height: 0;
     overflow: hidden;
     border: 1px solid var(--border-hairline);
-    border-radius: var(--radius-well);
-    background: var(--surface-field);
+    border-radius: var(--radius-sm);
+    background: var(--surface-recess);
   }
   .editor {
     flex: 1 1 auto;
@@ -766,7 +765,7 @@
     gap: var(--space-2);
     flex-shrink: 0;
     padding: var(--space-3) var(--space-6) var(--space-4) var(--space-7);
-    border-bottom: 1px solid var(--border-divider);
+    border-bottom: 1px solid var(--border-hairline);
   }
   .driftrow {
     display: flex;
@@ -775,7 +774,7 @@
     flex-wrap: wrap;
   }
   .dname {
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     font-weight: var(--weight-strong);
     color: var(--ink-strong);
   }
@@ -783,7 +782,7 @@
     flex: 1 1 auto;
     min-width: 0;
     overflow-wrap: anywhere;
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--ink-muted);
   }
   .shell :global(svg) {
@@ -794,7 +793,7 @@
   .shell :global(.attention-glyph) {
     color: var(--status-attn-ink);
     background: var(--status-attn-bg);
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
   }
   .shell :global(button),
   .shell :global(input) {
@@ -806,10 +805,10 @@
     min-height: var(--space-8);
     gap: var(--space-2);
     padding: var(--space-2) var(--space-3);
-    border-radius: var(--radius-control);
+    border-radius: var(--radius-sm);
     border-color: var(--border-control);
     color: var(--ink-strong);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     font-weight: var(--weight-medium);
     box-shadow: var(--shadow-tile);
     transform: none;
@@ -819,23 +818,22 @@
     height: var(--space-8);
     padding: var(--space-2) var(--space-3);
     border: 1px solid var(--border-control);
-    border-radius: var(--radius-control);
-    background: var(--surface-field);
-    font-size: var(--text-base);
+    border-radius: var(--radius-sm);
+    background: var(--surface-recess);
+    font-size: var(--text-label);
     box-shadow: none;
   }
   .shell :global(.save-action) {
-    background: var(--gradient-action);
+    background: var(--brand-solid);
     color: var(--on-brand);
-    box-shadow: var(--shadow-action);
     border-color: transparent;
   }
   .shell :global(.delete-action) {
-    background: var(--surface-field);
+    background: var(--surface-recess);
     box-shadow: none;
   }
   .shell :global(button:active) {
-    background: var(--surface-active);
+    background: var(--surface-fill);
     color: var(--ink-strong);
     transform: none;
   }
@@ -853,11 +851,11 @@
       color: var(--ink-strong);
     }
     .shell :global(.save-action:hover:not(:disabled):not(:active)) {
-      background: var(--gradient-action);
+      background: var(--ink-hover);
       color: var(--on-brand);
     }
     .rrow.on:hover {
-      background: var(--surface-active);
+      background: var(--surface-fill);
     }
   }
   @media (hover: none) {
@@ -865,10 +863,10 @@
       background: var(--surface-raised);
     }
     .shell :global(.save-action:hover:not(:active)) {
-      background: var(--gradient-action);
+      background: var(--brand-solid);
     }
     .shell :global(.delete-action:hover:not(:active)) {
-      background: var(--surface-field);
+      background: var(--surface-recess);
     }
   }
   @media (pointer: coarse) {
@@ -889,7 +887,7 @@
       height: 30%;
       min-height: calc(var(--space-8) * 4);
       border-right: 0;
-      border-bottom: 1px solid var(--border-divider);
+      border-bottom: 1px solid var(--border-hairline);
     }
     .railhead,
     .railfoot {

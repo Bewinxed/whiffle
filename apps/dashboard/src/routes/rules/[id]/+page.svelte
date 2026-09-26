@@ -258,7 +258,7 @@
 <div class="flex-1 overflow-y-auto p-6">
   <form class="mx-auto flex max-w-2xl flex-col gap-6" onsubmit={save}>
     <a
-      class="flex w-fit items-center gap-1 text-micro text-muted-foreground hover:text-foreground"
+      class="flex w-fit items-center gap-1 text-label text-muted-foreground hover:text-foreground"
       href="/rules"
     >
       <IconArrowRight class="size-3 shrink-0 rotate-180" />
@@ -267,10 +267,10 @@
 
     {#if data.error}
       <div
-        class="rounded-[var(--radius-card)] bg-card p-4 shadow-md"
+        class="rounded-[var(--radius-md)] bg-card p-4 shadow-md"
         role="alert"
       >
-        <p class="text-caption text-warning">{data.error}</p>
+        <p class="text-meta text-warning">{data.error}</p>
       </div>
     {/if}
 
@@ -280,7 +280,7 @@
         <input
           aria-invalid={shown('name') || duplicate ? 'true' : undefined}
           autocomplete="off"
-          class="w-full border-0 bg-transparent p-0 text-display text-foreground caret-primary outline-none placeholder:text-faint"
+          class="w-full border-0 bg-transparent p-0 text-title text-foreground caret-primary outline-none placeholder:text-[var(--ink-subtle)]"
           onblur={() => {
             touched.name = true;
           }}
@@ -290,15 +290,15 @@
         >
       </label>
       {#if shown('name')}
-        <p class="text-micro text-destructive">{wrong.name}</p>
+        <p class="text-label text-destructive">{wrong.name}</p>
       {:else if duplicate}
-        <p class="text-micro text-destructive">{duplicate}</p>
+        <p class="text-label text-destructive">{duplicate}</p>
       {/if}
 
       <!-- The rule, read back. It is the only place the whole thing is one thought. -->
       <p
         aria-live="polite"
-        class="max-w-prose rounded-[var(--radius-card)] bg-primary/8 p-4 text-body text-foreground transition-all duration-240 ease-[var(--e-in)]"
+        class="max-w-prose rounded-[var(--radius-md)] bg-primary/8 p-4 text-body text-foreground transition-colors duration-240 ease-[var(--ease-out)]"
       >
         {ruleSentence(draft)}
       </p>
@@ -306,7 +306,7 @@
       <!-- biome-ignore lint/a11y/noLabelWithoutControl: wraps the <Switch> component; the native control it renders is not visible to Biome -->
       <label class="flex w-fit items-center gap-3">
         <Switch bind:checked={draft.enabled} />
-        <span class="text-caption">
+        <span class="text-meta text-muted-foreground">
           {draft.enabled ? 'Watching every session it applies to' : 'Off — it watches nothing'}
         </span>
       </label>
@@ -314,11 +314,11 @@
 
     {#if data.composing}
       <section
-        class="flex flex-col gap-4 rounded-[var(--radius-panel)] bg-card p-5 shadow-md"
+        class="flex flex-col gap-4 rounded-[var(--radius-lg)] bg-card p-5 shadow-md"
       >
         <div class="flex flex-col gap-1">
           <h2 class="text-body font-medium">Whip presets</h2>
-          <p class="max-w-prose text-micro text-muted-foreground">
+          <p class="max-w-prose text-label text-muted-foreground">
             Pre-written supervisor rules that beat bad habits out of coding
             agents. Click one to fill the form — it is an ordinary rule once
             saved.
@@ -334,10 +334,10 @@
                 style="flex-basis: 280px"
               >
                 <span
-                  class="text-caption font-medium text-[color:var(--ink-strong)]"
+                  class="text-meta text-muted-foreground font-medium text-[color:var(--ink-strong)]"
                   >{preset.name}</span
                 >
-                <span class="text-micro text-muted-foreground"
+                <span class="text-label text-muted-foreground"
                   >{preset.prompt}</span
                 >
               </div>
@@ -356,37 +356,35 @@
     {/if}
 
     <section
-      class="flex flex-col gap-4 rounded-[var(--radius-panel)] bg-card p-5 shadow-md"
+      class="flex flex-col gap-4 rounded-[var(--radius-lg)] bg-card p-5 shadow-md"
     >
       <div class="flex flex-col gap-1">
         <h2 class="text-body font-medium">What to watch for</h2>
-        <p class="max-w-prose text-micro text-muted-foreground">
+        <p class="max-w-prose text-label text-muted-foreground">
           Whiffle reads what a session writes, not what you write to it.
         </p>
       </div>
 
-      <fieldset class="flex flex-col gap-1.5 text-caption">
+      <fieldset class="flex flex-col gap-1.5 text-meta text-muted-foreground">
         <legend class="mb-1.5">Trigger</legend>
         <ToggleGroup.Root
           class="w-full"
           onValueChange={(next) => next && setTrigger(next as RuleTrigger)}
-          size="sm"
           type="single"
           value={draft.trigger}
-          variant="outline"
         >
-          <ToggleGroup.Item class="flex-1 text-caption" value="pattern">
+          <ToggleGroup.Item class="flex-1" value="pattern">
             A pattern match
           </ToggleGroup.Item>
-          <ToggleGroup.Item class="flex-1 text-caption" value="every-turn">
+          <ToggleGroup.Item class="flex-1" value="every-turn">
             Every turn
           </ToggleGroup.Item>
         </ToggleGroup.Root>
         {#if shown('trigger')}
-          <span class="text-micro text-destructive">{wrong.trigger}</span>
+          <span class="text-label text-destructive">{wrong.trigger}</span>
         {/if}
         {#if draft.trigger === 'every-turn'}
-          <span class="text-micro text-muted-foreground">
+          <span class="text-label text-muted-foreground">
             The rule fires at the end of every turn — no pattern needed. The
             supervisor judges each turn and decides what to do.
           </span>
@@ -397,24 +395,22 @@
         <ToggleGroup.Root
           class="w-full"
           onValueChange={(next) => next && setMatchKind(next as RuleMatchKind)}
-          size="sm"
           type="single"
           value={draft.matchKind}
-          variant="outline"
         >
-          <ToggleGroup.Item class="flex-1 text-caption" value="phrase"
+          <ToggleGroup.Item class="flex-1" value="phrase"
             >A phrase</ToggleGroup.Item
           >
-          <ToggleGroup.Item class="flex-1 text-caption" value="regex">
+          <ToggleGroup.Item class="flex-1" value="regex">
             A regular expression
           </ToggleGroup.Item>
-          <ToggleGroup.Item class="flex-1 text-caption" value="meaning">
+          <ToggleGroup.Item class="flex-1" value="meaning">
             Meaning
           </ToggleGroup.Item>
         </ToggleGroup.Root>
 
         <!-- biome-ignore lint/a11y/noLabelWithoutControl: wraps the <Input> component; the native control it renders is not visible to Biome -->
-        <label class="flex flex-col gap-1.5 text-caption">
+        <label class="flex flex-col gap-1.5 text-meta text-muted-foreground">
           {#if draft.matchKind === 'meaning'}
             Question (answered yes or no)
           {:else}
@@ -423,7 +419,7 @@
           {#if draft.matchKind === 'meaning'}
             <Textarea
               aria-invalid={shown('pattern') ? 'true' : undefined}
-              class="resize-y text-sm md:text-sm"
+              class="resize-y text-label md:text-label"
               onblur={() => {
                 touched.pattern = true;
               }}
@@ -435,7 +431,7 @@
             <Input
               aria-invalid={shown('pattern') ? 'true' : undefined}
               autocomplete="off"
-              class="font-mono text-sm md:text-sm"
+              class="font-mono text-label md:text-label"
               onblur={() => {
                 touched.pattern = true;
               }}
@@ -447,21 +443,21 @@
             />
           {/if}
           {#if shown('pattern')}
-            <span class="text-micro text-destructive">{wrong.pattern}</span>
+            <span class="text-label text-destructive">{wrong.pattern}</span>
           {:else if draft.matchKind === 'meaning' && !data.openrouterConnected}
-            <span class="text-micro text-warning">
+            <span class="text-label text-warning">
               Meaning rules need OpenRouter —
               <a class="underline underline-offset-2" href="/settings"
                 >connect it in Settings</a
               >
             </span>
           {:else if draft.matchKind === 'meaning'}
-            <span class="text-micro text-muted-foreground">
+            <span class="text-label text-muted-foreground">
               Jev answers it about each finished message or turn. The rule fires
               when the answer is yes.
             </span>
           {:else if draft.matchKind === 'regex'}
-            <span class="text-micro text-muted-foreground">
+            <span class="text-label text-muted-foreground">
               JavaScript syntax. It is matched against the whole message, not
               line by line.
             </span>
@@ -500,7 +496,7 @@
           </div>
         </div>
 
-        <fieldset class="flex flex-col gap-1.5 text-caption">
+        <fieldset class="flex flex-col gap-1.5 text-meta text-muted-foreground">
           <legend class="mb-1.5">Read</legend>
           <ToggleGroup.Root
             class="w-full"
@@ -509,14 +505,12 @@
                 draft.watch = next as RuleWatch;
               }
             }}
-            size="sm"
             type="single"
             value={draft.watch}
-            variant="outline"
           >
             {#each WATCH as option (option.value)}
               <ToggleGroup.Item
-                class="flex-1 text-caption"
+                class="flex-1"
                 value={option.value}
               >
                 {option.label}
@@ -524,7 +518,7 @@
             {/each}
           </ToggleGroup.Root>
           {#if draft.watch !== 'text' && draft.timing === 'turn'}
-            <span class="text-micro text-warning">
+            <span class="text-label text-warning">
               Reasoning is not kept once a turn is over. To watch thinking, fire
               on the message or the moment instead.
             </span>
@@ -542,39 +536,37 @@
     </section>
 
     <section
-      class="flex flex-col gap-4 rounded-[var(--radius-panel)] bg-card p-5 shadow-md"
+      class="flex flex-col gap-4 rounded-[var(--radius-lg)] bg-card p-5 shadow-md"
     >
       <div class="flex flex-col gap-1">
         <h2 class="text-body font-medium">What Whiffle sends back</h2>
-        <p class="max-w-prose text-micro text-muted-foreground">
+        <p class="max-w-prose text-label text-muted-foreground">
           The session is told this is Whiffle and not you, so it does not answer
           you for something you never said.
         </p>
       </div>
 
-      <fieldset class="flex flex-col gap-1.5 text-caption">
+      <fieldset class="flex flex-col gap-1.5 text-meta text-muted-foreground">
         <legend class="mb-1.5">Action</legend>
         <ToggleGroup.Root
           class="w-full"
           onValueChange={(next) => next && setAction(next as RuleAction)}
-          size="sm"
           type="single"
           value={draft.action}
-          variant="outline"
         >
           <ToggleGroup.Item
-            class="flex-1 text-caption"
+            class="flex-1"
             disabled={draft.trigger === 'every-turn'}
             value="reply"
           >
             Canned reply
           </ToggleGroup.Item>
-          <ToggleGroup.Item class="flex-1 text-caption" value="llm">
+          <ToggleGroup.Item class="flex-1" value="llm">
             LLM verdict
           </ToggleGroup.Item>
         </ToggleGroup.Root>
         {#if draft.action === 'llm'}
-          <span class="text-micro text-muted-foreground">
+          <span class="text-label text-muted-foreground">
             The supervisor reads the turn and decides what to say. You write the
             standing instructions; it writes the reply.
           </span>
@@ -583,11 +575,11 @@
 
       {#if draft.action === 'reply'}
         <!-- biome-ignore lint/a11y/noLabelWithoutControl: wraps the <Textarea> component; the native control it renders is not visible to Biome -->
-        <label class="flex flex-col gap-1.5 text-caption">
+        <label class="flex flex-col gap-1.5 text-meta text-muted-foreground">
           Reply
           <Textarea
             aria-invalid={shown('reply') ? 'true' : undefined}
-            class="resize-y text-sm md:text-sm"
+            class="resize-y text-label md:text-label"
             onblur={() => {
               touched.reply = true;
             }}
@@ -596,16 +588,16 @@
             bind:value={draft.reply}
           />
           {#if shown('reply')}
-            <span class="text-micro text-destructive">{wrong.reply}</span>
+            <span class="text-label text-destructive">{wrong.reply}</span>
           {/if}
         </label>
       {:else}
         <!-- biome-ignore lint/a11y/noLabelWithoutControl: wraps the <Textarea> component; the native control it renders is not visible to Biome -->
-        <label class="flex flex-col gap-1.5 text-caption">
+        <label class="flex flex-col gap-1.5 text-meta text-muted-foreground">
           Supervisor instructions
           <Textarea
             aria-invalid={shown('prompt') ? 'true' : undefined}
-            class="resize-y text-sm md:text-sm"
+            class="resize-y text-label md:text-label"
             onblur={() => {
               touched.prompt = true;
             }}
@@ -614,25 +606,23 @@
             bind:value={draft.prompt}
           />
           {#if shown('prompt')}
-            <span class="text-micro text-destructive">{wrong.prompt}</span>
+            <span class="text-label text-destructive">{wrong.prompt}</span>
           {/if}
         </label>
       {/if}
 
       {#if draft.action === 'reply'}
-        <fieldset class="flex flex-col gap-1.5 text-caption">
+        <fieldset class="flex flex-col gap-1.5 text-meta text-muted-foreground">
           <legend class="mb-1.5">Send it</legend>
           <ToggleGroup.Root
             class="w-full"
             onValueChange={(next) => next && setTiming(next as RuleTiming)}
-            size="sm"
             type="single"
             value={draft.timing}
-            variant="outline"
           >
             {#each TIMING as option (option.value)}
               <ToggleGroup.Item
-                class="flex-1 text-caption"
+                class="flex-1"
                 disabled={option.value === 'immediate' &&
                   draft.matchKind === 'meaning'}
                 value={option.value}
@@ -641,11 +631,11 @@
               </ToggleGroup.Item>
             {/each}
           </ToggleGroup.Root>
-          <span class="max-w-prose text-micro text-muted-foreground"
+          <span class="max-w-prose text-label text-muted-foreground"
             >{how}</span
           >
           {#if shown('timing')}
-            <span class="text-micro text-destructive">{wrong.timing}</span>
+            <span class="text-label text-destructive">{wrong.timing}</span>
           {/if}
         </fieldset>
 
@@ -654,8 +644,8 @@
           <label class="flex items-start gap-3">
             <Switch class="mt-0.5" bind:checked={draft.interrupt} />
             <span class="flex flex-col gap-0.5">
-              <span class="text-caption">Interrupt the running turn</span>
-              <span class="max-w-prose text-micro text-muted-foreground">
+              <span class="text-meta text-muted-foreground">Interrupt the running turn</span>
+              <span class="max-w-prose text-label text-muted-foreground">
                 A claude session reads it mid-turn without stopping. Other
                 harnesses cut the turn short to deliver it, which loses whatever
                 they were partway through.
@@ -665,17 +655,17 @@
         {/if}
       {:else}
         {#if shown('timing')}
-          <span class="text-micro text-destructive">{wrong.timing}</span>
+          <span class="text-label text-destructive">{wrong.timing}</span>
         {/if}
       {/if}
     </section>
 
     <section
-      class="flex flex-col gap-4 rounded-[var(--radius-panel)] bg-card p-5 shadow-md"
+      class="flex flex-col gap-4 rounded-[var(--radius-lg)] bg-card p-5 shadow-md"
     >
       <div class="flex flex-col gap-1">
         <h2 class="text-body font-medium">Where it applies</h2>
-        <p class="max-w-prose text-micro text-muted-foreground">
+        <p class="max-w-prose text-label text-muted-foreground">
           Everywhere unless you narrow it. Each filter you set has to match for
           the rule to fire.
         </p>
@@ -683,7 +673,7 @@
 
       <div class="grid gap-4 sm:grid-cols-2">
         <!-- biome-ignore lint/a11y/noLabelWithoutControl: wraps the <NativeSelect> component; the native control it renders is not visible to Biome -->
-        <label class="flex flex-col gap-1.5 text-caption">
+        <label class="flex flex-col gap-1.5 text-meta text-muted-foreground">
           Machine
           <NativeSelect
             class="w-full"
@@ -698,7 +688,7 @@
         </label>
 
         <!-- biome-ignore lint/a11y/noLabelWithoutControl: wraps the <NativeSelect> component; the native control it renders is not visible to Biome -->
-        <label class="flex flex-col gap-1.5 text-caption">
+        <label class="flex flex-col gap-1.5 text-meta text-muted-foreground">
           Project
           <NativeSelect
             class="w-full"
@@ -713,7 +703,7 @@
         </label>
 
         <!-- biome-ignore lint/a11y/noLabelWithoutControl: wraps the <NativeSelect> component; the native control it renders is not visible to Biome -->
-        <label class="flex flex-col gap-1.5 text-caption">
+        <label class="flex flex-col gap-1.5 text-meta text-muted-foreground">
           Harness
           <NativeSelect
             class="w-full"
@@ -728,7 +718,7 @@
         </label>
 
         <!-- biome-ignore lint/a11y/noLabelWithoutControl: wraps the <NativeSelect> component; the native control it renders is not visible to Biome -->
-        <label class="flex flex-col gap-1.5 text-caption">
+        <label class="flex flex-col gap-1.5 text-meta text-muted-foreground">
           Model
           <NativeSelect
             class="w-full"
@@ -743,7 +733,7 @@
               <option value={draft.scope.model}>{draft.scope.model}</option>
             {/if}
           </NativeSelect>
-          <span class="text-micro text-muted-foreground">
+          <span class="text-label text-muted-foreground">
             Matched as a substring, so a family name covers every dated build of
             it.
           </span>
@@ -753,11 +743,11 @@
 
     {#if draft.action === 'reply'}
       <section
-        class="flex flex-col gap-4 rounded-[var(--radius-panel)] bg-card p-5 shadow-md"
+        class="flex flex-col gap-4 rounded-[var(--radius-lg)] bg-card p-5 shadow-md"
       >
         <div class="flex flex-col gap-1">
           <h2 class="text-body font-medium">Making it stick</h2>
-          <p class="max-w-prose text-micro text-muted-foreground">
+          <p class="max-w-prose text-label text-muted-foreground">
             A note a session can read and walk past is a note a session will
             read and walk past.
           </p>
@@ -767,10 +757,10 @@
         <label class="flex items-start gap-3">
           <Switch class="mt-0.5" bind:checked={draft.requireAck} />
           <span class="flex flex-col gap-0.5">
-            <span class="text-caption"
+            <span class="text-meta text-muted-foreground"
               >Keep firing until the session acknowledges</span
             >
-            <span class="max-w-prose text-micro text-muted-foreground">
+            <span class="max-w-prose text-label text-muted-foreground">
               {#if draft.requireAck}
                 The reply asks the session to call
                 <span class="font-mono">note_for_user</span>
@@ -792,7 +782,7 @@
     {/if}
 
     {#if failed}
-      <p class="text-caption text-destructive" role="alert">{failed}</p>
+      <p class="text-meta text-destructive" role="alert">{failed}</p>
     {/if}
 
     <!-- Pinned: on a long rule the Save used to scroll off, so the reader edited
@@ -847,13 +837,13 @@
       opacity: 0;
     }
 
-    transition: opacity var(--c-100) var(--e-in);
+    transition: opacity var(--dur-control) var(--ease-out);
 
     @media (prefers-reduced-motion: no-preference) {
       transition:
-        block-size var(--c-300) var(--e-in),
-        margin-block-end var(--c-300) var(--e-in),
-        opacity var(--c-300) var(--e-in);
+        block-size var(--dur-panel) var(--ease-out),
+        margin-block-end var(--dur-panel) var(--ease-out),
+        opacity var(--dur-panel) var(--ease-out);
     }
   }
 </style>

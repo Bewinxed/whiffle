@@ -10,7 +10,7 @@
 </script>
 
 <SheetPrimitive.Overlay
-  class={cn("fixed inset-0 z-50 bg-[var(--scrim)] supports-backdrop-filter:backdrop-blur-xs", className)}
+  class={cn("kit-scrim fixed inset-0 z-50", className)}
   data-slot="sheet-overlay"
   bind:ref
   {...restProps}

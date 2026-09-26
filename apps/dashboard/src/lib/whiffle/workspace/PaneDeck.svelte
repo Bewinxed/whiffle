@@ -73,7 +73,7 @@
     min-width: 0;
     min-height: 0;
     overflow: hidden;
-    background: var(--surface-sunken);
+    background: var(--surface-recess);
     /* Pinch belongs to nobody here; two fingers are the deck's. */
     touch-action: pan-x pan-y;
   }
@@ -129,18 +129,18 @@
     border-radius: 0;
     will-change: transform;
     transition:
-      transform var(--c-300) var(--e-toggle),
-      border-radius var(--c-300) var(--e-toggle);
+      transform var(--dur-panel) var(--ease-in-out),
+      border-radius var(--dur-panel) var(--ease-in-out);
   }
   .lift::before {
     content: "";
     position: absolute;
     inset: 0;
-    border-radius: var(--radius-modal);
+    border-radius: var(--radius-lg);
     box-shadow: var(--shadow-overlay);
     opacity: 0;
     will-change: opacity;
-    transition: opacity var(--c-300) var(--e-toggle);
+    transition: opacity var(--dur-panel) var(--ease-in-out);
     pointer-events: none;
   }
   .clip {
@@ -155,14 +155,14 @@
   /* The pick-up: 180ms, derived from the base beat the way `--breath` is. */
   .deck.lifted .lift {
     transform: scale(0.96);
-    border-radius: var(--radius-modal);
+    border-radius: var(--radius-lg);
     transition:
-      transform calc(var(--c-300) * 0.6) var(--e-in),
-      border-radius calc(var(--c-300) * 0.6) var(--e-in);
+      transform calc(var(--dur-panel) * 0.6) var(--ease-out),
+      border-radius calc(var(--dur-panel) * 0.6) var(--ease-out);
   }
   .deck.lifted .lift::before {
     opacity: 1;
-    transition: opacity calc(var(--c-300) * 0.6) var(--e-in);
+    transition: opacity calc(var(--dur-panel) * 0.6) var(--ease-out);
   }
 
   /* `visibility`, never `display`, and only the hidden state is declared —
@@ -182,7 +182,7 @@
     flex-direction: column;
     gap: 6px;
     opacity: 0;
-    transition: opacity 160ms var(--e-in);
+    transition: opacity 160ms var(--ease-out);
     pointer-events: none;
     z-index: 5;
   }
@@ -196,8 +196,8 @@
     background: var(--ink-muted);
     opacity: 0.5;
     transition:
-      height 160ms var(--e-in),
-      opacity 160ms var(--e-in);
+      height 160ms var(--ease-out),
+      opacity 160ms var(--ease-out);
   }
   .dot-on {
     height: 18px;
@@ -214,7 +214,7 @@
       transition: none;
     }
     .dot {
-      transition: opacity 160ms var(--e-in);
+      transition: opacity 160ms var(--ease-out);
     }
     .deck.lifted .lift {
       transform: scale(1);

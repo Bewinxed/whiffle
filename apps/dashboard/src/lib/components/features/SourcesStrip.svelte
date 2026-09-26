@@ -39,7 +39,7 @@
     {#if failed[source.host]}
       <span
         aria-hidden="true"
-        class="flex size-full items-center justify-center text-micro leading-none font-medium
+        class="flex size-full items-center justify-center text-label leading-none font-medium
                text-muted-foreground uppercase"
       >
         {source.host.charAt(0)}
@@ -61,14 +61,14 @@
 
 <Collapsible.Root class="mt-2" bind:open>
   <Collapsible.Trigger
-    class="group -ml-1 flex min-h-9 items-center gap-2 rounded-[var(--radius-control)] px-1 transition-colors hover:bg-accent/40"
+    class="group -ml-1 flex min-h-9 items-center gap-2 rounded-[var(--radius-sm)] px-1 transition-colors hover:bg-accent/40"
   >
     <span aria-hidden="true" class="flex -space-x-1.5">
       {#each sources.slice(0, STACKED) as source (source.url)}
         {@render favicon(source)}
       {/each}
     </span>
-    <span class="text-micro text-muted-foreground" data-tabular>
+    <span class="text-label text-muted-foreground" data-tabular>
       {sources.length}
       {sources.length === 1 ? 'source' : 'sources'}
     </span>
@@ -83,7 +83,7 @@
     <div class="flex flex-col pt-0.5">
       {#each sources as source, index (source.url)}
         <a
-          class="flex min-h-9 items-center gap-2.5 rounded-[var(--radius-control)] px-1 transition-colors hover:bg-accent/40"
+          class="flex min-h-9 items-center gap-2.5 rounded-[var(--radius-sm)] px-1 transition-colors hover:bg-accent/40"
           href={source.url}
           rel="noopener noreferrer"
           target="_blank"
@@ -98,7 +98,7 @@
           <span class="min-w-0 flex-1 truncate text-[13px] text-foreground">
             {source.title ?? source.url}
           </span>
-          <span class="shrink-0 font-mono text-micro text-muted-foreground"
+          <span class="shrink-0 font-mono text-label text-muted-foreground"
             >{source.host}</span
           >
         </a>

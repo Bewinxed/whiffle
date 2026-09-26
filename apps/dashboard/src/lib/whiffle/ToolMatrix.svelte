@@ -135,24 +135,24 @@
         </Popover.Trigger>
         <Popover.Content
           align="start"
-          class="w-96 rounded-[var(--radius-panel)] p-0 shadow-xl"
+          class="w-96 rounded-[var(--radius-lg)] p-0 shadow-xl"
         >
           <header
             class="flex items-baseline gap-[var(--space-1)] border-b border-border px-[var(--space-3)] py-[var(--space-2)]"
           >
-            <span class="text-caption font-medium text-foreground"
+            <span class="text-meta font-medium text-foreground"
               >{spec.name}
               did not install</span
             >
             {#if toolStatus?.method}
               <span
-                class="ml-auto shrink-0 font-mono text-micro text-muted-foreground"
+                class="ml-auto shrink-0 font-mono text-label text-muted-foreground"
                 >{toolStatus.method}</span
               >
             {/if}
           </header>
           <pre
-            class="max-h-56 overflow-auto px-[var(--space-3)] py-[var(--space-2)] font-mono text-micro whitespace-pre-wrap"
+            class="max-h-56 overflow-auto px-[var(--space-3)] py-[var(--space-2)] font-mono text-label whitespace-pre-wrap"
           >{toolStatus?.detail ?? 'The machine did not say why.'}</pre>
           <footer
             class="border-t border-border px-[var(--space-3)] py-[var(--space-2)]"
@@ -192,9 +192,9 @@
       </Popover.Trigger>
       <Popover.Content
         align="start"
-        class="w-80 rounded-[var(--radius-panel)] shadow-xl"
+        class="w-80 rounded-[var(--radius-lg)] shadow-xl"
       >
-        <p class="font-mono text-micro">
+        <p class="font-mono text-label">
           {toolStatus?.detail ?? 'no install method for this platform'}
         </p>
       </Popover.Content>
@@ -204,7 +204,7 @@
       <Tooltip.Root>
         <Tooltip.Trigger>
           {#snippet child({ props })}
-            <Badge {...props} class="{CHIP} text-faint" variant="ghost"
+            <Badge {...props} class="{CHIP} text-[var(--ink-subtle)]" variant="ghost"
               >Unknown</Badge
             >
           {/snippet}
@@ -223,18 +223,18 @@
   {/if}
 {/snippet}
 
-<p class="max-w-prose text-caption">
+<p class="max-w-prose text-meta text-muted-foreground">
   The workflow CLIs your machines carry. Require one on every machine and the
   hub puts it there — on the machines that are online now, and on the rest as
   they come back.
 </p>
 
 {#if loadError}
-  <Alert class="border-warning/40 bg-warning/10 text-warning">
-    <AlertDescription class="text-warning">{loadError}</AlertDescription>
+  <Alert variant="warning">
+    <AlertDescription>{loadError}</AlertDescription>
   </Alert>
 {:else if columns.length === 0}
-  <Card class="rounded-[var(--radius-panel)] p-[var(--space-6)] shadow-md">
+  <Card class="rounded-[var(--radius-lg)] p-[var(--space-6)] shadow-md">
     <p class="text-body text-muted-foreground">
       The hub's catalog is empty, so there is nothing to install yet.
     </p>
@@ -242,43 +242,43 @@
 {:else if machines.length === 0 && settling}
   <Card
     aria-label="Reading the fleet"
-    class="flex flex-col gap-[var(--space-3)] rounded-[var(--radius-panel)] p-[var(--space-6)] shadow-md"
+    class="flex flex-col gap-[var(--space-3)] rounded-[var(--radius-lg)] p-[var(--space-6)] shadow-md"
     role="status"
   >
     {#each [0, 1, 2] as row (row)}
       <div class="flex items-center gap-[var(--space-6)]">
-        <Skeleton class="h-4 w-40 rounded-[var(--radius-mark)]" />
+        <Skeleton class="h-4 w-40 rounded-[var(--radius-xs)]" />
         {#each columns as spec (spec.id)}
-          <Skeleton class="h-4 w-20 rounded-[var(--radius-mark)]" />
+          <Skeleton class="h-4 w-20 rounded-[var(--radius-xs)]" />
         {/each}
       </div>
     {/each}
   </Card>
 {:else if machines.length === 0}
   <Card
-    class="flex flex-col gap-[var(--space-3)] rounded-[var(--radius-panel)] p-[var(--space-6)] shadow-md"
+    class="flex flex-col gap-[var(--space-3)] rounded-[var(--radius-lg)] p-[var(--space-6)] shadow-md"
   >
     <h2 class="text-body font-medium">No machines yet</h2>
-    <p class="text-caption">
+    <p class="text-meta text-muted-foreground">
       Tools are installed on your own hardware, never on a server of ours — so
       this stays empty until a machine says it is here. Start the agent daemon
       on one, pointed at this hub, and it reports what it already has the moment
       it registers.
     </p>
     <pre
-      class="overflow-x-auto rounded-[var(--radius-well)] bg-muted px-[var(--space-3)] py-[var(--space-2)] font-mono text-micro"
+      class="overflow-x-auto rounded-[var(--radius-sm)] bg-muted px-[var(--space-3)] py-[var(--space-2)] font-mono text-label"
     >WHIFFLE_HUB_URL=ws://&lt;this-host&gt;:3456/ws whiffle up</pre>
   </Card>
 {:else}
   <Card
-    class="gap-0 overflow-hidden rounded-[var(--radius-panel)] py-0 shadow-md"
+    class="gap-0 overflow-hidden rounded-[var(--radius-lg)] py-0 shadow-md"
   >
     <Table.Root class="border-collapse text-left">
       <Table.Header>
         <Table.Row class="align-top hover:bg-transparent">
           <!-- biome-ignore-start lint/a11y/noHeaderScope: Table.Head renders a real <th>; biome only sees the component tag -->
           <Table.Head
-            class="sticky left-0 z-10 h-auto bg-card px-[var(--space-4)] py-[var(--space-3)] text-micro font-medium tracking-wider text-muted-foreground uppercase"
+            class="sticky left-0 z-10 h-auto bg-card px-[var(--space-4)] py-[var(--space-3)] text-label font-medium tracking-wider text-muted-foreground uppercase"
             scope="col"
             >Machine</Table.Head
           >
@@ -293,7 +293,7 @@
               <!-- biome-ignore-end lint/a11y/noHeaderScope: Table.Head renders a real <th>; biome only sees the component tag -->
               <div class="flex flex-col items-start gap-[var(--space-2)]">
                 <span class="flex items-center gap-1.5">
-                  <span class="text-caption font-medium text-foreground"
+                  <span class="text-meta font-medium text-foreground"
                     >{spec.name}</span
                   >
                   <a
@@ -307,13 +307,13 @@
                     <IconExternal class="size-3" />
                   </a>
                 </span>
-                <span class="text-micro tabular-nums text-muted-foreground"
+                <span class="text-label tabular-nums text-muted-foreground"
                   >{installedOn(spec)}/{machines.length}
                   installed</span
                 >
                 <!-- biome-ignore lint/a11y/noLabelWithoutControl: the Switch is a bits-ui button[role=switch], which the label-click passthrough this markup relies on already recognizes as labelable — swapping to a `for`/id pairing would drop nothing biome can see but would change nothing real either. -->
                 <label
-                  class="flex items-center gap-[var(--space-2)] text-micro text-muted-foreground"
+                  class="flex items-center gap-[var(--space-2)] text-label text-muted-foreground"
                 >
                   <Switch
                     checked={policy.required}
@@ -347,14 +347,14 @@
                 <span class="flex min-w-0 flex-col">
                   <span class="flex items-center gap-[var(--space-2)]">
                     <span
-                      class="truncate text-caption font-medium text-foreground"
+                      class="truncate text-meta font-medium text-foreground"
                       >{machineLabel(machine.hostname)}</span
                     >
                     <span
                       class="size-2 shrink-0 rounded-full {online ? 'bg-success' : 'bg-muted-foreground/40'}"
                     ></span>
                   </span>
-                  <span class="text-micro text-muted-foreground"
+                  <span class="text-label text-muted-foreground"
                     >{os.label}{online ? '' : ' · offline'}</span
                   >
                 </span>

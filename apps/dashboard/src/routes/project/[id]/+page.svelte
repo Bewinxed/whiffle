@@ -272,15 +272,15 @@
     <!-- Header -->
     <header class="flex flex-wrap items-center gap-x-4 gap-y-2 px-6 pt-6 pb-4">
       <div class="flex min-w-0 flex-1 flex-col gap-1">
-        <h1 class="text-display">{project.name}</h1>
+        <h1 class="text-title">{project.name}</h1>
         <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span class="truncate font-mono text-micro text-muted-foreground"
+          <span class="truncate font-mono text-label text-muted-foreground"
             >{project.cwd}</span
           >
           {#if machine}
             <span class="flex items-center gap-1.5">
               <OsMark class="size-4 text-muted-foreground" os={machine.os} />
-              <span class="text-micro text-muted-foreground">
+              <span class="text-label text-muted-foreground">
                 {machineLabel(machine.hostname)}
               </span>
               <span
@@ -304,11 +304,11 @@
               onsubmit={(e) => { e.preventDefault(); startSession(false); }}
             >
               <!-- biome-ignore lint/a11y/noLabelWithoutControl: the <Input> component renders a native input as its only child; Biome can't see through the component boundary -->
-              <label class="flex flex-col gap-1 text-caption">
+              <label class="flex flex-col gap-1 text-meta text-muted-foreground">
                 First prompt (optional)
                 <Input
                   autocomplete="off"
-                  class="text-sm"
+                  class="text-label"
                   placeholder="What should this session do?"
                   spellcheck="false"
                   bind:value={spawnPrompt}
@@ -343,7 +343,7 @@
               </Button>
             {/snippet}
           </AlertDialog.Trigger>
-          <AlertDialog.Content class="rounded-[var(--radius-shell)] shadow-xl">
+          <AlertDialog.Content>
             <AlertDialog.Header>
               <AlertDialog.Title>Forget {project.name}?</AlertDialog.Title>
               <AlertDialog.Description>
@@ -372,7 +372,7 @@
       >
         {#if docs.length === 0 && !docsError}
           <Card
-            class="rounded-[var(--radius-panel)] p-[var(--space-6)] shadow-md"
+            class="rounded-[var(--radius-lg)] p-[var(--space-6)] shadow-md"
           >
             <p class="text-body text-muted-foreground">
               No markdown yet. Add a README.md at the top of the checkout and it
@@ -380,8 +380,8 @@
             </p>
           </Card>
         {:else if docsError}
-          <Alert class="border-warning/40 bg-warning/10 text-warning">
-            <AlertDescription class="text-body text-warning"
+          <Alert variant="warning">
+            <AlertDescription
               >{docsError}</AlertDescription
             >
           </Alert>
@@ -400,12 +400,12 @@
                 type="single"
                 value={open?.path ?? ''}
               >
-                <Select.Trigger class="w-full font-mono text-sm">
+                <Select.Trigger class="w-full font-mono text-label">
                   {open?.name ?? 'Select a document'}
                 </Select.Trigger>
                 <Select.Content>
                   {#each docs as doc (doc.path)}
-                    <Select.Item class="font-mono text-sm" value={doc.path}
+                    <Select.Item class="font-mono text-label" value={doc.path}
                       >{doc.name}</Select.Item
                     >
                   {/each}
@@ -431,7 +431,7 @@
                 {#each docs as doc (doc.path)}
                   <button
                     aria-selected={open?.path === doc.path}
-                    class="truncate rounded-[var(--radius-control)] px-3 py-1.5 text-left font-mono text-micro transition-colors
+                    class="truncate rounded-[var(--radius-sm)] px-3 py-1.5 text-left font-mono text-label transition-colors
                       hover:bg-accent
                       {open?.path === doc.path
                         ? 'bg-accent text-accent-foreground font-medium'
@@ -463,7 +463,7 @@
                   {#each docs as doc (doc.path)}
                     <button
                       aria-selected={open?.path === doc.path}
-                      class="shrink-0 truncate rounded-[var(--radius-control)] px-3 py-1.5 font-mono text-micro transition-colors
+                      class="shrink-0 truncate rounded-[var(--radius-sm)] px-3 py-1.5 font-mono text-label transition-colors
                         hover:bg-accent
                         {open?.path === doc.path
                           ? 'bg-accent text-accent-foreground font-medium'
@@ -480,17 +480,17 @@
 
               {#if open}
                 <Card
-                  class="gap-0 rounded-[var(--radius-panel)] py-0 shadow-md"
+                  class="gap-0 rounded-[var(--radius-lg)] py-0 shadow-md"
                 >
                   <header
                     class="flex items-center gap-[var(--space-3)] px-[var(--space-4)] py-[var(--space-2)]"
                   >
                     <span
-                      class="min-w-0 truncate font-mono text-micro text-muted-foreground"
+                      class="min-w-0 truncate font-mono text-label text-muted-foreground"
                       >{open.name}</span
                     >
                     {#if docError}
-                      <span class="truncate text-micro text-error" role="alert"
+                      <span class="truncate text-label text-error" role="alert"
                         >{docError}</span
                       >
                     {/if}
@@ -551,7 +551,7 @@
                     </div>
                     {#if clipped || expanded}
                       <button
-                        class="flex min-h-9 w-full items-center justify-center rounded-b-[var(--radius-panel)] text-caption
+                        class="flex min-h-9 w-full items-center justify-center rounded-b-[var(--radius-lg)] text-caption
                           transition-colors hover:bg-accent hover:text-accent-foreground"
                         onclick={() => {
                           expanded = !expanded;
@@ -564,7 +564,7 @@
                   {:else}
                     <Textarea
                       aria-label={open.name}
-                      class="h-[60vh] min-h-0 rounded-none border-x-0 border-b-0 border-t border-border bg-transparent px-[var(--space-6)] py-[var(--space-4)] font-mono text-[length:var(--text-base)] text-foreground focus-visible:ring-inset md:px-[var(--space-7)]"
+                      class="h-[60vh] min-h-0 rounded-none border-x-0 border-b-0 border-t border-border bg-transparent px-[var(--space-6)] py-[var(--space-4)] font-mono text-[length:var(--text-label)] text-foreground focus-visible:ring-inset md:px-[var(--space-7)]"
                       spellcheck="false"
                       bind:value={draft}
                     />
@@ -583,7 +583,7 @@
         class="mt-6 flex w-full shrink-0 flex-col gap-4 lg:-m-px lg:mt-0 lg:w-[340px] lg:overflow-y-auto lg:p-px xl:w-[360px]"
       >
         <!-- Sessions -->
-        <Card class="gap-0 rounded-[var(--radius-panel)] py-0 shadow-md">
+        <Card class="gap-0 rounded-[var(--radius-lg)] py-0 shadow-md">
           <header class="px-[var(--space-4)] py-[var(--space-3)]">
             <h2 class="text-title">Sessions</h2>
           </header>
@@ -601,7 +601,7 @@
               />
             {:else}
               {#if live.length === 0}
-                <p class="px-1 py-2 text-caption">
+                <p class="px-1 py-2 text-meta text-muted-foreground">
                   Nothing running, nothing recorded yet.
                 </p>
               {/if}
@@ -636,7 +636,7 @@
         >
           {#snippet meta()}
             {#if claudeError}
-              <span class="min-w-0 truncate text-micro text-error" role="alert"
+              <span class="min-w-0 truncate text-label text-error" role="alert"
                 >{claudeError}</span
               >
             {/if}
@@ -644,7 +644,7 @@
           {#snippet footer()}
             {#if claudeEditing}
               <p
-                class="border-t border-border px-4 py-2 text-micro text-muted-foreground"
+                class="border-t border-border px-4 py-2 text-label text-muted-foreground"
               >
                 This file is the repo's own — commit it to share it. Git is its
                 sync; Whiffle does not replicate it.

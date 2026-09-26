@@ -146,7 +146,7 @@
 <div class="flex-1 overflow-y-auto p-6">
   <form class="mx-auto flex max-w-2xl flex-col gap-6" onsubmit={save}>
     <a
-      class="flex w-fit items-center gap-1 text-micro text-muted-foreground hover:text-foreground"
+      class="flex w-fit items-center gap-1 text-label text-muted-foreground hover:text-foreground"
       href="/delegates"
     >
       <IconArrowRight class="size-3 shrink-0 rotate-180" />
@@ -155,17 +155,17 @@
 
     {#if data.error}
       <div
-        class="rounded-[var(--radius-card)] bg-card p-4 shadow-md"
+        class="rounded-[var(--radius-md)] bg-card p-4 shadow-md"
         role="alert"
       >
-        <p class="text-caption text-warning">{data.error}</p>
+        <p class="text-meta text-warning">{data.error}</p>
       </div>
     {/if}
 
     <header class="flex flex-col gap-3">
       <!-- biome-ignore lint/a11y/noLabelWithoutControl: the <Input> component renders a native input as its only child; Biome can't see through the component boundary -->
       <label class="flex flex-col gap-1.5">
-        <span class="text-micro text-muted-foreground">Name</span>
+        <span class="text-label text-muted-foreground">Name</span>
         <Input
           aria-invalid={(shown('name') && problem) || duplicate ? 'true' : undefined}
           autocomplete="off"
@@ -178,34 +178,34 @@
           spellcheck="false"
           bind:value={draft.name}
         />
-        <span class="text-micro text-muted-foreground">
+        <span class="text-label text-muted-foreground">
           {data.composing
             ? 'Lowercase letters, digits and hyphens — the exact string a delegate call\'s type param names.'
             : 'The name is the key a running call already asks for by; renaming means creating a new type.'}
         </span>
       </label>
       {#if shown('name') && problem?.includes('name')}
-        <p class="text-micro text-destructive">{problem}</p>
+        <p class="text-label text-destructive">{problem}</p>
       {:else if duplicate}
-        <p class="text-micro text-destructive">{duplicate}</p>
+        <p class="text-label text-destructive">{duplicate}</p>
       {/if}
     </header>
 
     <!-- The description is the product: the calling agent's only signal for
          whether this is the right type, so it is the largest field on the form. -->
     <section
-      class="flex flex-col gap-2 rounded-[var(--radius-panel)] bg-card p-5 shadow-md"
+      class="flex flex-col gap-2 rounded-[var(--radius-lg)] bg-card p-5 shadow-md"
     >
       <div class="flex flex-col gap-1">
         <h2 class="text-body font-medium">Description</h2>
-        <p class="max-w-prose text-micro text-muted-foreground">
+        <p class="max-w-prose text-label text-muted-foreground">
           What the calling model reads to decide whether this is the type to
           route to — not a note for you, a routing signal for it.
         </p>
       </div>
       <Textarea
         aria-invalid={shown('description') && problem?.includes('description') ? 'true' : undefined}
-        class="resize-y text-sm md:text-sm"
+        class="resize-y text-label md:text-label"
         onblur={() => {
           touched.description = true;
         }}
@@ -214,16 +214,16 @@
         bind:value={draft.description}
       />
       {#if shown('description') && problem?.includes('description')}
-        <span class="text-micro text-destructive">{problem}</span>
+        <span class="text-label text-destructive">{problem}</span>
       {/if}
     </section>
 
     <section
-      class="flex flex-col gap-4 rounded-[var(--radius-panel)] bg-card p-5 shadow-md"
+      class="flex flex-col gap-4 rounded-[var(--radius-lg)] bg-card p-5 shadow-md"
     >
       <div class="flex flex-col gap-1">
         <h2 class="text-body font-medium">What it runs on</h2>
-        <p class="max-w-prose text-micro text-muted-foreground">
+        <p class="max-w-prose text-label text-muted-foreground">
           The harness and model the delegate spawns on, and how hard it should
           think.
         </p>
@@ -231,7 +231,7 @@
 
       <div class="grid gap-4 sm:grid-cols-3">
         <!-- biome-ignore lint/a11y/noLabelWithoutControl: the <NativeSelect> component renders a native select as its only child; Biome can't see through the component boundary -->
-        <label class="flex flex-col gap-1.5 text-caption">
+        <label class="flex flex-col gap-1.5 text-meta text-muted-foreground">
           Harness
           <NativeSelect class="w-full" bind:value={draft.harness}>
             {#each DELEGATE_HARNESSES as harness (harness)}
@@ -240,7 +240,7 @@
           </NativeSelect>
         </label>
 
-        <div class="flex min-w-0 flex-col gap-1.5 text-caption">
+        <div class="flex min-w-0 flex-col gap-1.5 text-meta text-muted-foreground">
           <span>Model</span>
           <ModelCombobox
             class="w-full min-w-0 text-foreground"
@@ -255,7 +255,7 @@
         </div>
 
         <!-- biome-ignore lint/a11y/noLabelWithoutControl: the <NativeSelect> component renders a native select as its only child; Biome can't see through the component boundary -->
-        <label class="flex flex-col gap-1.5 text-caption">
+        <label class="flex flex-col gap-1.5 text-meta text-muted-foreground">
           Effort
           <NativeSelect
             class="w-full"
@@ -278,27 +278,27 @@
         </label>
       </div>
       {#if shown('model') && problem?.includes('model')}
-        <span class="text-micro text-destructive">{problem}</span>
+        <span class="text-label text-destructive">{problem}</span>
       {/if}
     </section>
 
     <section
-      class="flex flex-col gap-4 rounded-[var(--radius-panel)] bg-card p-5 shadow-md"
+      class="flex flex-col gap-4 rounded-[var(--radius-lg)] bg-card p-5 shadow-md"
     >
       <div class="flex flex-col gap-1">
         <h2 class="text-body font-medium">What it can reach</h2>
-        <p class="max-w-prose text-micro text-muted-foreground">
+        <p class="max-w-prose text-label text-muted-foreground">
           Comma-separated. Both are optional narrowings, not requirements —
           empty means the delegate has the harness's ordinary defaults.
         </p>
       </div>
 
       <!-- biome-ignore lint/a11y/noLabelWithoutControl: the <Input> component renders a native input as its only child; Biome can't see through the component boundary -->
-      <label class="flex flex-col gap-1.5 text-caption">
+      <label class="flex flex-col gap-1.5 text-meta text-muted-foreground">
         Skills
         <Input
           autocomplete="off"
-          class="font-mono text-sm md:text-sm"
+          class="font-mono text-label md:text-label"
           placeholder="svelte-foundations:coding, ui-observer"
           spellcheck="false"
           bind:value={skillsText}
@@ -306,11 +306,11 @@
       </label>
 
       <!-- biome-ignore lint/a11y/noLabelWithoutControl: the <Input> component renders a native input as its only child; Biome can't see through the component boundary -->
-      <label class="flex flex-col gap-1.5 text-caption">
+      <label class="flex flex-col gap-1.5 text-meta text-muted-foreground">
         Tools denied
         <Input
           autocomplete="off"
-          class="font-mono text-sm md:text-sm"
+          class="font-mono text-label md:text-label"
           placeholder="Write, Edit, NotebookEdit"
           spellcheck="false"
           bind:value={denyToolsText}
@@ -322,7 +322,7 @@
       <!-- biome-ignore lint/a11y/noLabelWithoutControl: the <Switch> component renders a native checkbox input; Biome can't see through the component boundary -->
       <label class="flex w-fit items-center gap-3">
         <Switch bind:checked={canDelegate} />
-        <span class="text-caption">
+        <span class="text-meta text-muted-foreground">
           {canDelegate
             ? 'May delegate — it can spawn delegates and sessions of its own'
             : 'Leaf — it does the work itself and cannot delegate further'}
@@ -331,10 +331,8 @@
     </section>
 
     <Alert.Root
-      class="rounded-[var(--radius-control)] border-[var(--border-control)] bg-[var(--surface-field)]"
     >
       <Alert.Description
-        class="text-[length:var(--text-sm)] leading-[var(--leading-body)] text-[color:var(--ink-muted)]"
       >
         Changes apply to new sessions only — running sessions keep the type list
         they started with.
@@ -342,7 +340,7 @@
     </Alert.Root>
 
     {#if failed}
-      <p class="text-caption text-destructive" role="alert">{failed}</p>
+      <p class="text-meta text-destructive" role="alert">{failed}</p>
     {/if}
 
     <div

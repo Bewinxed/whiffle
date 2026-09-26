@@ -258,7 +258,7 @@
     min-width: 0;
     min-height: 0;
     overflow: hidden;
-    background: var(--surface-field);
+    background: var(--surface-recess);
   }
 
   /* Which group the keyboard belongs to, said without colour: a hairline

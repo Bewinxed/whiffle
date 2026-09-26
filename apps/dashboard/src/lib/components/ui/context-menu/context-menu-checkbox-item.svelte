@@ -1,6 +1,5 @@
 <script lang="ts">
-  import { Tick02Icon } from "@hugeicons/core-free-icons";
-  import { HugeiconsIcon } from "@hugeicons/svelte";
+  import { IconTick } from "$lib/icons";
   import { ContextMenu as ContextMenuPrimitive } from "bits-ui";
   import type { Snippet } from "svelte";
   import { cn, type WithoutChildrenOrChild } from "$lib/utils.js";
@@ -21,7 +20,7 @@
 
 <ContextMenuPrimitive.CheckboxItem
   class={cn(
-		"relative flex cursor-default select-none items-center gap-2 rounded-[var(--radius-card)] py-2 pr-8 pl-3 text-sm outline-hidden focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-inset:pl-9.5 data-disabled:opacity-50 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+		"kit-item relative flex cursor-default select-none items-center gap-2 pr-8 text-label outline-hidden data-disabled:pointer-events-none data-inset:pl-9.5 data-disabled:opacity-50 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0 pl-2.5",
 		className
 	)}
   data-inset={inset}
@@ -34,7 +33,7 @@
   {#snippet children({ checked })}
     <span class="absolute right-2 pointer-events-none">
       {#if checked}
-        <HugeiconsIcon icon={Tick02Icon} strokeWidth={2} />
+        <IconTick />
       {/if}
     </span>
     {@render childrenProp?.()}

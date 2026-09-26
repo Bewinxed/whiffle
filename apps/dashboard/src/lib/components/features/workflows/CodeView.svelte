@@ -83,9 +83,9 @@
   const theme = EditorView.theme({
     "&": {
       height: "100%",
-      color: "var(--ink-body)",
-      backgroundColor: "var(--surface-field)",
-      fontSize: "var(--text-base)",
+      color: "var(--ink-strong)",
+      backgroundColor: "var(--surface-recess)",
+      fontSize: "var(--text-label)",
     },
     "&.cm-focused": {
       outline: "2px solid var(--focus-ring)",
@@ -100,7 +100,7 @@
       caretColor: "var(--ink-strong)",
     },
     ".cm-gutters": {
-      backgroundColor: "var(--surface-field)",
+      backgroundColor: "var(--surface-recess)",
       color: "var(--ink-muted)",
       border: "0",
       borderInlineEnd: "1px solid var(--border-hairline)",
@@ -115,7 +115,7 @@
     ".cm-cursor": { borderLeftColor: "var(--ink-strong)" },
     ".cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection":
       {
-        backgroundColor: "var(--surface-active)",
+        backgroundColor: "var(--surface-fill)",
       },
     ".cm-lintRange-error": {
       backgroundImage: "none",
@@ -124,15 +124,15 @@
     },
     ".cm-diagnostic": {
       fontFamily: "var(--font-sans)",
-      fontSize: "var(--text-sm)",
+      fontSize: "var(--text-label)",
       borderInlineStart: "3px solid var(--status-fail-ink)",
       backgroundColor: "var(--surface-raised)",
-      color: "var(--ink-body)",
+      color: "var(--ink-strong)",
     },
     ".cm-tooltip": {
       backgroundColor: "var(--surface-raised)",
       border: "1px solid var(--border-control)",
-      borderRadius: "var(--radius-well)",
+      borderRadius: "var(--radius-sm)",
       boxShadow: "var(--shadow-overlay)",
     },
   });
@@ -237,9 +237,9 @@
   .code-view {
     height: 100%;
     min-height: 0;
-    background: var(--surface-field);
+    background: var(--surface-recess);
     border: 1px solid var(--border-hairline);
-    border-radius: var(--radius-well);
+    border-radius: var(--radius-sm);
     overflow: hidden;
   }
   .code-view :global(.cm-editor) {

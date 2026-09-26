@@ -193,7 +193,7 @@
     display: block;
     width: 100%;
     background: var(--surface-raised);
-    border-radius: var(--radius-panel);
+    border-radius: var(--radius-lg);
     padding: var(--space-3);
     box-shadow: var(--shadow-tile);
   }
@@ -207,7 +207,7 @@
   }
   .heading {
     text-align: left;
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--ink-muted);
   }
   .workflow-row {
@@ -242,11 +242,11 @@
     display: grid;
     gap: var(--space-1);
     color: var(--ink-strong);
-    font-size: var(--text-base);
+    font-size: var(--text-label);
   }
   :global(.new-item) small {
     color: var(--ink-muted);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     line-height: var(--leading-body);
   }
   .mobile {

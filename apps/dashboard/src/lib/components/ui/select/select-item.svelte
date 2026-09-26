@@ -1,6 +1,5 @@
 <script lang="ts">
-  import { Tick02Icon } from "@hugeicons/core-free-icons";
-  import { HugeiconsIcon } from "@hugeicons/svelte";
+  import { IconTick } from "$lib/icons";
   import { Select as SelectPrimitive } from "bits-ui";
   import { cn, type WithoutChild } from "$lib/utils.js";
 
@@ -16,7 +15,7 @@
 
 <SelectPrimitive.Item
   class={cn(
-		"relative flex w-full cursor-default select-none items-center gap-2.5 rounded-[var(--radius-card)] py-2 pr-8 pl-3 text-sm outline-hidden focus:bg-accent focus:bg-accent focus:text-accent-foreground focus:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground data-[disabled]:pointer-events-none data-highlighted:bg-accent data-highlighted:text-accent-foreground data-[disabled]:opacity-50 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
+		"kit-item relative flex w-full cursor-default select-none items-center gap-2.5 pr-8 text-label outline-hidden data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2 pl-2.5",
 		className
 	)}
   data-slot="select-item"
@@ -27,11 +26,8 @@
   {#snippet children({ selected, highlighted })}
     <span class="absolute end-2 flex size-3.5 items-center justify-center">
       {#if selected}
-        <HugeiconsIcon
-          class="cn-select-item-indicator-icon"
-          icon={Tick02Icon}
-          strokeWidth={2}
-        />
+        <IconTick
+          class="cn-select-item-indicator-icon" />
       {/if}
     </span>
     <span class="flex flex-1 gap-2 shrink-0 whitespace-nowrap">

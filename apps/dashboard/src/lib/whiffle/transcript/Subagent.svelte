@@ -156,7 +156,7 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     background: none;
     border: 0;
     padding: 0;
@@ -166,7 +166,7 @@
     /* A disclosure header toggles content — it is not a press-action, so it does
        NOT scale on click (that read as the whole card shrinking). It reacts with
        ink only; the chevron rotation and the panel opening are the feedback. */
-    transition: color var(--c-100) var(--e-in);
+    transition: color var(--dur-control) var(--ease-out);
   }
   @media (hover: hover) and (pointer: fine) {
     :global(.branch .bhead:hover) .tk {
@@ -181,14 +181,14 @@
     overflow: hidden;
   }
   /* 200ms, matched to collapsible-lazy's 220ms unmount hold — at the old
-     var(--c-300) the content vanished at 220ms, mid-collapse, and the last
-     80ms animated an emptying box. Entry decelerates (--e-in), exit
-     accelerates (--e-out): the rail's one collapsible vocabulary. */
+     var(--dur-panel) the content vanished at 220ms, mid-collapse, and the last
+     80ms animated an emptying box. Entry decelerates (--ease-out), exit
+     accelerates (--ease-out): the rail's one collapsible vocabulary. */
   :global(.branch [data-slot="collapsible-content"][data-state="open"]) {
-    animation: branch-down calc(var(--c-100) * 2) var(--e-in);
+    animation: branch-down calc(var(--dur-control) * 2) var(--ease-out);
   }
   :global(.branch [data-slot="collapsible-content"][data-state="closed"]) {
-    animation: branch-up calc(var(--c-100) * 2) var(--e-out);
+    animation: branch-up calc(var(--dur-control) * 2) var(--ease-out);
   }
   @keyframes branch-down {
     from {
@@ -222,7 +222,7 @@
     display: grid;
     place-items: center;
     color: var(--ink-muted);
-    transition: transform var(--c-100) var(--e-in);
+    transition: transform var(--dur-control) var(--ease-out);
   }
   :global(.branch .bhead[data-state="open"]) .chev {
     transform: rotate(90deg);
@@ -237,7 +237,7 @@
   .mark {
     width: 17px;
     height: 17px;
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
     flex: 0 0 auto;
     display: grid;
     place-items: center;
@@ -276,7 +276,7 @@
   .tk {
     font-family: var(--font-mono);
     color: var(--ink-strong);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     flex: 0 0 auto;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -285,7 +285,7 @@
   }
   .arg {
     color: var(--ink-muted);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -294,16 +294,16 @@
   }
   .model {
     color: var(--ink-muted);
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     flex: 0 0 auto;
     white-space: nowrap;
   }
   .pill {
     margin-left: auto;
     flex: 0 0 auto;
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     font-variant-numeric: tabular-nums;
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
     padding: 2px var(--space-2);
     background: var(--status-idle-bg);
     color: var(--status-idle-ink);
@@ -327,8 +327,8 @@
     align-items: baseline;
     gap: var(--space-2);
     margin: var(--space-1) 0 0 var(--glyph);
-    font-size: var(--text-sm);
-    color: var(--ink-body);
+    font-size: var(--text-label);
+    color: var(--ink-strong);
     line-height: var(--leading-body);
     max-width: 68ch;
   }
@@ -343,7 +343,7 @@
     flex: 0 0 auto;
     border-radius: 50%;
     background: var(--status-live-ink);
-    animation: beat var(--breath) var(--e-toggle) infinite;
+    animation: beat var(--breath) var(--ease-in-out) infinite;
   }
   @keyframes beat {
     50% {
@@ -352,13 +352,13 @@
   }
 
   /* The delegate's own transcript, in a well of its own. Concentric: the well's
-     --radius-control (8px) less its --space-1 (4px) padding is the --radius-mark
+     --radius-sm (8px) less its --space-1 (4px) padding is the --radius-xs
      the report inside it carries, so no two nested corners share a radius. */
   .inner {
     margin: var(--space-2) 0 0 var(--glyph);
     padding: var(--space-1);
-    border-radius: var(--radius-control);
-    background: var(--surface-sunken);
+    border-radius: var(--radius-sm);
+    background: var(--surface-recess);
   }
   .say {
     margin-top: var(--space-4);
@@ -366,12 +366,12 @@
   .report {
     margin-top: var(--space-4);
     padding: var(--space-3);
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
     background: var(--surface-raised);
     box-shadow: var(--shadow-tile);
   }
   .report h4 {
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     font-weight: var(--weight-medium);
     letter-spacing: 0.02em;
     text-transform: uppercase;
@@ -381,8 +381,8 @@
   .fail {
     margin-top: var(--space-4);
     padding: var(--space-3);
-    border-radius: var(--radius-mark);
-    font-size: var(--text-sm);
+    border-radius: var(--radius-xs);
+    font-size: var(--text-label);
     color: var(--status-fail-ink);
     background: var(--surface-raised);
     box-shadow: var(--shadow-tile);

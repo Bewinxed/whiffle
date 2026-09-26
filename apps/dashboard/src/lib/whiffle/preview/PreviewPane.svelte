@@ -157,7 +157,7 @@
             {
               duration: matchMedia("(prefers-reduced-motion: reduce)").matches
                 ? 1
-                : Number.parseFloat(style.getPropertyValue("--c-300")),
+                : Number.parseFloat(style.getPropertyValue("--dur-panel")),
             }
           );
         }
@@ -264,7 +264,7 @@
     height: 100%;
     padding: 0 var(--space-2) var(--space-2);
     background: var(--surface-raised);
-    border-radius: var(--radius-panel);
+    border-radius: var(--radius-lg);
     box-shadow: var(--shadow-drawer);
   }
   header {
@@ -288,13 +288,13 @@
     white-space: nowrap;
   }
   .title {
-    color: var(--ink-body);
-    font-size: var(--text-base);
+    color: var(--ink-strong);
+    font-size: var(--text-label);
     font-weight: var(--weight-medium);
   }
   .path {
     color: var(--ink-muted);
-    font: var(--text-xs) var(--font-mono);
+    font: var(--text-meta) var(--font-mono);
   }
   button,
   a {
@@ -306,18 +306,18 @@
     height: 30px;
     padding: 0 var(--space-2);
     border: 0;
-    border-radius: var(--radius-control);
+    border-radius: var(--radius-sm);
     color: var(--ink-muted);
     background: transparent;
     cursor: pointer;
     text-decoration: none;
     font: inherit;
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     transition:
-      background-color var(--c-100) var(--e-in),
-      color var(--c-100) var(--e-in),
-      transform var(--c-100) var(--e-in),
-      opacity var(--c-100) var(--e-toggle);
+      background-color var(--dur-control) var(--ease-out),
+      color var(--dur-control) var(--ease-out),
+      transform var(--dur-control) var(--ease-out),
+      opacity var(--dur-control) var(--ease-in-out);
   }
   button :global(svg),
   a :global(svg) {
@@ -334,7 +334,7 @@
     transform: scale(0.96);
   }
   button[aria-pressed="true"] {
-    background: var(--surface-active);
+    background: var(--surface-fill);
     color: var(--ink-strong);
   }
   button:disabled,
@@ -347,10 +347,10 @@
     min-height: 0;
     overflow: hidden;
     border: 1px solid var(--border-hairline);
-    border-radius: var(--radius-well);
-    background: var(--surface-field);
+    border-radius: var(--radius-sm);
+    background: var(--surface-recess);
     outline: 2px solid transparent;
-    transition: outline-color var(--c-100) var(--e-toggle);
+    transition: outline-color var(--dur-control) var(--ease-in-out);
   }
   .selecting .well {
     outline-color: var(--accent);
@@ -364,7 +364,7 @@
     height: 100%;
     border: 0;
     opacity: 0;
-    transition: opacity var(--c-100) var(--e-in);
+    transition: opacity var(--dur-control) var(--ease-out);
   }
   iframe.ready {
     opacity: 1;
@@ -373,9 +373,9 @@
     position: absolute;
     inset: 0;
     padding: var(--space-5);
-    background: var(--surface-field);
+    background: var(--surface-recess);
     pointer-events: none;
-    transition: opacity var(--c-100) var(--e-in);
+    transition: opacity var(--dur-control) var(--ease-out);
   }
   .skeleton.ready {
     opacity: 0;
@@ -384,8 +384,8 @@
     display: block;
     width: 42%;
     height: var(--space-3);
-    background: var(--surface-sunken);
-    border-radius: var(--radius-mark);
+    background: var(--surface-recess);
+    border-radius: var(--radius-xs);
   }
   .empty {
     display: flex;
@@ -393,7 +393,7 @@
     gap: var(--space-2);
     padding: var(--space-4);
     color: var(--ink-muted);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
   }
   .error {
     position: absolute;
@@ -401,7 +401,7 @@
     padding: var(--space-2);
     background: var(--surface-raised);
     color: var(--data-bad);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
   }
   @container (max-width: 469px) {
     .select-label {

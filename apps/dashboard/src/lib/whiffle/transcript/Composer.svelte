@@ -853,8 +853,8 @@
     z-index: 19;
     background: linear-gradient(
       to top,
-      var(--surface-field) 22%,
-      oklch(from var(--surface-field) l c h / 0)
+      var(--surface-recess) 22%,
+      oklch(from var(--surface-recess) l c h / 0)
     );
   }
   .composer {
@@ -878,7 +878,7 @@
     gap: var(--space-3);
   }
 
-  /* One shape, always. --radius-panel outside, --space-2 of inset, and the
+  /* One shape, always. --radius-lg outside, --space-2 of inset, and the
      controls inside carry (panel − inset) so the curves are concentric rather
      than two unrelated roundings stacked. Nothing here changes on focus. */
   .cin {
@@ -889,12 +889,12 @@
     background: oklch(from var(--surface-raised) l c h / 0.82);
     -webkit-backdrop-filter: blur(16px) saturate(1.6);
     backdrop-filter: blur(16px) saturate(1.6);
-    border-radius: var(--radius-panel);
+    border-radius: var(--radius-lg);
     padding: var(--cin-pad) var(--cin-pad) var(--cin-pad) var(--space-3);
     display: flex;
     align-items: flex-end;
     gap: var(--space-2);
-    box-shadow: var(--shadow-lifted);
+    box-shadow: var(--shadow-tile);
   }
   textarea {
     flex: 1 1 auto;
@@ -931,13 +931,13 @@
     max-height: 320px;
     overflow: hidden;
     border: 1px solid var(--border-hairline);
-    border-radius: var(--radius-panel);
+    border-radius: var(--radius-lg);
     background: var(--surface-raised);
-    box-shadow: var(--shadow-lifted);
+    box-shadow: var(--shadow-tile);
     /* It floats above the input, so it settles UPWARD into place — 4px of
-       travel, one --c-100, and then it is still. Dismissal is instant: a menu
+       travel, one --dur-control, and then it is still. Dismissal is instant: a menu
        that lingers on the way out sits over the sentence being written. */
-    animation: menu-open var(--c-100) var(--e-in) both;
+    animation: menu-open var(--dur-control) var(--ease-out) both;
   }
   @keyframes menu-open {
     from {
@@ -978,7 +978,7 @@
   }
   :global(.menu [data-slot="command-group"] [data-command-group-heading]) {
     padding: var(--space-1) var(--space-2) var(--space-2);
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     font-weight: var(--weight-medium);
     letter-spacing: 0.04em;
     text-transform: uppercase;
@@ -994,12 +994,12 @@
     gap: var(--space-2);
     min-height: 30px;
     padding: var(--space-1) var(--space-2);
-    border-radius: var(--radius-control);
+    border-radius: var(--radius-sm);
     cursor: pointer;
-    color: var(--ink-body);
+    color: var(--ink-strong);
     transition:
-      background-color var(--c-100) var(--e-in),
-      color var(--c-100) var(--e-in);
+      background-color var(--dur-control) var(--ease-out),
+      color var(--dur-control) var(--ease-out);
   }
   :global(.menu [data-slot="command-item"][data-selected="true"]) {
     background: var(--surface-hover);
@@ -1023,7 +1023,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--ink-muted);
     flex: 1 1 auto;
   }
@@ -1045,11 +1045,11 @@
     place-items: center;
     cursor: pointer;
     /* Concentric with the shell: outer radius less the inset that seats it. */
-    border-radius: calc(var(--radius-panel) - var(--cin-pad));
+    border-radius: calc(var(--radius-lg) - var(--cin-pad));
     transition:
-      background-color var(--c-100) var(--e-in),
-      color var(--c-100) var(--e-in),
-      transform var(--c-100) var(--e-in);
+      background-color var(--dur-control) var(--ease-out),
+      color var(--dur-control) var(--ease-out),
+      transform var(--dur-control) var(--ease-out);
   }
   .att-btn {
     border: 1px solid var(--border-control);
@@ -1063,14 +1063,12 @@
   @media (hover: hover) and (pointer: fine) {
     .att-btn:hover {
       background: var(--surface-hover);
-      color: var(--ink-body);
+      color: var(--ink-strong);
     }
   }
   .stop {
     border: 0;
     background: var(--brand-solid);
-    background-image: var(--gradient-action);
-    box-shadow: var(--shadow-action);
     color: var(--on-brand);
   }
   .stop :global(svg) {
@@ -1082,7 +1080,7 @@
   .stop .swap {
     display: grid;
     place-items: center;
-    animation: icon-swap var(--c-100) var(--e-in) both;
+    animation: icon-swap var(--dur-control) var(--ease-out) both;
   }
   @keyframes icon-swap {
     from {
@@ -1132,18 +1130,18 @@
     max-width: 100%;
     padding: var(--space-1) var(--space-1) var(--space-1) var(--space-2);
     border: 1px solid var(--border-hairline);
-    border-radius: var(--radius-control);
+    border-radius: var(--radius-sm);
     background: var(--surface-raised);
     box-shadow: var(--shadow-tile);
-    font-size: var(--text-sm);
-    color: var(--ink-body);
+    font-size: var(--text-label);
+    color: var(--ink-strong);
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
     /* A chip appearing under the input is a small confirmation, so it gets a
-       small one: 2px of travel and one --c-100. Removal stays instant — the
+       small one: 2px of travel and one --dur-control. Removal stays instant — the
        reader who clicked × has already decided. */
-    animation: att-in var(--c-100) var(--e-in) both;
+    animation: att-in var(--dur-control) var(--ease-out) both;
   }
   @keyframes att-in {
     from {
@@ -1158,7 +1156,7 @@
   .att img {
     width: 20px;
     height: 20px;
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
     object-fit: cover;
     flex: 0 0 auto;
   }
@@ -1168,7 +1166,7 @@
     width: 20px;
     height: 20px;
     border: 0;
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
     background: none;
     color: var(--ink-muted);
     cursor: pointer;
@@ -1179,8 +1177,8 @@
     height: 13px;
   }
   .att button:hover {
-    background: var(--surface-sunken);
-    color: var(--ink-body);
+    background: var(--surface-recess);
+    color: var(--ink-strong);
   }
 
   /* A thumb gets the platform's 44px floor; the shell's inset grows with the

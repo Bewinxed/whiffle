@@ -1,37 +1,21 @@
 <script lang="ts">
   import { ToggleGroup as ToggleGroupPrimitive } from "bits-ui";
-  import {
-    type ToggleVariants,
-    toggleVariants,
-  } from "$lib/components/ui/toggle/index.js";
   import { cn } from "$lib/utils.js";
-  import { getToggleGroupCtx } from "./toggle-group.svelte";
 
   let {
     ref = $bindable(null),
     value = $bindable(),
     class: className,
-    size,
-    variant,
     ...restProps
-  }: ToggleGroupPrimitive.ItemProps & ToggleVariants = $props();
-
-  const ctx = getToggleGroupCtx();
+  }: ToggleGroupPrimitive.ItemProps = $props();
 </script>
 
 <ToggleGroupPrimitive.Item
   class={cn(
-		"shrink-0 focus:z-10 focus-visible:z-10 data-[state=on]:bg-muted group-data-[spacing=0]/toggle-group:rounded-none group-data-vertical/toggle-group:data-[spacing=0]:data-[variant=outline]:border-t-0 group-data-horizontal/toggle-group:data-[spacing=0]:data-[variant=outline]:border-l-0 group-data-[spacing=0]/toggle-group:px-3 group-data-[spacing=0]/toggle-group:shadow-none group-data-[spacing=0]/toggle-group:has-data-[icon=inline-end]:pr-2.5 group-data-[spacing=0]/toggle-group:has-data-[icon=inline-start]:pl-2.5 group-data-horizontal/toggle-group:data-[spacing=0]:last:rounded-r-[var(--radius-control)] group-data-vertical/toggle-group:data-[spacing=0]:last:rounded-b-[var(--radius-control)] group-data-vertical/toggle-group:data-[spacing=0]:data-[variant=outline]:first:border-t group-data-horizontal/toggle-group:data-[spacing=0]:data-[variant=outline]:first:border-l group-data-vertical/toggle-group:data-[spacing=0]:first:rounded-t-[var(--radius-control)] group-data-horizontal/toggle-group:data-[spacing=0]:first:rounded-l-[var(--radius-control)]",
-		toggleVariants({
-			variant: ctx.variant || variant,
-			size: ctx.size || size,
-		}),
-		className
-	)}
-  data-size={ctx.size || size}
+    "kit-segment shrink-0 disabled:pointer-events-none disabled:opacity-50 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0 focus-ring",
+    className
+  )}
   data-slot="toggle-group-item"
-  data-spacing={ctx.spacing}
-  data-variant={ctx.variant || variant}
   {value}
   bind:ref
   {...restProps}

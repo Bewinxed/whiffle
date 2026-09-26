@@ -10,7 +10,7 @@
 </script>
 
 <SheetPrimitive.Title
-  class={cn("font-medium text-base text-foreground", className)}
+  class={cn("font-medium text-label text-foreground", className)}
   data-slot="sheet-title"
   bind:ref
   {...restProps}

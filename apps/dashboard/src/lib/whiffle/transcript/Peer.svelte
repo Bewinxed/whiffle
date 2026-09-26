@@ -68,13 +68,13 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     font-weight: var(--weight-medium);
     letter-spacing: 0.02em;
     text-transform: uppercase;
     color: var(--accent-text);
     background: var(--accent-bg-subtle);
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
     padding: 2px var(--space-2);
   }
   .peer.err .tag {
@@ -90,13 +90,13 @@
   .from {
     margin-left: var(--space-2);
     font-family: var(--font-mono);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--ink-muted);
     vertical-align: middle;
   }
   a.from {
     text-decoration: none;
-    transition: color var(--c-100) var(--e-in);
+    transition: color var(--dur-control) var(--ease-out);
   }
   @media (hover: hover) and (pointer: fine) {
     a.from:hover {

@@ -41,7 +41,7 @@
 
 {#if hasContent}
   <div
-    class={cn("font-normal text-destructive text-sm", className)}
+    class={cn("font-normal text-destructive text-label", className)}
     data-slot="field-error"
     role="alert"
     bind:this={ref}

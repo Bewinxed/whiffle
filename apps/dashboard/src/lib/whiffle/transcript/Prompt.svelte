@@ -227,45 +227,22 @@
      Control height sits on the scale — --space-8 (32) fine, 44 coarse. */
   const btnBase =
     "h-[var(--space-8)] pointer-coarse:h-11 gap-[var(--space-2)] " +
-    "rounded-[var(--radius-control)] px-[var(--space-3)] " +
-    "text-[length:var(--text-base)] font-medium " +
+    "rounded-[var(--radius-sm)] px-[var(--space-3)] " +
+    "text-label font-medium " +
     "[&_svg:not([class*='size-'])]:size-3";
 
-  /* The permission gate is symmetric by DESIGN.md law: Approve and Deny are
-     recessed PEERS at one fill and one border — no gradient, no primary. They
-     differ only in glyph and ink (grant → --ink-strong, refuse → --ink-body). */
-  /* `![background-image:none]`/`![box-shadow:none]`, same reason as the `!`
-     text colours below: the default variant's gradient + action shadow are
-     arbitrary properties tailwind-merge cannot collapse, so recolouring bg-
-     alone leaves the dark gradient painted OVER the raised fill — dark-mode
-     ink on a near-black button. Neutralize them explicitly. */
-  const flat =
-    "![background-image:none] ![box-shadow:none] hover:brightness-100";
-  const peer =
-    `${btnBase} ${flat} flex-1 min-w-0 border border-[var(--border-control)] ` +
-    "bg-[var(--surface-raised)] hover:bg-[var(--surface-hover)]";
-  /* `!` on the text colours, deliberately: the Button's default variant ships
-     `text-primary-foreground`, and tailwind-merge does not reliably recognise
-     `text-[color:var(…)]` as the same text-colour group — both classes reach
-     the DOM and the cascade picked the variant's, which in dark is dark text
-     on this dark fill. Important settles it regardless of merge behaviour. */
-  const grant = `${peer} !text-[color:var(--ink-strong)]`;
-  const refuse = `${peer} !text-[color:var(--ink-body)]`;
+  /* The permission gate is symmetric: Approve and Deny are outline peers at
+     one fill and one border, differing only in glyph. */
+  const peer = `${btnBase} flex-1 min-w-0`;
+  const grant = peer;
+  const refuse = peer;
+  const primary = `${btnBase} px-[var(--space-4)]`;
+  const dismiss = btnBase;
 
-  /* Answer IS a primary, non-destructive action, so it takes the never-flat
-     brand treatment (gradient + inset action shadow). */
-  const primary =
-    `${btnBase} px-[var(--space-4)] border-0 text-[color:var(--on-brand)] ` +
-    "bg-[var(--brand-solid)] [background-image:var(--gradient-action)] " +
-    "[box-shadow:var(--shadow-action)]";
-  const dismiss =
-    `${btnBase} ${flat} border border-[var(--border-control)] bg-[var(--surface-raised)] ` +
-    "!text-[color:var(--ink-body)] hover:bg-[var(--surface-hover)]";
-
-  /* A standing grant must read as consequential — warning tint, warning ink,
-     a real edge (DESIGN.md §"A standing grant must read as consequential"). */
+  /* A standing grant must read as consequential: warning tint, warning ink,
+     a real edge. */
   const widen =
-    `${btnBase} ${flat} border border-[var(--status-attn-ink)] bg-[var(--status-attn-bg)] ` +
+    `${btnBase} border-[var(--status-attn-ink)] !bg-[var(--status-attn-bg)] ` +
     "!text-[color:var(--status-attn-ink)]";
 </script>
 
@@ -308,6 +285,7 @@
       </Button>
       <Button
         class={dismiss}
+        variant="outline"
         disabled={!answerable}
         onclick={() => answer('deny')}
         >Dismiss</Button
@@ -349,6 +327,7 @@
     <div class="choice">
       <Button
         class={grant}
+        variant="outline"
         disabled={!answerable}
         onclick={() => answer('allow')}
       >
@@ -356,6 +335,7 @@
       </Button>
       <Button
         class={refuse}
+        variant="outline"
         disabled={!answerable}
         onclick={() => answer('deny')}
       >
@@ -379,6 +359,7 @@
         </p>
         <Button
           class={widen}
+        variant="outline"
           disabled={!answerable}
           onclick={() => answer('always')}
         >
@@ -393,7 +374,7 @@
   /* The focal moment: the card arrives with ONE settle and is then completely
      still. No pulse, no attention loop — the arrival is the whole signal, and a
      card that keeps moving after it has landed is asking twice. 200ms is written
-     on the token scale (--c-100 × 2) so it moves with the scale if the scale
+     on the token scale (--dur-control × 2) so it moves with the scale if the scale
      moves. `both` holds the from-frame before the first tick, so the card never
      flashes at full opacity for a frame before it settles. */
   @keyframes hitl-settle {
@@ -408,11 +389,11 @@
   }
   .hitl {
     border: 1px solid var(--border-control);
-    border-radius: var(--radius-panel);
+    border-radius: var(--radius-lg);
     background: var(--surface-raised);
     padding: var(--space-3);
     box-shadow: var(--shadow-hairline, var(--shadow-tile));
-    animation: hitl-settle calc(var(--c-100) * 2) var(--e-in) both;
+    animation: hitl-settle calc(var(--dur-control) * 2) var(--ease-out) both;
   }
   @media (prefers-reduced-motion: reduce) {
     .hitl {
@@ -420,7 +401,7 @@
     }
   }
   h2 {
-    font-size: var(--text-base);
+    font-size: var(--text-label);
     font-weight: var(--weight-strong);
     display: flex;
     align-items: center;
@@ -434,7 +415,7 @@
     height: 20px;
     padding: 0 var(--space-2);
     border-radius: var(--radius-pill);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     font-weight: var(--weight-strong);
     background: var(--status-attn-bg);
     color: var(--status-attn-ink);
@@ -446,21 +427,21 @@
   }
   .wait {
     margin-top: var(--space-2);
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     color: var(--ink-muted);
   }
   .lede {
-    font-size: var(--text-base);
+    font-size: var(--text-label);
     line-height: var(--leading-body);
-    color: var(--ink-body);
+    color: var(--ink-strong);
     margin-bottom: var(--space-2);
     max-width: 72ch;
   }
   .cmd {
     font-family: var(--font-mono);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--ink-strong);
-    border-left: 2px solid var(--border-divider);
+    border-left: 2px solid var(--border-hairline);
     padding: 3px 0 3px var(--space-3);
     margin-bottom: var(--space-2);
     white-space: pre-wrap;
@@ -476,9 +457,9 @@
     width: fit-content;
     cursor: pointer;
     list-style: none;
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     color: var(--ink-muted);
-    transition: color var(--c-100) var(--e-in);
+    transition: color var(--dur-control) var(--ease-out);
   }
   .disclose > summary::-webkit-details-marker {
     display: none;
@@ -486,13 +467,13 @@
   .disclose > summary::before {
     content: "▸";
     margin-right: var(--space-2);
-    transition: transform var(--c-100) var(--e-in);
+    transition: transform var(--dur-control) var(--ease-out);
   }
   .disclose[open] > summary::before {
     transform: rotate(90deg);
   }
   .disclose > summary:hover {
-    color: var(--ink-body);
+    color: var(--ink-strong);
   }
   .fields {
     display: flex;
@@ -500,8 +481,8 @@
     gap: var(--space-2);
     margin-top: var(--space-2);
     padding: var(--space-3);
-    border-radius: var(--radius-well);
-    background: var(--surface-sunken);
+    border-radius: var(--radius-sm);
+    background: var(--surface-recess);
   }
   .field {
     display: flex;
@@ -510,7 +491,7 @@
     min-width: 0;
   }
   .field .k {
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     font-weight: var(--weight-medium);
     color: var(--ink-muted);
   }
@@ -519,8 +500,8 @@
     max-height: 200px;
     overflow: auto;
     font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    color: var(--ink-body);
+    font-size: var(--text-meta);
+    color: var(--ink-strong);
     white-space: pre-wrap;
     word-break: break-word;
   }
@@ -551,16 +532,16 @@
     border-top: 1px solid var(--border-hairline);
   }
   .widen > p {
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--ink-muted);
     margin-bottom: var(--space-2);
     max-width: 66ch;
   }
   /* The permission scope actually being granted is consequential text — it
-     reads at --text-sm, never the 10.25px micro-label step. */
+     reads at --text-label, never the 10.25px micro-label step. */
   .mono {
     font-family: var(--font-mono);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
   }
   .qopts {
     display: flex;
@@ -572,11 +553,11 @@
     min-height: 30px;
     padding: var(--space-2) var(--space-3);
     border: 1px solid var(--border-control);
-    border-radius: var(--radius-control);
+    border-radius: var(--radius-sm);
     background: var(--surface-raised);
-    color: var(--ink-body);
+    color: var(--ink-strong);
     font-family: var(--font-body);
-    font-size: var(--text-base);
+    font-size: var(--text-label);
     font-weight: var(--weight-medium);
     display: inline-flex;
     align-items: center;
@@ -597,7 +578,7 @@
      none of them is a weight or size change: the chip never reflows on pick. */
   .qopts button.sel {
     border-color: var(--brand-solid);
-    background: var(--surface-sunken);
+    background: var(--surface-recess);
     color: var(--ink-strong);
   }
   .qopts button.sel .kc {
@@ -618,11 +599,11 @@
     min-width: 17px;
     height: 17px;
     padding: 0 4px;
-    border-radius: var(--radius-mark);
-    background: var(--surface-sunken);
+    border-radius: var(--radius-xs);
+    background: var(--surface-recess);
     font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    color: var(--ink-body);
+    font-size: var(--text-meta);
+    color: var(--ink-strong);
     line-height: 1;
     flex: 0 0 auto;
   }

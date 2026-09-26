@@ -71,15 +71,15 @@
 <button
   aria-expanded={open}
   aria-label={spoken}
-  class="flex h-7 w-full items-center gap-1.5 rounded-[var(--radius-control)] pr-2 pl-8
+  class="flex h-7 w-full items-center gap-1.5 rounded-[var(--radius-sm)] pr-2 pl-8
          transition-colors duration-150
-         hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring
+         hover:bg-sidebar-accent focus-ring
          focus-visible:outline-none {className}"
   onclick={onToggle}
   type="button"
 >
   <IconChevronRight
-    class="size-3 shrink-0 text-muted-foreground transition-transform duration-240 ease-[var(--e-in)]
+    class="size-3 shrink-0 text-muted-foreground transition-transform duration-240 ease-[var(--ease-out)]
            {open ? 'rotate-90' : ''}"
   />
   <span class="flex min-w-0 items-center gap-1">
@@ -100,7 +100,7 @@
       </span>
     {/each}
     {#if rest > 0}
-      <span class="shrink-0 text-micro text-faint" data-tabular>+{rest}</span>
+      <span class="shrink-0 text-label text-[var(--ink-subtle)]" data-tabular>+{rest}</span>
     {/if}
   </span>
 </button>

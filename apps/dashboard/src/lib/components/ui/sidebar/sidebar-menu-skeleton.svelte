@@ -18,7 +18,7 @@
 </script>
 
 <div
-  class={cn("flex h-8 items-center gap-2 rounded-[var(--radius-control)] px-2", className)}
+  class={cn("flex h-8 items-center gap-2 rounded-[var(--radius-sm)] px-2", className)}
   data-sidebar="menu-skeleton"
   data-slot="sidebar-menu-skeleton"
   bind:this={ref}
@@ -26,7 +26,7 @@
 >
   {#if showIcon}
     <Skeleton
-      class="size-4 rounded-[var(--radius-mark)]"
+      class="size-4 rounded-[var(--radius-xs)]"
       data-sidebar="menu-skeleton-icon"
     />
   {/if}

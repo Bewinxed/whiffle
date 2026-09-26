@@ -55,7 +55,7 @@
     align-items: center;
     gap: var(--space-1);
     color: var(--ink-muted);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     font-weight: var(--weight-medium);
     white-space: nowrap;
   }

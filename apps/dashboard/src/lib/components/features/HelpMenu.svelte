@@ -28,7 +28,7 @@
   // Ghost by default, the `outline` look once bits marks the trigger active.
   const triggerClass = cn(
     buttonVariants({ variant: "ghost", size: "sm" }),
-    "h-6 px-2 text-xs",
+    "h-6 px-2 text-meta",
     "data-[state=active]:border data-[state=active]:bg-background data-[state=active]:shadow-2xs",
     // Outranks the flat active background, the way `outline`'s hover outranked its own.
     "data-[state=active]:hover:bg-accent data-[state=active]:hover:text-accent-foreground",
@@ -70,7 +70,7 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <Tabs.Root
-  class="font-mono text-sm bg-background border border-border rounded-[var(--radius-card)] overflow-hidden"
+  class="font-mono text-label bg-background border border-border rounded-[var(--radius-md)] overflow-hidden"
   loop
   onValueChange={(value) => {
     activeTab = value as Tab;
@@ -95,7 +95,7 @@
         {/if}
       {/each}
     </Tabs.List>
-    <span class="text-muted-foreground text-xs ml-auto">(← → to cycle)</span>
+    <span class="text-muted-foreground text-meta ml-auto">(← → to cycle)</span>
   </div>
 
   <!-- Content -->
@@ -107,7 +107,7 @@
           class="space-y-4"
           in:fly={{ x: 8, duration: 200, easing: quintOut }}
         >
-          <h3 class="text-muted-foreground text-xs uppercase tracking-wide">
+          <h3 class="text-muted-foreground text-meta uppercase tracking-wide">
             Shortcuts
           </h3>
 
@@ -141,7 +141,7 @@
 
           <!-- vim mode indicator (if applicable) -->
           <div class="pt-2 border-t border-border/50">
-            <span class="text-muted-foreground text-xs">? for shortcuts</span>
+            <span class="text-muted-foreground text-meta">? for shortcuts</span>
           </div>
         </div>
       {/key}
@@ -154,7 +154,7 @@
           class="space-y-3"
           in:fly={{ x: 8, duration: 200, easing: quintOut }}
         >
-          <h3 class="text-muted-foreground text-xs uppercase tracking-wide">
+          <h3 class="text-muted-foreground text-meta uppercase tracking-wide">
             Built-in Commands
           </h3>
 
@@ -173,7 +173,7 @@
           {#if skillCommands.length > 0}
             <div class="pt-2 mt-2 border-t border-border/50">
               <h3
-                class="text-muted-foreground text-xs uppercase tracking-wide mb-2"
+                class="text-muted-foreground text-meta uppercase tracking-wide mb-2"
               >
                 Skills
               </h3>
@@ -196,7 +196,7 @@
           {#if mcpCommands.length > 0}
             <div class="pt-2 mt-2 border-t border-border/50">
               <h3
-                class="text-muted-foreground text-xs uppercase tracking-wide mb-2"
+                class="text-muted-foreground text-meta uppercase tracking-wide mb-2"
               >
                 MCP Tools
               </h3>
@@ -226,21 +226,21 @@
           class="space-y-3"
           in:fly={{ x: 8, duration: 200, easing: quintOut }}
         >
-          <h3 class="text-muted-foreground text-xs uppercase tracking-wide">
+          <h3 class="text-muted-foreground text-meta uppercase tracking-wide">
             Custom Commands
           </h3>
 
           {#if customCommands.length === 0}
             <div class="text-muted-foreground py-4">
               <p>No custom commands defined.</p>
-              <p class="mt-2 text-xs">
+              <p class="mt-2 text-meta">
                 Create custom commands by adding
                 <code class="bg-accent text-accent-foreground px-1 rounded"
                   >.md</code
                 >
                 files to:
               </p>
-              <p class="text-xs mt-1">
+              <p class="text-meta mt-1">
                 <code class="bg-accent text-accent-foreground px-1 rounded"
                   >.claude/commands/</code
                 >
@@ -269,21 +269,21 @@
 
   <!-- Footer -->
   <div
-    class="px-4 py-2 border-t border-border bg-accent/50 text-foreground text-xs flex items-center justify-between"
+    class="px-4 py-2 border-t border-border bg-accent/50 text-foreground text-meta flex items-center justify-between"
   >
     <span>
       Press
-      <kbd class="px-1 py-0.5 bg-card border border-border rounded text-xs"
+      <kbd class="px-1 py-0.5 bg-card border border-border rounded text-meta"
         >←</kbd
       >
-      <kbd class="px-1 py-0.5 bg-card border border-border rounded text-xs"
+      <kbd class="px-1 py-0.5 bg-card border border-border rounded text-meta"
         >→</kbd
       >
       to switch tabs
     </span>
     <span
       >Press
-      <kbd class="px-1 py-0.5 bg-card border border-border rounded text-xs"
+      <kbd class="px-1 py-0.5 bg-card border border-border rounded text-meta"
         >Esc</kbd
       >
       to close</span

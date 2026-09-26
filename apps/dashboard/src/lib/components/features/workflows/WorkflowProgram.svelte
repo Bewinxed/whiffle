@@ -79,22 +79,22 @@
     margin: var(--space-4) var(--space-5) var(--space-5);
     padding: var(--space-2);
     background: var(--surface-raised);
-    border-radius: var(--radius-card);
+    border-radius: var(--radius-md);
     box-shadow: var(--shadow-tile);
     min-width: 0;
   }
   .problems {
     gap: var(--space-2);
     padding: var(--space-4) var(--space-5) var(--space-5);
-    border-top: 1px solid var(--border-divider);
+    border-top: 1px solid var(--border-hairline);
     background: var(--surface-raised);
     max-height: 30dvh;
     overflow-y: auto;
   }
   .problem {
     padding: var(--space-3);
-    background: var(--surface-field);
-    border-radius: var(--radius-well);
+    background: var(--surface-recess);
+    border-radius: var(--radius-sm);
     overflow-wrap: anywhere;
   }
   .line {

@@ -162,7 +162,7 @@
     display: none;
   }
   .empty {
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--ink-muted);
     padding: var(--space-5) 0;
   }
@@ -183,8 +183,8 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    font-size: var(--text-sm);
-    color: var(--ink-body);
+    font-size: var(--text-label);
+    color: var(--ink-strong);
   }
   .livetool .ic {
     width: 15px;

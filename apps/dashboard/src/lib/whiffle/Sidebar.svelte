@@ -85,9 +85,9 @@
 
   /**
    * The rail's steps, named once. Every size here comes from app.css's scale
-   * (`--text-md` 15px for the nav step, `--text-base` 13.5px for list rows,
-   * `--text-sm` 12.5px for section labels) rather than Tailwind's own, which
-   * runs a step and a half smaller at every level and is how a rail of `text-xs`
+   * (`--text-body` 15px for the nav step, `--text-label` 13.5px for list rows,
+   * `--text-label` 12.5px for section labels) rather than Tailwind's own, which
+   * runs a step and a half smaller at every level and is how a rail of `text-meta`
    * rows ends up unreadable.
    *
    * Heights are the same two the rail always had: the nav band is tall because
@@ -95,15 +95,15 @@
    * 40px rows is a rail that fits eight things.
    */
   const NAV_ROW =
-    "h-[var(--c-nav-h)] gap-2.5 px-2.5 text-[length:var(--text-md)]";
+    "h-[var(--c-nav-h)] gap-2.5 px-2.5 text-[length:var(--text-body)]";
   const LIST_ROW =
-    "h-[30px] gap-2.5 px-2.5 py-0 text-[length:var(--text-base)]";
+    "h-[30px] gap-2.5 px-2.5 py-0 text-[length:var(--text-label)]";
   const SUB_ROW =
-    "h-[28px] gap-2.5 px-2.5 data-[size=md]:text-[length:var(--text-base)]";
+    "h-[28px] gap-2.5 px-2.5 data-[size=md]:text-[length:var(--text-label)]";
   /** `Sidebar.Group`'s own `p-2` plus `Sidebar.Content`'s `gap-2` stacked to
    *  24px of nothing between every section; the label already separates them. */
   const GROUP = "px-2 py-1";
-  const GROUP_LABEL = "px-2.5 text-[length:var(--text-sm)]";
+  const GROUP_LABEL = "px-2.5 text-[length:var(--text-label)]";
   /** 2px, not 4: these are rows of one list, not six unrelated buttons. */
   const MENU = "gap-0.5";
   /**
@@ -117,7 +117,7 @@
   const SLOT_GLYPH = "size-4";
   /** An identity chip fills the slot, and carries an 11px glyph — 3.5px of
    *  inset, which is the difference between a mark and a glyph in a box. */
-  const MARK = `${SLOT} rounded-[var(--radius-mark)]`;
+  const MARK = `${SLOT} rounded-[var(--radius-xs)]`;
   const MARK_GLYPH = "size-[11px]";
   /** The trailing column: one 16px box, so a 6px dot, an 8px dot and a 14px
    *  warning triangle all hang off the same right edge. */
@@ -423,7 +423,7 @@
   {@const label = ageOf(row)}
   {#if label}
     <span
-      class="shrink-0 text-[length:var(--text-sm)] tabular-nums text-muted-foreground"
+      class="shrink-0 text-[length:var(--text-label)] tabular-nums text-muted-foreground"
       title={ageHint(row)}
       >{label}</span
     >
@@ -444,8 +444,8 @@
             <a href="/session" {...props} class="{props.class} no-underline">
               <span
                 aria-hidden="true"
-                class="{SLOT} rounded-[var(--radius-mark)]"
-                style="background: var(--brand-solid); background-image: var(--gradient-action); box-shadow: var(--shadow-action); color: var(--on-brand);"
+                class="{SLOT} rounded-[var(--radius-xs)]"
+                style="background: var(--brand-solid); color: var(--on-brand);"
               >
                 <svg
                   aria-hidden="true"
@@ -460,7 +460,7 @@
                 </svg>
               </span>
               <span
-                class="min-w-0 truncate text-[length:var(--text-md)] font-semibold tracking-tight text-foreground"
+                class="min-w-0 truncate text-[length:var(--text-body)] font-semibold tracking-tight text-foreground"
                 >Whiffle</span
               >
             </a>
@@ -479,12 +479,12 @@
         </span>
         <Sidebar.Input
           aria-label="Jump to session"
-          class="h-9 pl-[38px] pr-14 md:text-[length:var(--text-md)]"
+          class="h-9 pl-[38px] pr-14 md:text-[length:var(--text-body)]"
           placeholder="Jump…"
         />
         <kbd
           class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 font-sans
-                  text-[length:var(--text-sm)] text-muted-foreground opacity-0 transition-opacity duration-75
+                  text-[length:var(--text-label)] text-muted-foreground opacity-0 transition-opacity duration-75
                   group-hover/search:opacity-100 group-focus-within/search:opacity-100"
           >⌘K</kbd
         >
@@ -501,7 +501,7 @@
                            group-hover/menu-item:opacity-100 group-focus-within/menu-item:opacity-100"
                 >
                   <kbd
-                    class="font-sans text-[length:var(--text-sm)] text-muted-foreground"
+                    class="font-sans text-[length:var(--text-label)] text-muted-foreground"
                     >⇧⌘N</kbd
                   >
                 </span>
@@ -763,11 +763,11 @@
       </Sidebar.GroupLabel>
       {#if orderedProjects.length === 0}
         <p
-          class="px-2.5 text-[length:var(--text-base)] leading-relaxed text-muted-foreground"
+          class="px-2.5 text-[length:var(--text-label)] leading-relaxed text-muted-foreground"
         >
           {#if whiffle.machines.length === 0}
             Run
-            <code class="font-mono text-[length:var(--text-sm)] text-foreground"
+            <code class="font-mono text-[length:var(--text-label)] text-foreground"
               >whiffle</code
             >
             on a machine, then group its checkouts here.
@@ -812,7 +812,7 @@
                   <span class="min-w-0 truncate">{project.name}</span>
                   {#if sessions.length > 0}
                     <span
-                      class="ml-auto shrink-0 text-[length:var(--text-sm)] tabular-nums text-muted-foreground"
+                      class="ml-auto shrink-0 text-[length:var(--text-label)] tabular-nums text-muted-foreground"
                       >{sessions.length}</span
                     >
                   {/if}
@@ -1019,12 +1019,12 @@
         <Sidebar.MenuButton class={NAV_ROW}>
           <span
             aria-hidden="true"
-            class="{SLOT} rounded-full bg-sidebar-accent text-[length:var(--text-xs)] font-semibold text-sidebar-accent-foreground"
+            class="{SLOT} rounded-full bg-sidebar-accent text-[length:var(--text-meta)] font-semibold text-sidebar-accent-foreground"
             >bw</span
           >
           <span class="min-w-0 flex-1 truncate text-foreground">bewinxed</span>
           <span
-            class="shrink-0 text-[length:var(--text-sm)] text-muted-foreground"
+            class="shrink-0 text-[length:var(--text-label)] text-muted-foreground"
           >
             {whiffle.machines.length}
             machine{whiffle.machines.length === 1 ? '' : 's'}

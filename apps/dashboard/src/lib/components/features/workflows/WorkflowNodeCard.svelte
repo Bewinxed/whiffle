@@ -156,11 +156,11 @@
   .wf-node {
     width: 260px;
     background: var(--surface-raised);
-    border: 1px solid var(--border-divider);
-    border-radius: var(--radius-card);
+    border: 1px solid var(--border-hairline);
+    border-radius: var(--radius-md);
     box-shadow: var(--shadow-tile);
-    color: var(--ink-body);
-    font-size: var(--text-base);
+    color: var(--ink-strong);
+    font-size: var(--text-label);
   }
   .selected {
     outline: 2px solid var(--brand-solid);
@@ -181,7 +181,7 @@
     width: 28px;
     height: 28px;
     border: 1px solid var(--neutral-8);
-    border-radius: var(--radius-well);
+    border-radius: var(--radius-sm);
     display: grid;
     place-items: center;
     flex-shrink: 0;
@@ -205,7 +205,7 @@
   }
   .meta {
     color: var(--ink-muted);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     overflow-wrap: anywhere;
     font-variant-numeric: tabular-nums;
   }
@@ -217,12 +217,12 @@
     position: relative;
     text-align: right;
     padding: var(--space-1) var(--space-4);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
   }
   .problem {
     display: grid;
     gap: var(--space-1);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
   }
   /* A checkpoint is a marker, not a status: the word and the time, on the
      step the program had just finished when it marked. No hue. */
@@ -230,9 +230,9 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    font-size: var(--text-sm);
-    color: var(--ink-label);
-    background: var(--surface-field);
+    font-size: var(--text-label);
+    color: var(--ink-muted);
+    background: var(--surface-recess);
     border-radius: var(--radius-pill);
     padding: 3px var(--space-3) 3px var(--space-2);
     overflow-wrap: anywhere;
@@ -253,7 +253,7 @@
   .group {
     border: 1px dashed var(--neutral-8);
     padding: var(--space-3);
-    border-radius: var(--radius-well);
+    border-radius: var(--radius-sm);
   }
   .child {
     display: flex;

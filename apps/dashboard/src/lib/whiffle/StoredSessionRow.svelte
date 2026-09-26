@@ -32,7 +32,7 @@
 
 <StoredSessionMenu {info} {machineId}>
   <a
-    class="flex min-h-9 items-center rounded-[var(--radius-control)] px-4 py-1.5
+    class="flex min-h-9 items-center rounded-[var(--radius-sm)] px-4 py-1.5
       transition-colors duration-150 ease-out hover:bg-accent hover:text-accent-foreground"
     {href}
     use:dragSession={{
@@ -64,13 +64,13 @@
            what tells two checkouts apart. -->
       {#if showCwd}
         <span
-          class="hidden min-w-24 shrink-[3] truncate font-mono text-micro text-muted-foreground [direction:rtl] sm:block"
+          class="hidden min-w-24 shrink-[3] truncate font-mono text-label text-muted-foreground [direction:rtl] sm:block"
           title={info.cwd}
           ><bdi>{info.cwd}</bdi></span
         >
       {/if}
       <span
-        class="ml-auto shrink-0 text-micro text-muted-foreground tabular-nums"
+        class="ml-auto shrink-0 text-label text-muted-foreground tabular-nums"
         data-tabular
       >
         {formatDistanceToNow(new Date(info.lastModified))}
@@ -87,7 +87,7 @@
   .mark {
     width: var(--c-mark);
     height: var(--c-mark);
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
     flex: 0 0 auto;
     display: grid;
     place-items: center;

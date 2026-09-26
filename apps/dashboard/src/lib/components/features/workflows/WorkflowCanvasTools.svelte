@@ -81,13 +81,13 @@
     gap: var(--space-1);
     padding: var(--space-1);
     background: var(--surface-raised);
-    border-radius: var(--radius-panel);
-    box-shadow: var(--shadow-lifted);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-tile);
   }
   span {
     min-width: 40px;
     text-align: center;
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     font-variant-numeric: tabular-nums;
   }
 </style>

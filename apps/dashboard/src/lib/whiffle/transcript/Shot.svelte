@@ -79,7 +79,7 @@
     height: 240px;
     padding: 0;
     border: 1px solid var(--border-hairline);
-    border-radius: var(--radius-well);
+    border-radius: var(--radius-sm);
     overflow: hidden;
     background: transparent;
     color: var(--ink-muted);
@@ -99,8 +99,8 @@
     opacity: 0;
     filter: blur(6px);
     transition:
-      opacity calc(var(--c-100) * 3) var(--e-in),
-      filter calc(var(--c-100) * 3) var(--e-in);
+      opacity calc(var(--dur-control) * 3) var(--ease-out),
+      filter calc(var(--dur-control) * 3) var(--ease-out);
   }
   img.loaded {
     opacity: 1;
@@ -109,16 +109,16 @@
   .skeleton {
     position: absolute;
     inset: 0;
-    background: var(--surface-sunken);
-    animation: pulse calc(var(--c-100) * 10) var(--e-in) infinite alternate;
+    background: var(--surface-recess);
+    animation: pulse calc(var(--dur-control) * 10) var(--ease-out) infinite alternate;
   }
   .missing {
     flex-direction: column;
     justify-content: center;
     align-items: flex-start;
     padding: var(--space-3);
-    background: var(--surface-sunken);
-    font-size: var(--text-xs);
+    background: var(--surface-recess);
+    font-size: var(--text-meta);
   }
   .path {
     font-family: var(--font-mono);
@@ -129,7 +129,7 @@
     flex-direction: column;
     gap: var(--space-1);
     margin-top: var(--space-2);
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     color: var(--ink-muted);
   }
   .thumb .box {

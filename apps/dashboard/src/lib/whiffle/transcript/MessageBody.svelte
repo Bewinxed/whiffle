@@ -87,13 +87,13 @@
     }
   }
   .msg {
-    font-size: var(--text-md);
+    font-size: var(--text-body);
     line-height: var(--leading-body);
     color: var(--ink-strong);
     max-width: 74ch;
   }
   .msg :global(.prose) {
-    font-size: var(--text-md);
+    font-size: var(--text-body);
     line-height: var(--leading-body);
     color: var(--ink-strong);
   }
@@ -139,7 +139,7 @@
   .msg :global(.prose h4),
   .msg :global(.prose h5),
   .msg :global(.prose h6) {
-    font-size: var(--text-md);
+    font-size: var(--text-body);
     line-height: var(--leading-ui);
     font-weight: var(--weight-strong);
     color: var(--ink-strong);
@@ -155,20 +155,20 @@
 
   .msg :global(code) {
     font-family: var(--font-mono);
-    font-size: var(--text-sm);
-    background: var(--surface-sunken);
+    font-size: var(--text-label);
+    background: var(--surface-recess);
     padding: 1px 4px;
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
   }
   /* A fence renders through OutputBlock, which paints its own well inside a
      `.not-prose` wrapper; the direct-child selector is the fallback for any
      `pre` that reaches prose itself, and leaves OutputBlock's alone. */
   .msg :global(.prose > pre) {
     font-family: var(--font-mono);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     line-height: var(--leading-body);
-    background: var(--surface-sunken);
-    border-radius: var(--radius-well);
+    background: var(--surface-recess);
+    border-radius: var(--radius-sm);
     padding: var(--space-3);
     overflow-x: auto;
   }

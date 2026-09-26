@@ -75,7 +75,7 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
     color: var(--ink-muted);
     font-weight: var(--weight-medium);
     margin-bottom: var(--space-2);
@@ -83,7 +83,7 @@
   .dot {
     width: 18px;
     height: 18px;
-    border-radius: var(--radius-mark);
+    border-radius: var(--radius-xs);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -96,7 +96,7 @@
   .dot.u {
     background: var(--surface-raised);
     border: 1px solid var(--border-control);
-    color: var(--ink-body);
+    color: var(--ink-strong);
   }
   .dot.a {
     background: var(--brand-solid);
@@ -115,7 +115,7 @@
     transform: scale(1.1);
   }
   .role {
-    font-size: var(--text-base);
+    font-size: var(--text-label);
     font-weight: var(--weight-strong);
     color: var(--ink-strong);
   }
@@ -124,7 +124,7 @@
      "this has not happened yet". */
   .note {
     margin-left: auto;
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     font-weight: var(--weight-body);
     color: var(--ink-muted);
   }
@@ -132,12 +132,12 @@
      turn and is otherwise absent from the skim. */
   .when {
     margin-left: auto;
-    font-size: var(--text-xs);
+    font-size: var(--text-meta);
     font-weight: var(--weight-body);
     color: var(--ink-muted);
     font-variant-numeric: tabular-nums;
     opacity: 0;
-    transition: opacity var(--c-100) var(--e-in);
+    transition: opacity var(--dur-control) var(--ease-out);
   }
   :global(.turn:hover) .when,
   :global(.turn:focus-within) .when {
