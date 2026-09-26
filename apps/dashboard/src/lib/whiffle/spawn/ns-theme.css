@@ -287,6 +287,17 @@
     scale var(--dur-pop) var(--ease-drawer),
     translate var(--dur-pop) var(--ease-drawer);
 }
+/* Exit: shorter than the entrance, fading and settling back to --pop-scale.
+   bits-ui keeps the content mounted until this animation ends. */
+.ns-theme.ns-pop[data-state="closed"] {
+  animation: ns-pop-out var(--dur-exit) var(--ease-out) both;
+}
+@keyframes ns-pop-out {
+  to {
+    opacity: 0;
+    scale: var(--pop-scale);
+  }
+}
 @starting-style {
   .ns-theme.ns-pop {
     opacity: 0;
