@@ -137,8 +137,10 @@ is decorative, and no indigo is used anywhere.
 ## The permission gate
 
 Approve and Deny are recessed peers (the secondary button: `--surface-recess`
-and a hairline) at the same fill, border and ink. They differ only in kind — a
-check glyph against a cross glyph — never in size, weight or salience. They once shipped with the grant at 13.36:1 against its panel
+and a hairline) at the same fill and border. They differ in kind — a check
+glyph in `--ink-strong` against a cross glyph in `--ink-muted` — never in size,
+weight or salience. Both inks clear AA on the fill: 11.95 vs 5.28:1 light,
+14.32 vs 8.75:1 dark. They once shipped with the grant at 13.36:1 against its panel
 and the refusal at 1.12:1; peer geometry beside a twelve-fold salience gap is
 the same nudge through another channel. A destructive grant has no primary: there
 is nothing to lead the operator toward.

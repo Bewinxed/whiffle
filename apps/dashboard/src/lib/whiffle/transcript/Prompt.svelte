@@ -26,7 +26,13 @@
    */
   import { onMount } from "svelte";
   import { Button } from "$lib/components/ui/button";
-  import { IconArrowUp, IconCheck, IconClose, IconShield } from "$lib/icons";
+  import {
+    IconArrowUp,
+    IconCheck,
+    IconClose,
+    IconShield,
+    IconTick,
+  } from "$lib/icons";
   import { isTyping } from "$lib/utils/typing";
   import {
     commandRecord,
@@ -232,10 +238,11 @@
     "[&_svg:not([class*='size-'])]:size-3";
 
   /* The permission gate is symmetric: Approve and Deny are recessed peers at
-     one fill and one border, differing only in glyph. */
+     one fill and one border. They differ in kind, never in salience: a check
+     in --ink-strong grants, a cross in --ink-muted refuses. */
   const peer = `${btnBase} flex-1 min-w-0`;
-  const grant = peer;
-  const refuse = peer;
+  const grant = `${peer} !text-[var(--ink-strong)]`;
+  const refuse = `${peer} !text-[var(--ink-muted)]`;
   const primary = `${btnBase} px-[var(--space-4)]`;
   const dismiss = btnBase;
 
@@ -331,7 +338,7 @@
         onclick={() => answer('allow')}
         variant="secondary"
       >
-        <IconCheck />Approve
+        <IconTick />Approve
       </Button>
       <Button
         class={refuse}
