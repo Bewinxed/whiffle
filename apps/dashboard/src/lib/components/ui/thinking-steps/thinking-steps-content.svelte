@@ -20,27 +20,22 @@
         var(--ease-out);
     }
     :global(.thinking-content[data-state="closed"]) {
-      animation: thinking-close-reserve calc(var(--dur-control) * 2)
-        var(--ease-out);
+      animation: thinking-close-reserve var(--dur-exit) var(--ease-out);
     }
   }
   @keyframes thinking-open-reserve {
     from {
-      height: 0;
       opacity: 0;
     }
     to {
-      height: var(--bits-collapsible-content-height);
       opacity: 1;
     }
   }
   @keyframes thinking-close-reserve {
     from {
-      height: var(--bits-collapsible-content-height);
       opacity: 1;
     }
     to {
-      height: 0;
       opacity: 0;
     }
   }

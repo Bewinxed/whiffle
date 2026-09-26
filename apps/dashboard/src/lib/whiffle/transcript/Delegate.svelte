@@ -509,22 +509,22 @@
     animation: delegate-down calc(var(--dur-control) * 2) var(--ease-out);
   }
   :global(.delegate [data-slot="collapsible-content"][data-state="closed"]) {
-    animation: delegate-up calc(var(--dur-control) * 2) var(--ease-out);
+    animation: delegate-up var(--dur-exit) var(--ease-out);
   }
   @keyframes delegate-down {
     from {
-      height: 0;
+      opacity: 0;
     }
     to {
-      height: var(--bits-collapsible-content-height);
+      opacity: 1;
     }
   }
   @keyframes delegate-up {
     from {
-      height: var(--bits-collapsible-content-height);
+      opacity: 1;
     }
     to {
-      height: 0;
+      opacity: 0;
     }
   }
 

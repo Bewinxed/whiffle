@@ -188,22 +188,22 @@
     animation: branch-down calc(var(--dur-control) * 2) var(--ease-out);
   }
   :global(.branch [data-slot="collapsible-content"][data-state="closed"]) {
-    animation: branch-up calc(var(--dur-control) * 2) var(--ease-out);
+    animation: branch-up var(--dur-exit) var(--ease-out);
   }
   @keyframes branch-down {
     from {
-      height: 0;
+      opacity: 0;
     }
     to {
-      height: var(--bits-collapsible-content-height);
+      opacity: 1;
     }
   }
   @keyframes branch-up {
     from {
-      height: var(--bits-collapsible-content-height);
+      opacity: 1;
     }
     to {
-      height: 0;
+      opacity: 0;
     }
   }
   @media (prefers-reduced-motion: reduce) {

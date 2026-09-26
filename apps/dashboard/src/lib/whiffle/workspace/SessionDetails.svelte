@@ -418,7 +418,7 @@
   <div class="stats" bind:this={statsEl}>
     <div class="context">
       {#if percent !== null && stats.totalTokens !== null && stats.maxTokens !== null}
-        <!-- biome-ignore lint/a11y/useSemanticElements: a native meter's fill cannot transition its width -->
+        <!-- biome-ignore lint/a11y/useSemanticElements: a native meter's fill cannot be animated -->
         <span
           aria-label="Context used"
           aria-valuemax={100}

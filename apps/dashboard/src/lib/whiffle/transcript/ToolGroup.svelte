@@ -676,11 +676,8 @@
     }
   }
 
-  /* The disclosure opens as a reveal, not a pop — bits-ui measures the content
-     into --bits-collapsible-content-height; these keyframes use it. 200ms is
-     the rail's one collapsible vocabulary (collapsible-lazy holds unmounting
-     children for exactly this duration plus slack): entry decelerates on
-     --ease-out, exit accelerates on --ease-out, exactly the doctrine's curves. */
+  /* The disclosure fades in place: the content mounts at its own height and
+     only opacity animates. The exit is shorter than the entrance. */
   .tools :global([data-slot="collapsible-content"]) {
     overflow: hidden;
   }
@@ -688,22 +685,22 @@
     animation: tool-down calc(var(--dur-control) * 2) var(--ease-out);
   }
   .tools :global([data-slot="collapsible-content"][data-state="closed"]) {
-    animation: tool-up calc(var(--dur-control) * 2) var(--ease-out);
+    animation: tool-up var(--dur-exit) var(--ease-out);
   }
   @keyframes tool-down {
     from {
-      height: 0;
+      opacity: 0;
     }
     to {
-      height: var(--bits-collapsible-content-height);
+      opacity: 1;
     }
   }
   @keyframes tool-up {
     from {
-      height: var(--bits-collapsible-content-height);
+      opacity: 1;
     }
     to {
-      height: 0;
+      opacity: 0;
     }
   }
   @media (prefers-reduced-motion: reduce) {
