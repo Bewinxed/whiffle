@@ -7,6 +7,7 @@
   import { HARNESSES, type HarnessKind } from "@whiffle/core";
   import { untrack } from "svelte";
   import ProviderLogo from "$lib/components/features/ProviderLogo.svelte";
+  import { SectionHeader } from "$lib/components/ui/section-header";
   import OpenAiMark from "~icons/logos/openai-icon";
   import Clear from "~icons/solar/close-square-linear";
   import Code from "~icons/solar/code-square-bold-duotone";
@@ -29,7 +30,6 @@
     matchesQuery,
   } from "./model-entries";
   import { lastSpawnAt, lastUsedAt, type ModelUse } from "./modelUse.svelte";
-  import SectionHeader from "./SectionHeader.svelte";
   import ToolChips, { type ModelTools } from "./ToolChips.svelte";
 
   let {

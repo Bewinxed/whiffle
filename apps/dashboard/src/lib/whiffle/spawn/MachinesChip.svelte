@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { MachineRow } from "$lib/components/ui/machine-row";
   /**
    * Machines chip + popover (§1.4, §2.5): multi-select rows. The design's
    * "Connect a machine…" row is omitted: the dashboard has no join/pair
@@ -31,6 +32,12 @@
     }
     return picked.length === 1 ? picked[0].name : `${picked.length} machines`;
   });
+  const presenceOf = (row: MachineItem) => {
+    if (!row.online) {
+      return "off";
+    }
+    return row.load === "Idle" ? "online" : "away";
+  };
   const ghost = new FollowHover("y");
   const radius = (index: number, on: boolean) => {
     const prev = index > 0 && selected.includes(machines[index - 1].id);
@@ -58,7 +65,6 @@
   <span aria-hidden="true" class="ns-ghost" style={ghost.style}></span>
   {#each machines as row, index (row.id)}
     {@const on = selected.includes(row.id)}
-    {@const Icon = row.icon}
     <button
       aria-pressed={on}
       class="row ns-in"
@@ -69,22 +75,14 @@
       type="button"
       class:on={on}
     >
-      <span
-        class="ns-tile tile"
-        style={on ? "" : `color:${row.hue}`}
-        class:ink={on}
-        ><Icon /></span
-      >
-      <span class="text">
-        <span class="name">{row.name}</span>
-        <span class="meta"
-          ><span
-            class="dot"
-            class:away={row.online && row.load !== 'Idle'}
-            class:online={row.online && row.load === 'Idle'}
-          ></span>{row.os ? `${row.os} · ` : ""}{row.load}</span
-        >
-      </span>
+      <MachineRow
+        hue={row.hue}
+        icon={row.icon}
+        ink={on}
+        meta={`${row.os ? `${row.os} · ` : ""}${row.load}`}
+        name={row.name}
+        presence={presenceOf(row)}
+      />
       <Check
         class="check"
         style={`opacity:${on ? 1 : 0};transform:scale(${on ? 1 : 0.94})`}
@@ -121,45 +119,6 @@
   .row:disabled {
     cursor: not-allowed;
     opacity: 0.55;
-  }
-  .tile {
-    width: 26px;
-    height: 26px;
-  }
-  .tile :global(svg) {
-    width: 15px;
-    height: 15px;
-  }
-  .text {
-    flex: 1;
-    min-width: 0;
-  }
-  .name {
-    display: block;
-    font: var(--type-label);
-  }
-  .meta {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font: var(--type-meta);
-    color: var(--ink-subtle);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .dot {
-    flex: none;
-    width: 6px;
-    height: 6px;
-    border-radius: var(--radius-pill);
-    background: var(--neutral-8);
-  }
-  .dot.online {
-    background: var(--hue-green-500);
-  }
-  .dot.away {
-    background: var(--hue-orange-500);
   }
   .row :global(svg.check) {
     width: 16px;

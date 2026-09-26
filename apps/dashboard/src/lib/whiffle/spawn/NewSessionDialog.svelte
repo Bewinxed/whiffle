@@ -20,15 +20,13 @@
   import { Drawer } from "vaul-svelte";
   import { goto } from "$app/navigation";
   import { Dialog, DialogPortal, DialogTitle } from "$lib/components/ui/dialog";
+  import { machineHue, machineIcon } from "$lib/components/ui/machine-row";
+  import { SectionHeader } from "$lib/components/ui/section-header";
   import { IconClose as X } from "$lib/icons";
   import Bolt from "~icons/solar/bolt-bold-duotone";
   import Book from "~icons/solar/book-2-bold-duotone";
   import Chat from "~icons/solar/chat-round-line-bold-duotone";
-  import Cpu from "~icons/solar/cpu-bold-duotone";
   import Files from "~icons/solar/folder-with-files-bold-duotone";
-  import Laptop from "~icons/solar/laptop-bold-duotone";
-  import Monitor from "~icons/solar/monitor-bold-duotone";
-  import Server from "~icons/solar/server-square-bold-duotone";
   import Stars from "~icons/solar/stars-bold-duotone";
   import {
     createProject,
@@ -58,7 +56,6 @@
   } from "./ns-types";
   import ProjectChip from "./ProjectChip.svelte";
   import PromptEditor from "./PromptEditor.svelte";
-  import SectionHeader from "./SectionHeader.svelte";
   import SessionFooter from "./SessionFooter.svelte";
   import "./ns-theme.css";
 
@@ -345,16 +342,6 @@
     "var(--hue-blue-500)",
     "var(--hue-orange-500)",
   ];
-  const machineIcon = (os: string) => {
-    const platform = os.trim().toLowerCase();
-    if (platform.startsWith("darwin") || platform.startsWith("mac")) {
-      return Laptop;
-    }
-    if (platform.startsWith("win")) {
-      return Monitor;
-    }
-    return platform.startsWith("linux") ? Server : Cpu;
-  };
   const loadLabel = (online: boolean, running: number) => {
     if (!online) {
       return "Offline";
@@ -374,9 +361,7 @@
         icon: machineIcon(row.os),
         online,
         load: loadLabel(online, running),
-        hue: online
-          ? HUES[i % 3]
-          : "color-mix(in oklab, var(--neutral-8) 62%, var(--neutral-11))",
+        hue: machineHue(i, online),
       };
     })
   );

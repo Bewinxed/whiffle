@@ -5,6 +5,7 @@
    * No branch API exists, so the design's branch panel is not rendered.
    */
   import type { FsEntry } from "@whiffle/core";
+  import { SectionHeader } from "$lib/components/ui/section-header";
   import GitHub from "~icons/logos/github-icon";
   import Up from "~icons/solar/alt-arrow-up-linear";
   import Left from "~icons/solar/arrow-left-linear";
@@ -14,7 +15,6 @@
   import Search from "~icons/solar/magnifer-linear";
   import Refresh from "~icons/solar/refresh-bold-duotone";
   import { machineFs } from "../client.svelte";
-  import SectionHeader from "./SectionHeader.svelte";
   import Segmented from "./Segmented.svelte";
 
   let {
