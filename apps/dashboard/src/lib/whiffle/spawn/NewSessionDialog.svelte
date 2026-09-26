@@ -306,11 +306,11 @@
     ) && repo === undefined
   );
   const HUES = [
-    "var(--fai-violet-400)",
-    "var(--fai-green-500)",
-    "var(--fai-cyan-400)",
-    "var(--fai-blue-500)",
-    "var(--fai-orange-500)",
+    "var(--hue-amber-500)",
+    "var(--hue-green-500)",
+    "var(--hue-cyan-400)",
+    "var(--hue-blue-500)",
+    "var(--hue-orange-500)",
   ];
   const machineIcon = (os: string) => {
     const platform = os.trim().toLowerCase();
@@ -341,7 +341,7 @@
         icon: machineIcon(row.os),
         online,
         load: loadLabel(online, running),
-        hue: online ? HUES[i % 3] : "var(--fai-grey-500)",
+        hue: online ? HUES[i % 3] : "color-mix(in oklab, var(--neutral-8) 62%, var(--neutral-11))",
       };
     })
   );
@@ -922,7 +922,7 @@
     <h2>New Session</h2>
     <section class="sec prompt-sec" style="--delay:0ms">
       <SectionHeader
-        hue="var(--fai-blue-500)"
+        hue="var(--hue-blue-500)"
         icon={Chat}
         label="First prompt"
       />
@@ -1031,9 +1031,9 @@
     position: fixed;
     inset: 0;
     z-index: 80;
-    background: var(--fai-scrim);
-    backdrop-filter: blur(var(--fai-scrim-blur));
-    -webkit-backdrop-filter: blur(var(--fai-scrim-blur));
+    background: var(--scrim);
+    backdrop-filter: blur(var(--scrim-blur));
+    -webkit-backdrop-filter: blur(var(--scrim-blur));
   }
   :global(.session-card) {
     position: fixed;
@@ -1045,24 +1045,24 @@
     max-height: calc(100dvh - 48px);
     display: flex;
     flex-direction: column;
-    background: var(--fai-recess);
-    border-radius: var(--fai-radius-modal);
+    background: var(--surface-recess);
+    border-radius: var(--radius-modal);
     padding: 7px;
-    box-shadow: var(--fai-shadow-modal);
+    box-shadow: var(--shadow-modal);
     outline: none;
     transform-origin: center;
   }
   :global(.session-card:not([data-vaul-drawer])[data-state="open"]) {
-    animation: ns-panel var(--ns-panel-ms) var(--ns-ease-out) both;
+    animation: ns-panel var(--dur-panel) var(--ease-out) both;
   }
   :global(.session-card:not([data-vaul-drawer])[data-state="closed"]) {
-    animation: ns-panel-out var(--ns-panel-ms) var(--ns-ease-out) both;
+    animation: ns-panel-out var(--dur-panel) var(--ease-out) both;
   }
   :global(.session-scrim:not([data-vaul-overlay])[data-state="open"]) {
-    animation: ns-scrim var(--ns-panel-ms) var(--ns-ease-out) both;
+    animation: ns-scrim var(--dur-panel) var(--ease-out) both;
   }
   :global(.session-scrim:not([data-vaul-overlay])[data-state="closed"]) {
-    animation: ns-scrim-out var(--ns-panel-ms) var(--ns-ease-out) both;
+    animation: ns-scrim-out var(--dur-panel) var(--ease-out) both;
   }
   .head {
     display: flex;
@@ -1084,9 +1084,9 @@
     justify-content: center;
     width: 22px;
     height: 22px;
-    border-radius: var(--fai-radius-xs);
-    background: var(--fai-grey-900);
-    color: var(--fai-text-inverse);
+    border-radius: var(--radius-xs);
+    background: var(--ink-strong);
+    color: var(--on-brand);
     flex: none;
   }
   .bolt :global(svg) {
@@ -1094,8 +1094,8 @@
     height: 13px;
   }
   .title {
-    font: 500 13px / 1 var(--fai-font-sans);
-    color: var(--fai-text-muted);
+    font: 500 var(--text-label) / 1 var(--font-body);
+    color: var(--ink-muted);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1107,9 +1107,9 @@
     width: 28px;
     height: 28px;
     border: 1px solid transparent;
-    border-radius: var(--fai-radius-sm);
+    border-radius: var(--radius-sm);
     background: transparent;
-    color: var(--fai-text-muted);
+    color: var(--ink-muted);
     cursor: pointer;
   }
   .close :global(svg) {
@@ -1118,28 +1118,28 @@
   }
   @media (hover: hover) {
     .close:hover {
-      background: var(--fai-hover);
-      color: var(--fai-text);
+      background: var(--surface-hover);
+      color: var(--ink-strong);
     }
   }
   .body {
     flex: 1;
     min-height: 0;
     overflow: auto;
-    background: var(--fai-surface);
-    border-radius: var(--fai-radius-lg);
+    background: var(--surface-raised);
+    border-radius: var(--radius-lg);
     padding: 18px 18px 20px;
   }
   h2 {
     margin: 0;
-    font: 500 20px / 1.25 var(--fai-font-sans);
+    font: var(--type-title);
     letter-spacing: -0.01em;
-    color: var(--fai-text);
+    color: var(--ink-strong);
   }
   .sec {
     display: grid;
     gap: 8px;
-    animation: ns-in 260ms var(--ns-ease-out) both;
+    animation: ns-in 260ms var(--ease-out) both;
     animation-delay: var(--delay, 0ms);
   }
   .prompt-sec {
@@ -1157,31 +1157,32 @@
   }
   .reading {
     margin: 0;
-    font: var(--fai-type-meta);
-    color: var(--fai-status-expired-fg);
+    font: var(--type-meta);
+    color: var(--status-fail-ink);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     min-height: 16px;
   }
   .reading.informational {
-    color: var(--fai-text-muted);
+    color: var(--ink-muted);
   }
   .composer {
     position: relative;
     display: grid;
-    background: var(--fai-surface);
-    border: 1px solid var(--fai-border);
-    border-radius: var(--fai-radius-lg);
-    box-shadow: var(--fai-shadow-xs);
+    background: var(--surface-raised);
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xs);
     transition:
-      var(--fai-transition-control),
+      var(--transition-control),
       box-shadow 120ms ease;
   }
   .composer:focus-within,
   .composer.focus {
-    border-color: var(--fai-grey-400);
-    box-shadow: 0 0 0 3px var(--fai-focus-ring);
+    border-color: var(--neutral-8);
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
   }
   .chips {
     display: flex;
@@ -1228,8 +1229,8 @@
     :global(.session-handle[data-vaul-handle]) {
       flex: none;
       margin: 4px auto 10px;
-      background: var(--fai-grey-400);
-      border-radius: var(--fai-radius-pill);
+      background: var(--neutral-8);
+      border-radius: var(--radius-pill);
       touch-action: none;
     }
     /* Keep the expanded drag area inside the full-height sheet's top edge. */

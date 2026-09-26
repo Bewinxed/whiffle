@@ -77,10 +77,10 @@
   onmousemove={ghost.move}
   {open}
   triggerClass="ns-chip-btn"
-  triggerStyle={project ? "" : "color:var(--fai-text-muted)"}
+  triggerStyle={project ? "" : "color:var(--ink-muted)"}
 >
   {#snippet trigger()}
-    <Files style="color:var(--fai-amber-500)" />
+    <Files style="color:var(--hue-amber-500)" />
     {#key project?.id}
       <span class="chip-label swap">{project?.name ?? "No project"}</span>
     {/key}
@@ -189,8 +189,8 @@
     width: 18px;
     height: 18px;
     margin-right: -2px;
-    border-radius: var(--fai-radius-xs);
-    color: var(--fai-text-subtle);
+    border-radius: var(--radius-xs);
+    color: var(--ink-subtle);
     transition:
       background-color 120ms ease,
       color 120ms ease;
@@ -208,12 +208,12 @@
   }
   @media (hover: hover) {
     .clear:hover {
-      background: var(--fai-hover);
-      color: var(--fai-text);
+      background: var(--surface-hover);
+      color: var(--ink-strong);
     }
   }
   .swap {
-    animation: ns-in 200ms var(--ns-ease-out) both;
+    animation: ns-in 200ms var(--ease-out) both;
   }
   .row {
     position: relative;
@@ -225,16 +225,16 @@
     padding: 6px 8px;
     background: transparent;
     border: 0;
-    border-radius: var(--fai-radius-sm);
+    border-radius: var(--radius-sm);
     cursor: pointer;
     text-align: left;
-    color: var(--fai-text);
+    color: var(--ink-strong);
     transition:
       background-color 160ms ease,
-      transform 160ms var(--ns-ease-out);
+      transform 160ms var(--ease-out);
   }
   .row.on {
-    background: var(--fai-fill);
+    background: var(--surface-fill);
   }
   .tile {
     width: 24px;
@@ -250,12 +250,12 @@
   }
   .name {
     display: block;
-    font: 500 13px / 1.3 var(--fai-font-sans);
+    font: var(--type-label);
   }
   .meta {
     display: block;
-    font: var(--fai-type-meta);
-    color: var(--fai-text-subtle);
+    font: var(--type-meta);
+    color: var(--ink-subtle);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -264,20 +264,20 @@
     width: 16px;
     height: 16px;
     flex: none;
-    color: var(--fai-grey-900);
+    color: var(--ink-strong);
   }
   .divider {
     height: 1px;
     margin: 4px 2px;
-    background: var(--fai-border-subtle);
+    background: var(--border-hairline);
   }
   .add {
     height: 40px;
-    color: var(--fai-text-muted);
+    color: var(--ink-muted);
   }
   @media (hover: hover) {
     .add:hover {
-      color: var(--fai-text);
+      color: var(--ink-strong);
     }
   }
   .form {
@@ -291,16 +291,16 @@
     gap: 8px;
     height: 36px;
     padding: 0 10px;
-    background: var(--fai-surface);
-    border: 1px solid var(--fai-border);
-    border-radius: var(--fai-radius-md);
-    box-shadow: var(--fai-shadow-xs);
+    background: var(--surface-raised);
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-xs);
   }
   .field :global(svg) {
     width: 14px;
     height: 14px;
     flex: none;
-    color: var(--fai-text-subtle);
+    color: var(--ink-subtle);
   }
   .field input {
     flex: 1;
@@ -308,12 +308,12 @@
     border: 0;
     outline: none;
     background: transparent;
-    font: 400 13px / 1.4 var(--fai-font-sans);
-    color: var(--fai-text);
+    font: 400 var(--text-label) / 1.4 var(--font-body);
+    color: var(--ink-strong);
     padding: 0;
   }
   .field input.mono {
-    font-family: var(--fai-font-mono);
+    font-family: var(--font-mono);
   }
   .actions {
     display: flex;
@@ -325,8 +325,8 @@
   .error {
     flex: 1;
     min-width: 0;
-    font: var(--fai-type-meta);
-    color: var(--fai-status-expired-fg);
+    font: var(--type-meta);
+    color: var(--status-fail-ink);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -336,7 +336,7 @@
       height: 44px;
     }
     .field input {
-      font-size: 16px;
+      font-size: 1rem;
     }
   }
 </style>

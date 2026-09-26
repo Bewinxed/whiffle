@@ -265,26 +265,26 @@
     outline: none;
     background: transparent;
     border-radius: 12px 12px 0 0;
-    font: 400 14px / 1.55 var(--fai-font-sans);
-    color: var(--fai-text);
+    font: 400 var(--text-body) / 1.55 var(--font-body);
+    color: var(--ink-strong);
     white-space: pre-wrap;
     word-break: break-word;
-    transition: height var(--ns-prompt-ms) var(--ns-ease-in-out);
+    transition: height var(--ns-prompt-ms) var(--ease-in-out);
   }
   .placeholder {
     position: absolute;
     left: 16px;
     top: 12px;
     right: 16px;
-    font: 400 14px / 1.55 var(--fai-font-sans);
-    color: var(--fai-text-subtle);
+    font: 400 var(--text-body) / 1.55 var(--font-body);
+    color: var(--ink-subtle);
     pointer-events: none;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .hint {
-    color: var(--fai-text-subtle);
+    color: var(--ink-subtle);
   }
   .editor :global(.ns-chip) {
     display: inline-flex;
@@ -294,11 +294,11 @@
     padding: 0 7px 0 5px;
     margin: 0 1px;
     vertical-align: -5px;
-    border-radius: var(--fai-radius-sm);
-    background: var(--fai-fill);
-    border: 1px solid var(--fai-border);
-    font: 500 13px / 1 var(--fai-font-sans);
-    color: var(--fai-text);
+    border-radius: var(--radius-sm);
+    background: var(--surface-fill);
+    border: 1px solid var(--border-control);
+    font: 500 var(--text-label) / 1 var(--font-body);
+    color: var(--ink-strong);
     white-space: nowrap;
     user-select: all;
   }
@@ -317,7 +317,7 @@
     }
     .editor,
     .placeholder {
-      font-size: 16px;
+      font-size: 1rem;
     }
     /* The hint would only ellipsise at this width; the question survives whole. */
     .hint {

@@ -48,10 +48,10 @@
   onmousemove={ghost.move}
   {open}
   triggerClass="ns-chip-btn"
-  triggerStyle={picked.length ? "" : "color:var(--fai-status-expired-fg);border-color:var(--fai-status-expired-fg)"}
+  triggerStyle={picked.length ? "" : "color:var(--status-fail-ink);border-color:var(--status-fail-ink)"}
 >
   {#snippet trigger()}
-    <Server style="color:var(--fai-cyan-500)" />
+    <Server style="color:var(--hue-cyan-500)" />
     <span class="chip-label">{label}</span>
     <Down class="chevron" />
   {/snippet}
@@ -103,11 +103,11 @@
     gap: 6px;
     height: 30px;
     padding: 0 8px;
-    background: var(--fai-surface);
-    border: 1px solid var(--fai-border);
-    border-radius: var(--fai-radius-sm);
-    font: 500 13px / 1 var(--fai-font-sans);
-    color: var(--fai-text);
+    background: var(--surface-raised);
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius-sm);
+    font: 500 var(--text-label) / 1 var(--font-body);
+    color: var(--ink-strong);
     cursor: pointer;
     white-space: nowrap;
     max-width: 100%;
@@ -115,7 +115,7 @@
       background-color var(--ns-chip-ms) ease,
       border-color var(--ns-chip-ms) ease,
       color var(--ns-chip-ms) ease,
-      transform 160ms var(--ns-ease-out);
+      transform 160ms var(--ease-out);
   }
   :global(.ns-theme .ns-chip-btn > svg) {
     width: 15px;
@@ -125,7 +125,7 @@
   :global(.ns-theme .ns-chip-btn > svg.chevron) {
     width: 13px;
     height: 13px;
-    color: var(--fai-text-subtle);
+    color: var(--ink-subtle);
   }
   :global(.ns-theme .ns-chip-btn .chip-label) {
     min-width: 0;
@@ -134,7 +134,7 @@
   }
   @media (hover: hover) {
     :global(.ns-theme .ns-chip-btn:hover) {
-      background: var(--fai-hover);
+      background: var(--surface-hover);
     }
   }
   .row {
@@ -149,14 +149,14 @@
     border: 0;
     cursor: pointer;
     text-align: left;
-    color: var(--fai-text);
+    color: var(--ink-strong);
     transition:
       background-color 160ms ease,
       border-radius 160ms ease,
-      transform 160ms var(--ns-ease-out);
+      transform 160ms var(--ease-out);
   }
   .row.on {
-    background: var(--fai-fill);
+    background: var(--surface-fill);
   }
   .row:disabled {
     cursor: not-allowed;
@@ -176,14 +176,14 @@
   }
   .name {
     display: block;
-    font: 500 13px / 1.3 var(--fai-font-sans);
+    font: var(--type-label);
   }
   .meta {
     display: flex;
     align-items: center;
     gap: 6px;
-    font: var(--fai-type-meta);
-    color: var(--fai-text-subtle);
+    font: var(--type-meta);
+    color: var(--ink-subtle);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -192,28 +192,28 @@
     flex: none;
     width: 6px;
     height: 6px;
-    border-radius: var(--fai-radius-pill);
-    background: var(--fai-presence-offline);
+    border-radius: var(--radius-pill);
+    background: var(--neutral-8);
   }
   .dot.online {
-    background: var(--fai-presence-online);
+    background: var(--hue-green-500);
   }
   .dot.away {
-    background: var(--fai-presence-away);
+    background: var(--hue-orange-500);
   }
   .row :global(svg.check) {
     width: 16px;
     height: 16px;
     flex: none;
-    color: var(--fai-grey-900);
+    color: var(--ink-strong);
     transition:
-      opacity 160ms var(--ns-ease-out),
-      transform 160ms var(--ns-ease-out);
+      opacity 160ms var(--ease-out),
+      transform 160ms var(--ease-out);
   }
   .none {
     padding: 14px 8px;
-    font: var(--fai-type-meta);
-    color: var(--fai-text-subtle);
+    font: var(--type-meta);
+    color: var(--ink-subtle);
     text-align: center;
   }
   @media (max-width: 640px) {

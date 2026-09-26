@@ -48,6 +48,6 @@
     flex: none;
   }
   .left span {
-    font: var(--fai-type-label);
+    font: var(--type-label);
   }
 </style>

@@ -278,15 +278,15 @@
       return "none";
     }
     const step = Math.min(i, STAGGER_CAP);
-    return `${slideDir > 0 ? "ns-in-r" : "ns-in-l"} ${IN_MS}ms var(--ns-ease-out) both ${IN_LEAD + step * IN_STAGGER}ms`;
+    return `${slideDir > 0 ? "ns-in-r" : "ns-in-l"} ${IN_MS}ms var(--ease-out) both ${IN_LEAD + step * IN_STAGGER}ms`;
   }
   const leaveAnim = (i: number) =>
-    `${slideDir > 0 ? "ns-out-l" : "ns-out-r"} ${OUT_MS}ms var(--ns-ease-out) both ${i * OUT_STAGGER}ms`;
+    `${slideDir > 0 ? "ns-out-l" : "ns-out-r"} ${OUT_MS}ms var(--ease-out) both ${i * OUT_STAGGER}ms`;
 </script>
 
 <section class="model">
   {#if !runtime}
-    <SectionHeader hue="var(--fai-violet-500)" icon={Cpu} label="Model" />
+    <SectionHeader hue="var(--hue-cyan-500)" icon={Cpu} label="Model" />
   {/if}
   <div class="picker" class:railed={!runtime}>
     {#if !runtime}
@@ -420,7 +420,7 @@
                   width={300}
                 >
                   {#snippet trigger()}
-                    <Tuning style="color:var(--fai-orange-500)" />
+                    <Tuning style="color:var(--hue-orange-500)" />
                     <span class="chip-label level"
                       >{tools.effort ?? "Default"}</span
                     >
@@ -546,10 +546,10 @@
   .picker {
     position: relative;
     display: grid;
-    background: var(--fai-surface);
-    border: 1px solid var(--fai-border);
-    border-radius: var(--fai-radius-md);
-    box-shadow: var(--fai-shadow-xs);
+    background: var(--surface-raised);
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-xs);
   }
   .picker.railed {
     grid-template-columns: auto minmax(0, 1fr);
@@ -564,9 +564,9 @@
     align-content: start;
     gap: 4px;
     padding: 6px;
-    border-right: 1px solid var(--fai-border-subtle);
-    background: var(--fai-recess);
-    border-radius: var(--fai-radius-md) 0 0 var(--fai-radius-md);
+    border-right: 1px solid var(--border-hairline);
+    background: var(--surface-recess);
+    border-radius: var(--radius-md) 0 0 var(--radius-md);
   }
   .thumb {
     position: absolute;
@@ -574,10 +574,10 @@
     left: 6px;
     width: 36px;
     height: 36px;
-    background: var(--fai-raised);
-    border-radius: var(--fai-radius-sm);
-    box-shadow: var(--fai-shadow-raised);
-    transition: transform 180ms var(--ns-ease-in-out);
+    background: var(--surface-lift);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-raised);
+    transition: transform 180ms var(--ease-in-out);
     pointer-events: none;
   }
   .tab {
@@ -589,14 +589,14 @@
     padding: 0;
     background: transparent;
     border: 0;
-    border-radius: var(--fai-radius-sm);
+    border-radius: var(--radius-sm);
     cursor: pointer;
-    color: var(--fai-text-muted);
+    color: var(--ink-muted);
     transition: background-color 120ms ease;
   }
   @media (hover: hover) {
     .tab:not(.on):not(:disabled):hover {
-      background: var(--fai-hover);
+      background: var(--surface-hover);
     }
   }
   .tab:disabled {
@@ -621,14 +621,14 @@
     align-items: center;
     height: 36px;
     overflow: hidden;
-    background: var(--fai-grey-900);
-    color: var(--fai-grey-50, #fff);
-    border-radius: var(--fai-radius-sm);
-    box-shadow: var(--fai-shadow-raised);
+    background: var(--ink-strong);
+    color: var(--neutral-2, #fff);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-raised);
     pointer-events: none;
     transition:
-      transform 180ms var(--ns-ease-in-out),
-      width 180ms var(--ns-ease-in-out),
+      transform 180ms var(--ease-in-out),
+      width 180ms var(--ease-in-out),
       opacity 120ms ease;
   }
   .tip-text {
@@ -636,12 +636,12 @@
     align-items: center;
     gap: 6px;
     padding: 0 10px;
-    font: 500 12px / 1 var(--fai-font-sans);
+    font: 500 var(--text-meta) / 1 var(--font-body);
     white-space: nowrap;
-    animation: ns-in 160ms var(--ns-ease-out) both;
+    animation: ns-in 160ms var(--ease-out) both;
   }
   .soon {
-    font: 500 9px / 1 var(--fai-font-sans);
+    font: 500 0.5625rem / 1 var(--font-body);
     letter-spacing: 0.04em;
     text-transform: uppercase;
     opacity: 0.6;
@@ -652,16 +652,16 @@
     gap: 8px;
     height: 42px;
     padding: 0 12px;
-    border-bottom: 1px solid var(--fai-border-subtle);
+    border-bottom: 1px solid var(--border-hairline);
   }
   .search :global(svg.lead) {
     width: 15px;
     height: 15px;
     flex: none;
-    color: var(--fai-text-subtle);
+    color: var(--ink-subtle);
   }
   .search.focus :global(svg.lead) {
-    color: var(--fai-text);
+    color: var(--ink-strong);
   }
   .search input {
     flex: 1;
@@ -670,8 +670,8 @@
     border: 0;
     outline: none;
     background: transparent;
-    font: 400 13px / 1.4 var(--fai-font-sans);
-    color: var(--fai-text);
+    font: 400 var(--text-label) / 1.4 var(--font-body);
+    color: var(--ink-strong);
     padding: 0;
   }
   .clear {
@@ -682,9 +682,9 @@
     justify-content: center;
     border: 0;
     background: transparent;
-    color: var(--fai-text-subtle);
+    color: var(--ink-subtle);
     cursor: pointer;
-    border-radius: var(--fai-radius-xs);
+    border-radius: var(--radius-xs);
   }
   .clear :global(svg) {
     width: 14px;
@@ -692,10 +692,10 @@
   }
   @media (hover: hover) {
     .clear:hover {
-      color: var(--fai-text);
+      color: var(--ink-strong);
     }
     .custom:hover {
-      background: var(--fai-hover);
+      background: var(--surface-hover);
     }
   }
   .list {
@@ -724,10 +724,10 @@
     right: 4px;
     top: 4px;
     height: 44px;
-    background: var(--fai-fill);
-    border-radius: var(--fai-radius-sm);
+    background: var(--surface-fill);
+    border-radius: var(--radius-sm);
     transition:
-      transform 160ms var(--ns-ease-in-out),
+      transform 160ms var(--ease-in-out),
       opacity 120ms ease;
     pointer-events: none;
   }
@@ -743,12 +743,12 @@
     gap: 4px;
     height: 44px;
     transition:
-      transform 160ms var(--ns-ease-in-out),
+      transform 160ms var(--ease-in-out),
       opacity 120ms ease;
   }
   .tools :global(.ns-chip-btn.tool) {
     height: 28px;
-    background: var(--fai-surface);
+    background: var(--surface-raised);
   }
   .tools .level {
     text-transform: capitalize;
@@ -766,18 +766,18 @@
     padding: 6px 8px;
     background: transparent;
     border: 1px solid transparent;
-    border-radius: var(--fai-radius-sm);
+    border-radius: var(--radius-sm);
     cursor: pointer;
     text-align: left;
-    color: var(--fai-text);
+    color: var(--ink-strong);
   }
   /* Room for the chips, so the chosen row's name ends before them. */
   .row.picked {
     padding-right: calc(var(--tools-w, 0px) + 14px);
   }
   .custom {
-    background: var(--fai-surface);
-    border: 1px dashed var(--fai-grey-400);
+    background: var(--surface-raised);
+    border: 1px dashed var(--neutral-8);
   }
   .tile {
     width: 26px;
@@ -801,41 +801,41 @@
   }
   .name {
     display: block;
-    font: 500 13px / 1.3 var(--fai-font-sans);
+    font: var(--type-label);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .meta {
     display: block;
-    font: var(--fai-type-meta);
-    color: var(--fai-text-subtle);
+    font: var(--type-meta);
+    color: var(--ink-subtle);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .mono {
-    font-family: var(--fai-font-mono);
+    font-family: var(--font-mono);
   }
   .custom .meta {
-    color: var(--fai-text-muted);
+    color: var(--ink-muted);
   }
   .hint,
   .ctx {
-    font: 400 12px / 1 var(--fai-font-mono);
-    color: var(--fai-text-subtle);
+    font: 400 var(--text-meta) / 1 var(--font-mono);
+    color: var(--ink-subtle);
     white-space: nowrap;
   }
   .hint {
-    font-family: var(--fai-font-sans);
+    font-family: var(--font-body);
   }
   .none {
     display: grid;
     place-items: center;
     gap: 6px;
     padding: 22px 12px;
-    color: var(--fai-text-subtle);
-    font: var(--fai-type-meta);
+    color: var(--ink-subtle);
+    font: var(--type-meta);
     text-align: center;
     text-wrap: pretty;
   }
@@ -844,7 +844,7 @@
       height: 44px;
     }
     .search input {
-      font-size: 16px;
+      font-size: 1rem;
     }
   }
 </style>

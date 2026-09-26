@@ -81,8 +81,8 @@
     grid-template-columns: repeat(var(--n), minmax(0, 1fr));
     gap: 2px;
     padding: 3px;
-    background: var(--fai-recess-deep);
-    border-radius: var(--fai-radius-md);
+    background: var(--surface-recess-deep);
+    border-radius: var(--radius-md);
   }
   .thumb {
     position: absolute;
@@ -90,10 +90,10 @@
     bottom: 3px;
     left: 3px;
     width: calc((100% - 6px - (var(--n) - 1) * 2px) / var(--n));
-    background: var(--fai-raised);
-    border-radius: var(--fai-radius-sm);
-    box-shadow: var(--fai-shadow-raised);
-    transition: transform var(--ns-thumb-ms) var(--ns-ease-in-out);
+    background: var(--surface-lift);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-raised);
+    transition: transform var(--ns-thumb-ms) var(--ease-in-out);
     pointer-events: none;
   }
   .tab {
@@ -105,10 +105,10 @@
     height: 26px;
     padding: 0 10px;
     border: 0;
-    border-radius: var(--fai-radius-sm);
+    border-radius: var(--radius-sm);
     background: transparent;
-    font: 500 12px / 1 var(--fai-font-sans);
-    color: var(--fai-text-muted);
+    font: 500 var(--text-meta) / 1 var(--font-body);
+    color: var(--ink-muted);
     cursor: pointer;
     white-space: nowrap;
     min-width: 0;
@@ -120,10 +120,10 @@
   }
   .md .tab {
     height: 30px;
-    font-size: 13px;
+    font-size: var(--text-label);
   }
   .tab.on {
-    color: var(--fai-grey-900);
+    color: var(--ink-strong);
   }
   .tab :global(svg) {
     flex: none;

@@ -20,28 +20,28 @@ export const PERMISSION_LOOK: Record<string, PermissionLook> = {
     short: "Ask first",
     desc: "Approve every file write and command.",
     icon: Shield,
-    hue: "var(--fai-green-500)",
+    hue: "var(--hue-green-500)",
   },
   plan: {
     name: "Plan first",
     short: "Plan first",
     desc: "Read-only until you approve a plan.",
     icon: Notes,
-    hue: "var(--fai-violet-400)",
+    hue: "var(--hue-cyan-500)",
   },
   acceptEdits: {
     name: "Auto-accept edits",
     short: "Auto-edit",
     desc: "Edits run freely; shell commands still ask.",
     icon: Pen,
-    hue: "var(--fai-blue-500)",
+    hue: "var(--hue-blue-500)",
   },
   bypassPermissions: {
     name: "Full access",
     short: "Full access",
     desc: "No prompts. Use on disposable machines only.",
     icon: Danger,
-    hue: "var(--fai-orange-500)",
+    hue: "var(--hue-orange-500)",
   },
 };
 
@@ -51,5 +51,5 @@ export const permissionLook = (value: string): PermissionLook =>
     short: value,
     desc: "",
     icon: Shield,
-    hue: "var(--fai-text-subtle)",
+    hue: "var(--ink-subtle)",
   };

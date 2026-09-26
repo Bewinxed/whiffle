@@ -83,10 +83,10 @@
     display: grid;
     gap: 2px;
     padding: 4px;
-    background: var(--fai-surface);
-    border: 1px solid var(--fai-border);
-    border-radius: var(--fai-radius-md);
-    box-shadow: var(--fai-shadow-xs);
+    background: var(--surface-raised);
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-xs);
   }
   .perms.embedded {
     padding: 0;
@@ -100,9 +100,9 @@
     right: 4px;
     top: 4px;
     height: var(--permission-row-height, 44px);
-    background: var(--fai-fill);
-    border-radius: var(--fai-radius-sm);
-    transition: transform 160ms var(--ns-ease-in-out);
+    background: var(--surface-fill);
+    border-radius: var(--radius-sm);
+    transition: transform 160ms var(--ease-in-out);
     pointer-events: none;
   }
   .embedded .fill {
@@ -119,10 +119,10 @@
     padding: 6px 8px;
     background: transparent;
     border: 1px solid transparent;
-    border-radius: var(--fai-radius-sm);
+    border-radius: var(--radius-sm);
     cursor: pointer;
     text-align: left;
-    color: var(--fai-text);
+    color: var(--ink-strong);
   }
   .row:disabled {
     cursor: not-allowed;
@@ -142,12 +142,12 @@
   }
   .name {
     display: block;
-    font: 500 13px / 1.3 var(--fai-font-sans);
+    font: var(--type-label);
   }
   .desc {
     display: block;
-    font: var(--fai-type-meta);
-    color: var(--fai-text-subtle);
+    font: var(--type-meta);
+    color: var(--ink-subtle);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -156,6 +156,6 @@
     width: 16px;
     height: 16px;
     flex: none;
-    color: var(--fai-grey-900);
+    color: var(--ink-strong);
   }
 </style>

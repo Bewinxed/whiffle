@@ -72,9 +72,9 @@
     right: 4px;
     top: 4px;
     height: 36px;
-    background: var(--fai-fill);
-    border-radius: var(--fai-radius-sm);
-    transition: transform 120ms var(--ns-ease-in-out);
+    background: var(--surface-fill);
+    border-radius: var(--radius-sm);
+    transition: transform 120ms var(--ease-in-out);
     pointer-events: none;
   }
   .row {
@@ -87,15 +87,15 @@
     padding: 0 8px;
     background: transparent;
     border: 0;
-    border-radius: var(--fai-radius-sm);
+    border-radius: var(--radius-sm);
     cursor: pointer;
     text-align: left;
-    color: var(--fai-text);
+    color: var(--ink-strong);
   }
   .tile {
     width: 22px;
     height: 22px;
-    border-radius: var(--fai-radius-xs);
+    border-radius: var(--radius-xs);
   }
   .tile :global(svg) {
     width: 13px;
@@ -104,19 +104,19 @@
   .label {
     flex: 1;
     min-width: 0;
-    font: 500 13px / 1.2 var(--fai-font-sans);
+    font: 500 var(--text-label) / 1.2 var(--font-body);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .kind {
-    font: var(--fai-type-meta);
-    color: var(--fai-text-subtle);
+    font: var(--type-meta);
+    color: var(--ink-subtle);
     white-space: nowrap;
   }
   .none {
     padding: 10px 8px;
-    font: var(--fai-type-meta);
-    color: var(--fai-text-subtle);
+    font: var(--type-meta);
+    color: var(--ink-subtle);
   }
 </style>

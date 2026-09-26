@@ -126,7 +126,7 @@
     {@render source()}
   {:else}
     <SectionHeader
-      hue="var(--fai-amber-500)"
+      hue="var(--hue-amber-500)"
       icon={Folder}
       label="Location"
       wrap
@@ -145,7 +145,7 @@
     >
       {#snippet icon(value, on)}
         {#if value === "dir"}
-          <Folder style="color:var(--fai-amber-500)" />
+          <Folder style="color:var(--hue-amber-500)" />
         {:else}
           <GitHub style={`opacity:${on ? 1 : 0.6}`} />
         {/if}
@@ -247,7 +247,7 @@
                   type="button"
                 >
                   <Folder
-                    style={`color:${folder.name.startsWith('.') ? 'var(--fai-grey-400)' : 'var(--fai-amber-500)'}`}
+                    style={`color:${folder.name.startsWith('.') ? 'var(--neutral-8)' : 'var(--hue-amber-500)'}`}
                   />
                   <span class="name">{folder.name}</span>
                   <Right class="go" />
@@ -322,15 +322,15 @@
     justify-self: start;
   }
   .field {
-    background: var(--fai-surface);
-    border: 1px solid var(--fai-border);
-    border-radius: var(--fai-radius-md);
-    box-shadow: var(--fai-shadow-xs);
+    background: var(--surface-raised);
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-xs);
     overflow: hidden;
-    transition: var(--fai-transition-control);
+    transition: var(--transition-control);
   }
   .field.locked {
-    background: var(--fai-recess);
+    background: var(--surface-recess);
   }
   .row {
     display: flex;
@@ -346,11 +346,11 @@
     width: 16px;
     height: 16px;
     flex: none;
-    color: var(--fai-amber-500);
+    color: var(--hue-amber-500);
   }
   .row :global(svg.gh) {
     opacity: 0.8;
-    color: var(--fai-text);
+    color: var(--ink-strong);
   }
   input {
     flex: 1;
@@ -359,8 +359,8 @@
     border: 0;
     outline: none;
     background: transparent;
-    font: 400 13px / 1.4 var(--fai-font-mono);
-    color: var(--fai-text);
+    font: 400 var(--text-label) / 1.4 var(--font-mono);
+    color: var(--ink-strong);
     padding: 0;
   }
   .badge {
@@ -369,10 +369,10 @@
     gap: 4px;
     height: 24px;
     padding: 0 8px;
-    border-radius: var(--fai-radius-sm);
-    background: var(--fai-status-info-bg);
-    color: var(--fai-status-info-fg);
-    font: 500 11px / 1 var(--fai-font-sans);
+    border-radius: var(--radius-sm);
+    background: var(--status-live-bg);
+    color: var(--status-live-ink);
+    font: 500 0.6875rem / 1 var(--font-body);
     white-space: nowrap;
   }
   .override {
@@ -381,9 +381,9 @@
     padding: 0 10px;
     border: 0;
     background: transparent;
-    border-radius: var(--fai-radius-sm);
-    font: 500 13px / 1 var(--fai-font-sans);
-    color: var(--fai-text-muted);
+    border-radius: var(--radius-sm);
+    font: 500 var(--text-label) / 1 var(--font-body);
+    color: var(--ink-muted);
     cursor: pointer;
     white-space: nowrap;
   }
@@ -395,14 +395,14 @@
     gap: 6px;
     height: 30px;
     padding: 0 10px;
-    border: 1px solid var(--fai-border);
-    background: var(--fai-recess);
+    border: 1px solid var(--border-control);
+    background: var(--surface-recess);
     box-shadow:
-      inset 0 0 0 1px var(--fai-grey-400),
-      var(--fai-shadow-raised);
-    border-radius: var(--fai-radius-sm);
-    font: 500 13px / 1 var(--fai-font-sans);
-    color: var(--fai-text);
+      inset 0 0 0 1px var(--neutral-8),
+      var(--shadow-raised);
+    border-radius: var(--radius-sm);
+    font: 500 var(--text-label) / 1 var(--font-body);
+    color: var(--ink-strong);
     cursor: pointer;
     white-space: nowrap;
   }
@@ -414,40 +414,40 @@
     width: 14px;
     height: 14px;
     flex: none;
-    color: var(--fai-text-muted);
+    color: var(--ink-muted);
   }
   @media (hover: hover) {
     .override:hover {
-      background: var(--fai-hover);
-      color: var(--fai-text);
+      background: var(--surface-hover);
+      color: var(--ink-strong);
     }
     .browse:not(:disabled):hover,
     .crumb:hover {
-      background: var(--fai-hover);
+      background: var(--surface-hover);
     }
     .folder:hover {
-      background: var(--fai-hover);
+      background: var(--surface-hover);
     }
   }
   .panel {
     display: grid;
-    transition: grid-template-rows 280ms var(--ns-ease-in-out);
+    transition: grid-template-rows 280ms var(--ease-in-out);
   }
   .clip {
     min-height: 0;
     overflow: hidden;
   }
   .browser {
-    border-top: 1px solid var(--fai-border-subtle);
-    background: var(--fai-recess);
+    border-top: 1px solid var(--border-hairline);
+    background: var(--surface-recess);
   }
   .crumbs {
     display: flex;
     align-items: center;
     gap: 8px;
     padding: 8px 8px 8px 10px;
-    border-bottom: 1px solid var(--fai-border-subtle);
-    background: var(--fai-recess);
+    border-bottom: 1px solid var(--border-hairline);
+    background: var(--surface-recess);
   }
   .machine {
     display: inline-flex;
@@ -455,18 +455,18 @@
     gap: 6px;
     height: 24px;
     padding: 0 8px;
-    border-radius: var(--fai-radius-sm);
-    background: var(--fai-raised);
-    font: 500 12px / 1 var(--fai-font-sans);
-    color: var(--fai-text);
+    border-radius: var(--radius-sm);
+    background: var(--surface-lift);
+    font: 500 var(--text-meta) / 1 var(--font-body);
+    color: var(--ink-strong);
     white-space: nowrap;
     flex: none;
   }
   .dot {
     width: 6px;
     height: 6px;
-    border-radius: var(--fai-radius-pill);
-    background: var(--fai-presence-online);
+    border-radius: var(--radius-pill);
+    background: var(--hue-green-500);
   }
   .trail {
     flex: 1;
@@ -474,8 +474,8 @@
     display: flex;
     align-items: center;
     gap: 2px;
-    font: 400 13px / 1.4 var(--fai-font-mono);
-    color: var(--fai-text-muted);
+    font: 400 var(--text-label) / 1.4 var(--font-mono);
+    color: var(--ink-muted);
   }
   .ancestors {
     display: flex;
@@ -492,7 +492,7 @@
     padding: 0 6px;
     border: 0;
     background: transparent;
-    border-radius: var(--fai-radius-xs);
+    border-radius: var(--radius-xs);
     font: inherit;
     color: inherit;
     cursor: pointer;
@@ -500,14 +500,14 @@
   .crumb.current {
     max-width: 100%;
     padding: 8px;
-    background: var(--fai-raised);
-    color: var(--fai-text);
+    background: var(--surface-lift);
+    color: var(--ink-strong);
     font-weight: 500;
     text-align: left;
     overflow-wrap: anywhere;
   }
   .sep {
-    color: var(--fai-grey-400);
+    color: var(--neutral-8);
   }
   .folders {
     max-height: 196px;
@@ -528,14 +528,14 @@
     padding: 0 8px;
     border: 0;
     background: transparent;
-    border-radius: var(--fai-radius-sm);
-    font: 400 13px / 1 var(--fai-font-mono);
-    color: var(--fai-text);
+    border-radius: var(--radius-sm);
+    font: 400 var(--text-label) / 1 var(--font-mono);
+    color: var(--ink-strong);
     cursor: pointer;
     text-align: left;
   }
   .folder.up {
-    color: var(--fai-text-muted);
+    color: var(--ink-muted);
   }
   .folder :global(svg) {
     width: 16px;
@@ -545,7 +545,7 @@
   .folder :global(svg.go) {
     width: 14px;
     height: 14px;
-    color: var(--fai-grey-400);
+    color: var(--neutral-8);
   }
   .folder .name {
     flex: 1;
@@ -556,13 +556,13 @@
   }
   .empty {
     padding: 24px 8px;
-    font: var(--fai-type-meta);
-    color: var(--fai-text-subtle);
+    font: var(--type-meta);
+    color: var(--ink-subtle);
     text-align: center;
     overflow-wrap: anywhere;
   }
   .empty.error {
-    color: var(--fai-status-expired-fg);
+    color: var(--status-fail-ink);
   }
   .use {
     display: flex;
@@ -570,16 +570,16 @@
     justify-content: space-between;
     gap: 8px;
     padding: 8px;
-    border-top: 1px solid var(--fai-border-subtle);
-    background: var(--fai-raised);
+    border-top: 1px solid var(--border-hairline);
+    background: var(--surface-lift);
   }
   .use .ns-btn {
     flex: none;
     white-space: nowrap;
   }
   .path {
-    font: 400 12px / 1.3 var(--fai-font-mono);
-    color: var(--fai-text-muted);
+    font: 400 var(--text-meta) / 1.3 var(--font-mono);
+    color: var(--ink-muted);
     min-width: 0;
     white-space: nowrap;
     overflow: hidden;
@@ -589,7 +589,7 @@
     display: grid;
     gap: 8px;
     transition:
-      transform 280ms var(--ns-ease-in-out),
+      transform 280ms var(--ease-in-out),
       opacity 280ms ease;
   }
   .note {
@@ -597,38 +597,38 @@
     align-items: flex-start;
     gap: 8px;
     padding: 9px 10px;
-    background: var(--fai-surface-subtle);
-    border: 1px solid var(--fai-border-subtle);
-    border-radius: var(--fai-radius-md);
+    background: var(--surface-recess);
+    border: 1px solid var(--border-hairline);
+    border-radius: var(--radius-md);
   }
   .note :global(svg) {
     width: 15px;
     height: 15px;
     flex: none;
     margin-top: 1px;
-    color: var(--fai-blue-500);
+    color: var(--hue-blue-500);
   }
   .note span {
-    font: var(--fai-type-meta);
-    color: var(--fai-text-muted);
+    font: var(--type-meta);
+    color: var(--ink-muted);
     text-wrap: pretty;
     min-width: 0;
   }
   .note .mono {
-    font-family: var(--fai-font-mono);
-    color: var(--fai-text);
+    font-family: var(--font-mono);
+    color: var(--ink-strong);
   }
   .reading {
     margin: 0;
-    font: var(--fai-type-meta);
-    color: var(--fai-status-expired-fg);
+    font: var(--type-meta);
+    color: var(--status-fail-ink);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     min-height: 16px;
   }
   .reading.informational {
-    color: var(--fai-text-muted);
+    color: var(--ink-muted);
   }
   @media (max-width: 640px) {
     .crumbs {
@@ -650,7 +650,7 @@
     }
     input {
       min-height: 44px;
-      font-size: 16px;
+      font-size: 1rem;
     }
     .browse,
     .override {

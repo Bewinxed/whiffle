@@ -28,14 +28,14 @@
       name: "Persistent",
       desc: "Stays on the board after its task, to pick up again.",
       icon: Database,
-      hue: "var(--fai-blue-500)",
+      hue: "var(--hue-blue-500)",
     },
     {
       ephemeral: true,
       name: "Ephemeral",
       desc: "A side quest: ends and clears itself when the task is done.",
       icon: Fire,
-      hue: "var(--fai-orange-500)",
+      hue: "var(--hue-orange-500)",
     },
   ];
   const current = $derived(
@@ -95,7 +95,7 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    animation: ns-in 200ms var(--ns-ease-out) both;
+    animation: ns-in 200ms var(--ease-out) both;
   }
   .swap :global(svg) {
     width: 15px;
@@ -112,13 +112,13 @@
     padding: 6px 8px;
     background: transparent;
     border: 0;
-    border-radius: var(--fai-radius-sm);
+    border-radius: var(--radius-sm);
     cursor: pointer;
     text-align: left;
-    color: var(--fai-text);
+    color: var(--ink-strong);
   }
   .row.on {
-    background: var(--fai-fill);
+    background: var(--surface-fill);
   }
   .tile {
     width: 26px;
@@ -134,18 +134,18 @@
   }
   .name {
     display: block;
-    font: 500 13px / 1.3 var(--fai-font-sans);
+    font: var(--type-label);
   }
   .meta {
     display: block;
-    font: var(--fai-type-meta);
-    color: var(--fai-text-subtle);
+    font: var(--type-meta);
+    color: var(--ink-subtle);
     text-wrap: pretty;
   }
   .row :global(svg.check) {
     width: 16px;
     height: 16px;
     flex: none;
-    color: var(--fai-grey-900);
+    color: var(--ink-strong);
   }
 </style>

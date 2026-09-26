@@ -213,9 +213,9 @@
     display: grid;
     height: 56px;
     padding: 10px 12px;
-    background: var(--fai-surface-subtle);
-    border: 1px solid var(--fai-border-subtle);
-    border-radius: var(--fai-radius-md);
+    background: var(--surface-recess);
+    border: 1px solid var(--border-hairline);
+    border-radius: var(--radius-md);
     overflow: hidden;
   }
   .box.embedded {
@@ -233,16 +233,16 @@
   .track {
     position: relative;
     height: 34px;
-    background: var(--fai-surface);
-    border: 1px solid var(--fai-border);
-    border-radius: var(--fai-radius-md);
+    background: var(--surface-raised);
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius-md);
     overflow: hidden;
     cursor: ew-resize;
     user-select: none;
     touch-action: none;
     box-shadow: none;
     transition:
-      var(--fai-transition-control),
+      var(--transition-control),
       box-shadow 120ms ease;
   }
   .track:not(.ready),
@@ -250,8 +250,9 @@
     transition: none;
   }
   .track.focus {
-    border-color: var(--fai-grey-400);
-    box-shadow: 0 0 0 3px var(--fai-focus-ring);
+    border-color: var(--neutral-8);
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
   }
   .fill {
     position: absolute;
@@ -259,12 +260,12 @@
     justify-content: flex-end;
     align-items: center;
     padding: 3px;
-    border-radius: calc(var(--fai-radius-md) - 1px);
+    border-radius: calc(var(--radius-md) - 1px);
     left: 0;
     top: 0;
     bottom: 0;
-    background: var(--fai-recess-deep);
-    transition: width var(--ns-fill-ms) var(--ns-ease-in-out);
+    background: var(--surface-recess-deep);
+    transition: width var(--ns-fill-ms) var(--ease-in-out);
     pointer-events: none;
   }
   .pip {
@@ -273,10 +274,10 @@
     width: 5px;
     height: 5px;
     margin-top: -2.5px;
-    border-radius: var(--fai-radius-pill);
-    background: var(--fai-grey-900);
+    border-radius: var(--radius-pill);
+    background: var(--ink-strong);
     transition:
-      left var(--ns-fill-ms) var(--ns-ease-in-out),
+      left var(--ns-fill-ms) var(--ease-in-out),
       opacity 120ms ease;
     pointer-events: none;
   }
@@ -287,12 +288,12 @@
     align-items: center;
     gap: 7px;
     padding: 0 9px;
-    border-radius: var(--fai-radius-sm);
-    background: var(--fai-raised);
+    border-radius: var(--radius-sm);
+    background: var(--surface-lift);
     box-shadow:
-      inset 0 0 0 1px var(--fai-grey-400),
-      var(--fai-shadow-raised);
-    color: var(--fai-text-muted);
+      inset 0 0 0 1px var(--neutral-8),
+      var(--shadow-raised);
+    color: var(--ink-muted);
     transition:
       color 120ms ease,
       opacity 120ms ease;
@@ -300,7 +301,7 @@
     white-space: nowrap;
   }
   .knob.active {
-    color: var(--fai-grey-900);
+    color: var(--ink-strong);
   }
   /* As many bars as the model has levels, lit up to the one it sits on. The
      ramp is set inline so it spans 4→12px whether the model offers three
@@ -314,11 +315,11 @@
   .bar {
     width: 2px;
     border-radius: 1px;
-    background: var(--fai-grey-900);
+    background: var(--ink-strong);
     opacity: 0.22;
     transition:
       opacity 160ms ease,
-      height 160ms var(--ns-ease-in-out);
+      height 160ms var(--ease-in-out);
   }
   .bar.lit {
     opacity: 1;
@@ -326,7 +327,7 @@
   .lvl {
     /* Reserve every label's width so a switch keeps the chip and rail stable. */
     display: grid;
-    font: 500 12px / 1 var(--fai-font-sans);
+    font: 500 var(--text-meta) / 1 var(--font-body);
     text-transform: capitalize;
     font-variant-numeric: tabular-nums;
   }
@@ -353,7 +354,7 @@
       height: 42px;
     }
     .lvl {
-      font-size: 13px;
+      font-size: var(--text-label);
     }
   }
 </style>

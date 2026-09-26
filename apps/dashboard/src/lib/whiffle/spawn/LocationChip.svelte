@@ -64,14 +64,14 @@
   {onchange}
   {open}
   triggerClass="ns-chip-btn"
-  triggerStyle={empty ? "color:var(--fai-text-muted)" : ""}
+  triggerStyle={empty ? "color:var(--ink-muted)" : ""}
   width={440}
 >
   {#snippet trigger()}
     {#if mode === "repo"}
       <GitHub />
     {:else}
-      <FolderOpen style="color:var(--fai-amber-500)" />
+      <FolderOpen style="color:var(--hue-amber-500)" />
     {/if}
     <span
       class="chip-label"
@@ -100,6 +100,6 @@
 
 <style>
   .mono {
-    font-family: var(--fai-font-mono);
+    font-family: var(--font-mono);
   }
 </style>

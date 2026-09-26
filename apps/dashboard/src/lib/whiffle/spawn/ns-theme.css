@@ -1,123 +1,10 @@
 /*
- * New-session modal tokens. Every `--fai-*` token the design uses, mapped to
- * the app's semantic tokens where one exists (so dark mode keeps working) and
- * to a literal where the app has none. Scoped to `.ns-theme`, which sits on the
- * dialog card, the scrim and every portaled popover — nothing outside the
- * modal reads these.
+ * The new-session dialog's own motion tunables. Every colour, radius, type
+ * role, curve and shared duration comes from the root tokens in app.css.
+ * Scoped to `.ns-theme`, which sits on the dialog card, the scrim and every
+ * portaled popover.
  */
 .ns-theme {
-  --fai-white: #fff;
-  --fai-grey-50: var(--neutral-2);
-  --fai-grey-100: var(--neutral-3);
-  --fai-grey-150: var(--border-hairline);
-  --fai-grey-200: var(--neutral-4);
-  --fai-grey-300: var(--neutral-5);
-  --fai-grey-400: var(--neutral-8);
-  --fai-grey-500: color-mix(in oklab, var(--neutral-8) 62%, var(--neutral-11));
-  --fai-grey-600: var(--ink-muted);
-  --fai-grey-900: var(--ink-strong);
-  --fai-ink: oklch(from var(--ink-strong) calc(l - 0.05) c h);
-
-  --fai-blue-500: var(--hue-blue-500);
-  --fai-blue-600: var(--hue-blue-600);
-  --fai-green-500: var(--hue-green-500);
-  --fai-green-600: var(--hue-green-600);
-  --fai-amber-500: var(--hue-amber-500);
-  --fai-orange-500: var(--hue-orange-500);
-  --fai-red-500: var(--hue-red-500);
-  --fai-red-600: var(--hue-red-600);
-  --fai-cyan-400: var(--hue-cyan-400);
-  --fai-cyan-500: var(--hue-cyan-500);
-  --fai-violet-400: var(--hue-violet-400);
-  --fai-violet-500: var(--hue-violet-500);
-
-  --fai-surface: var(--surface-raised);
-  --fai-surface-subtle: var(--surface-field);
-
-  /*
-   * Elevation as roles, not ramp steps. The design recesses with grey and
-   * lifts with white, which only reads in light: the `--fai-grey-*` ramp
-   * descends from the surface in light and climbs past it in dark, so every
-   * groove, thumb, selected row and hover tint painted straight off the ramp
-   * came out the same colour as what it sat on. These five carry the polarity
-   * instead, and dark flips them in one place below.
-   */
-  --fai-recess: var(--fai-grey-100);
-  --fai-recess-deep: var(--fai-grey-200);
-  --fai-raised: var(--fai-surface);
-  --fai-fill: var(--fai-grey-100);
-  --fai-hover: var(--fai-grey-50);
-  --fai-text: var(--ink-strong);
-  --fai-text-muted: var(--ink-muted);
-  /* The selected fill sets the 4.5:1 floor for secondary text. These are the
-     weakest passing mixes: 15.2% light / 33.3% dark. Do not nudge lighter:
-     15.3% / 33.4% fail at 4.4946:1 / 4.4943:1 respectively.
-     Verified only on modal/popover backgrounds, --fai-fill, --fai-hover and
-     --fai-recess. Unused here today, dark --fai-raised and light
-     --fai-recess-deep fail 4.5:1; re-measure before using subtle text there. */
-  --fai-text-subtle: color-mix(
-    in oklab,
-    var(--neutral-8) 15.2%,
-    var(--neutral-11)
-  );
-  --fai-text-inverse: var(--on-brand);
-  --fai-border: var(--border-control);
-  --fai-border-subtle: var(--border-hairline);
-  --fai-focus-ring: oklch(from var(--focus-ring) l c h / 0.28);
-  --fai-status-info-bg: var(--status-live-bg);
-  --fai-status-info-fg: var(--status-live-ink);
-  --fai-status-expired-fg: var(--status-fail-ink);
-  --fai-presence-online: var(--hue-green-500);
-  --fai-presence-away: var(--hue-orange-500);
-  --fai-presence-offline: var(--neutral-8);
-
-  --fai-shadow-xs: var(--shadow-xs);
-  --fai-shadow-raised:
-    0 1px 3px var(--shadow-tint), 0 1px 1px var(--shadow-tint);
-  --fai-shadow-shell: var(--shadow-overlay);
-  --fai-shadow-modal: var(--shadow-modal);
-  --fai-shadow-tile:
-    0 1px 2px oklch(from var(--neutral-12) l c h / 0.07),
-    0 0 0 1px oklch(from var(--neutral-12) l c h / 0.035);
-  --fai-scrim: oklch(from var(--neutral-2) l c h / 0.72);
-  --fai-scrim-blur: var(--scrim-blur);
-
-  --fai-radius-xs: 5px;
-  --fai-radius-sm: 8px;
-  --fai-radius-md: 10px;
-  --fai-radius-lg: 12px;
-  --fai-radius-modal: 18px;
-  --fai-radius-pill: 999px;
-
-  --fai-font-sans: var(--font-body);
-  --fai-font-mono: var(--font-mono);
-  --fai-type-label: 500 13px / 1.3 var(--fai-font-sans);
-  --fai-type-meta: 400 12px / 1.35 var(--fai-font-sans);
-  --fai-type-body: 400 14px / 1.45 var(--fai-font-sans);
-
-  /* Motion curves, defined once. Entrances/exits ease out; on-screen movement
-     eases in-out; hover colour uses `ease`; the mobile sheet uses the drawer
-     curve. Never ease-in. */
-  --ns-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-  --ns-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
-  --ns-ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
-  --fai-ease-out: var(--ns-ease-out);
-  --fai-ease-standard: var(--ns-ease-out);
-  --fai-transition-control:
-    background-color 120ms ease, border-color 120ms ease, color 120ms ease;
-  --fai-press-scale: 0.97;
-
-  /* Tunable durations/distances. The route's DialKit panel writes the same
-     names on :root while the modal is open; these are the design defaults. */
-  /* The popover's own entrance. `--ns-ease-out` is easeOutQuint — it spends
-     ~70% of its travel in the first 25ms, so a 160ms/0.95 pop was over before
-     the eye caught it and read as no animation at all. This is longer, travels
-     further, and uses the gentler drawer curve. */
-  --ns-pop-ms: 260ms;
-  --ns-pop-scale: 0.92;
-  --ns-pop-rise: 8px;
-  --ns-ease-pop: cubic-bezier(0.32, 0.72, 0, 1);
-  --ns-menu-ms: 140ms;
   --ns-swap-out-ms: 160ms;
   --ns-swap-out-stagger: 14ms;
   --ns-swap-in-ms: 260ms;
@@ -130,31 +17,11 @@
   --ns-thumb-ms: 240ms;
   --ns-harness-thumb-ms: 160ms;
   --ns-fill-ms: 160ms;
-  --ns-panel-ms: 280ms;
   --ns-row-ms: 200ms;
   --ns-ghost-ms: 80ms;
 
-  font: var(--fai-type-body);
-  color: var(--fai-text);
-}
-.dark .ns-theme {
-  --fai-ink: oklch(from var(--ink-strong) calc(l + 0.05) c h);
-  --fai-scrim: oklch(from var(--neutral-1) l c h / 0.72);
-  --fai-text-subtle: color-mix(
-    in oklab,
-    var(--neutral-8) 33.3%,
-    var(--neutral-11)
-  );
-
-  /* Inverted polarity: a groove goes below the card, a lift goes above it. */
-  --fai-recess: var(--neutral-2);
-  --fai-recess-deep: var(--neutral-1);
-  --fai-raised: var(--neutral-6);
-  --fai-fill: var(--neutral-5);
-  --fai-hover: var(--neutral-4);
-  /* A black drop shadow says nothing under a pill that is already lighter
-     than its groove; the raised edge does the lifting instead. */
-  --fai-shadow-raised: inset 0 0 0 1px oklch(from var(--neutral-7) l c h / 0.7);
+  font: var(--type-body);
+  color: var(--ink-strong);
 }
 
 .ns-theme *,
@@ -166,28 +33,28 @@
   font: inherit;
   color: inherit;
   transition:
-    var(--fai-transition-control),
-    transform 160ms var(--ns-ease-out);
+    var(--transition-control),
+    transform 160ms var(--ease-out);
 }
 .ns-theme button:not(:disabled):active {
-  transform: scale(var(--fai-press-scale));
+  transform: scale(var(--press-scale));
 }
 .ns-theme :focus-visible {
-  outline: 2px solid var(--fai-focus-ring);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 1px;
 }
 .ns-theme input,
 .ns-theme [contenteditable] {
-  font-family: var(--fai-font-sans);
+  font-family: var(--font-body);
 }
 .ns-theme input::placeholder {
-  color: var(--fai-text-subtle);
+  color: var(--ink-subtle);
 }
 .ns-theme .fai-comb {
   height: 14px;
   background-image: repeating-linear-gradient(
     to right,
-    var(--fai-grey-300) 0 1px,
+    var(--neutral-5) 0 1px,
     transparent 1px 6px
   );
   background-repeat: no-repeat;
@@ -195,14 +62,14 @@
 }
 .ns-theme .fai-scroll {
   scrollbar-width: thin;
-  scrollbar-color: var(--fai-grey-300) transparent;
+  scrollbar-color: var(--neutral-5) transparent;
 }
 .ns-theme .fai-scroll::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 .ns-theme .fai-scroll::-webkit-scrollbar-thumb {
-  background: var(--fai-grey-300);
+  background: var(--neutral-5);
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: content-box;
@@ -217,12 +84,12 @@
   align-items: center;
   justify-content: center;
   flex: none;
-  border-radius: var(--fai-radius-sm);
-  background: var(--fai-surface);
-  box-shadow: var(--fai-shadow-tile);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-tile);
   transition:
-    background-color 240ms var(--ns-ease-out),
-    color 240ms var(--ns-ease-out);
+    background-color 240ms var(--ease-out),
+    color 240ms var(--ease-out);
 }
 .ns-theme .ns-tile svg {
   flex: none;
@@ -230,11 +97,11 @@
 .ns-theme .ns-tile.dashed {
   background: transparent;
   box-shadow: none;
-  border: 1px dashed var(--fai-grey-400);
+  border: 1px dashed var(--neutral-8);
 }
 .ns-theme .ns-tile.ink {
-  background: var(--fai-grey-900);
-  color: var(--fai-text-inverse);
+  background: var(--ink-strong);
+  color: var(--on-brand);
   box-shadow: none;
 }
 
@@ -249,13 +116,13 @@
   position: absolute;
   left: 0;
   top: 0;
-  border-radius: var(--fai-radius-sm);
-  background: var(--fai-hover);
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
   pointer-events: none;
   transition:
-    transform var(--ns-ghost-ms) var(--ns-ease-in-out),
-    width var(--ns-ghost-ms) var(--ns-ease-in-out),
-    height var(--ns-ghost-ms) var(--ns-ease-in-out),
+    transform var(--ns-ghost-ms) var(--ease-in-out),
+    width var(--ns-ghost-ms) var(--ease-in-out),
+    height var(--ns-ghost-ms) var(--ease-in-out),
     opacity 120ms ease;
 }
 @media (hover: hover) {
@@ -342,14 +209,14 @@
   }
 }
 .ns-theme .ns-in {
-  animation: ns-in var(--ns-row-ms) var(--ns-ease-out) both;
+  animation: ns-in var(--ns-row-ms) var(--ease-out) both;
   animation-delay: var(--delay, 0ms);
 }
 .ns-theme .ns-check {
-  animation: ns-check var(--ns-check-ms) var(--ns-ease-out) both;
+  animation: ns-check var(--ns-check-ms) var(--ease-out) both;
 }
 .ns-theme .ns-panel {
-  animation: ns-panel 200ms var(--ns-ease-out) both;
+  animation: ns-panel 200ms var(--ease-out) both;
 }
 
 /* DS Button (§5.1). */
@@ -360,12 +227,12 @@
   gap: 8px;
   height: 36px;
   padding: 0 14px;
-  font: 500 14px / 1 var(--fai-font-sans);
+  font: 500 var(--text-body) / 1 var(--font-body);
   letter-spacing: -0.01em;
-  border: 1px solid var(--fai-border);
-  border-radius: var(--fai-radius-md);
-  background: var(--fai-surface);
-  color: var(--fai-text);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  color: var(--ink-strong);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -373,25 +240,25 @@
   gap: 7px;
   height: 30px;
   padding: 0 11px;
-  font-size: 13px;
+  font-size: var(--text-label);
 }
 .ns-theme .ns-btn.primary {
-  background: var(--fai-grey-900);
-  color: var(--fai-text-inverse);
+  background: var(--brand-solid);
+  color: var(--on-brand);
   border-color: transparent;
 }
 .ns-theme .ns-btn:disabled {
-  background: var(--fai-recess);
-  border-color: var(--fai-border-subtle);
+  background: var(--surface-recess);
+  border-color: var(--border-hairline);
   cursor: not-allowed;
   opacity: 0.6;
 }
 @media (hover: hover) {
   .ns-theme .ns-btn:not(:disabled):hover {
-    background: var(--fai-hover);
+    background: var(--surface-hover);
   }
   .ns-theme .ns-btn.primary:not(:disabled):hover {
-    background: var(--fai-ink);
+    background: var(--ink-hover);
   }
 }
 
@@ -406,25 +273,25 @@
   display: grid;
   gap: var(--ns-pop-gap, 0px);
   align-content: start;
-  background: var(--fai-surface);
-  border: 1px solid var(--fai-border);
-  border-radius: var(--fai-radius-lg);
-  box-shadow: var(--fai-shadow-shell);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-overlay);
   outline: none;
   opacity: 1;
   scale: 1;
   translate: 0 0;
   transform-origin: var(--bits-popover-content-transform-origin, top left);
   transition:
-    opacity var(--ns-pop-ms) var(--ns-ease-pop),
-    scale var(--ns-pop-ms) var(--ns-ease-pop),
-    translate var(--ns-pop-ms) var(--ns-ease-pop);
+    opacity var(--dur-pop) var(--ease-drawer),
+    scale var(--dur-pop) var(--ease-drawer),
+    translate var(--dur-pop) var(--ease-drawer);
 }
 @starting-style {
   .ns-theme.ns-pop {
     opacity: 0;
-    scale: var(--ns-pop-scale);
-    translate: 0 calc(-1 * var(--ns-pop-rise));
+    scale: var(--pop-scale);
+    translate: 0 calc(-1 * var(--pop-rise));
   }
 }
 /*
@@ -440,19 +307,18 @@
 }
 .ns-theme.ns-pop[data-morph] {
   transition:
-    opacity var(--ns-pop-ms) var(--ns-ease-pop),
-    scale var(--ns-pop-ms) var(--ns-ease-pop),
-    translate var(--ns-pop-ms) var(--ns-ease-pop),
-    width var(--ns-pop-ms) var(--ns-ease-pop);
+    opacity var(--dur-pop) var(--ease-drawer),
+    scale var(--dur-pop) var(--ease-drawer),
+    translate var(--dur-pop) var(--ease-drawer),
+    width var(--dur-pop) var(--ease-drawer);
 }
 .ns-pop[data-morph] .ns-morph {
   overflow: hidden;
-  transition: height var(--ns-pop-ms) var(--ns-ease-pop);
+  transition: height var(--dur-pop) var(--ease-drawer);
 }
 @media (prefers-reduced-motion: no-preference) {
-  /* The floating wrapper sits outside .ns-theme, so its easing is literal. */
   [data-bits-floating-content-wrapper]:has(> .ns-pop[data-morph]) {
-    transition: transform 260ms cubic-bezier(0.32, 0.72, 0, 1);
+    transition: transform var(--dur-pop) var(--ease-drawer);
   }
 }
 /*
@@ -472,13 +338,5 @@
   }
   .ns-theme.ns-pop button {
     min-height: 44px;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .ns-theme,
-  .ns-theme * {
-    transition-duration: 0ms !important;
-    animation-duration: 0ms !important;
-    animation-delay: 0ms !important;
   }
 }
