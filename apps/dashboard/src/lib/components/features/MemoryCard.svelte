@@ -226,7 +226,6 @@
 
   {#if editing}
     <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-    <!-- biome-ignore lint/a11y/noStaticElementInteractions: a key handler over the editor, whose own controls are the interactive elements -->
     <div class="max-h-[60vh] overflow-y-auto" onkeydown={keydown} role="group">
       <MarkdownEditor label={path} bind:value={draft} />
     </div>

@@ -41,7 +41,6 @@ const store = $state({
 if (typeof localStorage !== "undefined") {
   store.offered = readJson<HarnessModel[]>(OFFERED_KEY, []);
   store.recent = readJson<string[]>(RECENT_KEY, []);
-
 }
 
 /** One running session per unique harness, so each harness type is queried. */

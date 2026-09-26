@@ -33,7 +33,7 @@
     let editor: { destroy: () => Promise<unknown> } | null = null;
     let dropped = false;
 
-    void (async () => {
+    const load = async () => {
       try {
         const { Crepe } = await import("@milkdown/crepe");
         if (dropped || !host) {
@@ -57,11 +57,12 @@
       } catch (caught) {
         failed = caught instanceof Error ? caught.message : String(caught);
       }
-    })();
+    };
+    load();
 
     return () => {
       dropped = true;
-      void editor?.destroy();
+      editor?.destroy();
     };
   });
 </script>

@@ -23,7 +23,6 @@ export interface Slot {
 
 export const slots = new SvelteMap<string, Slot>();
 
-
 /** A group's slot for one tab. Registered while the group keeps it mounted. */
 export function slot(node: HTMLElement, param: { id: string; shown: boolean }) {
   let { id } = param;

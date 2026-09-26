@@ -1,6 +1,6 @@
 <script lang="ts">
   /** Right-click on a machine's heading — what you can do to the box, not to a session. */
-  import { type UpdateReport, UPDATE_WHIFFLE } from "@whiffle/core";
+  import { UPDATE_WHIFFLE, type UpdateReport } from "@whiffle/core";
   import type { Snippet } from "svelte";
   import { toast } from "svelte-sonner";
   import { goto } from "$app/navigation";

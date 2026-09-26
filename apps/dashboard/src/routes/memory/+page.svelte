@@ -93,7 +93,7 @@
    * The selection is a named element rather than a background, so the API
    * morphs it from the old row to the new one instead of repainting it.
    */
-  async function pick(path: string) {
+  function pick(path: string) {
     if (path === selected) {
       return;
     }
@@ -128,10 +128,11 @@
     run.finished.then(clear, clear);
   }
 
+  const MODELS_DIR = /^models\//;
   const labelOf = (path: string) =>
     path === FLEET ? "~/.claude/CLAUDE.md" : `~/.claude/memories/${path}`;
   const shortOf = (path: string) =>
-    path === FLEET ? "CLAUDE.md" : path.replace(/^models\//, "");
+    path === FLEET ? "CLAUDE.md" : path.replace(MODELS_DIR, "");
 
   const stateOf = (machine: (typeof machines)[number], path: string) =>
     path === FLEET ? machine.fleet?.memory : machine.fleet?.memoryDocs?.[path];
@@ -162,7 +163,7 @@
       if (selected === FLEET) {
         const result = await saveMemory(text, memory?.hash);
         if (result.ok) {
-          memory = result.memory;
+          ({ memory } = result);
           delete drafts[FLEET];
         } else {
           toast.error(
@@ -322,7 +323,9 @@
               aria-label="New document path"
               autofocus
               class="font-mono"
-              onblur={() => (drafting = false)}
+              onblur={() => {
+                drafting = false;
+              }}
               placeholder="models/deepseek-v4.md"
               bind:value={newPath}
             />
@@ -330,7 +333,9 @@
         {:else}
           <Button
             class="memory-action w-full justify-start"
-            onclick={() => (drafting = true)}
+            onclick={() => {
+              drafting = true;
+            }}
             size="xs"
             variant="outline"
             ><IconPlus class="shrink-0" /><span>New document</span></Button
@@ -348,7 +353,7 @@
           <span class="path" title={labelOf(selected)}
             >{labelOf(selected)}</span
           >
-          <div aria-label="Document details" class="metadata">
+          <div class="metadata">
             <span class="stat">{formatBytes(bytes)}</span>
             <Tooltip.Root>
               <Tooltip.Trigger>

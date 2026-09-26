@@ -122,7 +122,7 @@
     if (!(node && animates && opens) || measured) {
       return;
     }
-    const height = node.getBoundingClientRect().height;
+    const { height } = node.getBoundingClientRect();
     node.style.setProperty("--open-h", `${height}px`);
     // The row's height is known now, so its duration can be too: hold the
     // opening edge to one speed and let a taller row simply take longer.
@@ -211,6 +211,9 @@
   .arrive.opens.measured {
     animation: reserve var(--reserve-ms) var(--reserve-ease) var(--t0) backwards;
   }
+  .clip {
+    min-height: 0;
+  }
   /* Clipped from the moment the row can open, not from the moment it is
      armed. `overflow: hidden` is also what stops the child's top margin
      collapsing through the wrapper — so with the rule gated on `.measured`,
@@ -266,9 +269,6 @@
       calc(var(--t0) + var(--rail-delay)) backwards;
   }
 
-  .clip {
-    min-height: 0;
-  }
   .body.lift {
     animation: render var(--content-ms) var(--content-ease)
       calc(var(--t0) + var(--content-delay)) backwards;
@@ -318,8 +318,7 @@
       animation: none;
     }
     .arrive,
-    .arrive.rail::before,
-    .clip {
+    .arrive.rail::before {
       min-height: 0;
     }
     .body.lift {

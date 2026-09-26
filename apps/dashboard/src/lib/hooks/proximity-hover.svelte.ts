@@ -29,7 +29,7 @@ export class ProximityHover {
 
   readonly #axis: Axis;
   #container: HTMLElement | null = null;
-  #items = new Map<number, HTMLElement>();
+  readonly #items = new Map<number, HTMLElement>();
   #frame: number | null = null;
   #measureFrame: number | null = null;
   #observer: ResizeObserver | null = null;
