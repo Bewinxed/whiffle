@@ -55,7 +55,7 @@
   const pickedHue = $derived(folderPrefs.chosenHue(cwd));
 
   /** A swatch shows the colour it would apply, at the ink lightness it lands on. */
-  const swatch = (hue: number) => `background: oklch(0.58 0.12 ${hue})`;
+  const swatch = (hue: number) => `--identity-h: ${hue}`;
 
   const pinned = $derived(
     project ? rail.isPinned("project", project.id) : false
@@ -149,7 +149,7 @@
               type="button"
             >
               <span
-                class="size-5 rounded-full {on ? 'ring-2 ring-ring ring-offset-2 ring-offset-[var(--surface-raised)]' : ''}"
+                class="identity-ink size-5 rounded-full bg-current {on ? 'ring-2 ring-ring ring-offset-2 ring-offset-[var(--surface-raised)]' : ''}"
                 style={swatch(hue)}
               ></span>
             </button>

@@ -340,7 +340,7 @@
   }
   .ap-title {
     font-size: var(--text-label);
-    font-weight: 600;
+    font-weight: 500;
     color: var(--ink-strong);
     margin: 0;
   }

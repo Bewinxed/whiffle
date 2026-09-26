@@ -76,7 +76,7 @@
     <div class="grid gap-6 py-2">
       {#each groups as group (group.name)}
         <div>
-          <h3 class="mb-2 text-[13px] font-medium text-muted-foreground">
+          <h3 class="mb-2 text-label font-medium text-muted-foreground">
             {group.name}
           </h3>
           <div class="grid gap-1">
@@ -84,7 +84,7 @@
               <div
                 class="flex items-center justify-between rounded-[var(--radius-sm)] px-2 py-1.5 hover:bg-accent"
               >
-                <span class="text-[14px]">{shortcut.label}</span>
+                <span class="text-body">{shortcut.label}</span>
                 <span class="flex items-center gap-0.5">
                   {#each shortcut.keys as key}
                     <Kbd>{key}</Kbd>

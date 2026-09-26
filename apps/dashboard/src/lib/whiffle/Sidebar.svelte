@@ -460,7 +460,7 @@
                 </svg>
               </span>
               <span
-                class="min-w-0 truncate text-[length:var(--text-body)] font-semibold tracking-tight text-foreground"
+                class="min-w-0 truncate text-[length:var(--text-body)] font-medium text-foreground"
                 >Whiffle</span
               >
             </a>
@@ -691,7 +691,7 @@
                       {#if online.has(machine.machineId)}
                         <span class={TRAIL} title="Online">
                           <span
-                            class="size-2 rounded-full bg-emerald-500"
+                            class="size-2 rounded-full bg-[var(--hue-green-500)]"
                           ></span>
                           <span class="sr-only">Online</span>
                         </span>
@@ -1019,7 +1019,7 @@
         <Sidebar.MenuButton class={NAV_ROW}>
           <span
             aria-hidden="true"
-            class="{SLOT} rounded-full bg-sidebar-accent text-[length:var(--text-meta)] font-semibold text-sidebar-accent-foreground"
+            class="{SLOT} rounded-full bg-sidebar-accent text-[length:var(--text-meta)] font-medium text-sidebar-accent-foreground"
             >bw</span
           >
           <span class="min-w-0 flex-1 truncate text-foreground">bewinxed</span>

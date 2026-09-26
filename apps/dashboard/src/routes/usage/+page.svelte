@@ -299,7 +299,7 @@
             >
               <span
                 class="hero-fill {spendBand}"
-                style="width: {Math.max(spendPct, 1)}%"
+                style="transform: scaleX({(Math.max(spendPct, 1)) / 100})"
               ></span>
             </span>
           {:else if binding}
@@ -319,7 +319,7 @@
             >
               <span
                 class="hero-fill {band(binding.percent)}"
-                style="width: {Math.max(binding.percent, 1)}%"
+                style="transform: scaleX({(Math.max(binding.percent, 1)) / 100})"
               ></span>
             </span>
           {/if}
@@ -404,7 +404,7 @@
                     >
                       <span
                         class="fill {tone}"
-                        style="width: {Math.max(w.percent, 1)}%"
+                        style="transform: scaleX({(Math.max(w.percent, 1)) / 100})"
                       ></span>
                     </span>
                   </Table.Cell>
@@ -657,7 +657,7 @@
     max-width: 1100px;
     display: flex;
     flex-direction: column;
-    gap: var(--space-6);
+    gap: var(--space-8);
   }
   .sub {
     max-width: 68ch;
@@ -717,7 +717,9 @@
     position: absolute;
     inset: 0 auto 0 0;
     border-radius: var(--radius-pill);
-    transition: width var(--c-500) ease-out;
+    width: 100%;
+    transform-origin: left;
+    transition: transform var(--dur-panel) var(--ease-out);
   }
   .hero-fill.ok {
     background: var(--data-ok);
@@ -927,7 +929,9 @@
       position: absolute;
       inset: 0 auto 0 0;
       border-radius: var(--radius-pill);
-      transition: width var(--c-500) ease-out;
+      width: 100%;
+    transform-origin: left;
+    transition: transform var(--dur-panel) var(--ease-out);
     }
     .q-table .fill.ok {
       background: var(--data-ok);

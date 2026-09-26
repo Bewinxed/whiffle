@@ -311,7 +311,7 @@
     max-width: 1100px;
     display: flex;
     flex-direction: column;
-    gap: var(--space-6);
+    gap: var(--space-8);
   }
   .head {
     display: flex;

@@ -221,7 +221,7 @@
 
     {#if staleNote}
       <p
-        class="border-b border-border px-3 py-1.5 text-[11px] text-muted-foreground"
+        class="border-b border-border px-3 py-1.5 text-meta text-muted-foreground"
       >
         {staleNote}
       </p>
@@ -239,7 +239,7 @@
               >
               {#if window.isActive}
                 <span
-                  class="rounded-full bg-primary/10 px-1.5 text-[10px] font-medium text-primary"
+                  class="rounded-full bg-primary/10 px-1.5 text-meta font-medium text-primary"
                 >
                   active
                 </span>

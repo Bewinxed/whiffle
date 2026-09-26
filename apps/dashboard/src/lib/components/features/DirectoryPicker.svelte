@@ -157,7 +157,7 @@
         {:else}
           {#each dirs as dir (dir.name)}
             <Button
-              class="w-full justify-start font-mono text-[13px] font-normal"
+              class="w-full justify-start font-mono text-label font-normal"
               onclick={() => go(join(path, dir.name))}
               size="sm"
               variant="ghost"

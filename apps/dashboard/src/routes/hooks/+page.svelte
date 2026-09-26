@@ -238,6 +238,9 @@
                   <div class="rowtext" class:off={!row.enabled}>
                     <span class="name">
                       <a href="/hooks/{row.id}">{row.name}</a>
+                      {#if !row.enabled}
+                        <span class="off-label">Off</span>
+                      {/if}
                       <Badge
                         class="gap-[var(--space-1)] rounded-[var(--radius-pill)] px-[var(--space-2)] font-mono text-[length:var(--text-meta)] font-medium"
                         variant="outline"
@@ -395,10 +398,14 @@
     flex: 1 1 320px;
     flex-direction: column;
     gap: var(--space-1);
-    transition: opacity var(--dur-panel) ease-out;
   }
-  .rowtext.off {
-    opacity: 0.55;
+  .rowtext.off .name,
+  .rowtext.off .line {
+    color: var(--ink-muted);
+  }
+  .off-label {
+    font: var(--type-meta);
+    color: var(--ink-muted);
   }
   .name {
     display: flex;

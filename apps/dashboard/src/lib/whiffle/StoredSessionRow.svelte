@@ -56,7 +56,7 @@
       </span>
       <!-- Stops at a readable measure, as the live rows do, so a runaway title
            does not crush the path beside it. -->
-      <span class="min-w-0 max-w-lg truncate text-[13px]"
+      <span class="min-w-0 max-w-lg truncate text-label"
         >{sessionTitle(info)}</span
       >
       <!-- Beside the title, as the live rows carry it: it yields three times as

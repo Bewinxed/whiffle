@@ -83,7 +83,7 @@
      that has nothing to open — say the same thing rather than nearly. -->
 {#snippet line(task: SessionTask, blocker: string | null)}
   {@render glyph(task)}
-  <span class="min-w-0 truncate text-[13px] {subjectClass(task)}"
+  <span class="min-w-0 truncate text-label {subjectClass(task)}"
     >{task.subject}</span
   >
   {#if task.owner}

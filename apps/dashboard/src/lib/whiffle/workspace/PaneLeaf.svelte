@@ -110,15 +110,9 @@
   });
 
   /* ── The switch ────────────────────────────────────────────────────
-     On a desktop a tab switch glides the arriving transcript in from the
-     side it came from and fades it up, on the strip's own --wipe and
-     --wipe-ease, so the eye reads which way it went. Only the showing
-     transcript is painted there, so it alone moves. The phone's group is
-     left alone: its swipe already slides the transcripts. */
-  /** How far the arriving transcript travels: a cue, not a page turn. */
-  const NUDGE_PX = 40;
-  const SWITCH_MS = 260;
-  const SWITCH_EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
+     On a desktop a tab switch fades the arriving transcript up in place.
+     The phone's group is left alone: its swipe already slides the
+     transcripts. */
   const motion = new MediaQuery("(prefers-reduced-motion: no-preference)");
   let stack = $state<HTMLElement>();
   let shownIndex = untrack(() => activeIndex);
@@ -138,20 +132,16 @@
       ) {
         return;
       }
-      const dir = Math.sign(index - fromIndex);
       stack
         .querySelector<HTMLElement>(
           `:scope > .pane[data-pane="${CSS.escape(id)}"]`
         )
         ?.animate(
-          [
-            {
-              transform: `translate3d(${dir * NUDGE_PX}px, 0, 0)`,
-              opacity: 0.4,
-            },
-            { transform: "translate3d(0, 0, 0)", opacity: 1 },
-          ],
-          { duration: SWITCH_MS, easing: SWITCH_EASE }
+          [{ opacity: 0.4 }, { opacity: 1 }],
+          {
+            duration: 120,
+            easing: getComputedStyle(stack).getPropertyValue("--ease-out"),
+          }
         );
     });
   });

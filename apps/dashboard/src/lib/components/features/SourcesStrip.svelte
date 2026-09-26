@@ -95,7 +95,7 @@
           }}
         >
           {@render favicon(source)}
-          <span class="min-w-0 flex-1 truncate text-[13px] text-foreground">
+          <span class="min-w-0 flex-1 truncate text-label text-foreground">
             {source.title ?? source.url}
           </span>
           <span class="shrink-0 font-mono text-label text-muted-foreground"

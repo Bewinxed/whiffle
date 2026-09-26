@@ -29,7 +29,7 @@
 </script>
 
 <fieldset class="flex flex-col gap-1.5">
-  <legend class="mb-1 text-[13px] text-muted-foreground">{legend}</legend>
+  <legend class="mb-1 text-label text-muted-foreground">{legend}</legend>
   {#each rows as row, index (index)}
     <div class="flex items-center gap-1.5">
       <Input

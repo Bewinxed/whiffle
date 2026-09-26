@@ -533,9 +533,6 @@
     ) {
       transition: transform 260ms var(--ease-drawer);
     }
-    :global(.session-details-popover[data-morph]) .details-morph {
-      transition: height 260ms var(--ease-drawer);
-    }
     :global(.session-details-popover[data-state="open"]) {
       animation: details-enter 260ms var(--ease-drawer);
     }

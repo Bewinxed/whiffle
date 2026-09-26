@@ -941,15 +941,6 @@
     display: flex;
     min-width: 0;
     min-height: 0;
-    transition: flex-grow var(--dur-panel) var(--ease-out);
-  }
-  .preview-shown :global(.transcript-pane),
-  .preview-shown :global(.artifact-pane) {
-    transition-timing-function: var(--ease-out);
-  }
-  .resizing :global(.transcript-pane),
-  .resizing :global(.artifact-pane) {
-    transition: none;
   }
   .artifact-surface {
     width: 100%;

@@ -396,7 +396,7 @@
   // raised list (FleetAgents.svelte / FleetMemory.svelte's own `panelList`):
   // a raised card at zero padding, each row drawing its own top hairline.
   const machinesPanelClass =
-    "gap-0 overflow-hidden rounded-[var(--radius-lg)] border-0 bg-[var(--surface-raised)] p-0 shadow-[var(--shadow-tile)] ring-1 ring-[var(--border-hairline)] mt-[var(--space-6)]";
+    "gap-0 overflow-hidden rounded-[var(--radius-lg)] border-0 bg-[var(--surface-raised)] p-0 shadow-[var(--shadow-tile)] mt-[var(--space-8)]";
 
   // The status column, dressed on ui/badge: a light tint carries the meaning,
   // deepened ink carries the legibility. Idle carries no fill — absence is idle.
@@ -498,34 +498,6 @@
         >
       {/each}
     </div>
-
-    <!-- Asleep and unreachable rows never reach the roster below (it is
-         `runningInstances` only, by design — see the Sessions stat), so a
-         sleeping or unknown session would otherwise be absent from the whole
-         board. Shown apart, never folded into live work or its counts. -->
-    {#if notRunning.length > 0}
-      {@const CAP = 20}
-      {@const capped = showAllNotRunning ? notRunning : notRunning.slice(0, CAP)}
-      <div class="not-running">
-        <div class="sec">Not running ({notRunning.length})</div>
-        <div class="not-running-rows">
-          {#each capped as row (row.id)}
-            <LiveSessionRow instance={row} />
-          {/each}
-        </div>
-        {#if !showAllNotRunning && notRunning.length > CAP}
-          <button
-            class="show-all"
-            onclick={() => {
-              showAllNotRunning = true;
-            }}
-            type="button"
-          >
-            Show all {notRunning.length} sessions
-          </button>
-        {/if}
-      </div>
-    {/if}
 
     <div class="panel">
       {#if whiffle.hub === 'unreachable'}
@@ -640,23 +612,23 @@
         </div>
 
         <div class="tbl">
-          <Table.Root class="min-w-[860px]">
+          <Table.Root class="live">
             <Table.Header>
               <Table.Row>
-                <Table.Head class="s-name">Session</Table.Head>
-                <Table.Head>Machine</Table.Head>
-                <Table.Head>Harness</Table.Head>
-                <Table.Head class="num">Turns</Table.Head>
-                <Table.Head class="num">Context</Table.Head>
-                <Table.Head>Last activity</Table.Head>
-                <Table.Head>State</Table.Head>
-                <Table.Head class="s-act">Action</Table.Head>
+                <Table.Head class="c-name">Session</Table.Head>
+                <Table.Head class="c-mach">Machine</Table.Head>
+                <Table.Head class="c-harn">Harness</Table.Head>
+                <Table.Head class="num c-turns">Turns</Table.Head>
+                <Table.Head class="num c-ctx">Context</Table.Head>
+                <Table.Head class="c-when">Last activity</Table.Head>
+                <Table.Head class="c-state">State</Table.Head>
+                <Table.Head class="c-act">Action</Table.Head>
               </Table.Row>
             </Table.Header>
             <Table.Body>
               {#each visible as row (row.key)}
                 <Table.Row>
-                  <Table.Cell>
+                  <Table.Cell class="c-name">
                     <div class="nm">
                       <span aria-hidden="true" class="mark m{row.hue}">
                         <HarnessGlyph harness={row.harness} />
@@ -664,24 +636,24 @@
                       <a href={row.href}>{row.title}</a>
                     </div>
                   </Table.Cell>
-                  <Table.Cell class="mut">{row.machine}</Table.Cell>
-                  <Table.Cell class="mut">{row.harnessLabel}</Table.Cell>
-                  <Table.Cell class="num">{row.turns ?? '—'}</Table.Cell>
-                  <Table.Cell class={cn('num', contextClass(row.contextPct))}>
+                  <Table.Cell class="mut c-mach">{row.machine}</Table.Cell>
+                  <Table.Cell class="mut c-harn">{row.harnessLabel}</Table.Cell>
+                  <Table.Cell class="num c-turns">{row.turns ?? '—'}</Table.Cell>
+                  <Table.Cell class={cn('num c-ctx', contextClass(row.contextPct))}>
                     {row.contextPct === null ? '—' : `${Math.round(row.contextPct)}%`}
                   </Table.Cell>
-                  <Table.Cell>
+                  <Table.Cell class="c-when">
                     <span class="when">
                       <IconHistory />
                       {row.at ? formatDistanceToNow(new Date(row.at)) : '—'}
                     </span>
                   </Table.Cell>
-                  <Table.Cell>
+                  <Table.Cell class="c-state">
                     <Badge class={cn(pillBase, pillTint[row.status])}
                       >{row.stateLabel}</Badge
                     >
                   </Table.Cell>
-                  <Table.Cell>
+                  <Table.Cell class="c-act">
                     <div class="act">
                       <Button
                         aria-label="Open {row.title}"
@@ -734,6 +706,34 @@
         <div class="foot">Showing {visible.length} of {filtered.length}</div>
       {/if}
     </div>
+
+    <!-- Asleep and unreachable rows never reach the roster above (it is
+         `runningInstances` only, by design — see the Sessions stat), so a
+         sleeping or unknown session would otherwise be absent from the whole
+         board. Shown apart, never folded into live work or its counts. -->
+    {#if notRunning.length > 0}
+      {@const CAP = 20}
+      {@const capped = showAllNotRunning ? notRunning : notRunning.slice(0, CAP)}
+      <div class="not-running">
+        <div class="sec">Not running ({notRunning.length})</div>
+        <div class="not-running-rows">
+          {#each capped as row (row.id)}
+            <LiveSessionRow instance={row} />
+          {/each}
+        </div>
+        {#if !showAllNotRunning && notRunning.length > CAP}
+          <button
+            class="show-all"
+            onclick={() => {
+              showAllNotRunning = true;
+            }}
+            type="button"
+          >
+            Show all {notRunning.length} sessions
+          </button>
+        {/if}
+      </div>
+    {/if}
   </div>
 </div>
 
@@ -787,20 +787,18 @@
     color: inherit;
     cursor: pointer;
     border-radius: var(--radius-lg);
-    transition: transform 100ms var(--ease-out);
+    transition: transform 160ms var(--ease-out);
   }
   .attn-tile:active {
-    transform: scale(0.99);
+    transform: scale(var(--press-scale));
   }
-  .attn-tile:focus-visible {
-    outline: 2px solid var(--ring);
-    outline-offset: 2px;
+  .attn-tile :global(.st-card) {
+    transition: var(--transition-control);
   }
-  .attn-tile:hover :global(.st-well),
-  .attn-tile[aria-pressed="true"] :global(.st-well) {
-    border-color: var(--status-attn-ink);
+  .attn-tile:hover :global(.st-card) {
+    background: var(--surface-hover);
   }
-  .attn-tile[aria-pressed="true"] :global(.st-well) {
+  .attn-tile[aria-pressed="true"] :global(.st-card) {
     background: var(--status-attn-bg);
   }
   .attn-tile[aria-pressed="true"] :global(.st-value) {
@@ -820,13 +818,13 @@
     display: contents;
   }
   .queue > :global(*) {
-    margin-top: var(--space-6);
+    margin-top: var(--space-8);
   }
 
   .panel {
     background: var(--surface-raised);
     border-radius: var(--radius-lg);
-    margin-top: var(--space-6);
+    margin-top: var(--space-8);
     padding: var(--space-3);
     box-shadow: var(--shadow-tile);
   }
@@ -843,7 +841,7 @@
   .not-running {
     background: var(--surface-raised);
     border-radius: var(--radius-lg);
-    margin-top: var(--space-6);
+    margin-top: var(--space-8);
     padding: var(--space-3);
     box-shadow: var(--shadow-tile);
   }
@@ -925,11 +923,42 @@
   .tbl :global([data-slot="table-head"]:last-child) {
     border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
   }
-  .tbl :global([data-slot="table-head"].s-name) {
-    width: 290px;
+  /* Fixed layout: the name column takes what the fixed columns leave and
+     truncates, so the table never outgrows its panel. */
+  .tbl :global(table.live) {
+    table-layout: fixed;
+    width: 100%;
   }
-  .tbl :global([data-slot="table-head"].s-act) {
+  .tbl :global(.c-name) {
+    width: 100%;
+    max-width: 0;
+  }
+  .tbl :global(.c-mach) {
     width: 140px;
+  }
+  .tbl :global(.c-harn) {
+    width: 110px;
+  }
+  .tbl :global(.c-turns) {
+    width: 64px;
+  }
+  .tbl :global(.c-ctx) {
+    width: 76px;
+  }
+  .tbl :global(.c-when) {
+    width: 132px;
+  }
+  .tbl :global(.c-state) {
+    width: 124px;
+  }
+  .tbl :global(.c-act) {
+    width: 124px;
+  }
+  .tbl :global(.c-mach),
+  .tbl :global(.c-harn) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .tbl :global([data-slot="table-header"] tr),
   .tbl :global([data-slot="table-row"]) {
@@ -1079,6 +1108,63 @@
     }
     .search {
       width: 100%;
+    }
+  }
+  /* Phones: each session is a stacked row — name with its state chip on the
+     first line, where and when beneath, actions at the end. */
+  @media (max-width: 639px) {
+    .tbl :global(table.live),
+    .tbl :global(table.live tbody) {
+      display: block;
+    }
+    .tbl :global(table.live thead) {
+      display: none;
+    }
+    .tbl :global(table.live tbody tr) {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1) var(--space-3);
+      padding: var(--space-3);
+      border-bottom: 1px solid var(--border-hairline);
+    }
+    .tbl :global(table.live tbody tr:last-child) {
+      border-bottom: 0;
+    }
+    .tbl :global(table.live tbody [data-slot="table-cell"]) {
+      display: block;
+      width: auto;
+      max-width: none;
+      height: auto;
+      padding: 0;
+      border: 0;
+    }
+    .tbl :global(table.live tbody .c-name) {
+      flex: 1 1 0;
+      min-width: 0;
+    }
+    .tbl :global(table.live tbody .c-state) {
+      flex: 0 0 auto;
+    }
+    .tbl :global(table.live tbody .c-mach) {
+      flex-basis: 100%;
+      order: 1;
+      padding-left: calc(var(--c-mark) + var(--space-3));
+      font-size: var(--text-meta);
+    }
+    .tbl :global(table.live tbody .c-harn),
+    .tbl :global(table.live tbody .c-turns),
+    .tbl :global(table.live tbody .c-ctx) {
+      display: none;
+    }
+    .tbl :global(table.live tbody .c-when) {
+      order: 2;
+      padding-left: calc(var(--c-mark) + var(--space-3));
+      font-size: var(--text-meta);
+    }
+    .tbl :global(table.live tbody .c-act) {
+      order: 3;
+      margin-left: auto;
     }
   }
 </style>

@@ -173,7 +173,7 @@
            readable measure instead of crushing the path beside it. It is wider
            than it was because the state pill that used to sit at the end of
            this row is gone. -->
-      <span class="min-w-0 max-w-xl truncate text-[13px]">{title}</span>
+      <span class="min-w-0 max-w-xl truncate text-label">{title}</span>
       <!-- A quest is named beside its title rather than glyphed in front of it:
            the lead slot belongs to state, and the titles keep their column. -->
       {#if quest}
