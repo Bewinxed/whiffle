@@ -290,6 +290,10 @@
   }
   /* A hub fault is not a machine's problem and does not wear a machine's tint:
      nothing downstream of it can be fixed until it is. */
+  /* The ring takes the row's own ink so it holds 3:1 on the tint. */
+  .fault :global(:focus-visible) {
+    outline-color: var(--tone-ink);
+  }
   .fault.hub {
     --tone-bg: var(--status-fail-bg);
     --tone-ink: var(--status-fail-ink);

@@ -668,7 +668,6 @@
     height: 100%;
     min-width: 0;
     border: 0;
-    outline: none;
     background: transparent;
     font: 400 var(--text-label) / 1.4 var(--font-body);
     color: var(--ink-strong);

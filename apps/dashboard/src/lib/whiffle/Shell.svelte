@@ -547,10 +547,13 @@
     touch-action: none;
     z-index: 5;
   }
-  .grip:hover,
+  .grip:hover {
+    background: var(--border-control);
+  }
   .grip:focus-visible {
     background: var(--border-control);
-    outline: none;
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 0;
   }
 
   .main {
