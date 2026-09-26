@@ -26,8 +26,6 @@
   import { hubSocketUrl, reconnectNow, whiffle } from "./client.svelte";
   import JumpPalette from "./JumpPalette.svelte";
   import Sidebar from "./Sidebar.svelte";
-  import UsageMeter from "./UsageMeter.svelte";
-  import UsageRail from "./UsageRail.svelte";
   import PaneTabs from "./workspace/PaneTabs.svelte";
   import { type WorkspaceV1, workspace } from "./workspace/workspace.svelte";
 
@@ -410,7 +408,7 @@
       {/if}
 
       <div class="right">
-        <!-- Desktop budget and fleet status — phone shows UsageMeter instead. -->
+        <!-- Desktop spend and fleet status. -->
         {#if limits && whiffle.status === 'connected'}
           <span
             class="desk-budget hidden min-[900px]:flex"
@@ -424,10 +422,6 @@
                 >
               {/if}
             </span>
-            {#if limits.spendLimit !== null && limits.spendLimit > 0}
-              {@const pct = Math.min(100, ((limits.spendUsed ?? 0) / limits.spendLimit) * 100)}
-              <UsageRail compact label="Spend" value={pct} />
-            {/if}
           </span>
         {/if}
 
@@ -452,7 +446,6 @@
           <IconSearch />
           <span class="hidden sm:inline">Jump</span>
         </Button>
-        <span class="min-[900px]:hidden"><UsageMeter /></span>
         {#if whiffle.blockedCount > 0}
           <a
             class="icobtn"

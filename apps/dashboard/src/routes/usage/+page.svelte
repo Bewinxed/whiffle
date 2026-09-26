@@ -342,10 +342,6 @@
       <section aria-label="Usage at a glance" class="stats">
         {#if binding}
           <StatTile
-            label="{windowLabel(binding)} used"
-            value="{Math.round(binding.percent)}%"
-          />
-          <StatTile
             label="Resets in"
             value={resetsIn(binding.resetsAt, now) || '—'}
           />
