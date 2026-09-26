@@ -171,7 +171,7 @@
   }
   .quote {
     padding-left: 10px;
-    border-left: 2px solid var(--border-control);
+    border-left: 1px solid var(--border-control);
     font: var(--type-label);
     font-weight: 400;
     color: var(--ink-strong);
