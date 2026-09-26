@@ -7,7 +7,7 @@
    * On a phone the rail is a sheet the bar's burger opens; on a desktop it is a
    * resizable column whose width is this browser's, not the fleet's.
    */
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { TextMorph } from "torph/svelte";
   import { browser } from "$app/environment";
   import { afterNavigate } from "$app/navigation";
@@ -56,7 +56,8 @@
     railWidth: initialRailWidth = RAIL_DEFAULT,
   }: { children: import("svelte").Snippet; railWidth?: number } = $props();
 
-  let railWidth = $state(clamp(initialRailWidth));
+  // Seeded once from the server's reading; dragging owns it after that.
+  let railWidth = $state(untrack(() => clamp(initialRailWidth)));
   let jumpOpen = $state(false);
   let railOpen = $state(false);
   let assistantOpen = $state(false);

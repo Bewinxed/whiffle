@@ -387,14 +387,6 @@
     background: var(--surface-recess);
     border-radius: var(--radius-xs);
   }
-  .empty {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-4);
-    color: var(--ink-muted);
-    font-size: var(--text-label);
-  }
   .error {
     position: absolute;
     bottom: 0;
