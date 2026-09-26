@@ -231,7 +231,7 @@
     "text-label font-medium " +
     "[&_svg:not([class*='size-'])]:size-3";
 
-  /* The permission gate is symmetric: Approve and Deny are outline peers at
+  /* The permission gate is symmetric: Approve and Deny are recessed peers at
      one fill and one border, differing only in glyph. */
   const peer = `${btnBase} flex-1 min-w-0`;
   const grant = peer;
@@ -327,7 +327,7 @@
     <div class="choice">
       <Button
         class={grant}
-        variant="outline"
+        variant="secondary"
         disabled={!answerable}
         onclick={() => answer('allow')}
       >
@@ -335,7 +335,7 @@
       </Button>
       <Button
         class={refuse}
-        variant="outline"
+        variant="secondary"
         disabled={!answerable}
         onclick={() => answer('deny')}
       >

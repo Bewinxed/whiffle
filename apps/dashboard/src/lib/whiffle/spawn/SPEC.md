@@ -4,7 +4,7 @@
 
 Above 600px the modal is 640px wide and centered on both viewport axes. It uses the app Dialog parts and bits-ui focus management, `--surface-raised`, `--radius-modal`, and `--shadow-modal`. The recessed prompt uses `--surface-well`. These two semantic aliases resolve to the existing field surface and overlay shadow in app.css. The authoritative design file is `/DESIGN.md` at the repository root.
 
-There are two regions: a borderless prompt well with at least eight rows, and a composer region with a reserved error-reading slot and one 40px flex row. The placeholder is "What should the agent do?". Focus changes the well's inset edge and ink. Start remains anchored right through all selections. No control or surface has a hairline.
+There are two regions: a borderless prompt well with at least eight rows, and a composer region with a reserved error-reading slot and one 40px flex row. The placeholder is "What should the agent do?". Focus changes the well's inset edge and ink. Start remains anchored right through all selections. Chips and the prompt well have no hairline; buttons, inputs and popovers carry the 1px `--border-control` edge.
 
 At 600px and below, the modal is a full-width bottom sheet with rounded top corners, flush bottom corners, and safe-area bottom padding. The prompt starts at six rows and can shrink within the available viewport. The app's `interactive-widget=resizes-content` declaration is supplemented by a modal-scoped visual-viewport listener; both the sheet and mobile panels stay inside its height and offset.
 
@@ -19,9 +19,9 @@ In order: agent/model pill, location pill, mode pill, effort slider, options, St
 - Mode shows a Solar icon and short name. Its popover contains four RadioGroup rows. Bypass all uses `--status-attn-bg` / `--status-attn-ink` on the trigger.
 - Effort uses a 150px bits-ui Slider with five 16px Solar detents. Inactive icons use full-opacity `--ink-muted`; the active filled icon rides an 18px spring thumb in `--brand-solid`. The visible 4px track uses `--border-control`. Hover/drag shows the level name. Null shows the documented harness default in muted ink and remains omitted from the payload: Claude Code xhigh where supported, otherwise the API high default. Unsupported effort collapses inside a reserved slot.
 - Options contains two app Switch controls: Scratch and Bootstrap. Scratch maps to the existing scratch payload. Bootstrap opens the repository location picker.
-- Start is the app Button using `--gradient-action` / `--shadow-action`, with the keyboard hint.
+- Start is the flat primary button (`--brand-solid` fill, `--on-brand` text, hover `--ink-hover`), with the keyboard hint.
 
-Pills are transparent, with `--surface-hover` on hover and `--surface-active` while open. Selected agent tiles and rows use a 12% `--brand-solid` tint with `--ink-strong` text; the travelling hover/keyboard highlight uses `--surface-hover`. Brand is reserved for selection, effort, enabled switches, and Start. Identity logos retain their own colours.
+Pills are transparent, with `--surface-hover` on hover and `--surface-fill` while open. Selected agent tiles and rows use a 12% `--brand-solid` tint with `--ink-strong` text; the travelling hover/keyboard highlight uses `--surface-hover`. Brand is reserved for selection, effort, enabled switches, and Start. Identity logos retain their own colours.
 
 ## 3. Interaction
 
